@@ -1,4 +1,5 @@
 // lib/screens/pos/s04_clinical_guard_dialog.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/widgets/shared_widgets.dart';
@@ -33,6 +34,7 @@ class _S04ClinicalGuardDialogState extends State<S04ClinicalGuardDialog>{
       content:SizedBox(width:720,child:SingleChildScrollView(child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
         DropdownButtonFormField<int?>(value:patient?.id,decoration:const InputDecoration(labelText:'ملف المريض'),items:[const DropdownMenuItem<int?>(value:null,child:Text('بدون ملف مريض')), ...clinical.patients.map((p)=>DropdownMenuItem<int?>(value:p.id,child:Text(p.fullName)))],onChanged:(id)=>clinical.selectPatient(id==null?null:clinical.patients.firstWhere((p)=>p.id==id))),
         if(patient!=null)Padding(padding:const EdgeInsets.symmetric(vertical:8),child:Wrap(spacing:8,runSpacing:8,children:[_tag('العمر',patient.ageYears==null?'غير محدد':'${patient.ageYears} سنة'),_tag('الوزن',patient.weightKg==null?'غير محدد':'${patient.weightKg} كجم'),_tag('CrCl',patient.crcl==null?'غير محسوب':'${patient.crcl!.toStringAsFixed(1)} مل/دقيقة'),_tag('الحمل',patient.isPregnant?'نعم':'لا'),_tag('الرضاعة',patient.isLactating?'نعم':'لا'),_tag('الكبد',patient.childPughClass??'غير محدد')])),
+        if(patient!=null)Align(alignment:AlignmentDirectional.centerEnd,child:TextButton.icon(onPressed:()=>_editPatient(clinical,patient),icon:const Icon(Icons.edit),label:const Text('تعديل الملف السريري'))),
         TextField(controller:foods,decoration:const InputDecoration(labelText:'الأطعمة الحالية (افصل بينها بفاصلة)'),onChanged:(value)=>clinical.setFoodIntake(value.split(',').map((x)=>x.trim()).where((x)=>x.isNotEmpty).toList())),
         Align(alignment:AlignmentDirectional.centerEnd,child:TextButton(onPressed:()=>clinical.evaluateCart(pos.cart.map((x)=>x.drug).toList()),child:const Text('إعادة الفحص'))),
         const Divider(),
@@ -56,6 +58,36 @@ class _S04ClinicalGuardDialogState extends State<S04ClinicalGuardDialog>{
       actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('إغلاق')),FilledButton(onPressed:clinical.verdict.hasUnresolvedCritical?null:()=>Navigator.pop(context,true),child:const Text('اعتماد الفحص'))],
     );
   }
+
+  Future<void> _editPatient(ClinicalAndRxProvider provider,PatientClinicalModel patient)async{
+    final age=TextEditingController(text:patient.ageYears?.toString()??'');
+    final weight=TextEditingController(text:patient.weightKg?.toString()??'');
+    final height=TextEditingController(text:patient.heightCm?.toString()??'');
+    final creatinine=TextEditingController(text:patient.serumCreatinine?.toString()??'');
+    final egfr=TextEditingController(text:patient.egfrMlMin?.toString()??'');
+    final allergy=TextEditingController(text:patient.allergies.join(', '));
+    var sex=patient.sex;var pregnant=patient.isPregnant;var lactating=patient.isLactating;var trimester=patient.pregnancyTrimester;var childPugh=patient.childPughClass;
+    final save=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,setDialogState)=>AlertDialog(title:const Text('تعديل الملف السريري'),content:SizedBox(width:520,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+      TextField(controller:age,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'العمر بالسنوات')),
+      DropdownButtonFormField<String>(value:sex,decoration:const InputDecoration(labelText:'الجنس'),items:const [DropdownMenuItem(value:'M',child:Text('ذكر')),DropdownMenuItem(value:'F',child:Text('أنثى'))],onChanged:(v)=>setDialogState(()=>sex=v??'M')),
+      TextField(controller:weight,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'الوزن كجم')),
+      TextField(controller:height,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'الطول سم')),
+      SwitchListTile(value:pregnant,onChanged:(v)=>setDialogState(()=>pregnant=v),title:const Text('حامل')),
+      if(pregnant)DropdownButtonFormField<int>(value:trimester,decoration:const InputDecoration(labelText:'ثلث الحمل'),items:const [DropdownMenuItem(value:1,child:Text('الأول')),DropdownMenuItem(value:2,child:Text('الثاني')),DropdownMenuItem(value:3,child:Text('الثالث'))],onChanged:(v)=>setDialogState(()=>trimester=v)),
+      SwitchListTile(value:lactating,onChanged:(v)=>setDialogState(()=>lactating=v),title:const Text('مرضع')),
+      TextField(controller:creatinine,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'كرياتينين المصل')),
+      TextField(controller:egfr,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'CrCl / eGFR يدوي (اختياري)')),
+      DropdownButtonFormField<String>(value:childPugh,decoration:const InputDecoration(labelText:'Child-Pugh'),items:const [DropdownMenuItem(value:null,child:Text('غير محدد')),DropdownMenuItem(value:'A',child:Text('A')),DropdownMenuItem(value:'B',child:Text('B')),DropdownMenuItem(value:'C',child:Text('C'))],onChanged:(v)=>setDialogState(()=>childPugh=v)),
+      TextField(controller:allergy,decoration:const InputDecoration(labelText:'الحساسيات (افصل بينها بفاصلة)')),
+    ]))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حفظ'))]));
+    if(save==true){
+      final years=int.tryParse(age.text);final now=DateTime.now();
+      final updated=PatientClinicalModel(id:patient.id,partyId:patient.partyId,fullName:patient.fullName,birthDate:years==null?patient.birthDate:DateTime(now.year-years,now.month,now.day),sex:sex,weightKg:double.tryParse(weight.text),heightCm:double.tryParse(height.text),isPregnant:pregnant,pregnancyTrimester:pregnant?trimester:null,isLactating:lactating,serumCreatinine:double.tryParse(creatinine.text),egfrMlMin:double.tryParse(egfr.text),renalStage:patient.renalStage,childPughClass:childPugh,allergiesJson:jsonEncode(allergy.text.split(',').map((x)=>x.trim()).where((x)=>x.isNotEmpty).toList()),chronicConditionsJson:patient.chronicConditionsJson,currentMedsJson:patient.currentMedsJson);
+      await provider.updatePatient(updated);
+    }
+    for(final controller in [age,weight,height,creatinine,egfr,allergy]){controller.dispose();}
+  }
+
   Widget _tag(String label,String value)=>Chip(label:Text('$label: $value'));
   Widget _level(ClinicalLevel level){final color=switch(level){ClinicalLevel.block=>const Color(0xffEF5350),ClinicalLevel.warning=>const Color(0xffFFB74D),ClinicalLevel.caution=>const Color(0xff4DB6AC),ClinicalLevel.info=>Colors.blueGrey};return Chip(backgroundColor:color.withValues(alpha:.18),label:Text(level.name.toUpperCase(),style:TextStyle(color:color)));}
   Future<void> _decide(ClinicalAndRxProvider p,ClinicalAlertModel a,String decision,int? user,[String? why,int? manager])async{await p.decideAlert(a,decision:decision,userId:user,reason:why,managerUserId:manager);}
