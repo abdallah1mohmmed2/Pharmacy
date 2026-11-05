@@ -55,5 +55,5 @@ class _LoginScreenState extends State<_LoginScreen>{
     const SizedBox(height:14),SizedBox(width:double.infinity,child:FilledButton(onPressed:busy?null:_login,child:Text(busy?'جارٍ الدخول':'تسجيل الدخول'))),
     const Text('حساب التأسيس: admin / 123456',style:TextStyle(color:Colors.white54,fontSize:11)),
   ]))))));
-  Future<void> _login()async{setState(()=>busy=true);final ok=await context.read<SessionAndErpProvider>().login(user.text,pass.text);if(!mounted)return;setState(()=>{busy=false,error:ok?null:'بيانات الدخول غير صحيحة'});if(ok){await context.read<PosAndDrugsProvider>().loadDrugs();}}
+  Future<void> _login()async{setState(()=>busy=true);final ok=await context.read<SessionAndErpProvider>().login(user.text,pass.text);if(!mounted)return;setState(() { busy=false; error=ok?null:'بيانات الدخول غير صحيحة'; });if(ok){await context.read<PosAndDrugsProvider>().loadDrugs();}}
 }
