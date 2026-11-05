@@ -1,5 +1,4 @@
-import 'dart:convert';
-import 'package:crypto/crypto.dart';
+import '../data/services/security_hash_service.dart';
 import 'package:flutter/foundation.dart';
 import '../data/database/database_helper.dart';
 import '../data/models/erp_models.dart';
@@ -21,14 +20,13 @@ class SessionAndErpProvider extends ChangeNotifier {
   String? lastError;
 
   Future<bool> login(String username,String password) async {
-    final rows=await _db.rawQuery('SELECT * FROM users WHERE username=? AND password_hash=? AND is_active=1 AND is_deleted=0',[username.trim(),sha256.convert(utf8.encode(password)).toString()]);
-    if(rows.isEmpty)return false;
+    final rows=await _db.rawQuery('SELECT * FROM users WHERE username=? AND is_active=1 AND is_deleted=0',[username.trim()]);
+    if(rows.isEmpty || !SecurityHashService.verify(password,rows.first['password_hash'] as String))return false;
     currentUser=rows.first;branchId=rows.first['branch_id'] as int;notifyListeners();await refresh();return true;
   }
   Future<bool> verifyManagerPin(String pin) async {
-    final hash=sha256.convert(utf8.encode(pin)).toString();
-    final rows=await _db.rawQuery("SELECT id FROM users WHERE branch_id=? AND role_code IN('OWNER','MANAGER') AND manager_pin_hash=? AND is_active=1 AND is_deleted=0 LIMIT 1",[branchId,hash]);
-    return rows.isNotEmpty;
+    final rows=await _db.rawQuery("SELECT manager_pin_hash FROM users WHERE branch_id=? AND role_code IN('OWNER','MANAGER') AND is_active=1 AND is_deleted=0",[branchId]);
+    return rows.any((row)=>SecurityHashService.verify(pin,row['manager_pin_hash'] as String));
   }
   void logout(){currentUser=null;notifyListeners();}
   Future<void> refresh() async {
