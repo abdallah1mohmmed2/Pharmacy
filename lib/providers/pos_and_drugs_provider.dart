@@ -26,11 +26,11 @@ class PosAndDrugsProvider extends ChangeNotifier {
   void holdCurrent(){currentTab.held=true;notifyListeners();}
   bool restoreCurrent(){if(!currentTab.held)return false;currentTab.held=false;notifyListeners();return true;}
   void closeCurrent(){if(tabs.length==1){currentTab.items.clear();currentTab.patientFlags.clear();currentTab.held=false;}else{tabs.removeAt(activeTab);activeTab=activeTab.clamp(0,tabs.length-1).toInt();}clinicalBlock=null;for(final item in cart){_checkDrug(item.drug);}notifyListeners();}
-  void setPatientFlag(String flag,bool enabled){if(enabled){patientFlags.add(flag);}else{patientFlags.remove(flag);}clinicalBlock=null;for(final item in cart){_checkDrug(item.drug);}notifyListeners();}
+  void setPatientFlag(String flag,bool enabled){if(currentTab.held)return;if(enabled){patientFlags.add(flag);}else{patientFlags.remove(flag);}clinicalBlock=null;for(final item in cart){_checkDrug(item.drug);}notifyListeners();}
   void addDrug(DrugModel drug,{String unit='UNIT'}){if(currentTab.held)throw StateError('استرجع الفاتورة قبل تعديلها');_checkDrug(drug);cart.add(CartItemModel(drug:drug,sellUnit:unit));notifyListeners();}
-  void removeItem(CartItemModel item){cart.remove(item);clinicalBlock=null;for(final i in cart){_checkDrug(i.drug);}notifyListeners();}
-  void changeQuantity(CartItemModel item,double qty){if(qty<=0){removeItem(item);}else{item.quantity=qty;notifyListeners();}}
-  void changeUnit(CartItemModel item,String unit){item.sellUnit=unit;notifyListeners();}
+  void removeItem(CartItemModel item){if(currentTab.held)return;cart.remove(item);clinicalBlock=null;for(final i in cart){_checkDrug(i.drug);}notifyListeners();}
+  void changeQuantity(CartItemModel item,double qty){if(currentTab.held)return;if(qty<=0){removeItem(item);}else{item.quantity=qty;notifyListeners();}}
+  void changeUnit(CartItemModel item,String unit){if(currentTab.held)return;item.sellUnit=unit;notifyListeners();}
   void _checkDrug(DrugModel d){
     if(patientFlags.contains('PREGNANT') && d.pregnancyCategory=='X')clinicalBlock='تحذير حمل حرج: '+d.tradeNameAr+' مصنف ضمن الفئة X.';
     if(patientFlags.contains('KIDNEY') && ['AVOID','CONTRAINDICATED'].contains(d.renalStatus))clinicalBlock='تحذير كلوي: '+d.tradeNameAr+' — '+d.renalNotes;
