@@ -19,7 +19,7 @@ class _S25EmployeesShiftsPayrollScreenState extends State<S25EmployeesShiftsPayr
     Expanded(child:TabBarView(controller:tabs,children:[_employees(p),_attendance(p),_payroll(p)]))
   ]));}
   Widget _employees(TreasuryHrPartnerProvider p)=>ListView(padding:const EdgeInsets.all(12),children:p.employees.map((e){
-    final lah=(e['total_lah'] as num).toDouble(),alayh=(e['total_alayh'] as num).toDouble(),net=lah-alayh;
+    final lah=(e['total_lah'] as num).toDouble(),alayh=(e['total_alayh'] as num).toDouble();
     return Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
       Row(children:[Expanded(child:Text(e['name_ar'].toString(),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:16))),Chip(label:Text(e['pay_type']=='DAILY'?'أجر يومي':'راتب شهري'))]),
       Text('الوظيفة: ${e['job_title']} • الأجر: ${(e['pay_rate'] as num).toStringAsFixed(2)}'),
