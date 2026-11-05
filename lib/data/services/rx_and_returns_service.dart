@@ -101,13 +101,17 @@ class RxAndReturnsService {
       final allocation=allocations.firstWhere((r)=>(r['qty_units'] as int)>(r['returned_qty_units'] as int),orElse:()=>throw StateError('لا توجد كمية متبقية للإرجاع من هذه التشغيلة'));
       final eligible=(allocation['qty_units'] as int)-(allocation['returned_qty_units'] as int);
       if(qtyUnits>eligible)throw StateError('الكمية المرتجعة تتجاوز الكمية المباعة المتبقية من التشغيلة المحددة');
+      final priorRefundRows=await txn.rawQuery('SELECT COALESCE(SUM(refund_amount),0) AS refunded FROM sales_return_items WHERE invoice_item_id=?',[invoiceItemId]);
+      final alreadyRefunded=(priorRefundRows.first['refunded'] as num).toDouble();
+      final remainingRefund=((item['line_total'] as num).toDouble()-alreadyRefunded).clamp(0,double.infinity).toDouble();
+      if(refundAmount>remainingRefund+0.005)throw StateError('قيمة الرد تتجاوز صافي قيمة البند المتبقية بعد المرتجعات السابقة');
       final actualBatchId=allocation['batch_id'] as int;
       if(disposition=='RESTOCK'&&(drug.requiresRefrigeration||((drug.dosageForm=='SYRUP'||drug.dosageForm=='DROPS')&&openedLiquid)))throw StateError('لا يمكن إعادة الدواء المبرّد أو السائل المفتوح إلى المخزون الصالح؛ اختر الحجر أو الإتلاف');
       final customerId=invoiceRows.first['customer_party_id'] as int?;
       if(refundMethod=='CREDIT_TO_ACCOUNT'&&customerId==null)throw StateError('الفاتورة لا ترتبط بعميل لحساب المرتجع');
       if(refundMethod=='WALLET'&&(walletRef??'').trim().length<6)throw StateError('رقم إشعار المحفظة إلزامي');
       final returnNo=_number('RET');
-      final returnId=await txn.insert('sales_returns',{'return_no':returnNo,'return_date':DateTime.now().toIso8601String(),'original_invoice_id':invoiceId,'customer_party_id':customerId,'refund_method':refundMethod,'reason_code':reasonCode,'reason_text':reasonText,'total_refund':refundAmount,'approved_by':approvedBy,'status':'POSTED'});
+      final returnId=await txn.insert('sales_returns',{'return_no':returnNo,'return_date':DateTime.now().toIso8601String(),'original_invoice_id':invoiceId,'customer_party_id':customerId,'refund_method':refundMethod,'reason_code':reasonCode,'reason_text':reasonText,'total_refund':refundAmount,'approved_by':approvedBy,'wallet_ref_no':walletRef,'status':'POSTED'});
       await txn.insert('sales_return_items',{'sales_return_id':returnId,'invoice_item_id':invoiceItemId,'batch_id':actualBatchId,'qty_units':qtyUnits,'refund_amount':refundAmount,'disposition':disposition,'inspection_note':reasonText});
       await txn.rawUpdate('UPDATE sales_invoice_item_batches SET returned_qty_units=returned_qty_units+? WHERE id=?',[qtyUnits,allocation['id']]);
       final batchRows=await txn.query('batches_fefo',where:'id=?',whereArgs:[actualBatchId],limit:1);final batch=batchRows.first;final oldTotal=(batch['total_units'] as num).toInt();final newTotal=oldTotal+(disposition=='RESTOCK'?qtyUnits:0);
@@ -118,9 +122,15 @@ class RxAndReturnsService {
         await txn.rawUpdate('UPDATE drugs SET stock_total_units=stock_total_units+? WHERE id=?',[qtyUnits,drug.id]);
       }else if(disposition=='QUARANTINE'){
         final wh=await txn.query('warehouses',where:"wh_type='QUARANTINE'",limit:1);if(wh.isEmpty)throw StateError('مستودع الحجر غير موجود');
-        await txn.update('batches_fefo',{'status':'QUARANTINED','warehouse_id':wh.first['id']},where:'id=?',whereArgs:[actualBatchId]);
-        await txn.insert('stock_movements',{'drug_id':drug.id,'batch_id':actualBatchId,'warehouse_id':batch['warehouse_id'],'movement_type':'TRANSFER_OUT','qty_units':-qtyUnits,'unit_cost':batch['unit_cost'],'unit_price':0,'balance_after_units':oldTotal-qtyUnits,'doc_type':'SALES_RETURN','doc_id':returnId,'doc_line_id':invoiceItemId,'movement_at':DateTime.now().toIso8601String(),'note':'تحويل مرتجع إلى الحجر'});
-        await txn.insert('stock_movements',{'drug_id':drug.id,'batch_id':actualBatchId,'warehouse_id':wh.first['id'],'movement_type':'TRANSFER_IN','qty_units':qtyUnits,'unit_cost':batch['unit_cost'],'unit_price':0,'balance_after_units':oldTotal,'doc_type':'SALES_RETURN','doc_id':returnId,'doc_line_id':invoiceItemId,'movement_at':DateTime.now().toIso8601String(),'note':'استلام المرتجع في الحجر'});
+        final remainingUnits=oldTotal-qtyUnits;final unitsPerPack=drug.unitsPerPack??drug.effectiveUnitsPerPack;
+        await txn.update('batches_fefo',{'sealed_packs':remainingUnits~/unitsPerPack,'loose_units':remainingUnits%unitsPerPack,'total_units':remainingUnits,'status':remainingUnits==0?'DEPLETED':'ACTIVE'},where:'id=?',whereArgs:[actualBatchId]);
+        final quarantineBatch=Map<String,Object?>.from(batch)..remove('id');
+        quarantineBatch['warehouse_id']=wh.first['id'];quarantineBatch['location_id']=null;quarantineBatch['batch_no']='${batch['batch_no']}-RET-$returnId';quarantineBatch['sealed_packs']=qtyUnits~/unitsPerPack;quarantineBatch['loose_units']=qtyUnits%unitsPerPack;quarantineBatch['total_units']=qtyUnits;quarantineBatch['status']='QUARANTINED';
+        final quarantineBatchId=await txn.insert('batches_fefo',quarantineBatch);
+        await txn.update('sales_return_items',{'batch_id':quarantineBatchId},where:'sales_return_id=? AND invoice_item_id=?',[returnId,invoiceItemId]);
+        await txn.insert('stock_movements',{'drug_id':drug.id,'batch_id':actualBatchId,'warehouse_id':batch['warehouse_id'],'movement_type':'TRANSFER_OUT','qty_units':-qtyUnits,'unit_cost':batch['unit_cost'],'unit_price':0,'balance_after_units':remainingUnits,'doc_type':'SALES_RETURN','doc_id':returnId,'doc_line_id':invoiceItemId,'movement_at':DateTime.now().toIso8601String(),'note':'تحويل مرتجع إلى الحجر'});
+        await txn.insert('stock_movements',{'drug_id':drug.id,'batch_id':quarantineBatchId,'warehouse_id':wh.first['id'],'movement_type':'TRANSFER_IN','qty_units':qtyUnits,'unit_cost':batch['unit_cost'],'unit_price':0,'balance_after_units':qtyUnits,'doc_type':'SALES_RETURN','doc_id':returnId,'doc_line_id':invoiceItemId,'movement_at':DateTime.now().toIso8601String(),'note':'استلام المرتجع في الحجر'});
+        await txn.rawUpdate('UPDATE drugs SET stock_total_units=stock_total_units+? WHERE id=?',[qtyUnits,drug.id]);
       }else{
         final newTotal=(oldTotal-qtyUnits).clamp(0,1<<30);
         final unitsPerPack=drug.unitsPerPack??drug.effectiveUnitsPerPack;
@@ -128,15 +138,42 @@ class RxAndReturnsService {
         await txn.insert('stock_movements',{'drug_id':drug.id,'batch_id':actualBatchId,'warehouse_id':batch['warehouse_id'],'movement_type':'DISPOSAL_OUT','qty_units':-qtyUnits,'unit_cost':batch['unit_cost'],'unit_price':0,'balance_after_units':oldTotal-qtyUnits,'doc_type':'SALES_RETURN','doc_id':returnId,'doc_line_id':invoiceItemId,'movement_at':DateTime.now().toIso8601String(),'note':'إتلاف مرتجع مبيعات'});
         await txn.rawUpdate('UPDATE drugs SET stock_total_units=MAX(0,stock_total_units-?) WHERE id=?',[qtyUnits,drug.id]);
       }
+      int? creditAccountId;
+      int? refundGlAccountId;
       if(refundMethod=='CREDIT_TO_ACCOUNT'){
+        creditAccountId=await _accountId(txn,'1201');
         await txn.insert('lah_alayh_ledger',{'uuid':_number('LEDGER'),'branch_id':1,'created_at':DateTime.now().toIso8601String(),'updated_at':DateTime.now().toIso8601String(),'is_deleted':0,'sync_status':'LOCAL','sync_version':1,'party_id':customerId,'entry_date':DateTime.now().toIso8601String(),'entry_type':'SALES_RETURN','alayh_amount':0,'lah_amount':refundAmount,'doc_type':'SALES_RETURN','doc_id':returnId,'journal_entry_id':null,'statement_ar':'إضافة مبلغ لصالح العميل عن مرتجع $returnNo'});
       }else{
         if(cashAccountId==null)throw StateError('اختر الصندوق أو المحفظة لرد المبلغ');
-        if(refundMethod=='WALLET'&&walletRef==null)throw StateError('رقم إشعار المحفظة مطلوب');
+        if(refundMethod=='WALLET'&&(walletRef??'').trim().length<6)throw StateError('رقم إشعار المحفظة مطلوب');
+        final cash=await txn.query('cash_accounts',where:'id=?',whereArgs:[cashAccountId],limit:1);if(cash.isEmpty)throw StateError('حساب رد المبلغ غير موجود');
+        refundGlAccountId=int.tryParse(cash.first['gl_account_id'].toString());
+        if(refundGlAccountId==null)throw StateError('اربط حساب الصندوق بدليل الحسابات');
         await txn.rawUpdate('UPDATE cash_accounts SET current_balance=current_balance-? WHERE id=?',[refundAmount,cashAccountId]);
       }
+      final jeId=await _postReturnJournal(txn,returnId:returnId,returnNo:returnNo,refundAmount:refundAmount,refundAccountId:creditAccountId??refundGlAccountId!,inventoryCost:(disposition=='DISPOSE'?0:(batch['unit_cost'] as num).toDouble()*qtyUnits),approvedBy:approvedBy);
+      await txn.update('sales_returns',{'journal_entry_id':jeId},where:'id=?',whereArgs:[returnId]);
+      await txn.update('lah_alayh_ledger',{'journal_entry_id':jeId},where:"doc_type='SALES_RETURN' AND doc_id=?",[returnId]);
       return returnId;
     });
+  }
+
+  Future<int> _accountId(Transaction txn,String code) async {
+    final rows=await txn.query('chart_of_accounts',columns:['id'],where:'code=?',whereArgs:[code],limit:1);
+    if(rows.isEmpty)throw StateError('الحساب المحاسبي $code غير موجود');
+    return rows.first['id'] as int;
+  }
+  Future<int> _postReturnJournal(Transaction txn,{required int returnId,required String returnNo,required double refundAmount,required int refundAccountId,required double inventoryCost,required int? approvedBy}) async {
+    final now=DateTime.now().toIso8601String();
+    final je=await txn.insert('journal_entries',{'uuid':_number('JE'),'branch_id':1,'created_at':now,'updated_at':now,'is_deleted':0,'sync_status':'LOCAL','sync_version':1,'entry_no':_number('RET-JE'),'entry_date':now,'description':'قيد مرتجع المبيعات $returnNo','source_type':'SALES_RETURN','source_id':returnId,'is_posted':1});
+    final salesReturns=await _accountId(txn,'4101');
+    final lines=<({int account,double dr,double cr,String memo})>[
+      (account:salesReturns,dr:refundAmount,cr:0,memo:'عكس إيراد البيع'),
+      (account:refundAccountId,dr:0,cr:refundAmount,memo:'رد قيمة المرتجع'),
+    ];
+    if(inventoryCost>0){lines.add((account:await _accountId(txn,'1301'),dr:inventoryCost,cr:0,memo:'إعادة تكلفة البضاعة للمخزون'));lines.add((account:await _accountId(txn,'5101'),dr:0,cr:inventoryCost,memo:'عكس تكلفة البضاعة المباعة'));}
+    for(final line in lines){await txn.insert('journal_lines',{'uuid':_number('JL'),'branch_id':1,'created_at':now,'updated_at':now,'is_deleted':0,'sync_status':'LOCAL','sync_version':1,'journal_entry_id':je,'account_id':line.account,'party_id':null,'dr_amount':line.dr,'cr_amount':line.cr,'memo':line.memo});}
+    return je;
   }
   List<String> jsonDecodeSafe(String raw){try{return (jsonDecode(raw) as List).map((e)=>e.toString()).toList();}catch(_){return [];}}
 }
