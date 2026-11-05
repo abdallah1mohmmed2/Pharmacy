@@ -13,16 +13,31 @@ class PurchaseAndBonusService {
   final DatabaseHelper _db; final PostingAndSalesService _posting;
   String _number(String prefix)=>prefix+'-'+DateTime.now().microsecondsSinceEpoch.toString();
 
-  Future<int> postInvoice({required int branchId,required int supplierPartyId,required int warehouseId,required String invoiceNo,required String paymentType,required double paidTotal,required List<PurchaseLineInput> items,int? cashAccountId,bool includeBonusInCost=true,double discountAmount=0,double taxAmount=0,String? supplierInvoiceNo}) async {
+  Future<int> postInvoice({required int branchId,required int supplierPartyId,required int warehouseId,required String invoiceNo,required String paymentType,required double paidTotal,required List<PurchaseLineInput> items,int? cashAccountId,bool includeBonusInCost=true,double discountAmount=0,double taxAmount=0,String? supplierInvoiceNo,int? purchaseOrderId}) async {
     if(items.isEmpty)throw ArgumentError('أضف صنفاً واحداً على الأقل');
     if(!['CASH','CREDIT','PARTIAL'].contains(paymentType))throw ArgumentError('نوع الدفع غير صالح');
     return (await _db.database).transaction((txn)async{
       final supplier=await txn.query('parties',where:"id=? AND party_type='SUPPLIER' AND is_deleted=0",whereArgs:[supplierPartyId]);
       if(supplier.isEmpty)throw StateError('المورد غير موجود');
+      Map<int,Map<String,Object?>> orderItemsByDrug={};
+      if(purchaseOrderId!=null){
+        final orders=await txn.query('purchase_orders',where:"id=? AND supplier_party_id=? AND status IN('DRAFT','PARTIALLY_RECEIVED')",whereArgs:[purchaseOrderId,supplierPartyId],limit:1);
+        if(orders.isEmpty)throw StateError('أمر الشراء غير موجود أو تم استلامه بالكامل');
+        final orderItems=await txn.query('purchase_order_items',where:'po_id=?',whereArgs:[purchaseOrderId]);
+        if(orderItems.isEmpty)throw StateError('أمر الشراء لا يحتوي على أصناف');
+        orderItemsByDrug={for(final row in orderItems) row['drug_id'] as int:row};
+      }
       final warehouseRows=await txn.query('warehouses',where:'id=?',whereArgs:[warehouseId],limit:1);if(warehouseRows.isEmpty)throw StateError('المستودع المحدد غير موجود');
       final now=DateTime.now().toIso8601String();final today=now.substring(0,10);final prepared=<Map<String,Object?>>[];double subtotal=0;int totalBonus=0;
       for(final item in items){
         if(item.warehouseId!=warehouseId||item.batchNo.trim().isEmpty||item.qtyPacksPaid<=0||item.bonusPacks<0||item.packPrice<0||item.lineDiscountPct<0||item.lineDiscountPct>100)throw ArgumentError('بيانات بند الشراء غير صحيحة');
+        if(purchaseOrderId!=null){
+          final orderItem=orderItemsByDrug[item.drugId];
+          if(orderItem==null)throw StateError('الصنف غير موجود في أمر الشراء');
+          final ordered=orderItem['qty_packs'] as int;
+          final received=orderItem['received_packs'] as int;
+          if(item.qtyPacksPaid>ordered-received)throw StateError('الكمية المستلمة تتجاوز الكمية المتبقية في أمر الشراء');
+        }
         final expiry=DateTime.tryParse(item.expiryDate);if(expiry==null||expiry.toIso8601String().substring(0,10)!=item.expiryDate||item.expiryDate.compareTo(today)<0)throw ArgumentError('لا يمكن توريد تشغيلة بصلاحية غير صحيحة أو منتهية');
         final rows=await txn.query('drugs',columns:['units_per_pack','cost_price_pack','stock_total_units','sell_price_pack','requires_refrigeration'],where:'id=? AND is_deleted=0',whereArgs:[item.drugId]);
         if(rows.isEmpty)throw StateError('الصنف غير موجود');
@@ -61,7 +76,7 @@ class PurchaseAndBonusService {
       if((await txn.query('purchase_invoices',where:'invoice_no=?',whereArgs:[generatedNo],limit:1)).isNotEmpty)throw StateError('رقم فاتورة الشراء مستخدم مسبقاً');
       if(supplierInvoiceNo!=null&&supplierInvoiceNo.trim().isNotEmpty&&(await txn.query('purchase_invoices',where:'supplier_party_id=? AND supplier_invoice_no=?',whereArgs:[supplierPartyId,supplierInvoiceNo.trim()],limit:1)).isNotEmpty)throw StateError('رقم فاتورة المورد مسجل مسبقاً');
       final remaining=net-paidTotal;
-      final invoiceId=await txn.insert('purchase_invoices',{'invoice_no':generatedNo,'supplier_invoice_no':supplierInvoiceNo?.trim(),'supplier_party_id':supplierPartyId,'warehouse_id':warehouseId,'invoice_date':now,'payment_type':paymentType,'subtotal':subtotal,'discount_amount':discountAmount,'tax_amount':taxAmount,'net_total':net,'paid_total':paidTotal,'remaining_lah':remaining,'status':'POSTED'});
+      final invoiceId=await txn.insert('purchase_invoices',{'invoice_no':generatedNo,'supplier_invoice_no':supplierInvoiceNo?.trim(),'supplier_party_id':supplierPartyId,'po_id':purchaseOrderId,'warehouse_id':warehouseId,'invoice_date':now,'payment_type':paymentType,'subtotal':subtotal,'discount_amount':discountAmount,'tax_amount':taxAmount,'net_total':net,'paid_total':paidTotal,'remaining_lah':remaining,'status':'POSTED'});
       for(final p in prepared){
         final item=p['item'] as PurchaseLineInput;final units=p['units'] as int;final packs=p['packs'] as int;final lineTotal=p['lineTotal'] as double;final effective=p['effective'] as double;final unitCost=p['unitCost'] as double;
         final lineId=await txn.insert('purchase_invoice_items',{'invoice_id':invoiceId,'drug_id':item.drugId,'batch_no':item.batchNo,'expiry_date':item.expiryDate,'location_id':item.locationId,'qty_packs_paid':item.qtyPacksPaid,'bonus_packs':item.bonusPacks,'qty_packs_total':packs,'pack_price':item.packPrice,'line_discount_pct':item.lineDiscountPct,'line_total':lineTotal,'effective_pack_cost':effective,'new_sell_price_pack':item.newSellPricePack});
@@ -85,6 +100,15 @@ class PurchaseAndBonusService {
       if(paidTotal>0){final cash=await txn.query('cash_accounts',columns:['gl_account_id'],where:'id=?',whereArgs:[cashAccountId]);if(cash.isEmpty||cash.first['gl_account_id']==null)throw StateError('اربط الصندوق بدليل الحسابات أولاً');lines.add((accountId:cash.first['gl_account_id'] as int,debit:0,credit:paidTotal,partyId:null,memo:'سداد فاتورة مشتريات'));await txn.rawUpdate('UPDATE cash_accounts SET current_balance=current_balance-?,updated_at=? WHERE id=?',[paidTotal,now,cashAccountId]);}
       final journal=await _posting.postBalancedEntry(txn,branchId:branchId,description:'فاتورة مشتريات '+generatedNo,sourceType:'PURCHASE',sourceId:invoiceId,lines:lines);
       await txn.update('purchase_invoices',{'journal_entry_id':journal},where:'id=?',whereArgs:[invoiceId]);
+      if(purchaseOrderId!=null){
+        for(final entry in prepared){
+          final item=entry['item'] as PurchaseLineInput;
+          final orderItem=orderItemsByDrug[item.drugId]!;
+          await txn.update('purchase_order_items',{'received_packs':(orderItem['received_packs'] as int)+item.qtyPacksPaid},where:'id=?',whereArgs:[orderItem['id']]);
+        }
+        final pending=await txn.rawQuery('SELECT COUNT(*) pending FROM purchase_order_items WHERE po_id=? AND received_packs<qty_packs',[purchaseOrderId]);
+        await txn.update('purchase_orders',{'status':(pending.first['pending'] as int)==0?'RECEIVED':'PARTIALLY_RECEIVED'},where:'id=?',whereArgs:[purchaseOrderId]);
+      }
       return invoiceId;
     });
   }
