@@ -46,7 +46,7 @@ abstract final class SchemaIteration2 {
     for(final shelf in shelves){await db.insert('shelf_locations',{'warehouse_id':shelf[1],'code':shelf[0],'description':'رف \${shelf[0]}','is_fridge':shelf[2]});}
     final drugs=await db.query('drugs',columns:['id','units_per_pack','cost_price_pack','requires_refrigeration'],where:'is_deleted=0');
     for(var index=0;index<drugs.length;index++){
-      final drug=drugs[index];final units=(drug['units_per_pack'] as int?)??1;final cold=(drug['requires_refrigeration'] as int? ?? 0)==1;final warehouse=cold?fridge:main;
+      final drug=drugs[index];final units=(drug['units_per_pack'] as int?)??1;final cold=(drug['requires_refrigeration'] as int? ?? 0)==1;final warehouse=cold?fridge:pharmacy;
       final shelf=await db.query('shelf_locations',columns:['id'],where:'warehouse_id=?',whereArgs:[warehouse],limit:1);
       final expiry=DateTime.now().add(Duration(days:[-4,25,55,110,240,400][index%6])).toIso8601String().substring(0,10);
       final packCost=(drug['cost_price_pack'] as num? ?? 0).toDouble();
