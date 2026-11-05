@@ -113,7 +113,9 @@ class ShiftAndTreasuryService {
       final movement=await tx.rawQuery("SELECT COALESCE(SUM(CASE WHEN direction='IN' THEN amount ELSE -amount END),0) movement FROM cash_transactions WHERE cashier_shift_id=? AND cash_account_id=?",[shiftId,shift['drawer_account_id']]);
       final expected=_n(shift['opening_cash'])+_n(movement.first['movement']);
       difference=((actual-expected)*100).roundToDouble()/100;
-      await tx.update('cashier_shifts',{'expected_cash':expected,'counted_cash':actual,'diff_amount':difference,'counted_wallets_json':jsonEncode(countedWallets),'counted_denominations_json':jsonEncode(denominations),'diff_handling':diffHandling,'closed_at':_now(),'status':handoverToUserId==null?'CLOSED':'HANDED_OVER','handover_to_user_id':handoverToUserId},where:'id=?',whereArgs:[shiftId]);
+      final walletRows=await tx.query('cash_accounts',columns:['id','current_balance'],where:"branch_id=? AND account_kind='WALLET'",whereArgs:[shift['branch_id']]);
+      final expectedWallets={for(final wallet in walletRows)(wallet['id'] as int).toString():_n(wallet['current_balance'])};
+      await tx.update('cashier_shifts',{'expected_cash':expected,'counted_cash':actual,'diff_amount':difference,'expected_wallets_json':jsonEncode(expectedWallets),'counted_wallets_json':jsonEncode(countedWallets),'counted_denominations_json':jsonEncode(denominations),'diff_handling':diffHandling,'closed_at':_now(),'status':handoverToUserId==null?'CLOSED':'HANDED_OVER','handover_to_user_id':handoverToUserId},where:'id=?',whereArgs:[shiftId]);
       if(difference.abs()>=0.005){await _postShiftDiff(tx,shift:shift,shiftId:shiftId,difference:difference,handling:diffHandling);}
       if(handoverToUserId!=null){final drawerId=shift['drawer_account_id'] as int;await tx.insert('cashier_shifts',{'shift_no':'SH-${DateTime.now().millisecondsSinceEpoch}','user_id':handoverToUserId,'cashier_party_id':shift['cashier_party_id'],'drawer_account_id':drawerId,'work_shift_id':shift['work_shift_id'],'opened_at':_now(),'opening_cash':actual,'status':'OPEN','branch_id':shift['branch_id']});}
     });
@@ -132,6 +134,8 @@ class ShiftAndTreasuryService {
       await _journalLine(tx,branchId:branchId,entryId:je,accountId:cashGl,cr:amount,memo:'عجز صندوق');
       await tx.insert('lah_alayh_ledger',{'uuid':_uuid('shift-shortage'),'branch_id':branchId,'created_at':_now(),'updated_at':_now(),'party_id':partyId,'entry_date':_now(),'entry_type':'CASHIER_SHORTAGE','alayh_amount':amount,'lah_amount':0,'doc_type':'CASHIER_SHIFT','doc_id':shiftId,'journal_entry_id':je,'statement_ar':'عجز صندوق وردية رقم ${shift['shift_no']}'});
       await _cashMove(tx,branchId:branchId,accountId:drawerId,direction:'OUT',amount:amount,type:'SHIFT_DIFF',docType:'CASHIER_SHIFT',docId:shiftId,note:'ترحيل عجز الوردية');
+    }else if(difference<0&&handling=='EXPENSE'){
+      final drawer=await tx.query('cash_accounts',columns:['gl_account_id'],where:'id=?',whereArgs:[drawerId],limit:1);final cashGl=drawer.first['gl_account_id'] as int;final expense=await _glId(tx,'5304');final je=await _journal(tx,branchId:branchId,source:'SHIFT_SHORTAGE_EXPENSE',sourceId:shiftId,description:'عجز صندوق الوردية');await _journalLine(tx,branchId:branchId,entryId:je,accountId:expense,dr:amount,memo:'عجز صندوق');await _journalLine(tx,branchId:branchId,entryId:je,accountId:cashGl,cr:amount,memo:'عجز صندوق');await _cashMove(tx,branchId:branchId,accountId:drawerId,direction:'OUT',amount:amount,type:'SHIFT_DIFF',docType:'CASHIER_SHIFT',docId:shiftId,note:'عجز مسجل كمصروف');
     }else if(difference>0&&handling=='POST_TO_CASHIER'&&partyId!=null){
       final drawer=await tx.query('cash_accounts',columns:['gl_account_id'],where:'id=?',whereArgs:[drawerId],limit:1);
       final cashGl=drawer.first['gl_account_id'] as int;final revenue=await _glId(tx,'4102');
