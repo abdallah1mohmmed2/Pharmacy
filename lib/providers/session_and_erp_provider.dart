@@ -25,9 +25,19 @@ class SessionAndErpProvider extends ChangeNotifier {
     if(rows.isEmpty || !SecurityHashService.verify(password,rows.first['password_hash'] as String))return false;
     currentUser=rows.first;branchId=rows.first['branch_id'] as int;notifyListeners();await refresh();return true;
   }
+  int? _verifiedManagerUserId;
+  int? consumeVerifiedManagerUserId(){final id=_verifiedManagerUserId;_verifiedManagerUserId=null;return id;}
   Future<bool> verifyManagerPin(String pin) async {
-    final rows=await _db.rawQuery("SELECT manager_pin_hash FROM users WHERE branch_id=? AND role_code IN('OWNER','MANAGER') AND is_active=1 AND is_deleted=0",[branchId]);
-    return rows.any((row)=>SecurityHashService.verify(pin,row['manager_pin_hash'] as String));
+    _verifiedManagerUserId=null;
+    final rows=await _db.rawQuery("SELECT id,manager_pin_hash FROM users WHERE branch_id=? AND role_code IN('OWNER','MANAGER') AND is_active=1 AND is_deleted=0",[branchId]);
+    for(final row in rows){
+      final hash=row['manager_pin_hash'];
+      if(hash is String&&SecurityHashService.verify(pin,hash)){
+        _verifiedManagerUserId=row['id'] as int;
+        return true;
+      }
+    }
+    return false;
   }
   void logout(){currentUser=null;notifyListeners();}
   Future<void> refresh() async {
