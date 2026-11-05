@@ -58,7 +58,7 @@ class _S25EmployeesShiftsPayrollScreenState extends State<S25EmployeesShiftsPayr
   Future<void> _statement(Map<String,Object?> employee)async{
     final entries=await DatabaseHelper.instance.rawQuery('SELECT entry_date,entry_type,alayh_amount,lah_amount,statement_ar,doc_type,doc_id FROM lah_alayh_ledger WHERE party_id=? ORDER BY entry_date,id',[employee['party_id']]);
     if(!mounted)return;
-    final rows=entries.map((r)=>LahAlayhRow(date:r['entry_date'].toString().split('T').first,statement:r['statement_ar'].toString(),document:'${r['doc_type']} #${r['doc_id']??''}',alayh:(r['alayh_amount'] as num),lah:(r['lah_amount'] as num))).toList();
+    final rows=entries.map((r)=>LahAlayhRow(date:r['entry_date'].toString().split('T').first,statement:r['statement_ar'].toString(),document:'${r['doc_type']} #${r['doc_id']??''}',alayh:(r['alayh_amount'] as num).toDouble(),lah:(r['lah_amount'] as num).toDouble())).toList();
     await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(title:Text('كشف حساب • ${employee['name_ar']}'),content:SizedBox(width:850,height:480,child:LahAlayhTable(rows:rows)),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إغلاق'))]));
   }
   Future<void> _advance(TreasuryHrPartnerProvider p,Map<String,Object?> employee)async{
