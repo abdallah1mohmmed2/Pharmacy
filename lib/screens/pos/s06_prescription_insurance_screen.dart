@@ -1,4 +1,5 @@
 // lib/screens/pos/s06_prescription_insurance_screen.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/widgets/shared_widgets.dart';
@@ -25,13 +26,27 @@ class _S06PrescriptionInsuranceScreenState extends State<S06PrescriptionInsuranc
     if(mounted)setState((){rxRows=rows;alertRows=alerts;});
   }
   Future<void> _selectRx(int id)async{
-    final rows=await DatabaseHelper.instance.rawQuery('SELECT i.*,d.trade_name_ar,d.sell_price_unit,d.is_controlled FROM prescription_items i JOIN drugs d ON d.id=i.drug_id WHERE i.prescription_id=? ORDER BY i.id',[id]);
-    if(mounted)setState((){selectedRxId=id;rxItems=rows;});
+    final rows=await DatabaseHelper.instance.rawQuery('SELECT i.*,d.trade_name_ar,d.sell_price_unit,d.is_controlled,d.category_id FROM prescription_items i JOIN drugs d ON d.id=i.drug_id WHERE i.prescription_id=? ORDER BY i.id',[id]);
+    if(mounted)setState((){selectedRxId=id;rxItems=rows;final header=rxRows.where((r)=>r['id']==id).toList();if(header.isNotEmpty)policyId=header.first['insurance_policy_id'] as int?;});
   }
   @override Widget build(BuildContext context){
     final p=context.watch<ClinicalAndRxProvider>();final pos=context.watch<PosAndDrugsProvider>();final session=context.watch<SessionAndErpProvider>();
     final patient=p.patients.where((x)=>x.id==patientId).toList();final policies=p.policies.where((x)=>x.id==policyId).toList();final policy=policies.isEmpty?null:policies.first;
     final selectedRx=rxRows.where((r)=>r['id']==selectedRxId).toList();
+    var availableCoverage=policy?.remainingLimit??0.0;
+    final copayLines=<({Map<String,Object?> item,double gross,double insurer,double patient})>[];
+    for(final item in rxItems){
+      final remaining=((item['prescribed_qty_units'] as int)-(item['dispensed_qty_units'] as int)).clamp(0,1<<30);
+      final gross=(item['sell_price_unit'] as num).toDouble()*remaining;
+      var wanted=0.0;
+      if(policy!=null){
+        var excluded=false;
+        try{excluded=(jsonDecode(policy.excludedCategoriesJson) as List).map((x)=>x.toString()).contains(item['category_id']?.toString()??'');}catch(_){}
+        wanted=excluded?0:gross*policy.coveragePct/100;
+      }
+      final insurer=wanted.clamp(0,availableCoverage).toDouble();availableCoverage=(availableCoverage-insurer).clamp(0,double.infinity).toDouble();
+      copayLines.add((item:item,gross:gross,insurer:insurer,patient:gross-insurer));
+    }
     return Scaffold(body:ListView(padding:const EdgeInsets.all(16),children:[
       Text('صرف الوصفات الطبية والتأمين الصحي',style:Theme.of(context).textTheme.titleLarge),
       Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(children:[
@@ -59,6 +74,11 @@ class _S06PrescriptionInsuranceScreenState extends State<S06PrescriptionInsuranc
         TextField(controller:duration,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'المدة بالأيام')),
         FilledButton.icon(onPressed:saving?null:_addItem,icon:const Icon(Icons.add),label:const Text('إضافة بند للوصفة')),
         for(final item in rxItems)Card(child:ListTile(title:Text(item['trade_name_ar'] as String),subtitle:Text('الموصوف ${item['prescribed_qty_units']} • المصروف ${item['dispensed_qty_units']} • المتبقي ${(item['prescribed_qty_units'] as int)-(item['dispensed_qty_units'] as int)}'))),
+        if(copayLines.isNotEmpty)...[
+          const SizedBox(height:8),Text('توزيع حصة الوصفة',style:Theme.of(context).textTheme.titleSmall),
+          for(final line in copayLines)Card(child:ListTile(title:Text(line.item['trade_name_ar'] as String),subtitle:Text('الإجمالي ${line.gross.toStringAsFixed(2)} • شركة التأمين ${line.insurer.toStringAsFixed(2)} • المريض ${line.patient.toStringAsFixed(2)}'))),
+          Card(child:Padding(padding:const EdgeInsets.all(10),child:Text('الإجمالي ${copayLines.fold<double>(0,(s,x)=>s+x.gross).toStringAsFixed(2)} = حصة التأمين ${copayLines.fold<double>(0,(s,x)=>s+x.insurer).toStringAsFixed(2)} + حصة المريض ${copayLines.fold<double>(0,(s,x)=>s+x.patient).toStringAsFixed(2)}'))),
+        ],
         const Divider(),
         Text('تحصيل حصة المريض (يمكن ترك المتبقي على حسابه)',style:Theme.of(context).textTheme.titleSmall),
         TextField(controller:paid,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'المبلغ المحصل الآن')),
