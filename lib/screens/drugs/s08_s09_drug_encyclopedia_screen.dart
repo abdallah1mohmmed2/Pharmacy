@@ -134,6 +134,7 @@ class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScr
    if(keys==tabGroups.first)const ClinicalAlertBanner(message:'أدخل البيانات من النشرة الرسمية المعتمدة. الحقول التي تحمل حالة مراجعة يجب التحقق منها قبل الاستخدام السريري.',level:ClinicalAlertLevel.warning),
    ...keys.map(buildField),
   ]);
+  final provider = context.read<PosAndDrugsProvider>();
   await showDialog<void>(context:context,builder:(dialogContext)=>AlertDialog(
    title:Text(drug==null?'إضافة دواء — جميع النقاط الـ19':'تعديل بيانات الدواء — جميع النقاط الـ19'),
    content:SizedBox(width:720,height:MediaQuery.sizeOf(context).height*.76,child:Form(key:form,child:DefaultTabController(length:4,child:Column(children:[
