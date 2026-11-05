@@ -54,9 +54,6 @@ abstract final class SchemaIteration2 {
       final units=(drug['units_per_pack'] as int?)??1;
       if(units<=0)throw StateError('وحدات الباكت غير صالحة للصنف رقم '+drug['id'].toString());
       final cold=(drug['requires_refrigeration'] as int? ?? 0)==1;
-      final warehouse=cold?fridge:pharmacy;
-      final shelf=await db.query('shelf_locations',columns:['id'],where:'warehouse_id=?',whereArgs:[warehouse],limit:1);
-      if(shelf.isEmpty)throw StateError('لا يوجد رف افتراضي للمستودع');
       final originalUnits=(drug['stock_total_units'] as int?)??0;
       final first=originalUnits~/3;
       final second=originalUnits~/3;
@@ -67,6 +64,9 @@ abstract final class SchemaIteration2 {
         final lotUnits=portions[lot];
         if(lotUnits<=0)continue;
         final expiry=DateTime.now().add(Duration(days:offsets[lot])).toIso8601String().substring(0,10);
+        final warehouse=cold?fridge:(lot<2?main:pharmacy);
+        final shelf=await db.query('shelf_locations',columns:['id'],where:'warehouse_id=?',whereArgs:[warehouse],limit:1);
+        if(shelf.isEmpty)throw StateError('لا يوجد رف افتراضي للمستودع');
         final batchId=await db.insert('batches_fefo',{'drug_id':drug['id'],'warehouse_id':warehouse,'location_id':shelf.first['id'],'batch_no':'SEED-'+(index+1).toString()+'-'+(lot+1).toString(),'expiry_date':expiry,'sealed_packs':lotUnits~/units,'loose_units':lotUnits%units,'total_units':lotUnits,'unit_cost':packCost/units,'pack_cost':packCost,'status':expiry.compareTo(now.substring(0,10))<0?'EXPIRED':'ACTIVE'});
         await db.insert('stock_movements',{'drug_id':drug['id'],'batch_id':batchId,'warehouse_id':warehouse,'movement_type':'OPENING_BALANCE','qty_units':lotUnits,'unit_cost':packCost/units,'balance_after_units':lotUnits,'movement_at':now,'doc_type':'OPENING','note':'رصيد افتتاحي محفوظ من الدورة الأولى'});
       }
