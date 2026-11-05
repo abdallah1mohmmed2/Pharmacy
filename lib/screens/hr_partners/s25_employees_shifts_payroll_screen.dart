@@ -12,7 +12,7 @@ class S25EmployeesShiftsPayrollScreen extends StatefulWidget {
 }
 class _S25EmployeesShiftsPayrollScreenState extends State<S25EmployeesShiftsPayrollScreen> with SingleTickerProviderStateMixin{
   late final tabs=TabController(length:3,vsync:this);String period=DateTime.now().toIso8601String().substring(0,7);int? selectedEmployee;
-  @override void dispose(){tabs.dispose();super.dispose();}
+  @override void dispose(){tabs.dispose();periodController.dispose();super.dispose();}
   @override Widget build(BuildContext context){final p=context.watch<TreasuryHrPartnerProvider>();return Scaffold(backgroundColor:Colors.transparent,body:Column(children:[
     const Padding(padding:EdgeInsets.all(16),child:Align(alignment:Alignment.centerRight,child:Text('شؤون الموظفين والرواتب',style:TextStyle(fontSize:20,fontWeight:FontWeight.bold)))),
     TabBar(controller:tabs,tabs:const [Tab(text:'الموظفون والحسابات'),Tab(text:'المناوبات والحضور'),Tab(text:'مسير الرواتب')]),
@@ -42,9 +42,9 @@ class _S25EmployeesShiftsPayrollScreenState extends State<S25EmployeesShiftsPayr
   }
   Widget _payroll(TreasuryHrPartnerProvider p){
     return ListView(padding:const EdgeInsets.all(12),children:[
-      TextField(decoration:InputDecoration(labelText:'الفترة (YYYY-MM)',hintText:period),controller:TextEditingController(text:period),onChanged:(v)=>period=v),
+      TextField(decoration:InputDecoration(labelText:'الفترة (YYYY-MM)',hintText:period),controller:periodController),
       DropdownButtonFormField<int>(value:selectedEmployee,decoration:const InputDecoration(labelText:'الموظف'),items:p.employees.map((e)=>DropdownMenuItem(value:e['id'] as int,child:Text(e['name_ar'].toString()))).toList(),onChanged:(v)=>setState(()=>selectedEmployee=v)),
-      FilledButton(onPressed:selectedEmployee==null?null:()async{try{await p.generatePayroll(employeeId:selectedEmployee!,period:period);if(mounted)setState((){});}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}},child:const Text('توليد مسير الراتب')),
+      FilledButton(onPressed:selectedEmployee==null?null:()async{try{await p.generatePayroll(employeeId:selectedEmployee!,period:periodController.text.trim());if(mounted)setState((){});}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}},child:const Text('توليد مسير الراتب')),
       const SizedBox(height:10),
       FutureBuilder<List<Map<String,Object?>>>(future:DatabaseHelper.instance.rawQuery('SELECT r.*,p.name_ar FROM payroll_runs r JOIN employees e ON e.id=r.employee_id JOIN parties p ON p.id=e.party_id WHERE substr(r.period_code,1,7)=? ORDER BY r.id DESC',[period]),builder:(context,snapshot){
         final rows=snapshot.data??[];
