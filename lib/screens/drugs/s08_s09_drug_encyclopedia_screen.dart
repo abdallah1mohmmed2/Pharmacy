@@ -61,20 +61,30 @@ class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScr
    for(final key in labels.keys) key:TextEditingController(text:initial[key]?.toString()??'')
   };
   final form=GlobalKey<FormState>();
+  List<String> groupFor(List<int> points)=>labels.keys.where((key){final point=int.tryParse(labels[key]!.split('.').first);return point!=null&&points.contains(point);}).toList();
+  final tabGroups=<List<String>>[groupFor([1,2,3,4]),groupFor([5,6,7,8,9,10]),groupFor([11,12]),groupFor([13,14,15,16,17,18,19])];
+  Widget buildField(String key){
+   final controller=controllers[key]!;
+   final longText=key.contains('notes')||key.contains('warning')||key.contains('indication')||key.contains('contraindication')||key.contains('json')||key.contains('administration')||key.contains('composition');
+   return Padding(padding:const EdgeInsets.only(bottom:8),child:TextFormField(
+    controller:controller,
+    textDirection:key.contains('barcode')||key.contains('code')||key.endsWith('_id')||key.endsWith('_json')?TextDirection.ltr:TextDirection.rtl,
+    keyboardType:boolKeys.contains(key)||intKeys.contains(key)||numberKeys.contains(key)?const TextInputType.numberWithOptions(decimal:true):TextInputType.multiline,
+    minLines:longText?2:1,maxLines:longText?4:1,
+    decoration:InputDecoration(labelText:labels[key],helperText:boolKeys.contains(key)?'اكتب 1 للتفعيل أو 0 للإيقاف':null),
+    validator:key=='trade_name_ar'||key=='internal_code'?(v)=>v==null||v.trim().isEmpty?'هذا الحقل مطلوب':null:null,
+   ));
+  }
+  Widget tabFields(List<String> keys)=>ListView(padding:const EdgeInsets.all(10),children:[
+   if(keys==tabGroups.first)const ClinicalAlertBanner(message:'أدخل البيانات من النشرة الرسمية المعتمدة. الحقول التي تحمل حالة مراجعة يجب التحقق منها قبل الاستخدام السريري.',level:ClinicalAlertLevel.warning),
+   ...keys.map(buildField),
+  ]);
   await showDialog<void>(context:context,builder:(dialogContext)=>AlertDialog(
    title:Text(drug==null?'إضافة دواء — جميع النقاط الـ19':'تعديل بيانات الدواء — جميع النقاط الـ19'),
-   content:SizedBox(width:620,height:MediaQuery.sizeOf(context).height*.72,child:Form(key:form,child:ListView(children:[
-    const ClinicalAlertBanner(message:'أدخل البيانات من النشرة الرسمية المعتمدة. لا تعتمد على بيانات غير موثقة لتحديد جرعات أو موانع استعمال.',level:ClinicalAlertLevel.warning),
-    for(final entry in controllers.entries) Padding(padding:const EdgeInsets.only(bottom:8),child:TextFormField(
-     controller:entry.value,
-     textDirection:entry.key.contains('barcode')||entry.key.contains('code')||entry.key.endsWith('_id')||entry.key.endsWith('_json')?TextDirection.ltr:TextDirection.rtl,
-     keyboardType:boolKeys.contains(entry.key)||intKeys.contains(entry.key)||numberKeys.contains(entry.key)?const TextInputType.numberWithOptions(decimal:true):TextInputType.multiline,
-     minLines:entry.key.contains('notes')||entry.key.contains('warning')||entry.key.contains('indication')||entry.key.contains('contraindication')||entry.key.contains('json')||entry.key.contains('administration')?2:1,
-     maxLines:entry.key.contains('notes')||entry.key.contains('warning')||entry.key.contains('indication')||entry.key.contains('contraindication')||entry.key.contains('json')||entry.key.contains('administration')?4:1,
-     decoration:InputDecoration(labelText:labels[entry.key],helperText:boolKeys.contains(entry.key)?'اكتب 1 للتفعيل أو 0 للإيقاف':null),
-     validator:entry.key=='trade_name_ar'||entry.key=='internal_code'?(v)=>v==null||v.trim().isEmpty?'هذا الحقل مطلوب':null:null,
-    )),
-   ]))),
+   content:SizedBox(width:720,height:MediaQuery.sizeOf(context).height*.76,child:Form(key:form,child:DefaultTabController(length:4,child:Column(children:[
+    const TabBar(isScrollable:true,tabs:[Tab(text:'1–4 الهوية والتركيب'),Tab(text:'5–10 الاستعمال والسلامة'),Tab(text:'11–12 التسعير والفئات'),Tab(text:'13–19 الحالات الخاصة')]),
+    Expanded(child:TabBarView(children:[for(final keys in tabGroups)tabFields(keys)])),
+   ])))),
    actions:[
     TextButton(onPressed:()=>Navigator.pop(dialogContext),child:const Text('إلغاء')),
     FilledButton(onPressed:()async{
