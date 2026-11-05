@@ -106,12 +106,37 @@ abstract final class SchemaIteration4 {
     for(final employeeId in employeeIds){await db.insert('employee_attendance',{'employee_id':employeeId,'work_date':now.substring(0,10),'work_shift_id':work.first['id'],'status':'PRESENT','wage_earned':0},conflictAlgorithm:ConflictAlgorithm.ignore);}
     final advanceEmployee=await db.query('employees',columns:['party_id'],where:'id=?',whereArgs:[employeeIds[1]],limit:1);
     final advanceExists=await db.query('lah_alayh_ledger',columns:['id'],where:"entry_type='EMPLOYEE_ADVANCE' AND statement_ar='سلفة تجريبية للموظف'",limit:1);
-    if(advanceEmployee.isNotEmpty&&advanceExists.isEmpty){await db.insert('lah_alayh_ledger',{'uuid':'it4-employee-advance','branch_id':branchId,'created_at':now,'updated_at':now,'party_id':advanceEmployee.first['party_id'],'entry_date':now,'entry_type':'EMPLOYEE_ADVANCE','alayh_amount':500,'lah_amount':0,'doc_type':'SEED','statement_ar':'سلفة تجريبية للموظف'});}
+    if(advanceEmployee.isNotEmpty&&advanceExists.isEmpty){
+      final partyId=advanceEmployee.first['party_id'] as int;
+      final cashRows=await db.query('cash_accounts',columns:['current_balance','gl_account_id'],where:'id=?',whereArgs:[safe['id']],limit:1);
+      final before=(cashRows.first['current_balance'] as num).toDouble();final after=before-500.0;
+      final cashGl=cashRows.first['gl_account_id'] as int;final advanceGl=(await db.query('chart_of_accounts',columns:['id'],where:"code='1202'",limit:1)).first['id'] as int;
+      final je=await db.insert('journal_entries',{'uuid':'it4-employee-advance-je','branch_id':branchId,'created_at':now,'updated_at':now,'entry_no':'SEED-EMP-ADVANCE','entry_date':now,'description':'سلفة تجريبية للموظف','source_type':'EMPLOYEE_ADVANCE','is_posted':1});
+      await db.insert('journal_lines',{'uuid':'it4-employee-advance-jl1','branch_id':branchId,'created_at':now,'updated_at':now,'journal_entry_id':je,'account_id':advanceGl,'party_id':partyId,'dr_amount':500,'cr_amount':0,'memo':'سلفة تجريبية'});
+      await db.insert('journal_lines',{'uuid':'it4-employee-advance-jl2','branch_id':branchId,'created_at':now,'updated_at':now,'journal_entry_id':je,'account_id':cashGl,'dr_amount':0,'cr_amount':500,'memo':'صرف سلفة تجريبية'});
+      await db.update('cash_accounts',{'current_balance':after,'updated_at':now},where:'id=?',whereArgs:[safe['id']]);
+      final txId=await db.insert('cash_transactions',{'cash_account_id':safe['id'],'tx_date':now,'direction':'OUT','amount':500,'tx_type':'ADVANCE','doc_type':'JOURNAL','doc_id':je,'balance_after':after,'note':'سلفة تجريبية للموظف','branch_id':branchId});
+      await db.insert('lah_alayh_ledger',{'uuid':'it4-employee-advance','branch_id':branchId,'created_at':now,'updated_at':now,'party_id':partyId,'entry_date':now,'entry_type':'EMPLOYEE_ADVANCE','alayh_amount':500,'lah_amount':0,'doc_type':'CASH_TRANSACTION','doc_id':txId,'journal_entry_id':je,'statement_ar':'سلفة تجريبية للموظف'});
+    }
     final cashierParty=await db.query('parties',columns:['id'],where:'code=?',whereArgs:['EMP-CASH'],limit:1);
     if(users.isNotEmpty){final open=await db.query('cashier_shifts',columns:['id'],where:"branch_id=? AND status='OPEN'",whereArgs:[branchId],limit:1);if(open.isEmpty){await db.insert('cashier_shifts',{'shift_no':'SHIFT-SEED-${now.substring(0,10)}','user_id':users.first['id'],'cashier_party_id':cashierParty.isEmpty?null:cashierParty.first['id'],'drawer_account_id':drawer['id'],'work_shift_id':work.first['id'],'opened_at':now,'opening_cash':0,'status':'OPEN','branch_id':branchId});}}
     final partnerSeeds=<List<Object>>[['PART-50','الشريك الأول',50],['PART-30','الشريك الثاني',30],['PART-20','الشريك الثالث',20]];
     for(final p in partnerSeeds){var rows=await db.query('parties',columns:['id'],where:'code=?',whereArgs:[p[0]],limit:1);int partyId;if(rows.isEmpty){partyId=await db.insert('parties',{'uuid':'it4-party-${p[0]}','branch_id':branchId,'created_at':now,'updated_at':now,'party_type':'PARTNER','code':p[0],'name_ar':p[1],'opening_alayh':0,'opening_lah':0});}else{partyId=rows.first['id'] as int;}await db.insert('partners',{'party_id':partyId,'capital_amount':0,'shares_count':p[2],'percentage':null,'needs_input':0,'join_date':now.substring(0,10),'is_active':1,'branch_id':branchId},conflictAlgorithm:ConflictAlgorithm.ignore);}
     final existingWithdrawal=await db.query('lah_alayh_ledger',columns:['id'],where:"entry_type='PARTNER_WITHDRAWAL' AND statement_ar='سحب شخصي تجريبي للشريك'",limit:1);
-    if(existingWithdrawal.isEmpty){final partner=await db.query('partners',columns:['id','party_id'],orderBy:'id',limit:1);if(partner.isNotEmpty){await db.insert('lah_alayh_ledger',{'uuid':'it4-partner-withdrawal','branch_id':branchId,'created_at':now,'updated_at':now,'party_id':partner.first['party_id'],'entry_date':now,'entry_type':'PARTNER_WITHDRAWAL','alayh_amount':500,'lah_amount':0,'doc_type':'SEED','doc_id':null,'statement_ar':'سحب شخصي تجريبي للشريك'});}}
+    if(existingWithdrawal.isEmpty){
+      final partner=await db.query('partners',columns:['id','party_id'],orderBy:'id',limit:1);
+      if(partner.isNotEmpty){
+        final partyId=partner.first['party_id'] as int;
+        final cashRows=await db.query('cash_accounts',columns:['current_balance','gl_account_id'],where:'id=?',whereArgs:[safe['id']],limit:1);
+        final before=(cashRows.first['current_balance'] as num).toDouble();final after=before-500.0;
+        final cashGl=cashRows.first['gl_account_id'] as int;final payable=(await db.query('chart_of_accounts',columns:['id'],where:"code='2301'",limit:1)).first['id'] as int;
+        final je=await db.insert('journal_entries',{'uuid':'it4-partner-withdrawal-je','branch_id':branchId,'created_at':now,'updated_at':now,'entry_no':'SEED-PARTNER-WITHDRAWAL','entry_date':now,'description':'سحب شخصي تجريبي للشريك','source_type':'PARTNER_WITHDRAWAL','is_posted':1});
+        await db.insert('journal_lines',{'uuid':'it4-partner-withdrawal-jl1','branch_id':branchId,'created_at':now,'updated_at':now,'journal_entry_id':je,'account_id':payable,'party_id':partyId,'dr_amount':500,'cr_amount':0,'memo':'سحب شخصي'});
+        await db.insert('journal_lines',{'uuid':'it4-partner-withdrawal-jl2','branch_id':branchId,'created_at':now,'updated_at':now,'journal_entry_id':je,'account_id':cashGl,'dr_amount':0,'cr_amount':500,'memo':'صرف سحب شخصي'});
+        await db.update('cash_accounts',{'current_balance':after,'updated_at':now},where:'id=?',whereArgs:[safe['id']]);
+        final txId=await db.insert('cash_transactions',{'cash_account_id':safe['id'],'tx_date':now,'direction':'OUT','amount':500,'tx_type':'PARTNER_WITHDRAWAL','doc_type':'JOURNAL','doc_id':je,'balance_after':after,'note':'سحب شخصي تجريبي للشريك','branch_id':branchId});
+        await db.insert('lah_alayh_ledger',{'uuid':'it4-partner-withdrawal','branch_id':branchId,'created_at':now,'updated_at':now,'party_id':partyId,'entry_date':now,'entry_type':'PARTNER_WITHDRAWAL','alayh_amount':500,'lah_amount':0,'doc_type':'CASH_TRANSACTION','doc_id':txId,'journal_entry_id':je,'statement_ar':'سحب شخصي تجريبي للشريك'});
+      }
+    }
   }
 }
