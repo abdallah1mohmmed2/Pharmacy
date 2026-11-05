@@ -39,7 +39,7 @@ class _S07SalesReturnsScreenState extends State<S07SalesReturnsScreen>{
     ]));
   }
   Future<void> _find()async{
-    final rows=await DatabaseHelper.instance.rawQuery('SELECT si.*,p.name_ar AS customer_name FROM sales_invoices si LEFT JOIN parties p ON p.id=si.customer_party_id WHERE si.invoice_no=? LIMIT 1',[search.text.trim()]);
+    final rows=await DatabaseHelper.instance.rawQuery('SELECT si.*,p.name_ar AS customer_name FROM sales_invoices si LEFT JOIN parties p ON p.id=si.customer_party_id WHERE si.invoice_no=? OR p.name_ar LIKE ? ORDER BY si.id DESC LIMIT 1',[search.text.trim(),'%${search.text.trim()}%']);
     if(rows.isEmpty){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('لم يتم العثور على الفاتورة')));return;}
     final invoiceId=rows.first['id'] as int;
     final data=await DatabaseHelper.instance.rawQuery('SELECT sii.*,d.trade_name_ar,d.dosage_form,d.requires_refrigeration,b.batch_no,b.id AS batch_id,COALESCE(sib.returned_qty_units,0) AS returned_qty_units FROM sales_invoice_items sii JOIN drugs d ON d.id=sii.drug_id LEFT JOIN sales_invoice_item_batches sib ON sib.invoice_item_id=sii.id LEFT JOIN batches_fefo b ON b.id=sib.batch_id WHERE sii.invoice_id=?',[invoiceId]);
