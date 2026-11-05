@@ -35,6 +35,8 @@ class PurchaseAndBonusService {
       final net=(subtotal-discountAmount+taxAmount).clamp(0,double.infinity).toDouble();
       if(paidTotal<0||paidTotal>net+0.005)throw StateError('المبلغ المدفوع غير صحيح');
       if(paidTotal>0&&cashAccountId==null)throw StateError('حدد الصندوق أو المحفظة');
+      if(paymentType=='CASH'&&(paidTotal-net).abs()>0.005)throw StateError('الفاتورة النقدية يجب سدادها بالكامل');
+      if(paymentType=='CREDIT'&&paidTotal>0)throw StateError('الفاتورة الآجلة لا تسجل دفعة فورية؛ اختر دفعاً جزئياً');
       final generatedNo=invoiceNo.trim().isEmpty?_number('PINV'):invoiceNo.trim();
       if((await txn.query('purchase_invoices',where:'invoice_no=?',whereArgs:[generatedNo],limit:1)).isNotEmpty)throw StateError('رقم فاتورة الشراء مستخدم مسبقاً');
       if(supplierInvoiceNo!=null&&supplierInvoiceNo.trim().isNotEmpty&&(await txn.query('purchase_invoices',where:'supplier_party_id=? AND supplier_invoice_no=?',whereArgs:[supplierPartyId,supplierInvoiceNo.trim()],limit:1)).isNotEmpty)throw StateError('رقم فاتورة المورد مسجل مسبقاً');
