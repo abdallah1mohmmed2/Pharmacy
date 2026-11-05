@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../data/database/database_helper.dart';
 import '../../providers/treasury_hr_partner_provider.dart';
 import '../../providers/session_and_erp_provider.dart';
+import '../../core/widgets/shared_widgets.dart';
 
 class S25EmployeesShiftsPayrollScreen extends StatefulWidget {
   const S25EmployeesShiftsPayrollScreen({super.key});
@@ -22,7 +23,7 @@ class _S25EmployeesShiftsPayrollScreenState extends State<S25EmployeesShiftsPayr
     return Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
       Row(children:[Expanded(child:Text(e['name_ar'].toString(),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:16))),Chip(label:Text(e['pay_type']=='DAILY'?'أجر يومي':'راتب شهري'))]),
       Text('الوظيفة: ${e['job_title']} • الأجر: ${(e['pay_rate'] as num).toStringAsFixed(2)}'),
-      Text(net.abs()<.005?'مسدَّد (0.00)':net>0?'المتبقي له: ${net.toStringAsFixed(2)}':'المتبقي عليه: ${net.abs().toStringAsFixed(2)}',style:TextStyle(color:net>0?const Color(0xFF66BB6A):net<0?const Color(0xFFEF5350):Colors.white70,fontWeight:FontWeight.bold)),
+      PartyBalanceChip(totalAlayh:alayh,totalLah:lah,compact:true),
       Wrap(spacing:8,children:[
         TextButton.icon(onPressed:()=>_statement(e),icon:const Icon(Icons.receipt_long),label:const Text('كشف الحساب')),
         TextButton.icon(onPressed:()=>_advance(p,e),icon:const Icon(Icons.payments),label:const Text('صرف سلفة (عليه)')),
