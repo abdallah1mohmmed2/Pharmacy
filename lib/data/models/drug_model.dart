@@ -32,7 +32,7 @@ class DrugModel {
   
   int toBaseUnits(String unit, num quantity) {
     if (quantity <= 0) throw ArgumentError.value(quantity, 'quantity', 'يجب أن تكون الكمية أكبر من صفر');
-    final multiplier = switch (unit.toUpperCase()) { 'PACK' => unitsPerPack, 'STRIP' => unitsPerStrip, 'UNIT' => 1, _ => throw ArgumentError('وحدة بيع غير معروفة') };
+    final multiplier = switch (unit.toUpperCase()) { 'PACK' => stripsPerPack * unitsPerStrip, 'STRIP' => unitsPerStrip, 'UNIT' => 1, _ => throw ArgumentError('وحدة بيع غير معروفة') };
     return (quantity * multiplier).round();
   }
 
