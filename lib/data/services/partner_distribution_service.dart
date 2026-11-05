@@ -137,6 +137,6 @@ class PartnerDistributionService {
     await db.insert('partners',{'party_id':partyId,'capital_amount':capitalAmount,'shares_count':sharesCount,'percentage':percentage,'needs_input':needsInput?1:0,'join_date':joinDate??_now().substring(0,10),'is_active':isActive?1:0,'branch_id':branchId},conflictAlgorithm:ConflictAlgorithm.abort);
   }
 
-  Future<int> _gl(TransactionExecutor tx,String code) async {final r=await tx.query('chart_of_accounts',columns:['id'],where:'code=?',whereArgs:[code],limit:1);if(r.isEmpty)throw StateError('الحساب المحاسبي $code غير موجود');return r.first['id'] as int;}
-  Future<void> _line(TransactionExecutor tx,int branchId,int je,int account,{double dr=0,double cr=0,int? partyId,String? memo}) async {await tx.insert('journal_lines',{'uuid':_uuid('jl'),'branch_id':branchId,'created_at':_now(),'updated_at':_now(),'journal_entry_id':je,'account_id':account,'party_id':partyId,'dr_amount':dr,'cr_amount':cr,'memo':memo});}
+  Future<int> _gl(DatabaseExecutor tx,String code) async {final r=await tx.query('chart_of_accounts',columns:['id'],where:'code=?',whereArgs:[code],limit:1);if(r.isEmpty)throw StateError('الحساب المحاسبي $code غير موجود');return r.first['id'] as int;}
+  Future<void> _line(DatabaseExecutor tx,int branchId,int je,int account,{double dr=0,double cr=0,int? partyId,String? memo}) async {await tx.insert('journal_lines',{'uuid':_uuid('jl'),'branch_id':branchId,'created_at':_now(),'updated_at':_now(),'journal_entry_id':je,'account_id':account,'party_id':partyId,'dr_amount':dr,'cr_amount':cr,'memo':memo});}
 }
