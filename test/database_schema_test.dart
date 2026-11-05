@@ -30,10 +30,10 @@ void main() {
       ),
     );
     try {
-      final drugs = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM drugs'));
-      final settings = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM system_settings'));
-      final accounts = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM chart_of_accounts'));
-      final wallets = Sqflite.firstIntValue(await db.rawQuery("SELECT COUNT(*) FROM cash_accounts WHERE account_kind='WALLET'"));
+      final drugs = (await db.rawQuery('SELECT COUNT(*) AS c FROM drugs')).first['c'] as int;
+      final settings = (await db.rawQuery('SELECT COUNT(*) AS c FROM system_settings')).first['c'] as int;
+      final accounts = (await db.rawQuery('SELECT COUNT(*) AS c FROM chart_of_accounts')).first['c'] as int;
+      final wallets = (await db.rawQuery("SELECT COUNT(*) AS c FROM cash_accounts WHERE account_kind='WALLET'")).first['c'] as int;
       expect(drugs, 6);
       expect(settings, 35);
       expect(accounts, greaterThanOrEqualTo(30));
