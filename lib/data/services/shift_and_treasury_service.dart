@@ -119,13 +119,12 @@ class ShiftAndTreasuryService {
         final walletId=int.tryParse(entry.key);if(walletId==null)continue;
         final expectedWallet=expectedWallets[entry.key];if(expectedWallet==null)continue;
         final walletDiff=entry.value-expectedWallet;if(walletDiff.abs()<0.005)continue;
-        final wallet=walletRows.firstWhere((row)=>row['id']==walletId);
         final gl=await tx.query('cash_accounts',columns:['gl_account_id'],where:'id=?',whereArgs:[walletId],limit:1);
         final cashGl=gl.first['gl_account_id'] as int;final adjustment=await _glId(tx,walletDiff>0?'4102':'5304');
         final je=await _journal(tx,branchId:shift['branch_id'] as int,source:'SHIFT_WALLET_RECONCILIATION',sourceId:shiftId,description:'مطابقة محفظة أثناء إغلاق الوردية');
         if(walletDiff>0){await _journalLine(tx,branchId:shift['branch_id'] as int,entryId:je,accountId:cashGl,dr:walletDiff,memo:'زيادة رصيد محفظة');await _journalLine(tx,branchId:shift['branch_id'] as int,entryId:je,accountId:adjustment,cr:walletDiff,memo:'زيادة رصيد محفظة');}
         else{await _journalLine(tx,branchId:shift['branch_id'] as int,entryId:je,accountId:adjustment,dr:walletDiff.abs(),memo:'عجز رصيد محفظة');await _journalLine(tx,branchId:shift['branch_id'] as int,entryId:je,accountId:cashGl,cr:walletDiff.abs(),memo:'عجز رصيد محفظة');}
-        await _cashMove(tx,branchId:shift['branch_id'] as int,accountId:walletId,direction:walletDiff>0?'IN':'OUT',amount:walletDiff.abs(),type:'WALLET_RECONCILIATION',docType:'CASHIER_SHIFT',docId:shiftId,note:'مطابقة رصيد المحفظة عند إغلاق الوردية');
+        await _cashMove(tx,branchId:shift['branch_id'] as int,accountId:walletId,direction:walletDiff>0?'IN':'OUT',amount:walletDiff.abs(),type:'WALLET_RECONCILIATION',docType:'CASHIER_SHIFT',docId:shiftId,shiftId:shiftId,note:'مطابقة رصيد المحفظة عند إغلاق الوردية');
       }
       await tx.update('cashier_shifts',{'expected_cash':expected,'counted_cash':actual,'diff_amount':difference,'expected_wallets_json':jsonEncode(expectedWallets),'counted_wallets_json':jsonEncode(countedWallets),'counted_denominations_json':jsonEncode(denominations),'diff_handling':diffHandling,'closed_at':_now(),'status':handoverToUserId==null?'CLOSED':'HANDED_OVER','handover_to_user_id':handoverToUserId},where:'id=?',whereArgs:[shiftId]);
       if(difference.abs()>=0.005){await _postShiftDiff(tx,shift:shift,shiftId:shiftId,difference:difference,handling:diffHandling);}
