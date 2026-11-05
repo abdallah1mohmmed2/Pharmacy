@@ -50,7 +50,7 @@ class ShiftAndTreasuryService {
       await _journalLine(tx,branchId:branchId,entryId:je,accountId:sourceGl,cr:amount+fee,memo:'تحويل صادر ورسوم');
       if(fee>0){final feeGl=await _glId(tx,'5301');await _journalLine(tx,branchId:branchId,entryId:je,accountId:feeGl,dr:fee,memo:'رسوم تحويل');}
       await _cashMove(tx,branchId:branchId,accountId:fromAccountId,direction:'OUT',amount:amount,type:'TRANSFER_BETWEEN_ACCOUNTS',docType:'CASH_TRANSFER',docId:transferId,ref:walletRefNo,shiftId:sourceShiftId,note:note);
-      await _cashMove(tx,branchId:branchId,accountId:toAccountId,direction:'IN',amount:amount,type:'TRANSFER_BETWEEN_ACCOUNTS',docType:'CASH_TRANSFER',docId:transferId,ref:walletRefNo,note:note);
+      await _cashMove(tx,branchId:branchId,accountId:toAccountId,direction:'IN',amount:amount,type:'TRANSFER_BETWEEN_ACCOUNTS',docType:'CASH_TRANSFER',docId:transferId,ref:walletRefNo,shiftId:destinationShiftId,note:note);
       if(fee>0)await _cashMove(tx,branchId:branchId,accountId:fromAccountId,direction:'OUT',amount:fee,type:'EXPENSE',docType:'TRANSFER_FEE',docId:transferId,ref:walletRefNo,shiftId:sourceShiftId,note:'رسوم تحويل: $note');
     });
   }
