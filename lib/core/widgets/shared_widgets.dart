@@ -30,12 +30,13 @@ class LahAlayhRow {
 }
 
 class LahAlayhTable extends StatelessWidget {
-  const LahAlayhTable({super.key, required this.rows});
+  const LahAlayhTable({super.key, required this.rows, this.openingBalance = 0});
   final List<LahAlayhRow> rows;
+  final double openingBalance;
 
   @override
   Widget build(BuildContext context) {
-    var running = 0.0;
+    var running = openingBalance;
     final values = <DataRow>[];
     for (final row in rows) {
       running += row.alayh.toDouble() - row.lah.toDouble();
