@@ -32,9 +32,6 @@ class PostingAndSalesService {
       if(paid-net>0.005) throw StateError('إجمالي المدفوع أكبر من صافي الفاتورة');
       final remaining=(net-paid).clamp(0,double.infinity).toDouble();
       if(remaining>0 && customerPartyId==null) throw StateError('اختر العميل لتسجيل المبلغ المتبقي');
-      final warehouseRows=await txn.query('warehouses',columns:['id'],where:"code='MAIN'",limit:1);
-      if(warehouseRows.isEmpty) throw StateError('المخزن الرئيسي غير مهيأ');
-      final warehouseId=warehouseRows.first['id'] as int;
       final invoiceNo=await _nextNumber(txn,branchId,'INVOICE');
       final invoiceId=await txn.insert('sales_invoices',{..._base(branchId),'invoice_no':invoiceNo,'invoice_date':DateTime.now().toIso8601String(),'cashier_user_id':cashierUserId,'customer_party_id':customerPartyId,'sale_type':saleType,'status':'COMPLETED','subtotal':subtotal,'discount_amount':discountAmount,'net_total':net,'paid_total':paid,'remaining_alayh':remaining,'total_cost':0});
       double actualTotalCost=0;
@@ -43,7 +40,7 @@ class PostingAndSalesService {
         if(drugRows.isEmpty) throw StateError('الصنف غير موجود');
         final units=(drugRows.first['units_per_pack'] as int?)??item.drug.effectiveUnitsPerPack;
         final invoiceItemId=await txn.insert('sales_invoice_items',{..._base(branchId),'invoice_id':invoiceId,'drug_id':item.drug.id,'sell_unit':item.sellUnit,'qty_in_sell_unit':item.quantity,'qty_units':item.baseUnits,'unit_price_sell_unit':item.unitPrice,'line_discount_amount':item.discount,'line_total':item.lineTotal,'line_cost':0});
-        final allocations=await _fefo.allocateAndApply(txn:txn,drugId:item.drug.id,needUnits:item.baseUnits,unitsPerPack:units,invoiceItemId:invoiceItemId,warehouseId:warehouseId,unitPrice:item.unitPrice,docType:'SALE',docId:invoiceId);
+        final allocations=await _fefo.allocateAndApply(txn:txn,drugId:item.drug.id,needUnits:item.baseUnits,unitsPerPack:units,invoiceItemId:invoiceItemId,warehouseId:null,unitPrice:item.unitPrice,docType:'SALE',docId:invoiceId);
         final lineCost=allocations.fold<double>(0,(sum,a)=>sum+a.qtyUnits*a.unitCost);
         actualTotalCost+=lineCost;
         await txn.update('sales_invoice_items',{'line_cost':lineCost},where:'id=?',whereArgs:[invoiceItemId]);
