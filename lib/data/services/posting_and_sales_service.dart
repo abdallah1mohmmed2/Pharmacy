@@ -31,10 +31,9 @@ class PostingAndSalesService {
       final paid=payments.fold<double>(0,(s,p)=>s+p.amount);
       if(paid-net>0.005) throw StateError('إجمالي المدفوع أكبر من صافي الفاتورة');
       final remaining=(net-paid).clamp(0,double.infinity).toDouble();
-      final int? actualCustomerId=customerPartyId<=0?null:customerPartyId;
-      if(remaining>0 && actualCustomerId==null) throw StateError('اختر العميل لتسجيل المبلغ المتبقي');
+      if(remaining>0 && customerPartyId<=0) throw StateError('اختر العميل لتسجيل المبلغ المتبقي');
       final invoiceNo=await _nextNumber(txn,branchId,'INVOICE');
-      final invoiceId=await txn.insert('sales_invoices',{..._base(branchId),'invoice_no':invoiceNo,'invoice_date':DateTime.now().toIso8601String(),'cashier_user_id':cashierUserId,'customer_party_id':actualCustomerId,'sale_type':saleType,'status':'COMPLETED','subtotal':subtotal,'discount_amount':discountAmount,'net_total':net,'paid_total':paid,'remaining_alayh':remaining,'total_cost':0});
+      final invoiceId=await txn.insert('sales_invoices',{..._base(branchId),'invoice_no':invoiceNo,'invoice_date':DateTime.now().toIso8601String(),'cashier_user_id':cashierUserId,'customer_party_id':customerPartyId<=0?null:customerPartyId,'sale_type':saleType,'status':'COMPLETED','subtotal':subtotal,'discount_amount':discountAmount,'net_total':net,'paid_total':paid,'remaining_alayh':remaining,'total_cost':0});
       double actualTotalCost=0;
       for(final item in items){
         final drugRows=await txn.query('drugs',columns:['units_per_pack'],where:'id=? AND is_deleted=0',whereArgs:[item.drug.id]);
@@ -65,15 +64,15 @@ class PostingAndSalesService {
         journalLines.add((accountId:gl,debit:payment.amount,credit:0,partyId:null,memo:'تحصيل فاتورة'));
       }
       final revenue=await _accountId(txn,'4101');
-      if(remaining>0 && actualCustomerId!=null){
-        final creditRows=await txn.rawQuery('SELECT p.credit_limit, COALESCE(v.net,0) AS net FROM parties p LEFT JOIN v_party_balance v ON v.party_id=p.id WHERE p.id=?',[actualCustomerId]);
+      if(remaining>0 && customerPartyId>0){
+        final creditRows=await txn.rawQuery('SELECT p.credit_limit, COALESCE(v.net,0) AS net FROM parties p LEFT JOIN v_party_balance v ON v.party_id=p.id WHERE p.id=?',[customerPartyId]);
         if(creditRows.isEmpty) throw StateError('العميل غير موجود');
         final limit=(creditRows.first['credit_limit'] as num).toDouble();
         final existing=(creditRows.first['net'] as num).toDouble();
         if(limit>0 && existing+remaining>limit) throw StateError('تجاوز الحد الائتماني للعميل');
-        await txn.insert('lah_alayh_ledger',{..._base(branchId),'party_id':actualCustomerId,'entry_date':DateTime.now().toIso8601String(),'entry_type':'SALE','alayh_amount':remaining,'lah_amount':0,'doc_type':'INVOICE','doc_id':invoiceId,'statement_ar':'الجزء المتبقي من الفاتورة '+invoiceNo});
+        await txn.insert('lah_alayh_ledger',{..._base(branchId),'party_id':customerPartyId,'entry_date':DateTime.now().toIso8601String(),'entry_type':'SALE','alayh_amount':remaining,'lah_amount':0,'doc_type':'INVOICE','doc_id':invoiceId,'statement_ar':'الجزء المتبقي من الفاتورة '+invoiceNo});
         final receivable=await _accountId(txn,'1201');
-        journalLines.add((accountId:receivable,debit:remaining,credit:0,partyId:actualCustomerId,memo:'ذمم فاتورة'));
+        journalLines.add((accountId:receivable,debit:remaining,credit:0,partyId:customerPartyId,memo:'ذمم فاتورة'));
       }
       journalLines.add((accountId:revenue,debit:0,credit:net,partyId:null,memo:'إيراد المبيعات'));
       final cost=actualTotalCost;
