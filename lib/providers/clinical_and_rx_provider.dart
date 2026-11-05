@@ -20,6 +20,7 @@ class ClinicalAndRxProvider extends ChangeNotifier {
   bool loading=false;
   String? error;
   List<String> currentFoods=[];
+  final Set<String> quickFlags={};
 
   Future<void> loadAll() async {
     loading=true;error=null;notifyListeners();
@@ -32,9 +33,10 @@ class ClinicalAndRxProvider extends ChangeNotifier {
     loading=false;notifyListeners();
   }
   void setFoodIntake(List<String> foods){currentFoods=foods;notifyListeners();}
+  void setQuickFlag(String flag,bool enabled){if(enabled){quickFlags.add(flag);}else{quickFlags.remove(flag);}notifyListeners();}
   void selectPatient(PatientClinicalModel? patient){currentPatient=patient;verdict=ClinicalVerdict([]);notifyListeners();}
   Future<ClinicalVerdict> evaluateCart(List<DrugModel> drugs,{Map<int,double> doses=const {}}) async {
-    verdict=await _guard.evaluate(cart:drugs,patient:currentPatient,prescribedDoseMgByDrugId:doses,foodIntake:currentFoods);notifyListeners();return verdict;
+    verdict=await _guard.evaluate(cart:drugs,patient:currentPatient,prescribedDoseMgByDrugId:doses,foodIntake:currentFoods,quickFlags:quickFlags);notifyListeners();return verdict;
   }
   Future<void> decideAlert(ClinicalAlertModel alert,{required String decision,required int? userId,String? reason,int? managerUserId}) async {
     await _guard.recordDecision(alert,decision:decision,userId:userId,reason:reason,managerUserId:managerUserId);
