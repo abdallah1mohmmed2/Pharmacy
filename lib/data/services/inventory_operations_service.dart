@@ -107,7 +107,7 @@ class InventoryOperationsService {
       final destination=rows.first['to_warehouse_id'] as int;final items=await txn.query('stock_transfer_items',where:'transfer_id=?',whereArgs:[transferId]);final now=DateTime.now().toIso8601String();
       for(final item in items){
         final qty=receivedByItem?[item['id'] as int]??(item['qty_units'] as int);if(qty<0||qty>(item['qty_units'] as int))throw StateError('كمية الاستلام غير صحيحة');
-        final source=(await txn.query('batches_fefo',where:'id=?',whereArgs:[item['from_batch_id']})).first;
+        final source=(await txn.query('batches_fefo',where:'id=?',whereArgs:[item['from_batch_id']])).first;
         final batchId=await txn.insert('batches_fefo',{'drug_id':source['drug_id'],'warehouse_id':destination,'batch_no':source['batch_no'],'expiry_date':source['expiry_date'],'manufacture_date':source['manufacture_date'],'sealed_packs':0,'loose_units':qty,'total_units':qty,'unit_cost':item['unit_cost'],'pack_cost':source['pack_cost'],'status':qty==0?'DEPLETED':'ACTIVE'});
         await txn.update('stock_transfer_items',{'to_batch_id':batchId,'received_qty_units':qty},where:'id=?',whereArgs:[item['id']]);
         await txn.insert('stock_movements',{'drug_id':source['drug_id'],'batch_id':batchId,'warehouse_id':destination,'movement_type':'TRANSFER_IN','qty_units':qty,'unit_cost':item['unit_cost'],'balance_after_units':qty,'movement_at':now,'doc_type':'TRANSFER','doc_id':transferId});
