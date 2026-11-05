@@ -61,7 +61,7 @@ class PostingAndSalesService {
         if(payment.method=='BANK'&&kind!='BANK') throw StateError('اختر الحساب البنكي لطريقة الدفع هذه');
         final glValue=cashAccount.first['gl_account_id'];
         if(glValue==null)throw StateError('اربط حساب الصندوق بدليل الحسابات أولاً');
-        final int gl=glValue;
+        final int gl=int.parse(glValue.toString());
         journalLines.add((accountId:gl,debit:payment.amount,credit:0,partyId:null,memo:'تحصيل فاتورة'));
       }
       final revenue=await _accountId(txn,'4101');
@@ -134,7 +134,7 @@ class PostingAndSalesService {
         final row=cashRow!;
         final cashGlValue=row['gl_account_id'];
         if(cashGlValue is! int)throw StateError('اربط حساب الصندوق بدليل الحسابات أولاً');
-        final int cashGl=cashGlValue;
+        final int cashGl=int.parse(cashGlValue.toString());
         await txn.rawUpdate('UPDATE cash_accounts SET current_balance=current_balance+?,updated_at=? WHERE id=?',[isReceipt?amount:-amount,now,cashId]);
         if(isReceipt){
           lines.add((accountId:cashGl,debit:amount,credit:0,partyId:null,memo:'استلام نقدية'));
