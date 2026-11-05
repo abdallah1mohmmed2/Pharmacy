@@ -28,7 +28,7 @@ class TreasuryHrPartnerProvider extends ChangeNotifier {
       final active=await db.query('cashier_shifts',where:"branch_id=? AND status='OPEN'",whereArgs:[branchId],orderBy:'id DESC',limit:1);
       activeShift=active.isEmpty?null:CashierShiftModel.fromMap(active.first);
       employees=await _hr.employees(branchId);
-      partners=await db.rawQuery('SELECT p.*,t.name_ar,t.phone FROM partners p JOIN parties t ON t.id=p.party_id WHERE p.branch_id=? ORDER BY t.name_ar',[branchId]);
+      partners=await db.rawQuery('SELECT p.*,t.name_ar,t.phone,COALESCE(b.total_lah,0) total_lah,COALESCE(b.total_alayh,0) total_alayh FROM partners p JOIN parties t ON t.id=p.party_id LEFT JOIN v_party_balance b ON b.party_id=p.party_id WHERE p.branch_id=? ORDER BY t.name_ar',[branchId]);
       distributions=await db.query('partner_distributions',where:'branch_id=?',whereArgs:[branchId],orderBy:'id DESC',limit:30);
       partnerPolicy=await _partners.policy();
     }catch(e){error=e.toString();}
