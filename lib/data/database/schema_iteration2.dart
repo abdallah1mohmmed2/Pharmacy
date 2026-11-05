@@ -43,7 +43,7 @@ abstract final class SchemaIteration2 {
     final fridge=warehouses.firstWhere((r)=>r['code']=='FRIDGE')['id'] as int;
     final pharmacy=warehouses.firstWhere((r)=>r['code']=='PHARM')['id'] as int;
     final shelves=<List<Object>>[['A-01-01',main,0],['A-01-02',main,0],['A-02-01',main,0],['P-01-01',pharmacy,0],['F-01-01',fridge,1],['F-01-02',fridge,1]];
-    for(final shelf in shelves){await db.insert('shelf_locations',{'warehouse_id':shelf[1],'code':shelf[0],'description':'رف \${shelf[0]}','is_fridge':shelf[2]});}
+    for(final shelf in shelves){await db.insert('shelf_locations',{'warehouse_id':shelf[1],'code':shelf[0],'description':'رف '+shelf[0].toString(),'is_fridge':shelf[2]});}
     final drugs=await db.query('drugs',columns:['id','units_per_pack','cost_price_pack','requires_refrigeration','stock_total_units'],where:'is_deleted=0');
     for(var index=0;index<drugs.length;index++){
       final drug=drugs[index];
