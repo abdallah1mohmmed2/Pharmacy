@@ -32,7 +32,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen>{
  Widget _flag(PosAndDrugsProvider p,String code,String label)=>FilterChip(label:Text(label),selected:p.patientFlags.contains(code),onSelected:(v)=>p.setPatientFlag(code,v));
  Widget _cartLine(PosAndDrugsProvider p,CartItemModel item)=>ListTile(dense:true,title:Text(item.drug.tradeNameAr),subtitle:Row(children:[DropdownButton<String>(value:item.sellUnit,items:const [DropdownMenuItem(value:'PACK',child:Text('باكت')),DropdownMenuItem(value:'STRIP',child:Text('شريط')),DropdownMenuItem(value:'UNIT',child:Text('حبة'))],onChanged:(v)=>p.changeUnit(item,v??'UNIT')),const SizedBox(width:10),SizedBox(width:65,child:TextFormField(initialValue:item.quantity.toString(),keyboardType:TextInputType.number,onChanged:(v)=>p.changeQuantity(item,double.tryParse(v)??item.quantity))) ]),trailing:IconButton(icon:const Icon(Icons.delete_outline,color:AppColors.danger),onPressed:()=>p.removeItem(item)));
  Future<void> _finish(PosAndDrugsProvider p,SessionAndErpProvider s)async{
-  if(p.clinicalBlock!=null){final approved=await ManagerPinDialog.show(context);if(!approved)return;}
+  if(p.clinicalBlock!=null){final approved=await ManagerPinDialog.show(context,verifier:s.verifyManagerPin);if(!approved)return;}
   if(cashId==null){_message('اختر الصندوق أو المحفظة');return;}
   final tender=method=='MIXED'?mixedChannel:method;
   final isWallet=tender=='WALLET';if(isWallet&&walletRef.text.trim().length<6){_message('أدخل رقم إشعار صحيحاً');return;}
