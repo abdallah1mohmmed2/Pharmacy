@@ -33,11 +33,11 @@ class PosAndDrugsProvider extends ChangeNotifier {
   void changeUnit(CartItemModel item,String unit){if(currentTab.held)return;item.sellUnit=unit;notifyListeners();}
   void _checkDrug(DrugModel d){
     if(patientFlags.contains('PREGNANT') && d.pregnancyCategory=='X')clinicalBlock='تحذير حمل حرج: '+d.tradeNameAr+' مصنف ضمن الفئة X.';
-    if(patientFlags.contains('KIDNEY') && ['AVOID','CONTRAINDICATED'].contains(d.renalStatus))clinicalBlock='تحذير كلوي: '+d.tradeNameAr+' — '+d.renalNotes;
-    if(patientFlags.contains('LIVER') && ['AVOID','CONTRAINDICATED'].contains(d.hepaticStatus))clinicalBlock='تحذير كبدي: '+d.tradeNameAr+' — '+d.hepaticNotes;
-    if(patientFlags.contains('CHILD') && ['AVOID','CONTRAINDICATED'].contains(d.pediatricStatus))clinicalBlock='تحذير للأطفال: '+d.tradeNameAr+' — '+d.pediatricNotes;
-    if(patientFlags.contains('ELDERLY') && d.geriatricStatus=='AVOID')clinicalBlock='تحذير لكبار السن: '+d.tradeNameAr+' — '+d.geriatricNotes;
-    if(patientFlags.contains('BREASTFEEDING') && ['L4','L5'].contains(d.lactationRisk))clinicalBlock='تحذير رضاعة: '+d.tradeNameAr+' — '+d.lactationNotes;
+    if(patientFlags.contains('KIDNEY') && ['ADJUST','AVOID','CONTRAINDICATED'].contains(d.renalStatus))clinicalBlock='تحذير كلوي: '+d.tradeNameAr+' — '+d.renalNotes;
+    if(patientFlags.contains('LIVER') && ['ADJUST','AVOID','CONTRAINDICATED'].contains(d.hepaticStatus))clinicalBlock='تحذير كبدي: '+d.tradeNameAr+' — '+d.hepaticNotes;
+    if(patientFlags.contains('CHILD') && ['ADJUST','AVOID','CONTRAINDICATED'].contains(d.pediatricStatus))clinicalBlock='تحذير للأطفال: '+d.tradeNameAr+' — '+d.pediatricNotes;
+    if(patientFlags.contains('ELDERLY') && ['ADJUST','AVOID'].contains(d.geriatricStatus))clinicalBlock='تحذير لكبار السن: '+d.tradeNameAr+' — '+d.geriatricNotes;
+    if(patientFlags.contains('BREASTFEEDING') && ['L3','L4','L5'].contains(d.lactationRisk))clinicalBlock='تحذير رضاعة: '+d.tradeNameAr+' — '+d.lactationNotes;
   }
   Future<void> saveDrug(DrugModel drug) async {
     final now=DateTime.now().toIso8601String();final map=drug.toMap();map.remove('id');
