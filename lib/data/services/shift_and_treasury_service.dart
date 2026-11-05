@@ -112,7 +112,7 @@ class ShiftAndTreasuryService {
       final shift=rows.first;
       final movement=await tx.rawQuery("SELECT COALESCE(SUM(CASE WHEN direction='IN' THEN amount ELSE -amount END),0) movement FROM cash_transactions WHERE cashier_shift_id=? AND cash_account_id=?",[shiftId,shift['drawer_account_id']]);
       final expected=_n(shift['opening_cash'])+_n(movement.first['movement']);
-      difference=(actual-expected*100).roundToDouble()/100;
+      difference=((actual-expected)*100).roundToDouble()/100;
       await tx.update('cashier_shifts',{'expected_cash':expected,'counted_cash':actual,'diff_amount':difference,'counted_wallets_json':jsonEncode(countedWallets),'counted_denominations_json':jsonEncode(denominations),'diff_handling':diffHandling,'closed_at':_now(),'status':handoverToUserId==null?'CLOSED':'HANDED_OVER','handover_to_user_id':handoverToUserId},where:'id=?',whereArgs:[shiftId]);
       if(difference.abs()>=0.005){await _postShiftDiff(tx,shift:shift,shiftId:shiftId,difference:difference,handling:diffHandling);}
       if(handoverToUserId!=null){final drawerId=shift['drawer_account_id'] as int;await tx.insert('cashier_shifts',{'shift_no':'SH-${DateTime.now().millisecondsSinceEpoch}','user_id':handoverToUserId,'cashier_party_id':shift['cashier_party_id'],'drawer_account_id':drawerId,'work_shift_id':shift['work_shift_id'],'opened_at':_now(),'opening_cash':actual,'status':'OPEN','branch_id':shift['branch_id']});}
@@ -147,7 +147,7 @@ class ShiftAndTreasuryService {
     }
   }
 
-  Future<int> _glId(TransactionExecutor tx,String code) async {final r=await tx.query('chart_of_accounts',columns:['id'],where:'code=?',whereArgs:[code],limit:1);if(r.isEmpty)throw StateError('الحساب المحاسبي $code غير موجود');return r.first['id'] as int;}
-  Future<int> _journal(TransactionExecutor tx,{required int branchId,required String source,String? description,int? sourceId}) async=>tx.insert('journal_entries',{'uuid':_uuid('je'),'branch_id':branchId,'created_at':_now(),'updated_at':_now(),'entry_no':'AUTO-${DateTime.now().microsecondsSinceEpoch}','entry_date':_now(),'description':description??source,'source_type':source,'source_id':sourceId,'is_posted':1});
-  Future<void> _journalLine(TransactionExecutor tx,{required int branchId,required int entryId,required int accountId,double dr=0,double cr=0,int? partyId,String? memo}) async {await tx.insert('journal_lines',{'uuid':_uuid('jl'),'branch_id':branchId,'created_at':_now(),'updated_at':_now(),'journal_entry_id':entryId,'account_id':accountId,'party_id':partyId,'dr_amount':dr,'cr_amount':cr,'memo':memo});}
+  Future<int> _glId(DatabaseExecutor tx,String code) async {final r=await tx.query('chart_of_accounts',columns:['id'],where:'code=?',whereArgs:[code],limit:1);if(r.isEmpty)throw StateError('الحساب المحاسبي $code غير موجود');return r.first['id'] as int;}
+  Future<int> _journal(DatabaseExecutor tx,{required int branchId,required String source,String? description,int? sourceId}) async=>tx.insert('journal_entries',{'uuid':_uuid('je'),'branch_id':branchId,'created_at':_now(),'updated_at':_now(),'entry_no':'AUTO-${DateTime.now().microsecondsSinceEpoch}','entry_date':_now(),'description':description??source,'source_type':source,'source_id':sourceId,'is_posted':1});
+  Future<void> _journalLine(DatabaseExecutor tx,{required int branchId,required int entryId,required int accountId,double dr=0,double cr=0,int? partyId,String? memo}) async {await tx.insert('journal_lines',{'uuid':_uuid('jl'),'branch_id':branchId,'created_at':_now(),'updated_at':_now(),'journal_entry_id':entryId,'account_id':accountId,'party_id':partyId,'dr_amount':dr,'cr_amount':cr,'memo':memo});}
 }
