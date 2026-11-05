@@ -17,7 +17,7 @@ void main() {
     final db = await databaseFactoryFfi.openDatabase(
       inMemoryDatabasePath,
       options: OpenDatabaseOptions(
-        version: 3,
+        version: 4,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
           await database.execute('PRAGMA journal_mode = WAL');
