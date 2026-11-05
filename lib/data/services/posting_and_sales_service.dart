@@ -75,7 +75,7 @@ class PostingAndSalesService {
   Future<int> postVoucher({required int branchId,required String voucherNo,required String voucherType,required int partyId,int? cashAccountId,required double amount,required String method,required String description,String? walletRefNo}) async {
     if(amount<=0) throw ArgumentError('المبلغ يجب أن يكون أكبر من صفر');
     if(method=='WALLET' && (walletRefNo==null || walletRefNo.trim().length<6)) throw ArgumentError('رقم إشعار المحفظة مطلوب');
-    if(isOffset && voucherType!='SETTLEMENT') throw ArgumentError('وسيلة التسوية بدون نقد مخصصة لسند التسوية فقط');
+    if(method=='OFFSET' && voucherType!='SETTLEMENT') throw ArgumentError('وسيلة التسوية بدون نقد مخصصة لسند التسوية فقط');
     if(!['RECEIPT','PAYMENT','SETTLEMENT'].contains(voucherType)) throw ArgumentError('نوع سند غير صالح');
     return (await _helper.database).transaction((txn) async {
       final generatedVoucherNo=await _nextNumber(txn,branchId,'VOUCHER');
@@ -86,23 +86,27 @@ class PostingAndSalesService {
       if(party.isEmpty) throw StateError('الطرف غير موجود');
       final voucherId=await txn.insert('vouchers',{..._base(branchId),'voucher_no':generatedVoucherNo,'voucher_type':voucherType,'voucher_date':DateTime.now().toIso8601String(),'party_id':partyId,'cash_account_id':cashAccountId,'amount':amount,'method':method,'wallet_ref_no':walletRefNo,'description':description});
       final isReceipt=voucherType=='RECEIPT';
-      final alayh=isReceipt?0.0:amount;
-      final lah=isReceipt?amount:0.0;
-      await txn.insert('lah_alayh_ledger',{..._base(branchId),'party_id':partyId,'entry_date':DateTime.now().toIso8601String(),'entry_type':voucherType,'alayh_amount':alayh,'lah_amount':lah,'doc_type':'VOUCHER','doc_id':voucherId,'statement_ar':description.isEmpty?'سند '+generatedVoucherNo:description});
+      if(!isOffset){
+        final alayh=isReceipt?0.0:amount;
+        final lah=isReceipt?amount:0.0;
+        await txn.insert('lah_alayh_ledger',{..._base(branchId),'party_id':partyId,'entry_date':DateTime.now().toIso8601String(),'entry_type':voucherType,'alayh_amount':alayh,'lah_amount':lah,'doc_type':'VOUCHER','doc_id':voucherId,'statement_ar':description.isEmpty?'سند '+generatedVoucherNo:description});
+      }
       final partyGl=await _accountId(txn,isReceipt?'1201':'2101');
       final lines=<({int accountId,double debit,double credit,int? partyId,String memo})>[];
       if(isOffset){
         final balanceRows=await txn.rawQuery('SELECT net FROM v_party_balance WHERE party_id=?',[partyId]);
         final net=balanceRows.isEmpty?0.0:(balanceRows.first['net'] as num).toDouble();
         if(net.abs()<0.005) throw StateError('لا يوجد رصيد قائم لإجراء التسوية');
+        if(amount>net.abs()+0.005) throw StateError('مبلغ التسوية يتجاوز الرصيد القائم');
         final adjustment=await _accountId(txn,'5304');
+        final offsetPartyGl=await _accountId(txn,net>0?'1201':'2101');
         if(net>0){
           await txn.insert('lah_alayh_ledger',{..._base(branchId),'party_id':partyId,'entry_date':DateTime.now().toIso8601String(),'entry_type':'SETTLEMENT','alayh_amount':0,'lah_amount':amount,'doc_type':'VOUCHER','doc_id':voucherId,'statement_ar':'تسوية رصيد'});
           lines.add((accountId:adjustment,debit:amount,credit:0,partyId:null,memo:'تسوية رصيد مستحق'));
-          lines.add((accountId:partyGl,debit:0,credit:amount,partyId:partyId,memo:'تخفيض رصيد الطرف'));
+          lines.add((accountId:offsetPartyGl,debit:0,credit:amount,partyId:partyId,memo:'تخفيض رصيد الطرف'));
         }else{
           await txn.insert('lah_alayh_ledger',{..._base(branchId),'party_id':partyId,'entry_date':DateTime.now().toIso8601String(),'entry_type':'SETTLEMENT','alayh_amount':amount,'lah_amount':0,'doc_type':'VOUCHER','doc_id':voucherId,'statement_ar':'تسوية رصيد'});
-          lines.add((accountId:partyGl,debit:amount,credit:0,partyId:partyId,memo:'تخفيض التزام الطرف'));
+          lines.add((accountId:offsetPartyGl,debit:amount,credit:0,partyId:partyId,memo:'تخفيض التزام الطرف'));
           lines.add((accountId:adjustment,debit:0,credit:amount,partyId:null,memo:'تسوية رصيد مستحق'));
         }
       }else{
