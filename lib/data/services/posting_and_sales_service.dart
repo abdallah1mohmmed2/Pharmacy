@@ -34,6 +34,8 @@ class PostingAndSalesService {
       if(paid-net>0.005) throw StateError('إجمالي المدفوع أكبر من صافي الفاتورة');
       final remaining=(net-paid).clamp(0,double.infinity).toDouble();
       if(remaining>0 && customerPartyId<=0) throw StateError('اختر العميل لتسجيل المبلغ المتبقي');
+      final activeShiftRows=await txn.query('cashier_shifts',columns:['id'],where:"branch_id=? AND user_id=? AND status='OPEN'",whereArgs:[branchId,cashierUserId],orderBy:'id DESC',limit:1);
+      final int? activeShiftId=activeShiftRows.isEmpty?null:activeShiftRows.first['id'] as int;
       final invoiceNo=await _nextNumber(txn,branchId,'INVOICE');
       final invoiceId=await txn.insert('sales_invoices',{..._base(branchId),'invoice_no':invoiceNo,'invoice_date':DateTime.now().toIso8601String(),'cashier_user_id':cashierUserId,'customer_party_id':customerPartyId<=0?null:customerPartyId,'sale_type':saleType,'status':'COMPLETED','subtotal':subtotal,'discount_amount':discountAmount,'net_total':net,'paid_total':paid,'remaining_alayh':remaining,'total_cost':0});
       double actualTotalCost=0;
@@ -56,6 +58,8 @@ class PostingAndSalesService {
         if(payment.method=='WALLET' && (payment.walletRef==null || payment.walletRef!.trim().length<6)) throw StateError('رقم إشعار المحفظة إلزامي');
         await txn.insert('sales_payments',{..._base(branchId),'invoice_id':invoiceId,'cash_account_id':payment.cashAccountId,'method':payment.method,'amount':payment.amount,'wallet_ref_no':payment.walletRef});
         await txn.rawUpdate('UPDATE cash_accounts SET current_balance=current_balance+?,updated_at=? WHERE id=?',[payment.amount,DateTime.now().toIso8601String(),payment.cashAccountId]);
+        final cashBalanceRows=await txn.query('cash_accounts',columns:['current_balance'],where:'id=?',whereArgs:[payment.cashAccountId],limit:1);
+        await txn.insert('cash_transactions',{'cash_account_id':payment.cashAccountId,'tx_date':DateTime.now().toIso8601String(),'direction':'IN','amount':payment.amount,'tx_type':'SALE','doc_type':'INVOICE','doc_id':invoiceId,'wallet_ref_no':payment.walletRef,'cashier_shift_id':activeShiftId,'balance_after':(cashBalanceRows.first['current_balance'] as num).toDouble(),'note':'تحصيل فاتورة بيع','branch_id':branchId});
         final cashAccount=await txn.query('cash_accounts',columns:['gl_account_id','account_kind'],where:'id=?',whereArgs:[payment.cashAccountId]);
         if(cashAccount.isEmpty) throw StateError('حساب التحصيل غير موجود');
         final kind=cashAccount.first['account_kind'] as String;
@@ -111,6 +115,8 @@ class PostingAndSalesService {
       if(party.isEmpty)throw StateError('الطرف غير موجود');
       final now=DateTime.now().toIso8601String();
       final voucherId=await txn.insert('vouchers',{..._base(branchId),'voucher_no':generatedVoucherNo,'voucher_type':voucherType,'voucher_date':now,'party_id':partyId,'cash_account_id':isOffset?null:cashId,'amount':amount,'method':method,'wallet_ref_no':walletRefNo,'description':description});
+      final shiftRows= !isOffset ? await txn.query('cashier_shifts',columns:['id'],where:"branch_id=? AND status='OPEN'",whereArgs:[branchId],orderBy:'id DESC',limit:1) : <Map<String,Object?>>[];
+      final int? voucherShiftId=shiftRows.isEmpty?null:shiftRows.first['id'] as int;
       final isReceipt=voucherType=='RECEIPT';
       if(!isOffset){
         await txn.insert('lah_alayh_ledger',{..._base(branchId),'party_id':partyId,'entry_date':now,'entry_type':voucherType,'alayh_amount':isReceipt?0.0:amount,'lah_amount':isReceipt?amount:0.0,'doc_type':'VOUCHER','doc_id':voucherId,'statement_ar':description.isEmpty?'سند '+generatedVoucherNo:description});
@@ -139,6 +145,8 @@ class PostingAndSalesService {
         if(cashGlValue is! int)throw StateError('اربط حساب الصندوق بدليل الحسابات أولاً');
         final int cashGl=int.parse(cashGlValue.toString());
         await txn.rawUpdate('UPDATE cash_accounts SET current_balance=current_balance+?,updated_at=? WHERE id=?',[isReceipt?amount:-amount,now,cashId]);
+        final afterRows=await txn.query('cash_accounts',columns:['current_balance'],where:'id=?',whereArgs:[cashId],limit:1);
+        await txn.insert('cash_transactions',{'cash_account_id':cashId,'tx_date':now,'direction':isReceipt?'IN':'OUT','amount':amount,'tx_type':isReceipt?'RECEIPT_VOUCHER':'PAYMENT_VOUCHER','doc_type':'VOUCHER','doc_id':voucherId,'wallet_ref_no':walletRefNo,'cashier_shift_id':voucherShiftId,'balance_after':(afterRows.first['current_balance'] as num).toDouble(),'note':description,'branch_id':branchId});
         if(isReceipt){
           lines.add((accountId:cashGl,debit:amount,credit:0,partyId:null,memo:'استلام نقدية'));
           lines.add((accountId:partyGl,debit:0,credit:amount,partyId:partyId,memo:'تخفيض رصيد الطرف'));
