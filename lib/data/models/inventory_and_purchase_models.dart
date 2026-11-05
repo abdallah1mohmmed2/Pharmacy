@@ -76,6 +76,6 @@ class PurchaseReturnModel {
 }
 @immutable
 class ShortageItemModel {
-  const ShortageItemModel({required this.drugId,required this.drugName,required this.currentUnits,required this.minimumUnits,required this.suggestedPacks,this.averageDailySales=0,this.bestSupplierName='',this.effectivePackCost=0});
-  final int drugId,currentUnits,minimumUnits,suggestedPacks; final String drugName,bestSupplierName; final double averageDailySales,effectivePackCost;
+  const ShortageItemModel({required this.drugId,required this.drugName,required this.currentUnits,required this.minimumUnits,required this.suggestedPacks,this.averageDailySales=0,this.bestSupplierName='',this.bestSupplierId,this.effectivePackCost=0});
+  final int drugId,currentUnits,minimumUnits,suggestedPacks; final String drugName,bestSupplierName; final int? bestSupplierId; final double averageDailySales,effectivePackCost;
 }
