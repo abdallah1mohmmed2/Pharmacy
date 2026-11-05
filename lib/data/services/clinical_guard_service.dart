@@ -27,7 +27,7 @@ class ClinicalGuardService {
       alerts.addAll(await _allergyRules(drug,patient));
       if(drug.isControlled)alerts.add(ClinicalAlertModel(category:'CONTROLLED',level:ClinicalLevel.warning,drugId:id,messageAr:'هذا دواء خاضع للرقابة؛ يلزم توثيق بيانات المريض والمستلم والوصفة قبل الصرف.',recommendation:'تحقق من الوصفة والهوية وسجل الصرف.'));
       if(drug.requiresPrescription||drug.prescriptionRestricted||drug.isAntibiotic)alerts.add(ClinicalAlertModel(category:'RX_REQUIRED',level:ClinicalLevel.caution,drugId:id,messageAr:'يتطلب هذا الصنف التحقق من الوصفة الطبية والقيود المحلية.',recommendation:'راجع الوصفة قبل اعتماد البيع.'));
-      if(patient!=null)alerts.addAll(await _interactions(drug,[...cart.where((x)=>x.id!=id),...currentDrugs],patient.id));
+      alerts.addAll(await _interactions(drug,[...cart.where((x)=>x.id!=id),...currentDrugs],patient?.id));
       if((drug.geriatricAgeThreshold)>0&&(patient?.ageYears??0)>=drug.geriatricAgeThreshold&&drug.geriatricStatus=='AVOID')alerts.add(ClinicalAlertModel(category:'GERIATRIC',level:ClinicalLevel.warning,drugId:id,messageAr:drug.geriatricNotes.isEmpty?'تنبيه خاص بكبار السن لهذا الدواء.':drug.geriatricNotes));
       final dose=prescribedDoseMgByDrugId[id];
       if(dose!=null&&drug.adultDoseMaxMgPerDay!=null&&dose>drug.adultDoseMaxMgPerDay!*1.1)alerts.add(ClinicalAlertModel(category:'DOSE_EXCEEDED',level:ClinicalLevel.warning,drugId:id,messageAr:'الجرعة المدخلة تتجاوز الحد اليومي المرجعي بأكثر من 10%.',recommendation:'تحقق من الجرعة والوحدة والمدة.'));
@@ -100,7 +100,10 @@ class ClinicalGuardService {
   Future<List<ClinicalAlertModel>> _allergyRules(DrugModel d,PatientClinicalModel? p) async {
     if(p==null||p.allergies.isEmpty)return [];
     final names=<String>{d.scientificName.toLowerCase(),d.chemicalComposition.toLowerCase(),..._ingredientNames(d.ingredientsJson)};
-    final matches=p.allergies.where((a)=>names.any((n)=>n.contains(a.toLowerCase())||a.toLowerCase().contains(n))).toList();
+    if(d.activeIngredientId!=null){final rows=await (await _helper.database).query('active_ingredients',columns:['inn_name','name_ar'],where:'id=?',whereArgs:[d.activeIngredientId],limit:1);if(rows.isNotEmpty){names.add((rows.first['inn_name'] as String? ?? '').toLowerCase());names.add((rows.first['name_ar'] as String? ?? '').toLowerCase());}}
+    final allergyGroups=<String,String>{'penicillin':'amoxicillin clavulanic acid','البنسلين':'أموكسيسيلين حمض كلافولانيك','sulfa':'sulfonamide','السلفا':'sulfonamide'};
+    final expanded=p.allergies.expand((a)=>[a,if(allergyGroups.containsKey(a.toLowerCase()))allergyGroups[a.toLowerCase()]!]).toList();
+    final matches=expanded.where((a)=>names.any((n)=>n.isNotEmpty&&(n.contains(a.toLowerCase())||a.toLowerCase().contains(n)))).toSet().toList();
     return matches.isEmpty?[]:[ClinicalAlertModel(category:'ALLERGY',level:ClinicalLevel.block,drugId:d.id,messageAr:'حساسية مسجلة لدى المريض قد تتطابق مع مكونات الدواء: ${matches.join('، ')}.',recommendation:'لا تصرف قبل التحقق من الحساسية وتحديد بديل آمن.')];
   }
   List<String> _ingredientNames(String raw){try{return (jsonDecode(raw) as List).map((e)=>(e as Map)['name'].toString().toLowerCase()).toList();}catch(_){return [];}}
