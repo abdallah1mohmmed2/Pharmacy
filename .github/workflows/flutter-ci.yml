@@ -8,7 +8,7 @@ on:
 permissions:
   contents: read
 jobs:
-  validate:
+  android:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,6 +23,18 @@ jobs:
       - run: flutter build apk --release
       - uses: actions/upload-artifact@v4
         with:
-          name: pharmacy-iteration-1-apk
+          name: pharmacy-iteration-1-android-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter config --enable-windows-desktop
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter build windows --release
