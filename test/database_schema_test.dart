@@ -34,10 +34,16 @@ void main() {
       final settings = (await db.rawQuery('SELECT COUNT(*) AS c FROM system_settings')).first['c'] as int;
       final accounts = (await db.rawQuery('SELECT COUNT(*) AS c FROM chart_of_accounts')).first['c'] as int;
       final wallets = (await db.rawQuery("SELECT COUNT(*) AS c FROM cash_accounts WHERE account_kind='WALLET'")).first['c'] as int;
+      final openingJournals = (await db.rawQuery("SELECT COUNT(*) AS c FROM journal_entries WHERE source_type='OPENING'")).first['c'] as int;
+      final incompleteDrugs = (await db.rawQuery('SELECT COUNT(*) AS c FROM drugs WHERE completeness_pct < 100')).first['c'] as int;
+      final unbalancedJournals = await db.rawQuery('SELECT je.id FROM journal_entries je JOIN journal_lines jl ON jl.journal_entry_id=je.id GROUP BY je.id HAVING ABS(SUM(jl.dr_amount)-SUM(jl.cr_amount))>0.005');
       expect(drugs, 6);
       expect(settings, 35);
       expect(accounts, greaterThanOrEqualTo(30));
       expect(wallets, 4);
+      expect(openingJournals, 4);
+      expect(incompleteDrugs, 0);
+      expect(unbalancedJournals, isEmpty);
       final view = await db.rawQuery("SELECT name FROM sqlite_master WHERE type='view' AND name='v_party_balance'");
       expect(view, hasLength(1));
     } finally {
