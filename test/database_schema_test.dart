@@ -3,6 +3,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_builder.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration2.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration3.dart';
+import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration4.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/seed_data.dart';
 
 void main() {
@@ -18,7 +19,7 @@ void main() {
     final db = await databaseFactoryFfi.openDatabase(
       inMemoryDatabasePath,
       options: OpenDatabaseOptions(
-        version: 5,
+        version: 6,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
           await database.execute('PRAGMA journal_mode = WAL');
@@ -31,6 +32,7 @@ void main() {
           await SeedData.run(database);
           await SchemaIteration2.upgrade(database);
           await SchemaIteration3.upgrade(database);
+          await SchemaIteration4.upgrade(database);
         },
       ),
     );
@@ -139,6 +141,8 @@ void main() {
       expect(saleItemColumns.any((r) => r['name'] == 'substituted_for_drug_id'), isTrue);
       final returnColumns = await db.rawQuery('PRAGMA table_info(sales_returns)');
       expect(returnColumns.any((r) => r['name'] == 'wallet_ref_no'), isTrue);
+      final patientColumns = await db.rawQuery('PRAGMA table_info(patients)');
+      expect(patientColumns.any((r) => r['name'] == 'pregnancy_status_known'), isTrue);
 
 
       final requiredTables = [
