@@ -102,7 +102,7 @@ class ClinicalGuardService {
     if(foods.isEmpty||drug.id==null)return [];
     final out=<ClinicalAlertModel>[];
     for(final food in foods.where((x)=>x.trim().isNotEmpty)){
-      final rows=await (await _helper.database).rawQuery("SELECT * FROM drug_interactions WHERE interactant_type='FOOD' AND (drug_a_id=? OR drug_a_ingredient_id=?) AND lower(interactant_name) LIKE ?",[drug.id,drug.activeIngredientId,'%\${food.toLowerCase()}%']);
+      final rows=await (await _helper.database).rawQuery("SELECT * FROM drug_interactions WHERE interactant_type='FOOD' AND (drug_a_id=? OR drug_a_ingredient_id=?) AND lower(interactant_name) LIKE ?",[drug.id,drug.activeIngredientId,'%'+food.toLowerCase()+'%']);
       for(final r in rows){final severity=r['severity'] as String;final level=switch(severity){'CONTRAINDICATED'=>ClinicalLevel.block,'MAJOR'=>ClinicalLevel.warning,'MODERATE'=>ClinicalLevel.caution,_=>ClinicalLevel.info};out.add(ClinicalAlertModel(category:'INTERACTION',level:level,drugId:drug.id,patientId:patientId,ruleRef:'drug_interactions:${r['id']}',messageAr:'تفاعل غذائي محتمل بين ${drug.tradeNameAr} و${r['interactant_name']}: ${r['clinical_effect']}',recommendation:r['management'] as String? ?? 'تحقق من النشرة الدوائية.'));}
     }
     return out;
