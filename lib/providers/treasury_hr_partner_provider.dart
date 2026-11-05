@@ -50,6 +50,6 @@ class TreasuryHrPartnerProvider extends ChangeNotifier {
   Future<Map<String,double>> calculateProfit(String period) async {profitSummary=await _partners.calculatePeriodNetProfit(branchId:branchId,periodCode:period);notifyListeners();return profitSummary;}
   Future<int> createDistribution({required String period,required double reservePct}) async {profitSummary=await _partners.calculatePeriodNetProfit(branchId:branchId,periodCode:period);final id=await _partners.createDistribution(branchId:branchId,periodCode:period,reservePct:reservePct);final distributable=(profitSummary['net_profit']??0)*(1-reservePct/100);distributionPreview=await _partners.planDistribution(branchId:branchId,periodCode:period,distributableProfit:distributable);await refresh();return id;}
   Future<void> postDistribution(int id) async {await _partners.postPartnerDistribution(distributionId:id);await refresh();}
-  Future<void> switchDistributionMode(String mode,{required int managerUserId}) async {await _partners.switchDistributionMode(newMode:mode,managerUserId:managerUserId);await refresh();}
+  Future<void> switchDistributionMode(String mode,{required int managerUserId}) async {await _partners.switchDistributionMode(branchId:branchId,newMode:mode,managerUserId:managerUserId);await refresh();}
   Future<void> validatePartnerFields({int? shares,double? percentage})=>_partners.validatePartnerFields(sharesCount:shares,percentage:percentage);
 }
