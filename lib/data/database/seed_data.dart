@@ -1,5 +1,4 @@
-import 'dart:convert';
-import 'package:crypto/crypto.dart';
+import '../services/security_hash_service.dart';
 import 'package:sqflite/sqflite.dart';
 import '../models/drug_model.dart';
 
@@ -8,7 +7,7 @@ abstract final class SeedData {
   static Future<void> run(DatabaseExecutor db) async {
     final branchId = await db.insert('branches', {'uuid':'branch-main','branch_id':1,'created_at':_now,'updated_at':_now,'code':'MAIN','name_ar':'الفرع الرئيسي','name_en':'Main Branch','is_main':1,'is_active':1});
     final base = {'uuid':'seed','branch_id':branchId,'created_at':_now,'updated_at':_now,'is_deleted':0,'sync_status':'LOCAL','sync_version':1};
-    await db.insert('users',{...base,'uuid':'user-owner','username':'admin','full_name':'مدير النظام','role_code':'OWNER','password_hash':sha256.convert(utf8.encode('123456')).toString(),'manager_pin_hash':sha256.convert(utf8.encode('9999')).toString(),'is_active':1});
+    await db.insert('users',{...base,'uuid':'user-owner','username':'admin','full_name':'مدير النظام','role_code':'OWNER','password_hash':SecurityHashService.hash('123456'),'manager_pin_hash':SecurityHashService.hash('9999'),'is_active':1});
     final settings = <List<String>>[
       ['BRANCH_NAME','GENERAL','TEXT','اسم الفرع'],['CURRENCY','GENERAL','TEXT','العملة'],['CURRENCY_SYMBOL','GENERAL','TEXT','رمز العملة'],['TAX_ENABLED','SALES','BOOL','تفعيل الضريبة'],['TAX_RATE','SALES','NUMBER','نسبة الضريبة'],['DEFAULT_DISCOUNT','SALES','NUMBER','الخصم الافتراضي'],['MAX_DISCOUNT','SALES','NUMBER','الحد الأعلى للخصم'],['ALLOW_CREDIT','SALES','BOOL','السماح بالبيع الآجل'],['CREDIT_LIMIT_REQUIRED','SALES','BOOL','اشتراط حد ائتماني'],['LOW_STOCK_ALERT','INVENTORY','BOOL','تنبيه المخزون المنخفض'],['DEFAULT_MIN_STOCK','INVENTORY','NUMBER','حد المخزون الافتراضي'],['ALLOW_NEGATIVE_STOCK','INVENTORY','BOOL','السماح بمخزون سالب'],['AUTO_STRIP_PRICE','PRICING','BOOL','حساب سعر الشريط تلقائياً'],['AUTO_UNIT_PRICE','PRICING','BOOL','حساب سعر الحبة تلقائياً'],['PRICE_ROUNDING','PRICING','TEXT','تقريب الأسعار'],['MANAGER_PIN_REQUIRED','SECURITY','BOOL','طلب رمز المدير'],['SESSION_TIMEOUT','SECURITY','NUMBER','مهلة الجلسة'],['BARCODE_REQUIRED','DRUGS','BOOL','إلزامية الباركود'],['PRESCRIPTION_WARNING','DRUGS','BOOL','تنبيه الوصفة'],['ANTIBIOTIC_WARNING','DRUGS','BOOL','تنبيه المضاد الحيوي'],['PREGNANCY_ALERT','CLINICAL','BOOL','تنبيه الحمل'],['RENAL_ALERT','CLINICAL','BOOL','تنبيه الكلى'],['HEPATIC_ALERT','CLINICAL','BOOL','تنبيه الكبد'],['PEDIATRIC_ALERT','CLINICAL','BOOL','تنبيه الأطفال'],['GERIATRIC_ALERT','CLINICAL','BOOL','تنبيه كبار السن'],['WALLET_JAWALI','PAYMENTS','TEXT','محفظة جوالي'],['WALLET_JAIB','PAYMENTS','TEXT','محفظة جيب'],['WALLET_FLOUSK','PAYMENTS','TEXT','محفظة فلوسك'],['WALLET_KURAIMI','PAYMENTS','TEXT','محفظة كريمي'],['INVOICE_PREFIX','DOCS','TEXT','بادئة الفاتورة'],['VOUCHER_PREFIX','DOCS','TEXT','بادئة السند'],['BRANCH_PHONE','GENERAL','TEXT','هاتف الفرع'],['BRANCH_ADDRESS','GENERAL','TEXT','عنوان الفرع'],['MANAGER_APPROVAL','SECURITY','BOOL','اعتماد المدير'],['BACKUP_REMINDER','SYSTEM','BOOL','تذكير النسخ الاحتياطي']
     ];
