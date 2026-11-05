@@ -72,7 +72,7 @@ class _PartyExtensionsScreenState extends State<PartyExtensionsScreen> with Sing
       if(prescriptionItemId!=null&&prescriptionId!=null){
         await db.rawUpdate('UPDATE prescription_items SET dispensed_qty_units=dispensed_qty_units+? WHERE id=?',[qty,prescriptionItemId]);
         final progress=await db.rawQuery('SELECT COUNT(*) total,SUM(CASE WHEN dispensed_qty_units>=prescribed_qty_units THEN 1 ELSE 0 END) completed FROM prescription_items WHERE prescription_id=?',[prescriptionId]);
-        await db.update('prescriptions',{'status:(progress.first['total'] as num)==(progress.first['completed'] as num)?'DISPENSED':'PARTIAL'},where:'id=?',whereArgs:[prescriptionId]);
+        await db.update('prescriptions',{'status':(progress.first['total'] as num)==(progress.first['completed'] as num)?'DISPENSED':'PARTIAL'},where:'id=?',whereArgs:[prescriptionId]);
       }
       if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تم صرف الدورة بفاتورة رقم $invoiceId وتحديث الموعد القادم.')));}
     }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
