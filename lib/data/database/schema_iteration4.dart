@@ -65,7 +65,25 @@ abstract final class SchemaIteration4 {
     for(final c in categories){final gl=await db.query('chart_of_accounts',columns:['id'],where:'code=?',whereArgs:[c[2]],limit:1);await db.insert('expense_categories',{'name_ar':c[0],'recurrence':'MONTHLY','monthly_budget_limit':c[1],'gl_account_id':gl.isEmpty?null:gl.first['id'],'branch_id':branchId},conflictAlgorithm:ConflictAlgorithm.ignore);}
     final catRows=await db.query('expense_categories',columns:['id','name_ar'],where:'branch_id=?',whereArgs:[branchId],orderBy:'id');
     final expSeeds=<List<Object>>[['كهرباء',1200.0,'فاتورة كهرباء تجريبية'],['ماء',300.0,'فاتورة ماء تجريبية'],['أكياس وتغليف',450.0,'مواد تغليف تجريبية']];
-    for(var i=0;i<expSeeds.length;i++){final e=expSeeds[i];final exists=await db.query('expenses',columns:['id'],where:'expense_no=?',whereArgs:['SEED-EXP-${i+1}']);if(exists.isNotEmpty)continue;final cat=catRows.firstWhere((r)=>r['name_ar']==e[0]);await db.insert('expenses',{'expense_no':'SEED-EXP-${i+1}','category_id':cat['id'],'expense_date':now,'amount':e[1],'cash_account_id':safe['id'],'paid_to':'مورد تجريبي','description':e[2],'branch_id':branchId});}
+    for(var i=0;i<expSeeds.length;i++){
+      final e=expSeeds[i];final expenseNo='SEED-EXP-${i+1}';
+      final exists=await db.query('expenses',columns:['id'],where:'expense_no=?',whereArgs:[expenseNo]);
+      if(exists.isNotEmpty)continue;
+      final cat=catRows.firstWhere((r)=>r['name_ar']==e[0]);
+      final amount=(e[1] as num).toDouble();
+      final category=await db.query('expense_categories',columns:['gl_account_id'],where:'id=?',whereArgs:[cat['id']],limit:1);
+      final cashRows=await db.query('cash_accounts',columns:['current_balance','gl_account_id'],where:'id=?',whereArgs:[safe['id']],limit:1);
+      final cashBefore=(cashRows.first['current_balance'] as num).toDouble();
+      final cashAfter=cashBefore-amount;
+      final je=await db.insert('journal_entries',{'uuid':'it4-exp-je-${i+1}','branch_id':branchId,'created_at':now,'updated_at':now,'entry_no':'SEED-EXP-JE-${i+1}','entry_date':now,'description':e[2],'source_type':'EXPENSE','is_posted':1});
+      final expenseGl=category.first['gl_account_id'] as int;
+      final cashGl=cashRows.first['gl_account_id'] as int;
+      await db.insert('journal_lines',{'uuid':'it4-exp-jl-${i+1}-1','branch_id':branchId,'created_at':now,'updated_at':now,'journal_entry_id':je,'account_id':expenseGl,'dr_amount':amount,'cr_amount':0,'memo':e[2]});
+      await db.insert('journal_lines',{'uuid':'it4-exp-jl-${i+1}-2','branch_id':branchId,'created_at':now,'updated_at':now,'journal_entry_id':je,'account_id':cashGl,'dr_amount':0,'cr_amount':amount,'memo':e[2]});
+      final expenseId=await db.insert('expenses',{'expense_no':expenseNo,'category_id':cat['id'],'expense_date':now,'amount':amount,'cash_account_id':safe['id'],'paid_to':'مورد تجريبي','description':e[2],'journal_entry_id':je,'branch_id':branchId});
+      await db.update('cash_accounts',{'current_balance':cashAfter,'updated_at':now},where:'id=?',whereArgs:[safe['id']]);
+      await db.insert('cash_transactions',{'cash_account_id':safe['id'],'tx_date':now,'direction':'OUT','amount':amount,'tx_type':'EXPENSE','doc_type':'EXPENSE','doc_id':expenseId,'balance_after':cashAfter,'note':e[2],'branch_id':branchId});
+    }
     final partySeeds=<List<Object>>[
       ['EMPLOYEE','EMP-PHARM','صيدلي تجريبي','PHARMACIST','MONTHLY',45000.0],
       ['EMPLOYEE','EMP-CASH','كاشير تجريبي','CASHIER','MONTHLY',30000.0],
