@@ -82,7 +82,7 @@ class _S16PurchaseInvoiceBonusScreenState
     final headerDiscount = double.tryParse(invoiceDiscount.text) ?? 0;
     final taxAmount = double.tryParse(tax.text) ?? 0;
     final netTotal =
-        (subtotal - headerDiscount + taxAmount).clamp(0, double.infinity);
+        (subtotal - headerDiscount + taxAmount).clamp(0, double.infinity).toDouble();
     final paidNow = payment == 'CREDIT' ? 0.0 : double.tryParse(paid.text) ?? 0;
     final remaining = (netTotal - paidNow).clamp(0, double.infinity);
     final bonusValue = lines.fold<double>(
