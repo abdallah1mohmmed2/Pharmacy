@@ -43,9 +43,21 @@ class _S17S18ReturnsAndShortagesScreenState extends State<S17S18ReturnsAndShorta
   try{await p.postPurchaseReturn(supplierId:supplier!,batchId:batch!,units:q,reason:reason.text,settlement:settlement,agreedValue:amount,cashAccountId:cashAccount);_msg(settlement=='EXCHANGE_GOODS'?'تم تسجيل المرتجع بانتظار استلام البضاعة البديلة':'تم تسجيل المرتجع وترحيل التسوية');}catch(e){_msg(e.toString());}
  }
  Future<void> _order(InventoryAndPurchaseProvider p)async{
-  if(supplier==null||p.shortages.isEmpty){_msg('اختر المورد وتأكد من وجود نواقص');return;}
-  final items=p.shortages.where((x)=>x.suggestedPacks>0).map((x)=>(drugId:x.drugId,packs:x.suggestedPacks,cost:0.0,bonus:0)).toList();
-  try{final id=await p.createShortageOrder(supplierId:supplier!,items:items);_msg('تم إنشاء أمر الشراء رقم '+id.toString());}catch(e){_msg(e.toString());}
+  if(p.shortages.isEmpty){_msg('لا توجد أصناف ناقصة لإنشاء أمر شراء');return;}
+  final grouped=<int,List<({int drugId,int packs,double cost,int bonus})>>{};
+  for(final item in p.shortages.where((x)=>x.suggestedPacks>0)){
+   final supplierId=item.bestSupplierId??supplier;
+   if(supplierId==null)continue;
+   grouped.putIfAbsent(supplierId,()=>[]).add((drugId:item.drugId,packs:item.suggestedPacks,cost:item.effectivePackCost,bonus:0));
+  }
+  if(grouped.isEmpty){_msg('لا يوجد مورد مرتبط بتكلفة شراء سابقة؛ اختر مورداً أولاً');return;}
+  try{
+   final created=<int>[];
+   for(final entry in grouped.entries){
+    created.add(await p.createShortageOrder(supplierId:entry.key,items:entry.value));
+   }
+   _msg('تم إنشاء '+created.length.toString()+' أمر شراء تلقائياً: '+created.join('، '));
+  }catch(e){_msg(e.toString());}
  }
  void _msg(String v)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(v)));
 }
