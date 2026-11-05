@@ -120,9 +120,9 @@ void main() {
       }
       final alternativesView = await db.rawQuery("SELECT name FROM sqlite_master WHERE type='view' AND name='v_drug_alternatives'");
       expect(alternativesView, hasLength(1));
-      final patientCount = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM patients')) ?? 0;
-      final insuranceCount = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM insurance_companies')) ?? 0;
-      final alternativeCount = Sqflite.firstIntValue(await db.rawQuery("SELECT COUNT(*) FROM drugs WHERE internal_code LIKE 'ALT-I3-%'")) ?? 0;
+      final patientCount = (await db.rawQuery('SELECT COUNT(*) AS c FROM patients')).first['c'] as int;
+      final insuranceCount = (await db.rawQuery('SELECT COUNT(*) AS c FROM insurance_companies')).first['c'] as int;
+      final alternativeCount = (await db.rawQuery("SELECT COUNT(*) AS c FROM drugs WHERE internal_code LIKE 'ALT-I3-%'")).first['c'] as int;
       expect(patientCount, 3);
       expect(insuranceCount, 2);
       expect(alternativeCount, 4);
