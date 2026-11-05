@@ -39,19 +39,19 @@ class PediatricRuleModel {
 }
 
 class PatientClinicalModel {
-  const PatientClinicalModel({this.id,this.partyId,required this.fullName,this.birthDate,this.sex='M',this.weightKg,this.heightCm,this.isPregnant=false,this.pregnancyTrimester,this.isLactating=false,this.serumCreatinine,this.egfrMlMin,this.renalStage,this.childPughClass,this.allergiesJson='[]',this.chronicConditionsJson='[]',this.currentMedsJson='[]'});
+  const PatientClinicalModel({this.id,this.partyId,required this.fullName,this.birthDate,this.sex='M',this.weightKg,this.heightCm,this.isPregnant=false,this.pregnancyStatusKnown=false,this.pregnancyTrimester,this.isLactating=false,this.serumCreatinine,this.egfrMlMin,this.renalStage,this.childPughClass,this.allergiesJson='[]',this.chronicConditionsJson='[]',this.currentMedsJson='[]'});
   final int? id,partyId,pregnancyTrimester;
   final String fullName,sex,allergiesJson,chronicConditionsJson,currentMedsJson;
   final DateTime? birthDate;
   final double? weightKg,heightCm,serumCreatinine,egfrMlMin;
-  final bool isPregnant,isLactating;
+  final bool isPregnant,isLactating,pregnancyStatusKnown;
   final String? renalStage,childPughClass;
   int? get ageYears {final b=birthDate;if(b==null)return null;final n=DateTime.now();var a=n.year-b.year;if(n.month<b.month||(n.month==b.month&&n.day<b.day))a--;return a;}
   int? get ageMonths {final b=birthDate;if(b==null)return null;final n=DateTime.now();var m=(n.year-b.year)*12+n.month-b.month;if(n.day<b.day)m--;return m;}
   double? get crcl {final age=ageYears,w=weightKg,sc=serumCreatinine;if(egfrMlMin!=null)return egfrMlMin;if(age==null||w==null||sc==null||sc<=0)return null;final value=((140-age)*w)/(72*sc);return sex=='F'?value*.85:value;}
   List<String> get allergies => _decodeStrings(allergiesJson);
   List<int> get currentDrugIds => _decodeStrings(currentMedsJson).map(int.tryParse).whereType<int>().toList();
-  factory PatientClinicalModel.fromMap(Map<String,Object?> m)=>PatientClinicalModel(id:m['id'] as int?,partyId:m['party_id'] as int?,fullName:m['full_name'] as String? ?? '',birthDate:m['birth_date']==null?null:DateTime.tryParse(m['birth_date'].toString()),sex:m['sex'] as String? ?? 'M',weightKg:(m['weight_kg'] as num?)?.toDouble(),heightCm:(m['height_cm'] as num?)?.toDouble(),isPregnant:(m['is_pregnant'] as num?)==1,pregnancyTrimester:(m['pregnancy_trimester'] as num?)?.toInt(),isLactating:(m['is_lactating'] as num?)==1,serumCreatinine:(m['serum_creatinine'] as num?)?.toDouble(),egfrMlMin:(m['egfr_ml_min'] as num?)?.toDouble(),renalStage:m['renal_stage'] as String?,childPughClass:m['child_pugh_class'] as String?,allergiesJson:m['allergies_json'] as String? ?? '[]',chronicConditionsJson:m['chronic_conditions_json'] as String? ?? '[]',currentMedsJson:m['current_meds_json'] as String? ?? '[]');
+  factory PatientClinicalModel.fromMap(Map<String,Object?> m)=>PatientClinicalModel(id:m['id'] as int?,partyId:m['party_id'] as int?,fullName:m['full_name'] as String? ?? '',birthDate:m['birth_date']==null?null:DateTime.tryParse(m['birth_date'].toString()),sex:m['sex'] as String? ?? 'M',weightKg:(m['weight_kg'] as num?)?.toDouble(),heightCm:(m['height_cm'] as num?)?.toDouble(),isPregnant:(m['is_pregnant'] as num?)==1,pregnancyStatusKnown:(m['pregnancy_status_known'] as num?)==1,pregnancyTrimester:(m['pregnancy_trimester'] as num?)?.toInt(),isLactating:(m['is_lactating'] as num?)==1,serumCreatinine:(m['serum_creatinine'] as num?)?.toDouble(),egfrMlMin:(m['egfr_ml_min'] as num?)?.toDouble(),renalStage:m['renal_stage'] as String?,childPughClass:m['child_pugh_class'] as String?,allergiesJson:m['allergies_json'] as String? ?? '[]',chronicConditionsJson:m['chronic_conditions_json'] as String? ?? '[]',currentMedsJson:m['current_meds_json'] as String? ?? '[]');
   static List<String> _decodeStrings(String s){try{return (jsonDecode(s) as List).map((e)=>e.toString()).toList();}catch(_){return [];}}
 }
 
