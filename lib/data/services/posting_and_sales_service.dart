@@ -23,7 +23,7 @@ class PostingAndSalesService {
     return entryId;
   }
 
-  Future<int> postSale({required int branchId,required int cashierUserId,required List<CartItemModel> items,required String saleType,required List<({int cashAccountId,double amount,String method,String? walletRef})> payments, int? customerPartyId,double discountAmount=0}) async {
+  Future<int> postSale({required int branchId,required int cashierUserId,required List<CartItemModel> items,required String saleType,required List<({int cashAccountId,double amount,String method,String? walletRef})> payments, int customerPartyId=0,double discountAmount=0}) async {
     if(items.isEmpty) throw ArgumentError('لا يمكن حفظ فاتورة فارغة');
     return (await _helper.database).transaction((txn) async {
       final subtotal=items.fold<double>(0,(s,i)=>s+i.lineTotal);
@@ -31,9 +31,10 @@ class PostingAndSalesService {
       final paid=payments.fold<double>(0,(s,p)=>s+p.amount);
       if(paid-net>0.005) throw StateError('إجمالي المدفوع أكبر من صافي الفاتورة');
       final remaining=(net-paid).clamp(0,double.infinity).toDouble();
-      if(remaining>0 && customerPartyId==null) throw StateError('اختر العميل لتسجيل المبلغ المتبقي');
+      if(remaining>0 && actualCustomerId==null) throw StateError('اختر العميل لتسجيل المبلغ المتبقي');
+      final int? actualCustomerId=customerPartyId<=0?null:customerPartyId;
       final invoiceNo=await _nextNumber(txn,branchId,'INVOICE');
-      final invoiceId=await txn.insert('sales_invoices',{..._base(branchId),'invoice_no':invoiceNo,'invoice_date':DateTime.now().toIso8601String(),'cashier_user_id':cashierUserId,'customer_party_id':customerPartyId,'sale_type':saleType,'status':'COMPLETED','subtotal':subtotal,'discount_amount':discountAmount,'net_total':net,'paid_total':paid,'remaining_alayh':remaining,'total_cost':0});
+      final invoiceId=await txn.insert('sales_invoices',{..._base(branchId),'invoice_no':invoiceNo,'invoice_date':DateTime.now().toIso8601String(),'cashier_user_id':cashierUserId,'customer_party_id':actualCustomerId,'sale_type':saleType,'status':'COMPLETED','subtotal':subtotal,'discount_amount':discountAmount,'net_total':net,'paid_total':paid,'remaining_alayh':remaining,'total_cost':0});
       double actualTotalCost=0;
       for(final item in items){
         final drugRows=await txn.query('drugs',columns:['units_per_pack'],where:'id=? AND is_deleted=0',whereArgs:[item.drug.id]);
@@ -64,15 +65,15 @@ class PostingAndSalesService {
         journalLines.add((accountId:gl,debit:payment.amount,credit:0,partyId:null,memo:'تحصيل فاتورة'));
       }
       final revenue=await _accountId(txn,'4101');
-      if(remaining>0 && customerPartyId!=null){
-        final creditRows=await txn.rawQuery('SELECT p.credit_limit, COALESCE(v.net,0) AS net FROM parties p LEFT JOIN v_party_balance v ON v.party_id=p.id WHERE p.id=?',[customerPartyId]);
+      if(remaining>0 && actualCustomerId!=null){
+        final creditRows=await txn.rawQuery('SELECT p.credit_limit, COALESCE(v.net,0) AS net FROM parties p LEFT JOIN v_party_balance v ON v.party_id=p.id WHERE p.id=?',[actualCustomerId]);
         if(creditRows.isEmpty) throw StateError('العميل غير موجود');
         final limit=(creditRows.first['credit_limit'] as num).toDouble();
         final existing=(creditRows.first['net'] as num).toDouble();
         if(limit>0 && existing+remaining>limit) throw StateError('تجاوز الحد الائتماني للعميل');
-        await txn.insert('lah_alayh_ledger',{..._base(branchId),'party_id':customerPartyId,'entry_date':DateTime.now().toIso8601String(),'entry_type':'SALE','alayh_amount':remaining,'lah_amount':0,'doc_type':'INVOICE','doc_id':invoiceId,'statement_ar':'الجزء المتبقي من الفاتورة '+invoiceNo});
+        await txn.insert('lah_alayh_ledger',{..._base(branchId),'party_id':actualCustomerId,'entry_date':DateTime.now().toIso8601String(),'entry_type':'SALE','alayh_amount':remaining,'lah_amount':0,'doc_type':'INVOICE','doc_id':invoiceId,'statement_ar':'الجزء المتبقي من الفاتورة '+invoiceNo});
         final receivable=await _accountId(txn,'1201');
-        journalLines.add((accountId:receivable,debit:remaining,credit:0,partyId:customerPartyId!,memo:'ذمم فاتورة'));
+        journalLines.add((accountId:receivable,debit:remaining,credit:0,partyId:actualCustomerId,memo:'ذمم فاتورة'));
       }
       journalLines.add((accountId:revenue,debit:0,credit:net,partyId:null,memo:'إيراد المبيعات'));
       final cost=actualTotalCost;
@@ -83,7 +84,7 @@ class PostingAndSalesService {
     });
   }
 
-  Future<int> postVoucher({required int branchId,required String voucherNo,required String voucherType,required int partyId,int? cashAccountId,required double amount,required String method,required String description,String? walletRefNo}) async {
+  Future<int> postVoucher({required int branchId,required String voucherNo,required String voucherType,required int partyId,int cashAccountId=-1,required double amount,required String method,required String description,String? walletRefNo}) async {
     if(amount<=0)throw ArgumentError('المبلغ يجب أن يكون أكبر من صفر');
     if(method=='WALLET'&&(walletRefNo==null||walletRefNo.trim().length<6))throw ArgumentError('رقم إشعار المحفظة مطلوب');
     if(method=='OFFSET'&&voucherType!='SETTLEMENT')throw ArgumentError('وسيلة التسوية بدون نقد مخصصة لسند التسوية فقط');
@@ -91,7 +92,7 @@ class PostingAndSalesService {
     return (await _helper.database).transaction((txn)async{
       final generatedVoucherNo=await _nextNumber(txn,branchId,'VOUCHER');
       final isOffset=method=='OFFSET';
-      final int cashId=cashAccountId??-1;
+      final int cashId=cashAccountId;
       Map<String,Object?>? cashRow;
       if(!isOffset){
         if(cashId<0)throw StateError('حساب الصندوق غير موجود');
