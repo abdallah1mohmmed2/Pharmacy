@@ -39,7 +39,7 @@ class ClinicalAndRxProvider extends ChangeNotifier {
     await _helper.update('patients',{
       'party_id':patient.partyId,'full_name':patient.fullName,'birth_date':patient.birthDate?.toIso8601String().substring(0,10),
       'sex':patient.sex,'weight_kg':patient.weightKg,'height_cm':patient.heightCm,
-      'is_pregnant':patient.isPregnant?1:0,'pregnancy_trimester':patient.pregnancyTrimester,
+      'is_pregnant':patient.isPregnant?1:0,'pregnancy_status_known':patient.pregnancyStatusKnown?1:0,'pregnancy_trimester':patient.pregnancyTrimester,
       'is_lactating':patient.isLactating?1:0,'serum_creatinine':patient.serumCreatinine,
       'egfr_ml_min':patient.egfrMlMin,'renal_stage':patient.renalStage,'child_pugh_class':patient.childPughClass,
       'allergies_json':patient.allergiesJson,'chronic_conditions_json':patient.chronicConditionsJson,
