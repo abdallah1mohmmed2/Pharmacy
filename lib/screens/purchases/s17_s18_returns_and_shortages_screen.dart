@@ -8,7 +8,7 @@ class S17S18ReturnsAndShortagesScreen extends StatefulWidget {
  @override State<S17S18ReturnsAndShortagesScreen> createState()=>_S17S18ReturnsAndShortagesScreenState();
 }
 class _S17S18ReturnsAndShortagesScreenState extends State<S17S18ReturnsAndShortagesScreen> {
- int? supplier,batch; String settlement='CREDIT_NOTE';
+ int? supplier,batch,cashAccount; String settlement='CREDIT_NOTE';
  final qty=TextEditingController(),value=TextEditingController(),reason=TextEditingController(text:'مرتجع للمورد');
  @override void dispose(){qty.dispose();value.dispose();reason.dispose();super.dispose();}
  @override Widget build(BuildContext context){
@@ -23,6 +23,7 @@ class _S17S18ReturnsAndShortagesScreenState extends State<S17S18ReturnsAndShorta
      DropdownButtonFormField<int>(value:batch,decoration:const InputDecoration(labelText:'التشغيلة'),items:batches.map((x)=>DropdownMenuItem(value:x.id,child:Text(x.drugName+' • '+x.batchNo))).toList(),onChanged:(v)=>setState(()=>batch=v)),
      TextField(controller:qty,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'الكمية بالحبة'),onChanged:(_)=>setState((){})),
      DropdownButtonFormField<String>(value:settlement,decoration:const InputDecoration(labelText:'طريقة التسوية'),items:const [DropdownMenuItem(value:'CREDIT_NOTE',child:Text('إشعار خصم يخفض ما له')),DropdownMenuItem(value:'CASH_REFUND',child:Text('استرداد نقدي')),DropdownMenuItem(value:'EXCHANGE_GOODS',child:Text('استبدال'))],onChanged:(v)=>setState(()=>settlement=v??settlement)),
+     if(settlement=='CASH_REFUND')DropdownButtonFormField<int>(value:cashAccount,decoration:const InputDecoration(labelText:'الصندوق المستلم للاسترداد'),items:s.cashAccounts.map((x)=>DropdownMenuItem(value:x.id,child:Text(x.nameAr))).toList(),onChanged:(v)=>setState(()=>cashAccount=v)),
      TextField(controller:value,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'قيمة الاسترداد المتفق عليها'),onChanged:(_)=>setState((){})),Text('تكلفة البضاعة المرتجعة: '+cost.toStringAsFixed(2)+' • فرق التسوية (التكلفة − قيمة الاسترداد): '+difference.toStringAsFixed(2),style:TextStyle(color:difference>0?Colors.orange:Colors.green)),
      TextField(controller:reason,decoration:const InputDecoration(labelText:'سبب المرتجع')),
      FilledButton(onPressed:()=>_return(p),child:const Text('تسجيل المرتجع'))
@@ -38,8 +39,8 @@ class _S17S18ReturnsAndShortagesScreenState extends State<S17S18ReturnsAndShorta
  }
  Future<void> _return(InventoryAndPurchaseProvider p)async{
   final q=int.tryParse(qty.text)??0;final amount=double.tryParse(value.text)??0;
-  if(supplier==null||batch==null||q<=0||amount<0){_msg('أكمل بيانات المورد والتشغيلة والكمية والقيمة');return;}
-  try{await p.postPurchaseReturn(supplierId:supplier!,batchId:batch!,units:q,reason:reason.text,settlement:settlement,agreedValue:amount);_msg('تم تسجيل مرتجع المشتريات');}catch(e){_msg(e.toString());}
+  if(supplier==null||batch==null||q<=0||amount<0||(settlement=='CASH_REFUND'&&cashAccount==null)){_msg('أكمل بيانات المورد والتشغيلة والكمية والقيمة');return;}
+  try{await p.postPurchaseReturn(supplierId:supplier!,batchId:batch!,units:q,reason:reason.text,settlement:settlement,agreedValue:amount,cashAccountId:cashAccount);_msg(settlement=='EXCHANGE_GOODS'?'تم تسجيل المرتجع بانتظار استلام البضاعة البديلة':'تم تسجيل المرتجع وترحيل التسوية');}catch(e){_msg(e.toString());}
  }
  Future<void> _order(InventoryAndPurchaseProvider p)async{
   if(supplier==null||p.shortages.isEmpty){_msg('اختر المورد وتأكد من وجود نواقص');return;}
