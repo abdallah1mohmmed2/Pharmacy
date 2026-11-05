@@ -13,7 +13,8 @@ class S05DrugAlternativesSheet extends StatefulWidget {
   @override State<S05DrugAlternativesSheet> createState()=>_S05DrugAlternativesSheetState();
 }
 class _S05DrugAlternativesSheetState extends State<S05DrugAlternativesSheet>{
-  bool exactOnly=false,inStock=false,cheapest=false,safeOnly=false;\n  Set<int> safeIds={};
+  bool exactOnly=false,inStock=false,cheapest=false,safeOnly=false;
+  Set<int> safeIds={};
   @override void initState(){super.initState();WidgetsBinding.instance.addPostFrameCallback((_)=>_load());}
   Future<void> _load()async{
     final provider=context.read<ClinicalAndRxProvider>();
@@ -35,7 +36,8 @@ class _S05DrugAlternativesSheetState extends State<S05DrugAlternativesSheet>{
       Wrap(spacing:6,children:[
         FilterChip(label:const Text('مطابق تماماً'),selected:exactOnly,onSelected:(v)=>setState(()=>exactOnly=v)),
         FilterChip(label:const Text('المتوفر فقط'),selected:inStock,onSelected:(v){setState(()=>inStock=v);_load();}),
-        FilterChip(label:const Text('الأرخص سعراً'),selected:cheapest,onSelected:(v){setState(()=>cheapest=v);_load();}),\n        FilterChip(label:const Text('آمن للمريض الحالي'),selected:safeOnly,onSelected:(v){setState(()=>safeOnly=v);_load();}),
+        FilterChip(label:const Text('الأرخص سعراً'),selected:cheapest,onSelected:(v){setState(()=>cheapest=v);_load();}),
+        FilterChip(label:const Text('آمن للمريض الحالي'),selected:safeOnly,onSelected:(v){setState(()=>safeOnly=v);_load();}),
       ]),
       const SizedBox(height:8),
       Expanded(child:clinical.loading?const Center(child:CircularProgressIndicator()):rows.isEmpty?const Center(child:Text('لا توجد بدائل مسجلة للمادة الفعالة.')):ListView.builder(itemCount:rows.length,itemBuilder:(context,index){final a=rows[index];return Card(child:ListTile(title:Text(a.nameAr),subtitle:Text('${a.strengthText} • ${a.dosageForm} • ${a.matchType} • الرصيد ${a.availableUnits} • أقرب صلاحية ${a.nearestExpiry??'—'}'),trailing:Row(mainAxisSize:MainAxisSize.min,children:[Column(mainAxisAlignment:MainAxisAlignment.center,children:[Text(a.sellPricePack.toStringAsFixed(2)),Text((a.priceDiffPack>=0?'+':'')+a.priceDiffPack.toStringAsFixed(2),style:TextStyle(color:a.priceDiffPack<=0?const Color(0xff66BB6A):const Color(0xffFFB74D)))]),IconButton(tooltip:'مقارنة 19 نقطة',onPressed:()=>_compare(a),icon:const Icon(Icons.compare_arrows))]),onTap:()=>_choose(a.drugId)));})),
