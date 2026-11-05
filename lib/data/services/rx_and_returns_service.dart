@@ -1,5 +1,6 @@
 // lib/data/services/rx_and_returns_service.dart
 import 'dart:math';
+import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import '../database/database_helper.dart';
 import '../models/clinical_and_rx_models.dart';
@@ -43,7 +44,6 @@ class RxAndReturnsService {
       if(DateTime.parse(rx['valid_until'] as String).isBefore(DateTime.now()))throw StateError('انتهت صلاحية الوصفة');
       final items=await txn.query('prescription_items',where:'prescription_id=?',whereArgs:[prescriptionId]);
       var totalPatient=0.0,totalInsurance=0.0;
-      final insuranceLines=<({double amount,String memo})>[];
       Map<String,Object?>? policy;
       if(policyId!=null){final rows=await txn.query('insurance_policies',where:'id=? AND customer_party_id=?',whereArgs:[policyId,patientPartyId],limit:1);if(rows.isEmpty)throw StateError('البوليصة لا تخص هذا العميل');policy=rows.first;if((policy['valid_to'] as String?)!=null&&DateTime.parse(policy['valid_to'] as String).isBefore(DateTime.now()))throw StateError('انتهت صلاحية بوليصة التأمين');}
       for(final item in items){
@@ -57,7 +57,6 @@ class RxAndReturnsService {
           final requested=excluded?0:line*(policy['coverage_pct'] as num).toDouble()/100;
           final remainingLimit=((policy['annual_limit'] as num).toDouble()-(policy['used_limit'] as num).toDouble()).clamp(0,double.infinity).toDouble();
           insurance=requested.clamp(0,remainingLimit).toDouble();
-          if(insurance>0)insuranceLines.add((amount:insurance,memo:'مطالبة وصفة ${rx['rx_no']} • ${drug.tradeNameAr}'));
           policy['used_limit']=(policy['used_limit'] as num).toDouble()+insurance;
         }
         totalInsurance+=insurance;totalPatient+=line-insurance;
@@ -98,9 +97,10 @@ class RxAndReturnsService {
       final item=itemRows.first;final drugRows=await txn.query('drugs',where:'id=?',whereArgs:[item['drug_id']],limit:1);if(drugRows.isEmpty)throw StateError('الدواء غير موجود');
       final drug=DrugModel.fromMap(drugRows.first);
       final allocations=await txn.query('sales_invoice_item_batches',where:'invoice_item_id=?'+(batchId==null?'':' AND batch_id=?'),whereArgs:batchId==null?[invoiceItemId]:[invoiceItemId,batchId]);
-      final eligible=allocations.fold<int>(0,(s,r)=>s+(r['qty_units'] as int)-(r['returned_qty_units'] as int));
-      if(qtyUnits>eligible)throw StateError('الكمية المرتجعة تتجاوز الكمية المباعة المتبقية من التشغيلة');
-      final allocation=allocations.firstWhere((r)=>(r['qty_units'] as int)>(r['returned_qty_units'] as int));
+      if(allocations.isEmpty)throw StateError('لا توجد تشغيلة مرتبطة بهذا البند المباع');
+      final allocation=allocations.firstWhere((r)=>(r['qty_units'] as int)>(r['returned_qty_units'] as int),orElse:()=>throw StateError('لا توجد كمية متبقية للإرجاع من هذه التشغيلة'));
+      final eligible=(allocation['qty_units'] as int)-(allocation['returned_qty_units'] as int);
+      if(qtyUnits>eligible)throw StateError('الكمية المرتجعة تتجاوز الكمية المباعة المتبقية من التشغيلة المحددة');
       final actualBatchId=allocation['batch_id'] as int;
       if(disposition=='RESTOCK'&&(drug.requiresRefrigeration||((drug.dosageForm=='SYRUP'||drug.dosageForm=='DROPS')&&openedLiquid)))throw StateError('لا يمكن إعادة الدواء المبرّد أو السائل المفتوح إلى المخزون الصالح؛ اختر الحجر أو الإتلاف');
       final customerId=invoiceRows.first['customer_party_id'] as int?;
@@ -122,7 +122,9 @@ class RxAndReturnsService {
         await txn.insert('stock_movements',{'drug_id':drug.id,'batch_id':actualBatchId,'warehouse_id':batch['warehouse_id'],'movement_type':'TRANSFER_OUT','qty_units':-qtyUnits,'unit_cost':batch['unit_cost'],'unit_price':0,'balance_after_units':oldTotal-qtyUnits,'doc_type':'SALES_RETURN','doc_id':returnId,'doc_line_id':invoiceItemId,'movement_at':DateTime.now().toIso8601String(),'note':'تحويل مرتجع إلى الحجر'});
         await txn.insert('stock_movements',{'drug_id':drug.id,'batch_id':actualBatchId,'warehouse_id':wh.first['id'],'movement_type':'TRANSFER_IN','qty_units':qtyUnits,'unit_cost':batch['unit_cost'],'unit_price':0,'balance_after_units':oldTotal,'doc_type':'SALES_RETURN','doc_id':returnId,'doc_line_id':invoiceItemId,'movement_at':DateTime.now().toIso8601String(),'note':'استلام المرتجع في الحجر'});
       }else{
-        await txn.update('batches_fefo',{'total_units':(oldTotal-qtyUnits).clamp(0,1<<30),'status':oldTotal==qtyUnits?'DISPOSED':'ACTIVE'},where:'id=?',whereArgs:[actualBatchId]);
+        final newTotal=(oldTotal-qtyUnits).clamp(0,1<<30);
+        final unitsPerPack=drug.unitsPerPack??drug.effectiveUnitsPerPack;
+        await txn.update('batches_fefo',{'sealed_packs':newTotal~/unitsPerPack,'loose_units':newTotal%unitsPerPack,'total_units':newTotal,'status':newTotal==0?'DISPOSED':'ACTIVE'},where:'id=?',whereArgs:[actualBatchId]);
         await txn.insert('stock_movements',{'drug_id':drug.id,'batch_id':actualBatchId,'warehouse_id':batch['warehouse_id'],'movement_type':'DISPOSAL_OUT','qty_units':-qtyUnits,'unit_cost':batch['unit_cost'],'unit_price':0,'balance_after_units':oldTotal-qtyUnits,'doc_type':'SALES_RETURN','doc_id':returnId,'doc_line_id':invoiceItemId,'movement_at':DateTime.now().toIso8601String(),'note':'إتلاف مرتجع مبيعات'});
         await txn.rawUpdate('UPDATE drugs SET stock_total_units=MAX(0,stock_total_units-?) WHERE id=?',[qtyUnits,drug.id]);
       }
