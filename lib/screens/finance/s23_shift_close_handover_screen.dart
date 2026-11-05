@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../data/database/database_helper.dart';
 import '../../providers/treasury_hr_partner_provider.dart';
+import '../../providers/session_and_erp_provider.dart';
 
 class S23ShiftCloseHandoverScreen extends StatefulWidget {
   const S23ShiftCloseHandoverScreen({super.key});
@@ -11,7 +12,7 @@ class S23ShiftCloseHandoverScreen extends StatefulWidget {
 class _S23ShiftCloseHandoverScreenState extends State<S23ShiftCloseHandoverScreen>{
   static const denominations=[1000,500,200,100,50,20,10];
   late final Map<int,TextEditingController> counts={for(final d in denominations)d:TextEditingController(text:'0')};
-  final walletCounts=<int,TextEditingController>{};String handling='POST_TO_CASHIER';double? expected,difference;int? nextUserId,treasuryId;List<Map<String,Object?>> users=[];final Set<int> enteredDenominations={};
+  final walletCounts=<int,TextEditingController>{};String handling='POST_TO_CASHIER';double? expected,difference,managerExpected;int? nextUserId,treasuryId;List<Map<String,Object?>> users=[];final Set<int> enteredDenominations={};
   double get actual=>counts.entries.fold(0,(s,e)=>s+e.key*(int.tryParse(e.value.text)??0));
   @override void dispose(){for(final c in counts.values)c.dispose();for(final c in walletCounts.values)c.dispose();super.dispose();}
   @override Widget build(BuildContext context){
@@ -26,7 +27,7 @@ class _S23ShiftCloseHandoverScreenState extends State<S23ShiftCloseHandoverScree
         const SizedBox(height:8),
         Wrap(spacing:10,runSpacing:10,children:denominations.map((d)=>SizedBox(width:130,child:TextField(controller:counts[d],keyboardType:TextInputType.number,decoration:InputDecoration(labelText:'فئة $d',suffixText:'عدد'),onChanged:(_)=>setState((){enteredDenominations.add(d);difference=null;})))).toList()),
         Card(child:ListTile(title:const Text('إجمالي النقد المعدود'),trailing:Text(actual.toStringAsFixed(2),style:const TextStyle(fontSize:20,fontWeight:FontWeight.bold,color:Color(0xFF66BB6A))))),
-        const SizedBox(height:12),const Text('مطابقة إشعارات المحافظ',style:TextStyle(fontWeight:FontWeight.bold)),
+        TextButton.icon(onPressed:()=>_revealExpectedForManager(p,shift.id!),icon:const Icon(Icons.visibility),label:const Text('إظهار النقد المتوقع للمدير فقط')),\n        if(managerExpected!=null)Text('النقد المتوقع للمدير: ${managerExpected!.toStringAsFixed(2)}',style:const TextStyle(color:Color(0xFFFFB74D))),\n        const SizedBox(height:12),const Text('مطابقة إشعارات المحافظ',style:TextStyle(fontWeight:FontWeight.bold)),
         ...p.cashAccounts.where((a)=>a['account_kind']=='WALLET').map((a){final id=a['id'] as int;final expected=shift.expectedWallets[id.toString()]??((a['current_balance'] as num).toDouble());walletCounts.putIfAbsent(id,()=>TextEditingController(text:expected.toString()));return Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('الرصيد الدفتري — ${a['name_ar']}: ${expected.toStringAsFixed(2)}'),TextField(controller:walletCounts[id],keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'الرصيد الفعلي المعدود'))]);}),
         const SizedBox(height:12),
         DropdownButtonFormField<String>(value:handling,decoration:const InputDecoration(labelText:'معالجة فرق الصندوق'),items:const [DropdownMenuItem(value:'POST_TO_CASHIER',child:Text('ترحيل الفرق على حساب الكاشير')),DropdownMenuItem(value:'SUSPENSE',child:Text('تعليق العجز للمراجعة')),DropdownMenuItem(value:'NONE',child:Text('إغلاق دون ترحيل آلي'))],onChanged:(v)=>setState(()=>handling=v??handling)),
@@ -43,6 +44,14 @@ class _S23ShiftCloseHandoverScreenState extends State<S23ShiftCloseHandoverScree
       ]
     ]));
   }
+
+  Future<void> _revealExpectedForManager(TreasuryHrPartnerProvider p,int shiftId)async{
+    final session=context.read<SessionAndErpProvider>();final pin=TextEditingController();
+    final verified=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('إظهار النقد المتوقع للمدير'),content:TextField(controller:pin,obscureText:true,decoration:const InputDecoration(labelText:'رمز المدير')),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()async{final ok=await session.verifyManagerPin(pin.text);if(ctx.mounted)Navigator.pop(ctx,ok);},child:const Text('تحقق'))]));
+    pin.dispose();
+    if(verified==true){final managerId=session.consumeVerifiedManagerUserId();if(managerId==null)return;final value=await p.expectedCash(shiftId);if(mounted)setState(()=>managerExpected=value);}
+  }
+
   Widget _openShift(BuildContext context,TreasuryHrPartnerProvider p){
     int? drawer=p.cashAccounts.firstWhere((a)=>a['account_kind']=='CASHIER_DRAWER',orElse:()=>p.cashAccounts.isEmpty?{'id':null}:p.cashAccounts.first)['id'] as int?;int? work=p.workShifts.isEmpty?null:p.workShifts.first['id'] as int?;int? cashierParty=p.employees.firstWhere((e)=>e['job_title']=='CASHIER',orElse:()=>p.employees.isEmpty?{'party_id':null}:p.employees.first)['party_id'] as int?;final opening=TextEditingController(text:'0');
     return Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(children:[
