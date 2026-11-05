@@ -33,7 +33,7 @@ class _S26OwnerPartnersProfitScreenState extends State<S26OwnerPartnersProfitScr
         PartyBalanceChip(totalAlayh:((partner['total_alayh'] as num?)??0).toDouble(),totalLah:((partner['total_lah'] as num?)??0).toDouble(),compact:true),
         if(p.partnerPolicy.mode=='shares')Text('الحصص: ${shares?.toStringAsFixed(0)??'—'} • الحصة المشتقة للقراءة فقط: ${ratio.toStringAsFixed(2)}%') else Text('النسبة: ${pct?.toStringAsFixed(2)??'غير محددة'}%'),
         if(partner['needs_input']==1)const Text('يلزم استكمال بيانات التوزيع',style:TextStyle(color:Color(0xFFFFB74D))),
-        Wrap(children:[TextButton.icon(onPressed:()=>_withdraw(context,p,partner),icon:const Icon(Icons.outbox),label:const Text('تسجيل سحب شخصي (عليه)')),TextButton.icon(onPressed:()=>_statement(context,partner),icon:const Icon(Icons.receipt_long),label:const Text('كشف حساب'))])
+        Wrap(children:[TextButton.icon(onPressed:()=>_editPartner(context,p,partner),icon:const Icon(Icons.edit),label:const Text('تعديل بيانات')),TextButton.icon(onPressed:()=>_withdraw(context,p,partner),icon:const Icon(Icons.outbox),label:const Text('تسجيل سحب شخصي (عليه)')),TextButton.icon(onPressed:()=>_statement(context,partner),icon:const Icon(Icons.receipt_long),label:const Text('كشف حساب'))])
       ])));}),
       const SizedBox(height:12),FilledButton.icon(onPressed:()=>_addPartner(context,p),icon:const Icon(Icons.add),label:const Text('إضافة شريك'))
     ]);
@@ -71,6 +71,29 @@ class _S26OwnerPartnersProfitScreenState extends State<S26OwnerPartnersProfitScr
     ]))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{try{final sh=mode=='shares'?int.parse(shares.text):null;final pc=mode=='percentage'?double.parse(percentage.text):null;await p.validatePartnerFields(shares:sh,percentage:pc);final db=await DatabaseHelper.instance.database;final now=DateTime.now().toIso8601String();final partyId=await db.insert('parties',{'uuid':'partner-${DateTime.now().microsecondsSinceEpoch}','branch_id':p.branchId,'created_at':now,'updated_at':now,'party_type':'PARTNER','code':code.text.trim(),'name_ar':name.text.trim(),'opening_alayh':0,'opening_lah':0});await db.insert('partners',{'party_id':partyId,'capital_amount':double.tryParse(capital.text)??0,'shares_count':sh,'percentage':pc,'needs_input':0,'join_date':now.substring(0,10),'is_active':1,'branch_id':p.branchId});if(ctx.mounted)Navigator.pop(ctx);await p.refresh();}catch(e){if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content:Text(e.toString())));}},child:const Text('حفظ الشريك'))]));
     name.dispose();code.dispose();capital.dispose();shares.dispose();percentage.dispose();
   }
+
+  Future<void> _editPartner(BuildContext context,TreasuryHrPartnerProvider p,Map<String,Object?> partner)async{
+    final mode=p.partnerPolicy.mode;
+    final name=TextEditingController(text:partner['name_ar']?.toString()??'');
+    final capital=TextEditingController(text:((partner['capital_amount'] as num?)??0).toString());
+    final shares=TextEditingController(text:mode=='shares'?(partner['shares_count']?.toString()??'0'):'—');
+    final percentage=TextEditingController(text:mode=='percentage'?(partner['percentage']?.toString()??'0'):'—');
+    await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(title:const Text('تعديل بيانات الشريك'),content:Column(mainAxisSize:MainAxisSize.min,children:[
+      TextField(controller:name,decoration:const InputDecoration(labelText:'اسم الشريك')),
+      TextField(controller:capital,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'رأس المال')),
+      TextField(controller:shares,enabled:mode=='shares',keyboardType:TextInputType.number,decoration:InputDecoration(labelText:'عدد الحصص',suffixIcon:mode=='shares'?null:const Icon(Icons.lock))),
+      TextField(controller:percentage,enabled:mode=='percentage',keyboardType:TextInputType.number,decoration:InputDecoration(labelText:'النسبة المئوية (%)',suffixIcon:mode=='percentage'?null:const Icon(Icons.lock))),
+    ]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{try{
+      final sh=mode=='shares'?int.parse(shares.text):null;final pc=mode=='percentage'?double.parse(percentage.text):null;
+      await p.validatePartnerFields(shares:sh,percentage:pc);
+      final db=await DatabaseHelper.instance.database;
+      await db.update('parties',{'name_ar':name.text.trim(),'updated_at':DateTime.now().toIso8601String()},where:'id=?',whereArgs:[partner['party_id']]);
+      await db.update('partners',{'capital_amount':double.parse(capital.text),'shares_count':sh,'percentage':pc,'needs_input':0},where:'id=?',whereArgs:[partner['id']]);
+      if(ctx.mounted)Navigator.pop(ctx);await p.refresh();
+    }catch(e){if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content:Text(e.toString())));}},child:const Text('حفظ التعديلات'))]));
+    name.dispose();capital.dispose();shares.dispose();percentage.dispose();
+  }
+
   Future<void> _withdraw(BuildContext context,TreasuryHrPartnerProvider p,Map<String,Object?> partner)async{
     if(p.cashAccounts.isEmpty)return;int account=p.cashAccounts.first['id'] as int;final amount=TextEditingController(),note=TextEditingController(text:'سحب شخصي للشريك');
     await showDialog<void>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,set)=>AlertDialog(title:Text('سحب شخصي • ${partner['name_ar']}'),content:Column(mainAxisSize:MainAxisSize.min,children:[
