@@ -21,13 +21,18 @@ class HrAndPayrollService {
       final employee=employeeRows.first;final daily=employee['pay_type']=='DAILY';
       final rate=_n(employee['pay_rate']);
       final earned=daily?(status=='PRESENT'||status=='OVERTIME'?rate+(overtimeHours*rate/8):status=='HALF_DAY'?rate/2:0):0;
-      final existing=await tx.query('employee_attendance',columns:['id'],where:'employee_id=? AND work_date=? AND work_shift_id IS ?',whereArgs:[employeeId,workDate,workShiftId],limit:1);
+      final existing=await tx.query('employee_attendance',columns:['id','wage_earned'],where:'employee_id=? AND work_date=? AND work_shift_id IS ?',whereArgs:[employeeId,workDate,workShiftId],limit:1);
       final values={'employee_id':employeeId,'work_date':workDate,'work_shift_id':workShiftId,'check_in':checkIn,'check_out':checkOut,'status':status,'overtime_hours':overtimeHours,'wage_earned':earned};
+      if(existing.isNotEmpty){
+        final oldId=existing.first['id'] as int;
+        final posted=await tx.query('lah_alayh_ledger',columns:['id'],where:"doc_type='ATTENDANCE' AND doc_id=? AND entry_type='SALARY_ACCRUAL'",whereArgs:[oldId],limit:1);
+        if(posted.isNotEmpty&&(_n(existing.first['wage_earned'])-earned).abs()>0.005)throw StateError('لا يمكن تعديل حضور بعد إثبات اليومية؛ سجّل تسوية معتمدة بدلاً من ذلك');
+      }
       int attendanceId;
       if(existing.isEmpty){attendanceId=await tx.insert('employee_attendance',values);}else{attendanceId=existing.first['id'] as int;await tx.update('employee_attendance',values,where:'id=?',whereArgs:[attendanceId]);}
       if(daily&&earned>0){
         final prior=await tx.query('lah_alayh_ledger',columns:['id'],where:"doc_type='ATTENDANCE' AND doc_id=? AND entry_type='SALARY_ACCRUAL'",whereArgs:[attendanceId],limit:1);
-        if(prior.isEmpty){final partyId=employee['party_id'] as int;await _ledger(tx,partyId:partyId,branchId:employee['branch_id'] as int,entryType:'SALARY_ACCRUAL',lah:earned,docType:'ATTENDANCE',docId:attendanceId,statement:'استحقاق يومية بتاريخ $workDate');}
+        if(prior.isEmpty){final partyId=employee['party_id'] as int;await _postWageAccrual(tx,partyId:partyId,branchId:employee['branch_id'] as int,amount:earned,docType:'ATTENDANCE',docId:attendanceId,statement:'استحقاق يومية بتاريخ $workDate');}
       }
       return attendanceId;
     });
@@ -62,7 +67,7 @@ class HrAndPayrollService {
     final db=await _helper.database;
     return db.transaction((tx)async{
       final e=await tx.query('employees',where:'id=?',whereArgs:[employeeId],limit:1);if(e.isEmpty)throw StateError('الموظف غير موجود');
-      final row=e.first;return _ledger(tx,partyId:row['party_id'] as int,branchId:row['branch_id'] as int,entryType:isBonus?'EMPLOYEE_BONUS':'EMPLOYEE_DEDUCTION',lah:isBonus?amount:0,alayh:isBonus?0:amount,docType:'HR_ADJUSTMENT',statement:reason);
+      final row=e.first;final partyId=row['party_id'] as int;final branchId=row['branch_id'] as int;final expense=await _gl(tx,'5202');final payable=await _gl(tx,'2301');final je=await _journal(tx,branchId,isBonus?'EMPLOYEE_BONUS':'EMPLOYEE_DEDUCTION',reason);if(isBonus){await _line(tx,branchId,je,expense,dr:amount,memo:reason);await _line(tx,branchId,je,payable,cr:amount,partyId:partyId,memo:reason);}else{await _line(tx,branchId,je,payable,dr:amount,partyId:partyId,memo:reason);await _line(tx,branchId,je,expense,cr:amount,memo:reason);}return _ledger(tx,partyId:partyId,branchId:branchId,entryType:isBonus?'EMPLOYEE_BONUS':'EMPLOYEE_DEDUCTION',lah:isBonus?amount:0,alayh:isBonus?0:amount,docType:'HR_ADJUSTMENT',je:je,statement:reason);
     });
   }
 
@@ -78,7 +83,7 @@ class HrAndPayrollService {
       if(e['pay_type']=='MONTHLY'){
         gross=_n(e['pay_rate']);
         final accrual=await tx.query('lah_alayh_ledger',columns:['id'],where:"party_id=? AND entry_type='SALARY_ACCRUAL' AND doc_type='PAYROLL' AND statement_ar=?",whereArgs:[partyId,'استحقاق راتب $periodCode'],limit:1);
-        if(accrual.isEmpty)await _ledger(tx,partyId:partyId,branchId:e['branch_id'] as int,entryType:'SALARY_ACCRUAL',lah:gross,docType:'PAYROLL',statement:'استحقاق راتب $periodCode');
+        if(accrual.isEmpty)await _postWageAccrual(tx,partyId:partyId,branchId:e['branch_id'] as int,amount:gross,docType:'PAYROLL',statement:'استحقاق راتب $periodCode');
       }else{
         final attendance=await tx.rawQuery("SELECT COALESCE(SUM(wage_earned),0) total FROM employee_attendance WHERE employee_id=? AND substr(work_date,1,7)=?",[employeeId,periodCode]);
         gross=_n(attendance.first['total']);
@@ -113,6 +118,11 @@ class HrAndPayrollService {
     });
   }
 
+  Future<int> _postWageAccrual(DatabaseExecutor tx,{required int partyId,required int branchId,required double amount,required String docType,int? docId,required String statement}) async {
+    final expense=await _gl(tx,'5202');final payable=await _gl(tx,'2301');final je=await _journal(tx,branchId,'SALARY_ACCRUAL',statement);
+    await _line(tx,branchId,je,expense,dr:amount,memo:statement);await _line(tx,branchId,je,payable,cr:amount,partyId:partyId,memo:statement);
+    return _ledger(tx,partyId:partyId,branchId:branchId,entryType:'SALARY_ACCRUAL',lah:amount,docType:docType,docId:docId,je:je,statement:statement);
+  }
   Future<int> _ledger(DatabaseExecutor tx,{required int partyId,required int branchId,required String entryType,double alayh=0,double lah=0,String docType='HR',int? docId,int? je,required String statement}) async=>tx.insert('lah_alayh_ledger',{'uuid':_uuid('ledger'),'branch_id':branchId,'created_at':_now(),'updated_at':_now(),'party_id':partyId,'entry_date':_now(),'entry_type':entryType,'alayh_amount':alayh,'lah_amount':lah,'doc_type':docType,'doc_id':docId,'journal_entry_id':je,'statement_ar':statement});
   Future<int> _gl(DatabaseExecutor tx,String code) async {final r=await tx.query('chart_of_accounts',columns:['id'],where:'code=?',whereArgs:[code],limit:1);if(r.isEmpty)throw StateError('الحساب $code غير موجود');return r.first['id'] as int;}
   Future<int> _journal(DatabaseExecutor tx,int branchId,String source,String description) async=>tx.insert('journal_entries',{'uuid':_uuid('je'),'branch_id':branchId,'created_at':_now(),'updated_at':_now(),'entry_no':'HR-${DateTime.now().microsecondsSinceEpoch}','entry_date':_now(),'description':description,'source_type':source,'is_posted':1});
