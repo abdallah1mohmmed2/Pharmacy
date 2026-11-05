@@ -4,6 +4,8 @@ import '../../providers/pos_and_drugs_provider.dart';
 import '../../data/models/drug_model.dart';
 import '../../core/theme/enterprise_dark_theme.dart';
 import '../../core/widgets/shared_widgets.dart';
+import '../../data/database/database_helper.dart';
+import '../pos/s05_drug_alternatives_sheet.dart';
 
 class S08S09DrugEncyclopediaScreen extends StatefulWidget{const S08S09DrugEncyclopediaScreen({super.key});@override State<S08S09DrugEncyclopediaScreen> createState()=>_S08S09DrugEncyclopediaScreenState();}
 class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScreen>{
@@ -41,16 +43,51 @@ class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScr
    ]))),
   ])));
  }
- Widget _details(DrugModel d)=>DefaultTabController(length:4,child:Column(children:[
-  Row(children:[Expanded(child:Text(d.tradeNameAr,style:const TextStyle(fontSize:20,fontWeight:FontWeight.bold))),IconButton(onPressed:()=>_edit(context,d),icon:const Icon(Icons.edit))]),
-  const TabBar(isScrollable:true,tabs:[Tab(text:'الهوية والتسعير'),Tab(text:'الاستعمال والسلامة'),Tab(text:'الفئات الخاصة'),Tab(text:'التخزين والرقابة')]),
+ Widget _details(DrugModel d)=>DefaultTabController(length:5,child:Column(children:[
+  Row(children:[Expanded(child:Text(d.tradeNameAr,style:const TextStyle(fontSize:20,fontWeight:FontWeight.bold))),IconButton(tooltip:'البدائل',onPressed:()=>S05DrugAlternativesSheet.show(context,d,(_){ }),icon:const Icon(Icons.swap_horiz)),IconButton(onPressed:()=>_edit(context,d),icon:const Icon(Icons.edit))]),
+  const TabBar(isScrollable:true,tabs:[Tab(text:'الهوية والتسعير'),Tab(text:'الاستعمال والسلامة'),Tab(text:'الفئات الخاصة'),Tab(text:'التخزين والرقابة'),Tab(text:'القواعد السريرية')]),
   Expanded(child:TabBarView(children:[
    _group([('الاسم التجاري',d.tradeNameAr),('الاسم العلمي',d.scientificName),('الشركة',d.manufacturerId?.toString()??'غير محدد'),('التصنيف ATC',d.atcCode),('الشكل والتركيز',d.dosageForm+' • '+d.strengthText),('طريقة الإعطاء',d.route),('التعبئة',d.stripsPerPack.toString()+' × '+d.unitsPerStrip.toString()),('التكلفة',MoneyFormatter.format(d.costPricePack)),('سعر الباكت',MoneyFormatter.format(d.sellPricePack)),('سعر الشريط',MoneyFormatter.format(d.sellPriceStrip)),('سعر الحبة',MoneyFormatter.format(d.sellPriceUnit)),('المخزون بالحبة',d.stockTotalUnits.toString())]),
    _group([('دواعي الاستعمال',d.indications),('الجرعة وطريقة الاستخدام',d.dosageAdministration),('جرعة البالغين',d.adultDoseMinMg?.toString()??''),('موانع الاستعمال',d.contraindications),('التحذيرات',d.warningsPrecautions),('تحذير الصندوق الأسود',d.blackBoxWarning),('التفاعلات',d.interactionsSummary),('آثار شائعة',d.sideEffectsCommon),('آثار خطيرة',d.sideEffectsSerious)]),
    _group([('الكبد',d.hepaticStatus+' • '+d.hepaticNotes),('الكلى',d.renalStatus+' • '+d.renalNotes),('سمية كلوية',d.isNephrotoxic.toString()),('كبار السن',d.geriatricStatus+' • '+d.geriatricNotes),('معايير Beers',d.beersCriteria),('الأطفال',d.pediatricStatus+' • '+d.pediatricNotes),('حديثو الولادة',d.neonateAllowed.toString()),('الحمل',d.pregnancyCategory+' • '+d.pregnancyNotes),('الرضاعة',d.lactationRisk+' • '+d.lactationNotes)]),
    _group([('التخزين',d.storageConditions),('درجة الحرارة',d.storageTempMinC.toString()+' - '+d.storageTempMaxC.toString()),('تبريد',d.requiresRefrigeration.toString()),('حماية من الضوء',d.protectFromLight.toString()),('باركود عالمي',d.barcodeInternational),('باركود محلي',d.barcodeLocal),('رقم التسجيل',d.registrationNo),('دواء مراقب',d.isControlled.toString()),('جدول الرقابة',d.controlledSchedule),('يتطلب وصفة',d.requiresPrescription.toString()),('مضاد حيوي',d.isAntibiotic.toString())]),
+   _clinicalRules(d),
   ])),
  ]));
+
+ Widget _clinicalRules(DrugModel d)=>FutureBuilder<List<List<Map<String,Object?>>>>(
+  future:Future.wait(['drug_interactions','drug_renal_rules','drug_hepatic_rules','drug_pediatric_rules'].map((t)=>DatabaseHelper.instance.query(t,where:'drug_id=?',whereArgs:[d.id??-1]))),
+  builder:(context,snapshot){
+   if(!snapshot.hasData)return const Center(child:CircularProgressIndicator());
+   final tables=snapshot.data!;
+   const names=['التفاعلات الدوائية','قواعد الكلى','قواعد الكبد','جرعات الأطفال'];
+   const keys=['interaction','renal','hepatic','pediatric'];
+   return ListView(padding:const EdgeInsets.all(8),children:[
+    for(var i=0;i<tables.length;i++)Card(child:Padding(padding:const EdgeInsets.all(10),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+     Row(children:[Expanded(child:Text(names[i],style:const TextStyle(fontWeight:FontWeight.bold,color:AppColors.primary))),IconButton(tooltip:'إضافة قاعدة',onPressed:()=>_addClinicalRule(d,keys[i]),icon:const Icon(Icons.add_circle_outline))]),
+     if(tables[i].isEmpty)const Text('لا توجد قواعد مسجلة.') else for(final row in tables[i])Padding(padding:const EdgeInsets.symmetric(vertical:4),child:Text(row.entries.where((e)=>e.key!='id'&&e.key!='drug_id').map((e)=>'${e.key}: ${e.value??'—'}').join(' • '))),
+    ]))),
+   ]);
+  });
+ Future<void> _addClinicalRule(DrugModel drug,String kind)async{
+  final fields=switch(kind){
+   'interaction'=>['interactant_type','interactant_name','severity','management'],
+   'renal'=>['crcl_min','crcl_max','action','dose_factor','interval_hours','max_daily_mg','note_ar'],
+   'hepatic'=>['child_pugh_class','action','dose_factor','max_daily_mg','note_ar'],
+   _=>['age_min_months','age_max_months','weight_min_kg','weight_max_kg','mg_per_kg_dose_min','mg_per_kg_dose_max','mg_per_kg_day_max','doses_per_day','absolute_max_dose_mg','action','note_ar'],
+  };
+  final controllers={for(final key in fields)key:TextEditingController(text:switch(key){'interactant_type'=>'DRUG','severity'=>'MODERATE','action'=>kind=='renal'?'REDUCE_DOSE':kind=='hepatic'?'NO_CHANGE':'DOSE_BY_WEIGHT','crcl_min'=>'0','crcl_max'=>'30','age_min_months'=>'0','age_max_months'=>'216','weight_min_kg'=>'0','weight_max_kg'=>'100','doses_per_day'=>'2','absolute_max_dose_mg'=>'1000',_=>''})};
+  final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:Text('إضافة قاعدة سريرية — ${drug.tradeNameAr}'),content:SizedBox(width:500,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[for(final key in fields)Padding(padding:const EdgeInsets.only(bottom:8),child:TextField(controller:controllers[key],decoration:InputDecoration(labelText:key)))]))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حفظ'))]));
+  if(ok==true){
+   final values=<String,Object?>{'drug_id':drug.id};
+   for(final key in fields){final raw=controllers[key]!.text.trim();if(key=='interactant_type'||key=='interactant_name'||key=='severity'||key=='management'||key=='action'||key=='child_pugh_class'||key=='note_ar'){values[key]=raw;}else{values[key]=raw.isEmpty?null:num.tryParse(raw);}}
+   if(kind=='interaction'){values.remove('drug_id');values['drug_a_id']=drug.id;values['drug_a_ingredient_id']=drug.activeIngredientId;values['evidence_level']='REVIEW_REQUIRED';values['severity_rank']=switch(values['severity']){'CONTRAINDICATED'=>4,'MAJOR'=>3,'MODERATE'=>2,_=>1};}
+   await DatabaseHelper.instance.insert(switch(kind){'interaction'=>'drug_interactions','renal'=>'drug_renal_rules','hepatic'=>'drug_hepatic_rules',_=>'drug_pediatric_rules'},values);
+   if(mounted)setState(()=>{});
+  }
+  for(final controller in controllers.values){controller.dispose();}
+ }
+
  Widget _group(List<(String, String)> values) => ListView(
   padding: const EdgeInsets.all(8),
   children: values.map((entry) => Card(
