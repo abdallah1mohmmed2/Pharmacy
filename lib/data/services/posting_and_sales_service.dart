@@ -58,7 +58,7 @@ class PostingAndSalesService {
         if(payment.method=='CASH'&&kind=='WALLET') throw StateError('اختر الصندوق النقدي أو غيّر وسيلة الدفع إلى محفظة');
         if(payment.method=='BANK'&&kind!='BANK') throw StateError('اختر الحساب البنكي لطريقة الدفع هذه');
         final gl=cashAccount.first['gl_account_id'] as int?;
-        if(gl!=null) journalLines.add((accountId:gl,debit:payment.amount,credit:0,partyId:null,memo:'تحصيل فاتورة'));
+        if(gl!=null) journalLines.add((accountId:gl!,debit:payment.amount,credit:0,partyId:null,memo:'تحصيل فاتورة'));
       }
       final revenue=await _accountId(txn,'4101');
       if(remaining>0 && customerPartyId!=null){
@@ -69,7 +69,7 @@ class PostingAndSalesService {
         if(limit>0 && existing+remaining>limit) throw StateError('تجاوز الحد الائتماني للعميل');
         await txn.insert('lah_alayh_ledger',{..._base(branchId),'party_id':customerPartyId,'entry_date':DateTime.now().toIso8601String(),'entry_type':'SALE','alayh_amount':remaining,'lah_amount':0,'doc_type':'INVOICE','doc_id':invoiceId,'statement_ar':'الجزء المتبقي من الفاتورة '+invoiceNo});
         final receivable=await _accountId(txn,'1201');
-        journalLines.add((accountId:receivable,debit:remaining,credit:0,partyId:customerPartyId,memo:'ذمم فاتورة'));
+        journalLines.add((accountId:receivable,debit:remaining,credit:0,partyId:customerPartyId!,memo:'ذمم فاتورة'));
       }
       journalLines.add((accountId:revenue,debit:0,credit:net,partyId:null,memo:'إيراد المبيعات'));
       final cost=actualTotalCost;
