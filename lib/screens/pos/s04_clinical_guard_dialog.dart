@@ -52,6 +52,14 @@ class _S04ClinicalGuardDialogState extends State<S04ClinicalGuardDialog>{
           ]),
           if(alert.level==ClinicalLevel.warning||alert.level==ClinicalLevel.block)TextField(controller:reason,decoration:const InputDecoration(labelText:'سبب القرار (إلزامي)'),maxLines:2),
         ]))),
+        ExpansionTile(title:const Text('مصفوفة التفاعلات التقاطعية'),leading:const Icon(Icons.hub),children:[
+          for(final alert in clinical.verdict.alerts.where((a)=>a.category=='INTERACTION'))ListTile(title:Text('دواء ${alert.drugId??'—'} ↔ دواء ${alert.otherDrugId??'غذاء'}'),subtitle:Text(alert.messageAr),trailing:_level(alert.level)),
+          if(clinical.verdict.alerts.where((a)=>a.category=='INTERACTION').isEmpty)const ListTile(title:Text('لا توجد تفاعلات مرصودة حالياً')),
+        ]),
+        ExpansionTile(title:const Text('حاسبة جرعة الأطفال بالوزن'),leading:const Icon(Icons.child_care),children:[
+          for(final alert in clinical.verdict.alerts.where((a)=>a.category=='PEDIATRIC'||a.category=='DOSE_EXCEEDED'))ListTile(title:Text(alert.messageAr),subtitle:Text(alert.recommendation),trailing:_level(alert.level)),
+          if(clinical.verdict.alerts.where((a)=>a.category=='PEDIATRIC'||a.category=='DOSE_EXCEEDED').isEmpty)const ListTile(title:Text('اختر ملف طفل بوزن معروف لإظهار حساب الجرعة')),
+        ]),
         const SizedBox(height:8),
         Text('التنبيهات غير المحسومة: ${clinical.verdict.alerts.where((a)=>(a.level==ClinicalLevel.warning||a.level==ClinicalLevel.block)&&a.userDecision==null).length}'),
       ]))),
