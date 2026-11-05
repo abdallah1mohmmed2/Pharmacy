@@ -61,7 +61,7 @@ class PosAndDrugsProvider extends ChangeNotifier {
   Future<int> checkout({required int cashierId,required String saleType,required List<({int cashAccountId,double amount,String method,String? walletRef})> payments,int? customerId,double discount=0,bool managerApproved=false,int branchId=1}) async {
     if(currentTab.held)throw StateError('استرجع الفاتورة قبل إتمامها');
     if(clinicalBlock!=null&&!managerApproved)throw StateError('يلزم حذف الدواء المتعارض أو اعتماد المدير');
-    final id=await _posting.postSale(branchId:branchId,cashierUserId:cashierId,items:List<CartItemModel>.from(cart),saleType:saleType,payments:payments,customerPartyId:customerId,discountAmount:discount);
+    final id=await _posting.postSale(branchId:branchId,cashierUserId:cashierId,items:List<CartItemModel>.from(cart),saleType:saleType,payments:payments,customerPartyId:customerId??0,discountAmount:discount);
     currentTab.items.clear();currentTab.held=false;await loadDrugs();notifyListeners();return id;
   }
 }
