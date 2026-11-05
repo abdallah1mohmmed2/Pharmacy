@@ -7,6 +7,7 @@ import 'schema_builder.dart';
 import 'seed_data.dart';
 import 'schema_iteration2.dart';
 import 'schema_iteration3.dart';
+import 'schema_iteration4.dart';
 
 class DatabaseHelper {
   DatabaseHelper._();
@@ -19,7 +20,7 @@ class DatabaseHelper {
         ? p.join((await getApplicationSupportDirectory()).path,'databases')
         : await getDatabasesPath();
     await Directory(directory).create(recursive:true);
-    final db=await openDatabase(p.join(directory,'global_pharmacy_erp.db'),version:5,onConfigure:(database)async{
+    final db=await openDatabase(p.join(directory,'global_pharmacy_erp.db'),version:6,onConfigure:(database)async{
       await database.execute('PRAGMA foreign_keys = ON');
       await database.execute('PRAGMA journal_mode = WAL');
       await database.execute('PRAGMA synchronous = NORMAL');
@@ -30,9 +31,11 @@ class DatabaseHelper {
       await SeedData.run(database);
       await SchemaIteration2.upgrade(database);
       await SchemaIteration3.upgrade(database);
+      await SchemaIteration4.upgrade(database);
     },onUpgrade:(database,oldVersion,newVersion) async {
       if(oldVersion<4) await SchemaIteration2.upgrade(database);
       if(oldVersion<5) await SchemaIteration3.upgrade(database);
+      if(oldVersion<6) await SchemaIteration4.upgrade(database);
     });
     await db.execute('PRAGMA foreign_keys = ON');
     await db.execute('PRAGMA busy_timeout = 5000');
