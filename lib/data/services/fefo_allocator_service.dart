@@ -48,16 +48,16 @@ class FefoAllocator {
     await txn.rawUpdate('UPDATE drugs SET stock_total_units=MAX(0,stock_total_units-?),updated_at=? WHERE id=?',[needUnits,now,drugId]);
   }
 
-  Future<List<FefoAllocation>> allocateAndApply({required Transaction txn,required int drugId,required int needUnits,required int unitsPerPack,required int invoiceItemId,required int warehouseId,double unitPrice=0,String docType='SALE',int? docId}) async {
+  Future<List<FefoAllocation>> allocateAndApply({required Transaction txn,required int drugId,required int needUnits,required int unitsPerPack,required int invoiceItemId,int? warehouseId,double unitPrice=0,String docType='SALE',int? docId}) async {
     final today=DateTime.now().toIso8601String().substring(0,10);
-    final rows=await txn.rawQuery("SELECT * FROM batches_fefo WHERE drug_id=? AND warehouse_id=? AND status='ACTIVE' AND total_units>0 AND expiry_date>=? ORDER BY expiry_date ASC,id ASC",[drugId,warehouseId,today]);
+    final rows=await txn.rawQuery("SELECT b.* FROM batches_fefo b JOIN warehouses w ON w.id=b.warehouse_id WHERE b.drug_id=? AND b.status='ACTIVE' AND b.total_units>0 AND b.expiry_date>=? AND w.is_sellable=1 ${warehouseId==null?'':'AND b.warehouse_id=?'} ORDER BY b.expiry_date ASC,b.id ASC",warehouseId==null?[drugId,today]:[drugId,today,warehouseId]);
     var remaining=needUnits;final allocations=<FefoAllocation>[];
     for(final row in rows){
       if(remaining==0)break;
       final available=row['total_units'] as int;final take=available<remaining?available:remaining;final loose=row['loose_units'] as int;
       final opened=take>loose?(take-loose+unitsPerPack-1)~/unitsPerPack:0;
       allocations.add(FefoAllocation(batchId:row['id'] as int,qtyUnits:take,unitCost:(row['unit_cost'] as num).toDouble(),packsOpened:opened));
-      await deductFromBatch(txn,batchId:row['id'] as int,needUnits:take,unitsPerPack:unitsPerPack,invoiceItemId:invoiceItemId,drugId:drugId,warehouseId:warehouseId,unitPrice:unitPrice,docType:docType,docId:docId);
+      await deductFromBatch(txn,batchId:row['id'] as int,needUnits:take,unitsPerPack:unitsPerPack,invoiceItemId:invoiceItemId,drugId:drugId,warehouseId:row['warehouse_id'] as int,unitPrice:unitPrice,docType:docType,docId:docId);
       remaining-=take;
     }
     if(remaining>0)throw StateError('المخزون الصالح غير كافٍ؛ المتبقي $remaining حبة');
