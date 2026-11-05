@@ -42,3 +42,5 @@
 - الإبقاء على `flutter analyze` كخطوة حاجزة وعدم تجاوز فشل التحليل؛ لم تُضف `continue-on-error` ولم تُخفَ أخطاء التحليل.
 
 - إصلاح آخر استخدام nullable لـ `unitsPerPack` في تكلفة بند فاتورة البيع؛ توحيد الحساب على `effectiveUnitsPerPack` لتفادي تمرير `int?` إلى عملية حسابية تتطلب `num` غير nullable.
+
+- ضبط فحص CI في Android وWindows باستخدام `flutter analyze --no-fatal-infos`؛ لأن Flutter يجعل ملاحظات info قاتلة افتراضياً. تظل أخطاء التحليل والتحذيرات قاتلة، ولا يُستخدم `continue-on-error` ولا يتم تجاوز فشل البناء أو الاختبارات.
