@@ -25,9 +25,9 @@ abstract final class SeedData {
     for(final a in accounts){await db.insert('chart_of_accounts',{...base,'uuid':'acc-'+a[0],'code':a[0],'name_ar':a[1],'acc_type':a[0].startsWith('1')?'ASSET':a[0].startsWith('2')?'LIABILITY':a[0].startsWith('3')?'EQUITY':a[0].startsWith('4')?'REVENUE':'EXPENSE'});}
     final cashKinds=<List<String>>[
       ['CASH-MAIN','الصندوق الرئيسي','MAIN_SAFE',''],['CASH-DRAWER','درج الكاشير','CASHIER_DRAWER',''],
-      ['W-JAWALI','محفظة جوالي','WALLET','JAWALI'],['W-JAIB','محفظة جيب','WALLET','JAIB'],['W-FLOUSK','محفظة فلوسك','WALLET','FLOUSK'],['W-KURAIMI','محفظة كريمي','WALLET','KURAIMI']
+      ['W-JAWALI','محفظة جوالي','WALLET','JAWALI'],['W-JAIB','محفظة جيب','WALLET','JAIB'],['W-FLOUSK','محفظة فلوسك','WALLET','FLOUSK'],['W-KURAIMI','محفظة كريمي','WALLET','KURAIMI'],['BANK-MAIN','الحساب البنكي','BANK','']
     ];
-    final glCodes={'CASH-MAIN':'1101','CASH-DRAWER':'1102','W-JAWALI':'1103','W-JAIB':'1104','W-FLOUSK':'1105','W-KURAIMI':'1106'};
+    final glCodes={'CASH-MAIN':'1101','CASH-DRAWER':'1102','W-JAWALI':'1103','W-JAIB':'1104','W-FLOUSK':'1105','W-KURAIMI':'1106','BANK-MAIN':'1107'};
     for(final c in cashKinds){final gl=await db.query('chart_of_accounts',columns:['id'],where:'code=?',whereArgs:[glCodes[c[0]]],limit:1);await db.insert('cash_accounts',{...base,'uuid':'cash-'+c[0],'code':c[0],'name_ar':c[1],'account_kind':c[2],'wallet_provider':c[3].isEmpty?null:c[3],'gl_account_id':gl.first['id'],'current_balance':0});}
     final parties=<List<String>>[
       ['CUSTOMER','C-001','عميل نقدي'],['CUSTOMER','C-002','عميل آجل تجريبي'],['SUPPLIER','S-001','مذخر الأمل'],['SUPPLIER','S-002','مذخر الشفاء']
