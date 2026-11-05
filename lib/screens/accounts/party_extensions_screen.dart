@@ -3,6 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../data/database/database_helper.dart';
 import '../../providers/session_and_erp_provider.dart';
+import '../../data/models/drug_model.dart';
+import '../../data/models/erp_models.dart';
+import '../../data/models/clinical_and_rx_models.dart';
+import '../../data/services/clinical_guard_service.dart';
+import '../../data/services/posting_and_sales_service.dart';
 
 class PartyExtensionsScreen extends StatefulWidget {
   const PartyExtensionsScreen({super.key});
@@ -17,7 +22,7 @@ class _PartyExtensionsScreenState extends State<PartyExtensionsScreen> with Sing
     return FutureBuilder<List<Map<String,Object?>>>(future:DatabaseHelper.instance.rawQuery('SELECT s.*,p.name_ar customer_name,d.trade_name_ar drug_name FROM chronic_medication_schedules s JOIN parties p ON p.id=s.customer_party_id JOIN drugs d ON d.id=s.drug_id WHERE s.branch_id=? ORDER BY s.next_due_date',[p.branchId]),builder:(context,snapshot)=>ListView(padding:const EdgeInsets.all(12),children:[
       Row(children:[const Expanded(child:Text('مواعيد دورات الأدوية المزمنة',style:TextStyle(fontWeight:FontWeight.bold))),FilledButton(onPressed:()=>_addSchedule(p),child:const Text('جدولة دواء'))]),
       const Text('الصرف الفعلي يمر عبر الكاشير والفحص السريري وFEFO؛ الجدولة لا تخصم المخزون وحدها.',style:TextStyle(color:Colors.white60)),
-      ...(snapshot.data??[]).map((r)=>Card(child:ListTile(title:Text('${r['customer_name']} • ${r['drug_name']}'),subtitle:Text('${r['quantity_units']} وحدة • كل ${r['cycle_days']} يوم • الاستحقاق ${r['next_due_date']}'),trailing:Text(r['status'].toString()))))
+      ...(snapshot.data??[]).map((r)=>Card(child:ListTile(title:Text('${r['customer_name']} • ${r['drug_name']}'),subtitle:Text('${r['quantity_units']} وحدة • كل ${r['cycle_days']} يوم • الاستحقاق ${r['next_due_date']}'),trailing:TextButton.icon(onPressed:r['status']=='ACTIVE'?()=>_dispenseCycle(p,r):null,icon:const Icon(Icons.medication),label:const Text('صرف الدورة')))))
     ]));
   }
   Future<void> _addSchedule(SessionAndErpProvider p)async{
@@ -30,6 +35,49 @@ class _PartyExtensionsScreenState extends State<PartyExtensionsScreen> with Sing
     ]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{try{await DatabaseHelper.instance.insert('chronic_medication_schedules',{'customer_party_id':customer,'drug_id':drug,'quantity_units':int.parse(qty.text),'cycle_days':int.parse(cycle.text),'next_due_date':due.text,'status':'ACTIVE','branch_id':p.branchId});if(ctx.mounted)Navigator.pop(ctx);if(mounted)setState((){});}catch(e){if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content:Text(e.toString())));}},child:const Text('حفظ'))])));
     qty.dispose();cycle.dispose();due.dispose();
   }
+
+  Future<void> _dispenseCycle(SessionAndErpProvider p,Map<String,Object?> schedule)async{
+    try{
+      final db=await DatabaseHelper.instance.database;
+      final partyId=schedule['customer_party_id'] as int;
+      final patientRows=await db.query('patients',where:'party_id=?',whereArgs:[partyId],limit:1);
+      if(patientRows.isEmpty)throw StateError('لا يمكن الصرف قبل إنشاء ملف سريري مرتبط بالعميل.');
+      final patient=PatientClinicalModel.fromMap(patientRows.first);
+      final drugRows=await db.query('drugs',where:'id=? AND is_deleted=0 AND is_active=1',whereArgs:[schedule['drug_id']],limit:1);
+      if(drugRows.isEmpty)throw StateError('الدواء غير موجود أو غير نشط.');
+      final drug=DrugModel.fromMap(drugRows.first);
+      if(drug.isControlled)throw StateError('الأدوية المراقبة تُصرف حصراً من شاشة الوصفات المخصصة.');
+      final qty=(schedule['quantity_units'] as num).toInt();
+      int? prescriptionItemId,prescriptionId;
+      if(drug.requiresPrescription||drug.prescriptionRestricted||drug.isAntibiotic){
+        final today=DateTime.now().toIso8601String().substring(0,10);
+        final rx=await db.rawQuery("SELECT i.id item_id,i.prescription_id,i.prescribed_qty_units,i.dispensed_qty_units FROM prescription_items i JOIN prescriptions r ON r.id=i.prescription_id WHERE r.patient_id=? AND r.status IN('OPEN','PARTIAL') AND r.valid_until>=? AND i.drug_id=? AND (i.prescribed_qty_units-i.dispensed_qty_units)>=? ORDER BY r.rx_date DESC LIMIT 1",[patient.id,today,drug.id,qty]);
+        if(rx.isEmpty)throw StateError('لا توجد وصفة سارية بكمية متبقية تكفي هذه الدورة.');
+        prescriptionItemId=rx.first['item_id'] as int;prescriptionId=rx.first['prescription_id'] as int;
+      }
+      final cart=CartItemModel(drug:drug,sellUnit:'UNIT',quantity:qty.toDouble());
+      final verdict=await ClinicalGuardService(helper:DatabaseHelper.instance).evaluate(cart:[drug],patient:patient);
+      if(verdict.hasUnresolvedCritical){final messages=verdict.alerts.where((a)=>a.level==ClinicalLevel.warning||a.level==ClinicalLevel.block).map((a)=>a.messageAr).join('\n');throw StateError('تعذر الصرف بسبب تحذير سريري غير محسوم:\n$messages');}
+      if(verdict.alerts.isNotEmpty){
+        final proceed=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('مراجعة التنبيهات السريرية'),content:SizedBox(width:420,child:SingleChildScrollView(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:verdict.alerts.map((a)=>Padding(padding:const EdgeInsets.symmetric(vertical:4),child:Text('• ${a.messageAr}')).toList())))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('متابعة بعد المراجعة'))]));
+        if(proceed!=true)return;
+      }
+      final currentUser=p.currentUser;if(currentUser==null)throw StateError('يجب تسجيل الدخول أولاً.');
+      final cash=p.cashAccounts.firstWhere((a)=>a.accountKind=='CASHIER_DRAWER',orElse:()=>p.cashAccounts.firstWhere((a)=>a.accountKind=='MAIN_SAFE'));
+      final total=cart.lineTotal;
+      final invoiceId=await PostingAndSalesService(helper:DatabaseHelper.instance).postSale(branchId:p.branchId,cashierUserId:currentUser['id'] as int,items:[cart],saleType:'CASH',payments:[(cashAccountId:cash.id!,amount:total,method:'CASH',walletRef:null)],customerPartyId:partyId,clinicalVerdict:verdict);
+      final cycleDays=(schedule['cycle_days'] as num).toInt();
+      final nextDue=DateTime.now().add(Duration(days:cycleDays)).toIso8601String().substring(0,10);
+      await db.update('chronic_medication_schedules',{'next_due_date':nextDue,'last_dispensed_at':DateTime.now().toIso8601String(),'last_dispensed_invoice_id':invoiceId},where:'id=?',whereArgs:[schedule['id']]);
+      if(prescriptionItemId!=null&&prescriptionId!=null){
+        await db.rawUpdate('UPDATE prescription_items SET dispensed_qty_units=dispensed_qty_units+? WHERE id=?',[qty,prescriptionItemId]);
+        final progress=await db.rawQuery('SELECT COUNT(*) total,SUM(CASE WHEN dispensed_qty_units>=prescribed_qty_units THEN 1 ELSE 0 END) completed FROM prescription_items WHERE prescription_id=?',[prescriptionId]);
+        await db.update('prescriptions',{'status:(progress.first['total'] as num)==(progress.first['completed'] as num)?'DISPENSED':'PARTIAL'},where:'id=?',whereArgs:[prescriptionId]);
+      }
+      if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تم صرف الدورة بفاتورة رقم $invoiceId وتحديث الموعد القادم.')));}
+    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  }
+
   Widget _reps(){
     final p=context.watch<SessionAndErpProvider>();
     return FutureBuilder<List<Map<String,Object?>>>(future:DatabaseHelper.instance.rawQuery("SELECT * FROM parties WHERE branch_id=? AND party_type='REPRESENTATIVE' AND is_deleted=0 ORDER BY name_ar",[p.branchId]),builder:(context,snapshot)=>ListView(padding:const EdgeInsets.all(12),children:[
