@@ -10,6 +10,8 @@ import '../../providers/inventory_and_purchase_provider.dart';
 import '../../providers/clinical_and_rx_provider.dart';
 import 's04_clinical_guard_dialog.dart';
 import 's05_drug_alternatives_sheet.dart';
+import 's06_prescription_insurance_screen.dart';
+import 's07_sales_returns_screen.dart';
 
 class S03SmartPosScreen extends StatefulWidget{const S03SmartPosScreen({super.key});@override State<S03SmartPosScreen> createState()=>_S03SmartPosScreenState();}
 class _S03SmartPosScreenState extends State<S03SmartPosScreen>{
@@ -31,7 +33,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen>{
  }
  Widget _catalog(PosAndDrugsProvider p)=>Column(children:[TextField(controller:search,decoration:const InputDecoration(prefixIcon:Icon(Icons.search),hintText:'اسم تجاري أو علمي أو باركود'),onChanged:p.searchDrugs),const SizedBox(height:8),Expanded(child:ListView.builder(itemCount:p.drugs.length,itemBuilder:(c,i){final d=p.drugs[i];return Card(child:ListTile(title:Text(d.tradeNameAr),subtitle:Text(d.scientificName+' • مخزون '+d.stockTotalUnits.toString()),trailing:Text(MoneyFormatter.format(d.sellPricePack)),onTap:p.currentTab.held?null:()=>p.addDrug(d)));}))]);
  Widget _checkout(PosAndDrugsProvider p,SessionAndErpProvider s,InventoryAndPurchaseProvider inventory,ClinicalAndRxProvider clinical)=>Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-  Row(children:[Expanded(child:DropdownButtonFormField<int?>(value:clinical.currentPatient?.id,decoration:const InputDecoration(labelText:'المريض / الملف السريري'),items:[const DropdownMenuItem<int?>(value:null,child:Text('بدون ملف مريض')), ...clinical.patients.map((x)=>DropdownMenuItem<int?>(value:x.id,child:Text(x.fullName)))],onChanged:(id)=>clinical.selectPatient(id==null?null:clinical.patients.firstWhere((x)=>x.id==id)))),IconButton(tooltip:'فحص سريري شامل',onPressed:()=>S04ClinicalGuardDialog.show(context),icon:const Icon(Icons.health_and_safety,color:Color(0xffEF5350)))]),
+  Row(children:[Expanded(child:DropdownButtonFormField<int?>(value:clinical.currentPatient?.id,decoration:const InputDecoration(labelText:'المريض / الملف السريري'),items:[const DropdownMenuItem<int?>(value:null,child:Text('بدون ملف مريض')), ...clinical.patients.map((x)=>DropdownMenuItem<int?>(value:x.id,child:Text(x.fullName)))],onChanged:(id)=>clinical.selectPatient(id==null?null:clinical.patients.firstWhere((x)=>x.id==id)))),IconButton(tooltip:'فحص سريري شامل',onPressed:()=>S04ClinicalGuardDialog.show(context),icon:const Icon(Icons.health_and_safety,color:Color(0xffEF5350))),IconButton(tooltip:'الوصفات والتأمين',onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const S06PrescriptionInsuranceScreen())),icon:const Icon(Icons.receipt_long)),IconButton(tooltip:'مرتجع المبيعات',onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const S07SalesReturnsScreen())),icon:const Icon(Icons.assignment_return))]),
   Wrap(spacing:5,children:[_flag(p,clinical,'PREGNANT','حامل'),_flag(p,clinical,'BREASTFEEDING','مرضع'),_flag(p,clinical,'KIDNEY','مريض كلى'),_flag(p,clinical,'LIVER','مريض كبد'),_flag(p,clinical,'CHILD','طفل'),_flag(p,clinical,'ELDERLY','مسن')]),
   if(p.clinicalBlock!=null)ClinicalAlertBanner(message:p.clinicalBlock!,level:ClinicalAlertLevel.block),
   Expanded(child:p.cart.isEmpty?const Center(child:Text('السلة فارغة')):ListView(children:p.cart.map((item)=>_cartLine(context,p,item,inventory)).toList())),
