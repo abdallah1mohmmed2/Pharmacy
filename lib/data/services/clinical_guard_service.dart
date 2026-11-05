@@ -37,7 +37,7 @@ class ClinicalGuardService {
       final dose=prescribedDoseMgByDrugId[id];
       if(dose!=null&&drug.adultDoseMaxMgPerDay!=null&&dose>drug.adultDoseMaxMgPerDay!*1.1)alerts.add(ClinicalAlertModel(category:'DOSE_EXCEEDED',level:ClinicalLevel.warning,drugId:id,messageAr:'الجرعة المدخلة تتجاوز الحد اليومي المرجعي بأكثر من 10%.',recommendation:'تحقق من الجرعة والوحدة والمدة.'));
     }
-    alerts.addAll(_duplicateTherapy(cart));
+    alerts.addAll(_duplicateTherapy([...cart,...currentDrugs]));
     final unique=<String,ClinicalAlertModel>{};
     for(final a in alerts){final key='${a.category}:${a.drugId}:${a.otherDrugId}:${a.ruleRef}:${a.messageAr}';unique.putIfAbsent(key,()=>a);}
     return ClinicalVerdict(unique.values);
@@ -111,7 +111,7 @@ class ClinicalGuardService {
   Future<List<ClinicalAlertModel>> _interactions(DrugModel drug,List<DrugModel> others,int? patientId) async {
     final db=await _helper.database;final out=<ClinicalAlertModel>[];
     for(final other in others){if(other.id==null||drug.id==other.id)continue;
-      final rows=await db.rawQuery('SELECT * FROM drug_interactions WHERE (drug_a_id=? AND (drug_b_id=? OR drug_b_ingredient_id=?)) OR (drug_a_ingredient_id=? AND (drug_b_id=? OR drug_b_ingredient_id=?)) OR (drug_a_id=? AND drug_b_ingredient_id=?) OR (drug_a_ingredient_id=? AND drug_b_id=?)',[drug.id,other.id,other.activeIngredientId,drug.activeIngredientId,other.id,other.activeIngredientId,other.id,drug.activeIngredientId,other.activeIngredientId,drug.id]);
+      final rows=await db.rawQuery('SELECT * FROM drug_interactions WHERE (drug_a_id=? AND (drug_b_id=? OR drug_b_ingredient_id=?)) OR (drug_a_ingredient_id=? AND (drug_b_id=? OR drug_b_ingredient_id=?)) OR (drug_a_id=? AND drug_b_ingredient_id=?) OR (drug_a_ingredient_id=? AND drug_b_id=?) OR (drug_a_id=? AND drug_b_id=?) OR (drug_a_ingredient_id=? AND drug_b_ingredient_id=?)',[drug.id,other.id,other.activeIngredientId,drug.activeIngredientId,other.id,other.activeIngredientId,other.id,drug.activeIngredientId,other.activeIngredientId,drug.id,other.id,drug.id,other.activeIngredientId,drug.activeIngredientId]);
       for(final r in rows){final severity=r['severity'] as String;final level=switch(severity){'CONTRAINDICATED'=>ClinicalLevel.block,'MAJOR'=>ClinicalLevel.warning,'MODERATE'=>ClinicalLevel.caution,_=>ClinicalLevel.info};out.add(ClinicalAlertModel(category:'INTERACTION',level:level,drugId:drug.id,otherDrugId:other.id,patientId:patientId,ruleRef:'drug_interactions:${r['id']}',messageAr:'تفاعل بين ${drug.tradeNameAr} و${other.tradeNameAr}: ${r['clinical_effect']??r['interactant_name']}',recommendation:'${r['management']??''}'));}
     }
     return out;
