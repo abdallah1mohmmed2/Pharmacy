@@ -103,20 +103,38 @@ class InventoryOperationsService {
   Future<void> receiveTransfer(int transferId,{Map<int,int>? receivedByItem}) async {
     final db=await _db.database;
     await db.transaction((txn)async{
-      final rows=await txn.query('stock_transfers',where:"id=? AND status='IN_TRANSIT'",whereArgs:[transferId]);if(rows.isEmpty)throw StateError('التحويل ليس قيد النقل');
-      final destination=rows.first['to_warehouse_id'] as int;final items=await txn.query('stock_transfer_items',where:'transfer_id=?',whereArgs:[transferId]);final now=DateTime.now().toIso8601String();
+      final rows=await txn.query('stock_transfers',where:"id=? AND status='IN_TRANSIT'",whereArgs:[transferId]);
+      if(rows.isEmpty)throw StateError('التحويل ليس قيد النقل');
+      final destination=rows.first['to_warehouse_id'] as int;
+      final items=await txn.query('stock_transfer_items',where:'transfer_id=?',whereArgs:[transferId]);
+      final now=DateTime.now().toIso8601String();
       for(final item in items){
-        final qty=receivedByItem?[item['id'] as int]??(item['qty_units'] as int);if(qty<0||qty>(item['qty_units'] as int))throw StateError('كمية الاستلام غير صحيحة');
-        final source=(await txn.query('batches_fefo',where:'id=?',whereArgs:[item['from_batch_id']])).first;
-        final batchId=await txn.insert('batches_fefo',{'drug_id':source['drug_id'],'warehouse_id':destination,'batch_no':source['batch_no'],'expiry_date':source['expiry_date'],'manufacture_date':source['manufacture_date'],'sealed_packs':0,'loose_units':qty,'total_units':qty,'unit_cost':item['unit_cost'],'pack_cost':source['pack_cost'],'status':qty==0?'DEPLETED':'ACTIVE'});
+        final qty=receivedByItem?[item['id'] as int]??(item['qty_units'] as int);
+        if(qty<0||qty>(item['qty_units'] as int))throw StateError('كمية الاستلام غير صحيحة');
+        final source=(await txn.query('batches_fefo',where:'id=?',whereArgs:[item['from_batch_id']})).first;
+        final drugRows=await txn.query('drugs',columns:['units_per_pack'],where:'id=?',whereArgs:[source['drug_id']]);
+        final units=(drugRows.first['units_per_pack'] as int?)??1;
+        int? batchId;
+        int balance=0;
+        if(qty>0){
+          final existing=await txn.query('batches_fefo',where:'drug_id=? AND warehouse_id=? AND batch_no=? AND expiry_date=?',whereArgs:[source['drug_id'],destination,source['batch_no'],source['expiry_date']]);
+          final total=(existing.isEmpty?0:(existing.first['total_units'] as int))+qty;
+          balance=total;
+          final shelf=await txn.query('shelf_locations',columns:['id'],where:'warehouse_id=?',whereArgs:[destination],limit:1);
+          if(existing.isEmpty){
+            batchId=await txn.insert('batches_fefo',{'drug_id':source['drug_id'],'warehouse_id':destination,'location_id':shelf.isEmpty?null:shelf.first['id'],'batch_no':source['batch_no'],'expiry_date':source['expiry_date'],'manufacture_date':source['manufacture_date'],'sealed_packs':total~/units,'loose_units':total%units,'total_units':total,'unit_cost':item['unit_cost'],'pack_cost':source['pack_cost'],'status':'ACTIVE'});
+          }else{
+            batchId=existing.first['id'] as int;
+            await txn.update('batches_fefo',{'sealed_packs':total~/units,'loose_units':total%units,'total_units':total,'status':'ACTIVE'},where:'id=?',whereArgs:[batchId]);
+          }
+          await txn.insert('stock_movements',{'drug_id':source['drug_id'],'batch_id':batchId,'warehouse_id':destination,'movement_type':'TRANSFER_IN','qty_units':qty,'unit_cost':item['unit_cost'],'balance_after_units':balance,'movement_at':now,'doc_type':'TRANSFER','doc_id':transferId});
+          await txn.rawUpdate('UPDATE drugs SET stock_total_units=stock_total_units+?,updated_at=? WHERE id=?',[qty,now,source['drug_id']]);
+        }
         await txn.update('stock_transfer_items',{'to_batch_id':batchId,'received_qty_units':qty},where:'id=?',whereArgs:[item['id']]);
-        await txn.insert('stock_movements',{'drug_id':source['drug_id'],'batch_id':batchId,'warehouse_id':destination,'movement_type':'TRANSFER_IN','qty_units':qty,'unit_cost':item['unit_cost'],'balance_after_units':qty,'movement_at':now,'doc_type':'TRANSFER','doc_id':transferId});
-        await txn.rawUpdate('UPDATE drugs SET stock_total_units=stock_total_units+?,updated_at=? WHERE id=?',[qty,now,source['drug_id']]);
       }
       await txn.update('stock_transfers',{'status':'RECEIVED','received_at':now},where:'id=?',whereArgs:[transferId]);
     });
   }
-
   Future<int> recordTemperature({required int warehouseId,required double tempC,double? humidityPct,int? userId,String correctiveAction=''}) async {
     final db=await _db.database;return db.insert('cold_chain_log',{'warehouse_id':warehouseId,'reading_at':DateTime.now().toIso8601String(),'temp_c':tempC,'humidity_pct':humidityPct,'is_out_of_range':tempC<2||tempC>8?1:0,'corrective_action':correctiveAction,'recorded_by':userId});
   }
