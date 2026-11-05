@@ -31,7 +31,7 @@ class _S06PrescriptionInsuranceScreenState extends State<S06PrescriptionInsuranc
   }
   @override Widget build(BuildContext context){
     final p=context.watch<ClinicalAndRxProvider>();final pos=context.watch<PosAndDrugsProvider>();final session=context.watch<SessionAndErpProvider>();
-    final patient=p.patients.where((x)=>x.id==patientId).toList();final policies=p.policies.where((x)=>x.id==policyId).toList();final policy=policies.isEmpty?null:policies.first;
+    final policies=p.policies.where((x)=>x.id==policyId).toList();final policy=policies.isEmpty?null:policies.first;
     final selectedRx=rxRows.where((r)=>r['id']==selectedRxId).toList();
     var availableCoverage=policy?.remainingLimit??0.0;
     final copayLines=<({Map<String,Object?> item,double gross,double insurer,double patient})>[];
