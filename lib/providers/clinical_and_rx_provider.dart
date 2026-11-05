@@ -34,6 +34,21 @@ class ClinicalAndRxProvider extends ChangeNotifier {
   }
   void setFoodIntake(List<String> foods){currentFoods=foods;notifyListeners();}
   void setQuickFlag(String flag,bool enabled){if(enabled){quickFlags.add(flag);}else{quickFlags.remove(flag);}notifyListeners();}
+  Future<void> updatePatient(PatientClinicalModel patient) async {
+    if(patient.id==null)throw ArgumentError('معرف المريض مطلوب');
+    await _helper.update('patients',{
+      'party_id':patient.partyId,'full_name':patient.fullName,'birth_date':patient.birthDate?.toIso8601String().substring(0,10),
+      'sex':patient.sex,'weight_kg':patient.weightKg,'height_cm':patient.heightCm,
+      'is_pregnant':patient.isPregnant?1:0,'pregnancy_trimester':patient.pregnancyTrimester,
+      'is_lactating':patient.isLactating?1:0,'serum_creatinine':patient.serumCreatinine,
+      'egfr_ml_min':patient.egfrMlMin,'renal_stage':patient.renalStage,'child_pugh_class':patient.childPughClass,
+      'allergies_json':patient.allergiesJson,'chronic_conditions_json':patient.chronicConditionsJson,
+      'current_meds_json':patient.currentMedsJson,'updated_at':DateTime.now().toIso8601String(),
+    },where:'id=?',whereArgs:[patient.id]);
+    await loadAll();
+    currentPatient=patients.firstWhere((p)=>p.id==patient.id);
+    notifyListeners();
+  }
   void selectPatient(PatientClinicalModel? patient){currentPatient=patient;verdict=ClinicalVerdict([]);notifyListeners();}
   Future<ClinicalVerdict> evaluateCart(List<DrugModel> drugs,{Map<int,double> doses=const {}}) async {
     verdict=await _guard.evaluate(cart:drugs,patient:currentPatient,prescribedDoseMgByDrugId:doses,foodIntake:currentFoods,quickFlags:quickFlags);notifyListeners();return verdict;
