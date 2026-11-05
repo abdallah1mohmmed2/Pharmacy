@@ -5,6 +5,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'schema_builder.dart';
 import 'seed_data.dart';
+import 'schema_iteration2.dart';
 
 class DatabaseHelper {
   DatabaseHelper._();
@@ -17,7 +18,7 @@ class DatabaseHelper {
         ? p.join((await getApplicationSupportDirectory()).path,'databases')
         : await getDatabasesPath();
     await Directory(directory).create(recursive:true);
-    final db=await openDatabase(p.join(directory,'global_pharmacy_erp.db'),version:1,onConfigure:(database)async{
+    final db=await openDatabase(p.join(directory,'global_pharmacy_erp.db'),version:2,onConfigure:(database)async{
       await database.execute('PRAGMA foreign_keys = ON');
       await database.execute('PRAGMA journal_mode = WAL');
       await database.execute('PRAGMA synchronous = NORMAL');
@@ -26,6 +27,9 @@ class DatabaseHelper {
     },onCreate:(database,version)async{
       await SchemaBuilder.build(database);
       await SeedData.run(database);
+      await SchemaIteration2.upgrade(database);
+    ,onUpgrade:(database,oldVersion,newVersion) async {
+      if(oldVersion<2) await SchemaIteration2.upgrade(database);
     });
     await db.execute('PRAGMA foreign_keys = ON');
     await db.execute('PRAGMA busy_timeout = 5000');
