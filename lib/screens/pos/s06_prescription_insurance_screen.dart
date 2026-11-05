@@ -93,7 +93,7 @@ class _S06PrescriptionInsuranceScreenState extends State<S06PrescriptionInsuranc
     final db=await DatabaseHelper.instance.database;
     final rx=(await db.query('prescriptions',where:'id=?',whereArgs:[selectedRxId],limit:1)).first;
     final patient=clinical.patients.where((p)=>p.id==rx['patient_id']).toList();
-    final partyId=(patient.isNotEmpty?patient.first.partyId:rx['customer_party_id']) as int?;
+    final partyId=patient.isNotEmpty?(patient.first.partyId??rx['customer_party_id'] as int?):rx['customer_party_id'] as int?;
     if(partyId==null){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('اربط ملف المريض بحساب عميل قبل الصرف')));return;}
     final remainingItems=rxItems.where((i)=>(i['prescribed_qty_units'] as int)>(i['dispensed_qty_units'] as int)).toList();
     if(remainingItems.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('لا توجد كميات متبقية للصرف')));return;}
@@ -101,7 +101,7 @@ class _S06PrescriptionInsuranceScreenState extends State<S06PrescriptionInsuranc
     final drugs=drugRows.map(DrugModel.fromMap).toList();
     if(patient.isNotEmpty)clinical.selectPatient(patient.first);
     var verdict=await clinical.evaluateCart(drugs);
-    if(verdict.hasUnresolvedCritical){final ok=await S04ClinicalGuardDialog.show(context);if(!ok||clinical.verdict.hasUnresolvedCritical)return;verdict=clinical.verdict;}
+    if(verdict.hasUnresolvedCritical){final ok=await S04ClinicalGuardDialog.show(context,drugs:drugs);if(!ok||clinical.verdict.hasUnresolvedCritical)return;verdict=clinical.verdict;}
     final controlled=remainingItems.where((item)=>drugRows.any((d)=>(d['id']==item['drug_id'])&&(d['is_controlled'] as int? ?? 0)==1)).toList();
     final details=<int,({String patientName,String patientNationalId,String receiverName,String receiverNationalId,String doctorName,int? batchId})>{};
     if(controlled.isNotEmpty){
