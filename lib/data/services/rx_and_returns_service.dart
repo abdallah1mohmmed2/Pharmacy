@@ -5,7 +5,6 @@ import 'package:sqflite/sqflite.dart';
 import '../database/database_helper.dart';
 import '../models/clinical_and_rx_models.dart';
 import '../models/drug_model.dart';
-import 'clinical_guard_service.dart';
 import 'fefo_allocator_service.dart';
 
 class CopayLine {
@@ -14,9 +13,8 @@ class CopayLine {
   final bool limitExceeded,excluded;
 }
 class RxAndReturnsService {
-  RxAndReturnsService({DatabaseHelper? helper,ClinicalGuardService? guard}):_helper=helper??DatabaseHelper.instance,_guard=guard??ClinicalGuardService();
+  RxAndReturnsService({DatabaseHelper? helper}):_helper=helper??DatabaseHelper.instance;
   final DatabaseHelper _helper;
-  final ClinicalGuardService _guard;
   String _number(String prefix)=>'$prefix-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(999).toString().padLeft(3,'0')}';
 
   Future<List<AlternativeDrugModel>> findAlternatives(int drugId,{bool inStockOnly=false,bool cheapestFirst=false}) async {
