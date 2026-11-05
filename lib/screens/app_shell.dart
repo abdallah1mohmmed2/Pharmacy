@@ -11,8 +11,8 @@ import 'inventory/s12_fefo_expiry_radar_screen.dart';
 import 'inventory/s13_stocktaking_screen.dart';
 import 'inventory/s14_disposals_screen.dart';
 import 'inventory/s15_stock_transfers_screen.dart';
-import '../purchases/s16_purchase_invoice_bonus_screen.dart';
-import '../purchases/s17_s18_returns_and_shortages_screen.dart';
+import 'purchases/s16_purchase_invoice_bonus_screen.dart';
+import 'purchases/s17_s18_returns_and_shortages_screen.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
