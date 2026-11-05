@@ -31,6 +31,7 @@ class PosAndDrugsProvider extends ChangeNotifier {
   void setPatientFlag(String flag,bool enabled){if(currentTab.held)return;if(enabled){patientFlags.add(flag);}else{patientFlags.remove(flag);}clinicalBlock=null;for(final item in cart){_checkDrug(item.drug);}notifyListeners();}
   void addDrug(DrugModel drug,{String unit='UNIT'}){if(currentTab.held)throw StateError('استرجع الفاتورة قبل تعديلها');_checkDrug(drug);cart.add(CartItemModel(drug:drug,sellUnit:unit));notifyListeners();}
   void removeItem(CartItemModel item){if(currentTab.held)return;cart.remove(item);clinicalBlock=null;for(final i in cart){_checkDrug(i.drug);}notifyListeners();}
+  void replaceCartItem(CartItemModel item,DrugModel replacement){if(currentTab.held)return;final index=cart.indexOf(item);if(index<0)return;cart[index]=CartItemModel(drug:replacement,sellUnit:item.sellUnit,quantity:item.quantity,discount:item.discount,isSubstitute:true,substitutedForDrugId:item.drug.id);clinicalBlock=null;for(final line in cart){_checkDrug(line.drug);}notifyListeners();}
   void changeQuantity(CartItemModel item,double qty){if(currentTab.held)return;if(qty<=0){removeItem(item);}else{item.quantity=qty;notifyListeners();}}
   void changeUnit(CartItemModel item,String unit){if(currentTab.held)return;item.sellUnit=unit;notifyListeners();}
   void _checkDrug(DrugModel d){
