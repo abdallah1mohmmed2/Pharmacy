@@ -11,8 +11,7 @@ class ClinicalGuardService {
 
   Future<ClinicalVerdict> evaluate({required List<DrugModel> cart,required PatientClinicalModel? patient,Map<int,double> prescribedDoseMgByDrugId=const {},List<String> foodIntake=const [],Set<String> quickFlags=const {},int? invoiceId}) async {
     final db=await _helper.database;
-    final quickPatient=patient??_quickPatient(quickFlags);
-    final assessmentPatient=quickPatient;
+    final assessmentPatient=patient==null?_quickPatient(quickFlags):_mergeQuickFlags(patient,quickFlags);
     final alerts=<ClinicalAlertModel>[];
     final currentIds=assessmentPatient?.currentDrugIds.toSet()??<int>{};
     final currentRows=currentIds.isEmpty?<Map<String,Object?>>[]:await db.query('drugs',where:'id IN (${List.filled(currentIds.length,'?').join(',')})',whereArgs:currentIds.toList());
@@ -44,6 +43,14 @@ class ClinicalGuardService {
     return ClinicalVerdict(unique.values);
   }
 
+  PatientClinicalModel _mergeQuickFlags(PatientClinicalModel p,Set<String> flags)=>PatientClinicalModel(
+    id:p.id,partyId:p.partyId,fullName:p.fullName,birthDate:p.birthDate,
+    sex:flags.contains('PREGNANT')||flags.contains('BREASTFEEDING')?'F':p.sex,
+    weightKg:p.weightKg,heightCm:p.heightCm,isPregnant:p.isPregnant||flags.contains('PREGNANT'),
+    pregnancyTrimester:p.pregnancyTrimester,isLactating:p.isLactating||flags.contains('BREASTFEEDING'),
+    serumCreatinine:p.serumCreatinine,egfrMlMin:p.egfrMlMin,renalStage:p.renalStage,
+    childPughClass:p.childPughClass,allergiesJson:p.allergiesJson,
+    chronicConditionsJson:p.chronicConditionsJson,currentMedsJson:p.currentMedsJson);
   PatientClinicalModel? _quickPatient(Set<String> flags){
     if(flags.isEmpty)return null;
     final years=flags.contains('CHILD')?10:flags.contains('ELDERLY')?70:30;
