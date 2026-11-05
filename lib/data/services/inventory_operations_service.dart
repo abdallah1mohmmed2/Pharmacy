@@ -111,7 +111,7 @@ class InventoryOperationsService {
       for(final item in items){
         final qty=receivedByItem?[item['id'] as int]??(item['qty_units'] as int);
         if(qty<0||qty>(item['qty_units'] as int))throw StateError('كمية الاستلام غير صحيحة');
-        final source=(await txn.query('batches_fefo',where:'id=?',whereArgs:[item['from_batch_id']})).first;
+        final source=(await txn.query('batches_fefo',where:'id=?',whereArgs:[item['from_batch_id']])).first;
         final drugRows=await txn.query('drugs',columns:['units_per_pack'],where:'id=?',whereArgs:[source['drug_id']]);
         final units=(drugRows.first['units_per_pack'] as int?)??1;
         int? batchId;
