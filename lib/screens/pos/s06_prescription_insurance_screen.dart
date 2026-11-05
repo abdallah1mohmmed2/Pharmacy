@@ -142,7 +142,7 @@ class _S06PrescriptionInsuranceScreenState extends State<S06PrescriptionInsuranc
     if(amount>0)payments.add((amount:amount,cashAccountId:cashId,method:paymentMethod,walletRef:paymentMethod=='WALLET'?walletRef.text.trim():null));
     setState(()=>saving=true);
     try{
-      final invoiceId=await clinical.dispensePrescription(prescriptionId:selectedRxId!,quantitiesByItemId:quantities,patientPartyId:partyId,policyId:rx['insurance_policy_id'] as int?,patientPayments:payments,pharmacistUserId:userId,controlledDetails:details,lineTotalsByItemId:totals,branchId:branchId,clinicalVerdict:verdict);
+      final invoiceId=await clinical.dispensePrescription(prescriptionId:selectedRxId!,quantitiesByItemId:quantities,patientPartyId:partyId,policyId:policyId,patientPayments:payments,pharmacistUserId:userId,controlledDetails:details,lineTotalsByItemId:totals,branchId:branchId,clinicalVerdict:verdict);
       if(mounted){ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تم الصرف وإنشاء فاتورة رقم $invoiceId')));paid.text='0';await _load();await _selectRx(selectedRxId!);}
     }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
     if(mounted)setState(()=>saving=false);
