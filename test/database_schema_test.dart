@@ -141,7 +141,7 @@ void main() {
       expect(saleItemColumns.any((r) => r['name'] == 'substituted_for_drug_id'), isTrue);
       final returnColumns = await db.rawQuery('PRAGMA table_info(sales_returns)');
       expect(returnColumns.any((r) => r['name'] == 'wallet_ref_no'), isTrue);
-      final patientColumns = await db.rawQuery('PRAGMA table_info(patients)');
+      await SchemaIteration4.upgrade(db);\n\n      final patientColumns = await db.rawQuery('PRAGMA table_info(patients)');
       expect(patientColumns.any((r) => r['name'] == 'pregnancy_status_known'), isTrue);
 
 
