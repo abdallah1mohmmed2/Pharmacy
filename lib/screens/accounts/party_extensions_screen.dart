@@ -40,7 +40,8 @@ class _PartyExtensionsScreenState extends State<PartyExtensionsScreen> with Sing
     try{
       final db=await DatabaseHelper.instance.database;
       final dueDate=DateTime.tryParse(schedule['next_due_date']?.toString()??'');
-      if(dueDate!=null&&dueDate.isAfter(DateTime.now()))throw StateError('موعد الدورة القادمة لم يحن بعد.');\n      final partyId=schedule['customer_party_id'] as int;
+      if(dueDate!=null&&dueDate.isAfter(DateTime.now()))throw StateError('موعد الدورة القادمة لم يحن بعد.');
+      final partyId=schedule['customer_party_id'] as int;
       final patientRows=await db.query('patients',where:'party_id=?',whereArgs:[partyId],limit:1);
       if(patientRows.isEmpty)throw StateError('لا يمكن الصرف قبل إنشاء ملف سريري مرتبط بالعميل.');
       final patient=PatientClinicalModel.fromMap(patientRows.first);
