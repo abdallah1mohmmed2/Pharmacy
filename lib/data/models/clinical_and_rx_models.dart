@@ -12,7 +12,8 @@ class DrugInteractionModel {
 
 class RenalRuleModel {
   const RenalRuleModel({this.id,required this.drugId,required this.crclMin,required this.crclMax,required this.action,this.doseFactor,this.intervalHours,this.maxDailyMg,this.noteAr=''});
-  final int? id,intervalHours;\n  final int drugId;
+  final int? id,intervalHours;
+  final int drugId;
   final double crclMin,crclMax;
   final String action,noteAr;
   final double? doseFactor,maxDailyMg;
@@ -21,7 +22,8 @@ class RenalRuleModel {
 
 class HepaticRuleModel {
   const HepaticRuleModel({this.id,required this.drugId,required this.childPughClass,required this.action,this.doseFactor,this.maxDailyMg,this.noteAr=''});
-  final int? id,drugId;
+  final int? id;
+  final int drugId;
   final String childPughClass,action,noteAr;
   final double? doseFactor,maxDailyMg;
   factory HepaticRuleModel.fromMap(Map<String,Object?> m)=>HepaticRuleModel(id:m['id'] as int?,drugId:m['drug_id'] as int,childPughClass:m['child_pugh_class'] as String,action:m['action'] as String,doseFactor:(m['dose_factor'] as num?)?.toDouble(),maxDailyMg:(m['max_daily_mg'] as num?)?.toDouble(),noteAr:m['note_ar'] as String? ?? '');
@@ -29,7 +31,8 @@ class HepaticRuleModel {
 
 class PediatricRuleModel {
   const PediatricRuleModel({this.id,required this.drugId,this.ageMinMonths=0,this.ageMaxMonths=216,this.weightMinKg=0,this.weightMaxKg=200,this.mgPerKgDoseMin=0,this.mgPerKgDoseMax=0,this.mgPerKgDayMax=0,this.dosesPerDay=1,this.absoluteMaxDoseMg=double.infinity,this.action='DOSE_BY_WEIGHT',this.noteAr=''});
-  final int? id;\n  final int drugId,ageMinMonths,ageMaxMonths,dosesPerDay;
+  final int? id;
+  final int drugId,ageMinMonths,ageMaxMonths,dosesPerDay;
   final double weightMinKg,weightMaxKg,mgPerKgDoseMin,mgPerKgDoseMax,mgPerKgDayMax,absoluteMaxDoseMg;
   final String action,noteAr;
   factory PediatricRuleModel.fromMap(Map<String,Object?> m)=>PediatricRuleModel(id:m['id'] as int?,drugId:m['drug_id'] as int,ageMinMonths:(m['age_min_months'] as num?)?.toInt() ?? 0,ageMaxMonths:(m['age_max_months'] as num?)?.toInt() ?? 216,weightMinKg:(m['weight_min_kg'] as num?)?.toDouble() ?? 0,weightMaxKg:(m['weight_max_kg'] as num?)?.toDouble() ?? 200,mgPerKgDoseMin:(m['mg_per_kg_dose_min'] as num?)?.toDouble() ?? 0,mgPerKgDoseMax:(m['mg_per_kg_dose_max'] as num?)?.toDouble() ?? 0,mgPerKgDayMax:(m['mg_per_kg_day_max'] as num?)?.toDouble() ?? 0,dosesPerDay:(m['doses_per_day'] as num?)?.toInt() ?? 1,absoluteMaxDoseMg:(m['absolute_max_dose_mg'] as num?)?.toDouble() ?? double.infinity,action:m['action'] as String? ?? 'DOSE_BY_WEIGHT',noteAr:m['note_ar'] as String? ?? '');
@@ -80,6 +83,7 @@ class AlternativeDrugModel {
 
 class InsuranceCompanyModel {const InsuranceCompanyModel({this.id,this.partyId,required this.nameAr,this.defaultCoveragePct=0,this.claimCycleDays=30});final int? id,partyId,claimCycleDays;final String nameAr;final double defaultCoveragePct;}
 class InsurancePolicyModel {const InsurancePolicyModel({this.id,required this.insuranceCompanyId,required this.customerPartyId,required this.policyNo,this.coveragePct=0,this.copayPct=100,this.annualLimit=0,this.usedLimit=0,this.validFrom,this.validTo,this.excludedCategoriesJson='[]'});final int? id,insuranceCompanyId,customerPartyId;final String policyNo,excludedCategoriesJson;final double coveragePct,copayPct,annualLimit,usedLimit;final String? validFrom,validTo;double get remainingLimit=>(annualLimit-usedLimit).clamp(0,double.infinity).toDouble();bool get isValid{final n=DateTime.now();return (validFrom==null||!n.isBefore(DateTime.parse(validFrom!)))&&(validTo==null||!n.isAfter(DateTime.parse(validTo!)));}}
-class PrescriptionModel {const PrescriptionModel({this.id,required this.rxNo,required this.patientId,this.customerPartyId,this.doctorName='',this.doctorLicenseNo='',this.facilityName='',required this.rxDate,required this.validUntil,this.rxType='NORMAL',this.insurancePolicyId,this.refillsAllowed=0,this.refillsUsed=0,this.status='OPEN'});final int? id,customerPartyId,insurancePolicyId;\n  final int patientId,refillsAllowed,refillsUsed;final String rxNo,doctorName,doctorLicenseNo,facilityName,rxDate,validUntil,rxType,status;}
+class PrescriptionModel {const PrescriptionModel({this.id,required this.rxNo,required this.patientId,this.customerPartyId,this.doctorName='',this.doctorLicenseNo='',this.facilityName='',required this.rxDate,required this.validUntil,this.rxType='NORMAL',this.insurancePolicyId,this.refillsAllowed=0,this.refillsUsed=0,this.status='OPEN'});final int? id,customerPartyId,insurancePolicyId;
+  final int patientId,refillsAllowed,refillsUsed;final String rxNo,doctorName,doctorLicenseNo,facilityName,rxDate,validUntil,rxType,status;}
 class PrescriptionItemModel {const PrescriptionItemModel({this.id,required this.prescriptionId,required this.drugId,this.prescribedQtyUnits=0,this.dispensedQtyUnits=0,this.doseInstruction='',this.durationDays=0});final int? id;final int prescriptionId,drugId,prescribedQtyUnits,dispensedQtyUnits,durationDays;final String doseInstruction;int get remainingUnits=>(prescribedQtyUnits-dispensedQtyUnits).clamp(0,1<<30);}
 class SalesReturnModel {const SalesReturnModel({this.id,required this.returnNo,required this.returnDate,required this.originalInvoiceId,this.customerPartyId,this.refundMethod='CASH',this.reasonCode='OTHER',this.reasonText='',this.totalRefund=0,this.approvedBy,this.journalEntryId});final int? id,customerPartyId,approvedBy,journalEntryId;final int originalInvoiceId;final String returnNo,returnDate,refundMethod,reasonCode,reasonText;final double totalRefund;}
