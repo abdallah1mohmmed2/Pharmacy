@@ -14,7 +14,7 @@ class _S11InventoryBatchesShelvesScreenState extends State<S11InventoryBatchesSh
   @override Widget build(BuildContext context){
     final p=context.watch<InventoryAndPurchaseProvider>();
     return Scaffold(body:Padding(padding:const EdgeInsets.all(12),child:Column(children:[
-      Row(children:[const Expanded(child:Text('المخزون والتشغيلات والأرفف',style:TextStyle(fontSize:20,fontWeight:FontWeight.bold))),IconButton(onPressed:()=>_temperature(p),icon:const Icon(Icons.thermostat),tooltip:'تسجيل حرارة الثلاجة'),IconButton(onPressed:()=>_movementCard(p),icon:const Icon(Icons.receipt_long),tooltip:'كارت حركة الصنف')]),
+      Row(children:[const Expanded(child:Text('المخزون والتشغيلات والأرفف',style:TextStyle(fontSize:20,fontWeight:FontWeight.bold))),IconButton(onPressed:()=>_manageShelves(p),icon:const Icon(Icons.grid_view),tooltip:'إدارة مواقع الأرفف'),IconButton(onPressed:()=>_temperature(p),icon:const Icon(Icons.thermostat),tooltip:'تسجيل حرارة الثلاجة'),IconButton(onPressed:()=>_movementCard(p),icon:const Icon(Icons.receipt_long),tooltip:'كارت حركة الصنف')]),
       SegmentedButton<bool>(segments:const [ButtonSegment(value:true,label:Text('حسب الصنف')),ButtonSegment(value:false,label:Text('حسب التشغيلة'))],selected:{byDrug},onSelectionChanged:(v)=>setState(()=>byDrug=v.first)),
       const SizedBox(height:8),
       if(p.error!=null)Text(p.error!,style:const TextStyle(color:Colors.redAccent)),
@@ -34,6 +34,37 @@ class _S11InventoryBatchesShelvesScreenState extends State<S11InventoryBatchesSh
     int selected=options.first.id;
     final ok=await showDialog<bool>(context:context,builder:(c)=>StatefulBuilder(builder:(c,set)=>AlertDialog(title:const Text('نقل التشغيلة إلى رف'),content:DropdownButton<int>(value:selected,isExpanded:true,items:options.map((s)=>DropdownMenuItem(value:s.id,child:Text(s.code))).toList(),onChanged:(v)=>set(()=>selected=v??selected)),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('حفظ'))])));
     if(ok==true){final db=await DatabaseHelper.instance.database;await db.update('batches_fefo',{'location_id':selected},where:'id=?',whereArgs:[batch.id]);await p.loadAll();}
+  }
+  Future<void> _manageShelves(InventoryAndPurchaseProvider p)async{
+    if(p.warehouses.isEmpty){_message('أضف مستودعاً أولاً');return;}
+    final code=TextEditingController();final description=TextEditingController();
+    int warehouse=p.warehouses.first.id;bool isFridge=p.warehouses.first.whType=='FRIDGE';
+    final saved=await showDialog<bool>(context:context,builder:(dialogContext)=>StatefulBuilder(builder:(dialogContext,setDialog)=>AlertDialog(
+      title:const Text('إدارة مواقع الأرفف'),
+      content:SizedBox(width:420,child:Column(mainAxisSize:MainAxisSize.min,children:[
+        DropdownButtonFormField<int>(value:warehouse,decoration:const InputDecoration(labelText:'المستودع'),items:p.warehouses.map((w)=>DropdownMenuItem(value:w.id,child:Text(w.nameAr))).toList(),onChanged:(value)=>setDialog(()=>{warehouse=value??warehouse,isFridge=p.warehouses.firstWhere((w)=>w.id==(value??warehouse)).whType=='FRIDGE'})),
+        TextField(controller:code,decoration:const InputDecoration(labelText:'رمز الرف مثال A-01-02')),
+        TextField(controller:description,decoration:const InputDecoration(labelText:'الوصف')),
+        SwitchListTile(value:isFridge,onChanged:p.warehouses.firstWhere((w)=>w.id==warehouse).whType=='FRIDGE'?null:(value)=>setDialog(()=>isFridge=value),title:const Text('رف مبرد')),
+        const Divider(),
+        const Text('الأرفف الحالية'),
+        ...p.shelves.where((s)=>s.warehouseId==warehouse).map((s)=>ListTile(dense:true,title:Text(s.code),subtitle:Text(s.description),trailing:Icon(s.isFridge?Icons.ac_unit:Icons.inventory_2))),
+      ])),
+      actions:[TextButton(onPressed:()=>Navigator.pop(dialogContext,false),child:const Text('إغلاق')),FilledButton(onPressed:()=>Navigator.pop(dialogContext,true),child:const Text('إضافة رف'))],
+    )));
+    if(saved==true){
+      final normalized=code.text.trim().toUpperCase();
+      if(normalized.isEmpty){_message('أدخل رمز الرف');}
+      else{
+        try{
+          final selectedWarehouse=p.warehouses.firstWhere((w)=>w.id==warehouse);
+          if(selectedWarehouse.whType=='FRIDGE'&&!isFridge)throw StateError('مستودع الثلاجة يتطلب أرففاً مبردة');
+          await DatabaseHelper.instance.insert('shelf_locations',{'warehouse_id':warehouse,'code':normalized,'description':description.text.trim(),'is_fridge':isFridge?1:0});
+          await p.loadAll();_message('تمت إضافة موقع الرف');
+        }catch(error){_message(error.toString());}
+      }
+    }
+    code.dispose();description.dispose();
   }
   Future<void> _temperature(InventoryAndPurchaseProvider p)async{
     final fridges=p.warehouses.where((w)=>w.whType=='FRIDGE').toList();if(fridges.isEmpty){_message('لم يتم إعداد مستودع الثلاجة');return;}
