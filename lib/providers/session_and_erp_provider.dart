@@ -25,6 +25,11 @@ class SessionAndErpProvider extends ChangeNotifier {
     if(rows.isEmpty)return false;
     currentUser=rows.first;branchId=rows.first['branch_id'] as int;notifyListeners();await refresh();return true;
   }
+  Future<bool> verifyManagerPin(String pin) async {
+    final hash=sha256.convert(utf8.encode(pin)).toString();
+    final rows=await _db.rawQuery("SELECT id FROM users WHERE branch_id=? AND role_code IN('OWNER','MANAGER') AND manager_pin_hash=? AND is_active=1 AND is_deleted=0 LIMIT 1",[branchId,hash]);
+    return rows.isNotEmpty;
+  }
   void logout(){currentUser=null;notifyListeners();}
   Future<void> refresh() async {
     loading=true;notifyListeners();
