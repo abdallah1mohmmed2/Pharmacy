@@ -126,6 +126,19 @@ void main() {
       expect(patientCount, 3);
       expect(insuranceCount, 2);
       expect(alternativeCount, 4);
+      final interactionCount = (await db.rawQuery('SELECT COUNT(*) AS c FROM drug_interactions')).first['c'] as int;
+      final renalRuleCount = (await db.rawQuery('SELECT COUNT(*) AS c FROM drug_renal_rules')).first['c'] as int;
+      final hepaticRuleCount = (await db.rawQuery('SELECT COUNT(*) AS c FROM drug_hepatic_rules')).first['c'] as int;
+      final pediatricRuleCount = (await db.rawQuery('SELECT COUNT(*) AS c FROM drug_pediatric_rules')).first['c'] as int;
+      expect(interactionCount, greaterThanOrEqualTo(3));
+      expect(renalRuleCount, greaterThanOrEqualTo(4));
+      expect(hepaticRuleCount, greaterThanOrEqualTo(2));
+      expect(pediatricRuleCount, greaterThanOrEqualTo(2));
+      final saleItemColumns = await db.rawQuery('PRAGMA table_info(sales_invoice_items)');
+      expect(saleItemColumns.any((r) => r['name'] == 'is_substitute'), isTrue);
+      expect(saleItemColumns.any((r) => r['name'] == 'substituted_for_drug_id'), isTrue);
+      final returnColumns = await db.rawQuery('PRAGMA table_info(sales_returns)');
+      expect(returnColumns.any((r) => r['name'] == 'wallet_ref_no'), isTrue);
 
 
       final requiredTables = [
