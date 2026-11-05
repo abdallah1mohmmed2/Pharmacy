@@ -49,13 +49,16 @@ class PartnerDistributionService {
     final monthlyWages=await db.rawQuery("SELECT COALESCE(SUM(e.pay_rate),0) total FROM employees e WHERE e.branch_id=? AND e.pay_type='MONTHLY' AND e.termination_date IS NULL AND e.hire_date<=?",[branchId,'$periodCode-31']);
     final employeeBonuses=await db.rawQuery("SELECT COALESCE(SUM(l.lah_amount),0) total FROM lah_alayh_ledger l JOIN parties p ON p.id=l.party_id JOIN employees e ON e.party_id=p.id WHERE e.branch_id=? AND l.entry_type='EMPLOYEE_BONUS' AND substr(l.entry_date,1,7)=?",[branchId,periodCode]);
     final disposalLosses=await db.rawQuery("SELECT COALESCE(SUM(total_cost_value),0) total FROM disposals WHERE substr(disposal_date,1,7)=? AND status IN('APPROVED','POSTED')",[periodCode]);
+    final stockAdjustments=await db.rawQuery("SELECT COALESCE(SUM(CASE WHEN l.diff_value<0 THEN -l.diff_value ELSE 0 END),0) losses,COALESCE(SUM(CASE WHEN l.diff_value>0 THEN l.diff_value ELSE 0 END),0) gains FROM stocktaking_lines l JOIN stocktaking_sessions s ON s.id=l.session_id WHERE s.status='APPROVED' AND substr(COALESCE(s.approved_at,s.created_at),1,7)=?",[periodCode]);
     final revenue=_n(sales.first['gross']);final discounts=_n(sales.first['discounts']);final refund=_n(returns.first['refunds']);
     final netSales=revenue-discounts-refund;final cogs=(_n(sales.first['cogs'])-_n(returnedCost.first['total'])).clamp(0,double.infinity).toDouble();
     final expenses=_n(expense.first['total']);final wages=_n(dailyWages.first['total'])+_n(monthlyWages.first['total'])+_n(employeeBonuses.first['total']);
-    final losses=_n(disposalLosses.first['total'])+additionalLosses;
+    final losses=_n(disposalLosses.first['total'])+_n(stockAdjustments.first['losses'])+additionalLosses;
     final totalExpenses=expenses+wages+losses;
-    final netProfit=netSales-cogs-totalExpenses+inventoryGain;
-    return {'gross_sales':revenue,'discounts':discounts,'returns':refund,'net_sales':netSales,'cogs':cogs,'operating_expenses':expenses,'wages':wages,'additional_losses':losses,'inventory_gain':inventoryGain,'total_expenses_and_losses':totalExpenses,'net_profit':netProfit};
+    final stockGain=_n(stockAdjustments.first['gains']);
+    final totalInventoryGain=stockGain+inventoryGain;
+    final netProfit=netSales-cogs-totalExpenses+totalInventoryGain;
+    return {'gross_sales':revenue,'discounts':discounts,'returns':refund,'net_sales':netSales,'cogs':cogs,'operating_expenses':expenses,'wages':wages,'additional_losses':losses,'inventory_gain':totalInventoryGain,'total_expenses_and_losses':totalExpenses,'net_profit':netProfit};
   }
 
   Future<List<Map<String,Object?>>> planDistribution({required int branchId,required String periodCode,required double distributableProfit}) async {
@@ -94,7 +97,7 @@ class PartnerDistributionService {
     final db=await _helper.database;
     return db.transaction((tx)async{
       final no='DIST-${DateTime.now().millisecondsSinceEpoch}';
-      final id=await tx.insert('partner_distributions',{'distribution_no':no,'period_code':periodCode,'distribution_mode':p.mode,'total_revenue':_n(profit['net_sales']),'total_cogs':_n(profit['cogs']),'total_expenses_and_losses':_n(profit['total_expenses_and_losses']),'net_profit':net,'reserve_pct':reservePct,'distributable_profit':distributable,'status':'DRAFT','branch_id':branchId});
+      final id=await tx.insert('partner_distributions',{'distribution_no':no,'period_code':periodCode,'distribution_mode':p.mode,'total_revenue':_n(profit['gross_sales']),'total_cogs':_n(profit['cogs']),'total_expenses_and_losses':_n(profit['total_expenses_and_losses']),'net_profit':net,'reserve_pct':reservePct,'distributable_profit':distributable,'status':'DRAFT','branch_id':branchId});
       for(final line in lines){await tx.insert('partner_distribution_lines',{'distribution_id':id,'partner_id':line['partner_id'],'basis_value':line['basis_value'],'share_amount_lah':line['share_amount_lah'],'withdrawals_alayh':line['withdrawals_alayh'],'net_payable':line['net_payable']});}
       return id;
     });
