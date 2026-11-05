@@ -26,7 +26,7 @@ class InventoryOperationsService {
     await db.update('stocktaking_lines',{'counted_packs':countedPacks,'counted_loose_units':countedLooseUnits,'counted_units':counted,'diff_units':diff,'diff_value':diff*cost,'reason_code':reason},where:'id=?',whereArgs:[rows.first['id']]);
   }
 
-  Future<void> approveStocktaking({required int sessionId,required int managerUserId}) async {
+  Future<void> approveStocktaking({required int sessionId,required int managerUserId,int branchId=1}) async {
     final db=await _db.database;
     await db.transaction((txn)async{
       final sessions=await txn.query('stocktaking_sessions',where:"id=? AND status IN('COUNTING','REVIEW')",whereArgs:[sessionId]);
@@ -47,7 +47,7 @@ class InventoryOperationsService {
         final linesJournal=<Map<String,Object?>>[];
         if(surplus>0){linesJournal.add({'account_id':inventory,'dr_amount':surplus,'cr_amount':0,'memo':'زيادة جرد'});linesJournal.add({'account_id':variance,'dr_amount':0,'cr_amount':surplus,'memo':'فروقات جرد زيادة'});}
         if(shortage>0){linesJournal.add({'account_id':variance,'dr_amount':shortage,'cr_amount':0,'memo':'عجز جرد'});linesJournal.add({'account_id':inventory,'dr_amount':0,'cr_amount':shortage,'memo':'تخفيض مخزون بالعجز'});}
-        await _insertJournal(txn,branchId:1,sourceType:'STOCKTAKING',sourceId:sessionId,description:'اعتماد جلسة الجرد',lines:linesJournal);
+        await _insertJournal(txn,branchId:branchId,sourceType:'STOCKTAKING',sourceId:sessionId,description:'اعتماد جلسة الجرد',lines:linesJournal);
       }
       await txn.update('stocktaking_sessions',{'status':'APPROVED','approved_at':now,'approved_by':managerUserId},where:'id=?',whereArgs:[sessionId]);
     });
@@ -85,7 +85,7 @@ class InventoryOperationsService {
     final db=await _db.database;
     return db.transaction((txn)async{
       final now=DateTime.now().toIso8601String();final id=await txn.insert('stock_transfers',{'transfer_no':_number('TRF'),'transfer_type':'WAREHOUSE','from_warehouse_id':fromWarehouseId,'to_warehouse_id':toWarehouseId,'status':'DRAFT','created_at':now});
-      for(final item in items){final rows=await txn.query('batches_fefo',where:'id=? AND warehouse_id=?',whereArgs:[item.batchId,fromWarehouseId]);if(rows.isEmpty||item.qtyUnits<=0||item.qtyUnits>(rows.first['total_units'] as int))throw StateError('كمية التحويل غير متاحة');await txn.insert('stock_transfer_items',{'transfer_id':id,'from_batch_id':item.batchId,'qty_units':item.qtyUnits,'unit_cost':rows.first['unit_cost']});}
+      for(final item in items){final rows=await txn.query('batches_fefo',where:'id=? AND warehouse_id=?',whereArgs:[item.batchId,fromWarehouseId]);if(rows.isEmpty||item.qtyUnits<=0||item.qtyUnits>(rows.first['total_units'] as int))throw StateError('كمية التحويل غير متاحة');final drugRows=await txn.query('drugs',columns:['requires_refrigeration'],where:'id=?',whereArgs:[rows.first['drug_id']]);final cold=(drugRows.first['requires_refrigeration'] as int? ?? 0)==1;final destination=await txn.query('warehouses',columns:['wh_type'],where:'id=?',whereArgs:[toWarehouseId]);if(destination.isEmpty||(cold&&destination.first['wh_type']!='FRIDGE'))throw StateError('لا يمكن نقل الدواء المبرد إلا إلى مستودع ثلاجة');await txn.insert('stock_transfer_items',{'transfer_id':id,'from_batch_id':item.batchId,'qty_units':item.qtyUnits,'unit_cost':rows.first['unit_cost']});}
       return id;
     });
   }
