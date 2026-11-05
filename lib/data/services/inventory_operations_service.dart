@@ -25,7 +25,7 @@ class InventoryOperationsService {
     final rows=await db.rawQuery("SELECT l.id,l.system_units,l.unit_cost FROM stocktaking_lines l JOIN stocktaking_sessions s ON s.id=l.session_id WHERE l.session_id=? AND l.batch_id=? AND s.status='COUNTING'",[sessionId,batchId]);
     if(rows.isEmpty)throw StateError('جلسة الجرد أو التشغيلة غير متاحة');
     final counted=countedPacks*unitsPerPack+countedLooseUnits;final diff=counted-(rows.first['system_units'] as int);final cost=(rows.first['unit_cost'] as num).toDouble();
-    await db.update('stocktaking_lines',{'counted_packs':countedPacks,'counted_loose_units':countedLooseUnits,'counted_units':counted,'diff_units':diff,'diff_value':diff*cost,'reason_code':reason},where:'id=?',whereArgs:[rows.first['id']]);
+    await db.update('stocktaking_lines',{'counted_packs':countedPacks,'counted_loose_units':countedLooseUnits,'counted_units':counted,'is_counted':1,'diff_units':diff,'diff_value':diff*cost,'reason_code':reason},where:'id=?',whereArgs:[rows.first['id']]);
   }
 
   Future<void> approveStocktaking({required int sessionId,required int managerUserId,int branchId=1}) async {
@@ -33,7 +33,7 @@ class InventoryOperationsService {
     await db.transaction((txn)async{
       final sessions=await txn.query('stocktaking_sessions',where:"id=? AND status IN('COUNTING','REVIEW')",whereArgs:[sessionId]);
       if(sessions.isEmpty)throw StateError('جلسة الجرد غير قابلة للاعتماد');
-      final lines=await txn.query('stocktaking_lines',where:'session_id=?',whereArgs:[sessionId]);final now=DateTime.now().toIso8601String();
+      final lines=await txn.query('stocktaking_lines',where:'session_id=?',whereArgs:[sessionId]);if(lines.any((line)=>(line['is_counted'] as int? ?? 0)!=1))throw StateError('لا يمكن اعتماد الجرد قبل عد جميع التشغيلات');final now=DateTime.now().toIso8601String();
       double surplus=0,shortage=0;
       for(final line in lines){
         final diff=line['diff_units'] as int;if(diff==0)continue;
