@@ -62,7 +62,7 @@ class SessionAndErpProvider extends ChangeNotifier {
     await refresh();
     return id;
   }
-  Future<int> issueVoucher({required String voucherNo,required String type,required int partyId,required int cashAccountId,required double amount,required String method,String? walletRef,String description=''}) async {
+  Future<int> issueVoucher({required String voucherNo,required String type,required int partyId,int? cashAccountId,required double amount,required String method,String? walletRef,String description=''}) async {
     final id=await _posting.postVoucher(branchId:branchId,voucherNo:voucherNo,voucherType:type,partyId:partyId,cashAccountId:cashAccountId,amount:amount,method:method,walletRefNo:walletRef,description:description);
     await refresh();return id;
   }
