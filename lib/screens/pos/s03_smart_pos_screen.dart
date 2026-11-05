@@ -51,7 +51,17 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen>{
   final credit=method=='CREDIT'||method=='MIXED';if(credit&&customerId==null){_message('اختر العميل');return;}
   final paid=method=='CREDIT'?0.0:method=='MIXED'?(double.tryParse(paidAmount.text)??-1):p.total;
   if(paid<0||paid>p.total){_message('أدخل مبلغاً مدفوعاً صحيحاً لا يتجاوز إجمالي الفاتورة');return;}
-  final payments=paid>0?[ (cashAccountId:cashId!,amount:paid,method:tender=='WALLET'?'WALLET':'CASH',walletRef:isWallet?walletRef.text.trim():null) ]:[];
+  final List<({int cashAccountId, double amount, String method, String? walletRef})> payments =
+      paid > 0
+          ? [
+              (
+                cashAccountId: cashId!,
+                amount: paid,
+                method: tender == 'WALLET' ? 'WALLET' : 'CASH',
+                walletRef: isWallet ? walletRef.text.trim() : null,
+              ),
+            ]
+          : <({int cashAccountId, double amount, String method, String? walletRef})>[];
   try{final id=await p.checkout(cashierId:(s.currentUser?['id'] as int?) ?? 1,saleType:method=='CREDIT'?'CREDIT':method=='MIXED'?'MIXED':'CASH',payments:payments,customerId:customerId,discount:discount,managerApproved:p.clinicalBlock!=null,branchId:s.branchId);if(mounted){_message('تم حفظ الفاتورة رقم '+id.toString());await s.refresh();}}catch(e){_message(e.toString());}
  }
  void _message(String text)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(text)));
