@@ -27,9 +27,37 @@ class _S05DrugAlternativesSheetState extends State<S05DrugAlternativesSheet>{
         FilterChip(label:const Text('الأرخص سعراً'),selected:cheapest,onSelected:(v){setState(()=>cheapest=v);_load();}),
       ]),
       const SizedBox(height:8),
-      Expanded(child:clinical.loading?const Center(child:CircularProgressIndicator()):rows.isEmpty?const Center(child:Text('لا توجد بدائل مسجلة للمادة الفعالة.')):ListView.builder(itemCount:rows.length,itemBuilder:(context,index){final a=rows[index];return Card(child:ListTile(title:Text(a.nameAr),subtitle:Text('${a.strengthText} • ${a.dosageForm} • ${a.matchType} • الرصيد ${a.availableUnits} • أقرب صلاحية ${a.nearestExpiry??'—'}'),trailing:Column(mainAxisAlignment:MainAxisAlignment.center,children:[Text(a.sellPricePack.toStringAsFixed(2)),Text((a.priceDiffPack>=0?'+':'')+a.priceDiffPack.toStringAsFixed(2),style:TextStyle(color:a.priceDiffPack<=0?const Color(0xff66BB6A):const Color(0xffFFB74D)))]),onTap:()=>_choose(a.drugId)));})),
+      Expanded(child:clinical.loading?const Center(child:CircularProgressIndicator()):rows.isEmpty?const Center(child:Text('لا توجد بدائل مسجلة للمادة الفعالة.')):ListView.builder(itemCount:rows.length,itemBuilder:(context,index){final a=rows[index];return Card(child:ListTile(title:Text(a.nameAr),subtitle:Text('${a.strengthText} • ${a.dosageForm} • ${a.matchType} • الرصيد ${a.availableUnits} • أقرب صلاحية ${a.nearestExpiry??'—'}'),trailing:Row(mainAxisSize:MainAxisSize.min,children:[Column(mainAxisAlignment:MainAxisAlignment.center,children:[Text(a.sellPricePack.toStringAsFixed(2)),Text((a.priceDiffPack>=0?'+':'')+a.priceDiffPack.toStringAsFixed(2),style:TextStyle(color:a.priceDiffPack<=0?const Color(0xff66BB6A):const Color(0xffFFB74D)))]),IconButton(tooltip:'مقارنة 19 نقطة',onPressed:()=>_compare(a),icon:const Icon(Icons.compare_arrows))]),onTap:()=>_choose(a.drugId)));})),
       const Text('يُعاد فحص البديل سريرياً قبل تثبيته في السلة.'),
     ]))));
+  }
+
+  Future<void> _compare(dynamic alternative)async{
+    final rows=await DatabaseHelper.instance.query('drugs',where:'id=?',whereArgs:[alternative.drugId],limit:1);
+    if(rows.isEmpty||!mounted)return;
+    final other=DrugModel.fromMap(rows.first);final a=widget.original;
+    final values=< (String,String,String)>[
+      ('الهوية والتركيب',a.tradeNameAr,other.tradeNameAr),
+      ('الاسم العلمي',a.scientificName,other.scientificName),
+      ('المادة الفعالة',a.activeIngredientId?.toString()??'—',other.activeIngredientId?.toString()??'—'),
+      ('الشكل والتركيز','${a.dosageForm} • ${a.strengthText}','${other.dosageForm} • ${other.strengthText}'),
+      ('طريقة الإعطاء',a.route,other.route),
+      ('دواعي الاستعمال',a.indications,other.indications),
+      ('الجرعة',a.dosageAdministration,other.dosageAdministration),
+      ('موانع الاستعمال',a.contraindications,other.contraindications),
+      ('التحذيرات',a.warningsPrecautions,other.warningsPrecautions),
+      ('التفاعلات',a.interactionsSummary,other.interactionsSummary),
+      ('الآثار الشائعة',a.sideEffectsCommon,other.sideEffectsCommon),
+      ('الآثار الخطيرة',a.sideEffectsSerious,other.sideEffectsSerious),
+      ('الكلى',a.renalStatus,other.renalStatus),
+      ('الكبد',a.hepaticStatus,other.hepaticStatus),
+      ('الأطفال',a.pediatricStatus,other.pediatricStatus),
+      ('الحمل',a.pregnancyCategory,other.pregnancyCategory),
+      ('الرضاعة',a.lactationRisk,other.lactationRisk),
+      ('التخزين',a.storageConditions,other.storageConditions),
+      ('الرقابة والوصفة','${a.isControlled} • ${a.requiresPrescription}','${other.isControlled} • ${other.requiresPrescription}'),
+    ];
+    await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(title:const Text('مقارنة النقاط السريرية والتجارية'),content:SizedBox(width:700,child:SingleChildScrollView(child:Column(children:[for(final row in values)Card(child:Padding(padding:const EdgeInsets.all(8),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Text(row.$1,style:const TextStyle(fontWeight:FontWeight.bold)),Row(children:[Expanded(child:Text(row.$2)),const SizedBox(width:10),Expanded(child:Text(row.$3))])])))]))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إغلاق'))]));
   }
   Future<void> _choose(int drugId)async{
     final rows=await DatabaseHelper.instance.query('drugs',where:'id=?',whereArgs:[drugId],limit:1);
