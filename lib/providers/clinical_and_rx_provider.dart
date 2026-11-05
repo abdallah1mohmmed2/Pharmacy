@@ -7,7 +7,7 @@ import '../data/services/clinical_guard_service.dart';
 import '../data/services/rx_and_returns_service.dart';
 
 class ClinicalAndRxProvider extends ChangeNotifier {
-  ClinicalAndRxProvider({DatabaseHelper? helper,ClinicalGuardService? guard,RxAndReturnsService? rx}):_helper=helper??DatabaseHelper.instance,_guard=guard??ClinicalGuardService(helper:helper),_rx=rx??RxAndReturnsService(helper:helper,guard:guard);
+  ClinicalAndRxProvider({DatabaseHelper? helper,ClinicalGuardService? guard,RxAndReturnsService? rx}):_helper=helper??DatabaseHelper.instance,_guard=guard??ClinicalGuardService(helper:helper),_rx=rx??RxAndReturnsService(helper:helper);
   final DatabaseHelper _helper;
   final ClinicalGuardService _guard;
   final RxAndReturnsService _rx;
