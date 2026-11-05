@@ -13,7 +13,7 @@ class _S17S18ReturnsAndShortagesScreenState extends State<S17S18ReturnsAndShorta
  @override void dispose(){qty.dispose();value.dispose();reason.dispose();super.dispose();}
  @override Widget build(BuildContext context){
   final p=context.watch<InventoryAndPurchaseProvider>();final s=context.watch<SessionAndErpProvider>();
-  final suppliers=s.parties.where((x)=>x.partyType=='SUPPLIER').toList();final batches=p.batches.where((x)=>x.totalUnits>0).toList();
+  final suppliers=s.parties.where((x)=>x.partyType=='SUPPLIER').toList();final batches=p.batches.where((x)=>x.totalUnits>0).toList();final selected=p.batches.where((x)=>x.id==batch).toList();final cost=selected.isEmpty?0.0:selected.first.unitCost*(int.tryParse(qty.text)??0);final difference=cost-(double.tryParse(value.text)??0);
   return DefaultTabController(length:2,child:Padding(padding:const EdgeInsets.all(12),child:Column(children:[
    const Text('مرتجعات المشتريات والنواقص الذكية',style:TextStyle(fontSize:20,fontWeight:FontWeight.bold)),
    const TabBar(tabs:[Tab(text:'مرتجع المشتريات'),Tab(text:'النواقص وأوامر الشراء')]),
@@ -21,9 +21,9 @@ class _S17S18ReturnsAndShortagesScreenState extends State<S17S18ReturnsAndShorta
     ListView(children:[
      DropdownButtonFormField<int>(value:supplier,decoration:const InputDecoration(labelText:'المورد'),items:suppliers.map((x)=>DropdownMenuItem(value:x.id,child:Text(x.nameAr))).toList(),onChanged:(v)=>setState(()=>supplier=v)),
      DropdownButtonFormField<int>(value:batch,decoration:const InputDecoration(labelText:'التشغيلة'),items:batches.map((x)=>DropdownMenuItem(value:x.id,child:Text(x.drugName+' • '+x.batchNo))).toList(),onChanged:(v)=>setState(()=>batch=v)),
-     TextField(controller:qty,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'الكمية بالحبة')),
+     TextField(controller:qty,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'الكمية بالحبة'),onChanged:(_)=>setState((){})),
      DropdownButtonFormField<String>(value:settlement,decoration:const InputDecoration(labelText:'طريقة التسوية'),items:const [DropdownMenuItem(value:'CREDIT_NOTE',child:Text('إشعار خصم يخفض ما له')),DropdownMenuItem(value:'CASH_REFUND',child:Text('استرداد نقدي')),DropdownMenuItem(value:'EXCHANGE_GOODS',child:Text('استبدال'))],onChanged:(v)=>setState(()=>settlement=v??settlement)),
-     TextField(controller:value,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'قيمة الاسترداد المتفق عليها')),
+     TextField(controller:value,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'قيمة الاسترداد المتفق عليها'),onChanged:(_)=>setState((){})),Text('تكلفة البضاعة المرتجعة: '+cost.toStringAsFixed(2)+' • فرق التسوية (التكلفة − قيمة الاسترداد): '+difference.toStringAsFixed(2),style:TextStyle(color:difference>0?Colors.orange:Colors.green)),
      TextField(controller:reason,decoration:const InputDecoration(labelText:'سبب المرتجع')),
      FilledButton(onPressed:()=>_return(p),child:const Text('تسجيل المرتجع'))
     ]),
