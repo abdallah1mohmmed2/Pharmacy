@@ -89,12 +89,15 @@ class HrAndPayrollService {
         final attendance=await tx.rawQuery("SELECT COALESCE(SUM(wage_earned),0) total FROM employee_attendance WHERE employee_id=? AND substr(work_date,1,7)=?",[employeeId,periodCode]);
         gross=_n(attendance.first['total']);
       }
-      final movements=await tx.rawQuery("SELECT COALESCE(SUM(CASE WHEN entry_type IN('EMPLOYEE_BONUS') THEN lah_amount ELSE 0 END),0) bonuses,COALESCE(SUM(CASE WHEN entry_type IN('EMPLOYEE_ADVANCE','EMPLOYEE_DEDUCTION','CASHIER_SHORTAGE') THEN alayh_amount ELSE 0 END),0) deductions FROM lah_alayh_ledger WHERE party_id=? AND substr(entry_date,1,7)=?",[partyId,periodCode]);
-      final bonuses=_n(movements.first['bonuses']);final due=_n(movements.first['deductions']);
+      final movements=await tx.rawQuery("SELECT COALESCE(SUM(CASE WHEN entry_type='EMPLOYEE_BONUS' THEN lah_amount ELSE 0 END),0) bonuses,COALESCE(SUM(CASE WHEN entry_type IN('EMPLOYEE_ADVANCE','EMPLOYEE_DEDUCTION','CASHIER_SHORTAGE') THEN alayh_amount ELSE 0 END),0) deductions FROM lah_alayh_ledger WHERE party_id=? AND substr(entry_date,1,7)=?",[partyId,periodCode]);
+      final currentBonuses=_n(movements.first['bonuses']);final due=_n(movements.first['deductions']);
       final advances=await tx.rawQuery("SELECT COALESCE(SUM(alayh_amount),0) total FROM lah_alayh_ledger WHERE party_id=? AND entry_type='EMPLOYEE_ADVANCE' AND substr(entry_date,1,7)=?",[partyId,periodCode]);
-      final advanceAmount=_n(advances.first['total']);final deductions=(due-advanceAmount).clamp(0,double.infinity).toDouble();
+      final advanceAmount=_n(advances.first['total']);
+      final previous=await tx.rawQuery("SELECT COALESCE(SUM(alayh_amount),0)-COALESCE(SUM(lah_amount),0) due FROM lah_alayh_ledger WHERE party_id=? AND substr(entry_date,1,7)<?",[partyId,periodCode]);
+      final previousBalance=_n(previous.first['due']);
+      final bonuses=currentBonuses+(-previousBalance).clamp(0,double.infinity).toDouble();
+      final deductions=(due-advanceAmount).clamp(0,double.infinity).toDouble()+previousBalance.clamp(0,double.infinity).toDouble();
       final net=gross+bonuses-advanceAmount-deductions;
-      if(net<0)throw StateError('الاستقطاعات تتجاوز الاستحقاقات؛ راجع المسير قبل الاعتماد');
       final values={'employee_id':employeeId,'period_code':periodCode,'gross_lah':gross,'bonuses_lah':bonuses,'advances_alayh':advanceAmount,'deductions_alayh':deductions,'net_amount':net,'status':'DRAFT'};
       if(existing.isEmpty)return tx.insert('payroll_runs',values);
       final id=existing.first['id'] as int;await tx.update('payroll_runs',values,where:'id=?',whereArgs:[id]);return id;
