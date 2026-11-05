@@ -55,7 +55,7 @@ class _AppShellState extends State<AppShell>{
           ])),
         Expanded(child:IndexedStack(index:index,children:pages)),
       ]),
-      bottomNavigationBar:wide?null:NavigationBar(selectedIndex:index,onDestinationSelected:(v)=>setState(()=>index=v),destinations:const [
+      bottomNavigationBar:wide?null:NavigationBar(selectedIndex:index.clamp(0,3).toInt(),onDestinationSelected:(v)=>setState(()=>index=v),destinations:const [
         NavigationDestination(icon:Icon(Icons.dashboard_outlined),label:'الرئيسية'),NavigationDestination(icon:Icon(Icons.point_of_sale_outlined),label:'الكاشير'),
         NavigationDestination(icon:Icon(Icons.medication_outlined),label:'الأدوية'),NavigationDestination(icon:Icon(Icons.account_balance_wallet_outlined),label:'الحسابات'),
       ]),
