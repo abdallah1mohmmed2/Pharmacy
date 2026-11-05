@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/session_and_erp_provider.dart';
 import '../providers/pos_and_drugs_provider.dart';
+import '../providers/inventory_and_purchase_provider.dart';
 import 'dashboard/s02_executive_dashboard_screen.dart';
 import 'pos/s03_smart_pos_screen.dart';
 import 'drugs/s08_s09_drug_encyclopedia_screen.dart';
@@ -70,5 +71,19 @@ class _LoginScreenState extends State<_LoginScreen>{
     const SizedBox(height:14),SizedBox(width:double.infinity,child:FilledButton(onPressed:busy?null:_login,child:Text(busy?'جارٍ الدخول':'تسجيل الدخول'))),
     const Text('حساب التأسيس: admin / 123456',style:TextStyle(color:Colors.white54,fontSize:11)),
   ]))))));
-  Future<void> _login()async{setState(()=>busy=true);final ok=await context.read<SessionAndErpProvider>().login(user.text,pass.text);if(!mounted)return;setState(() { busy=false; error=ok?null:'بيانات الدخول غير صحيحة'; });if(ok){await context.read<PosAndDrugsProvider>().setBranchId(context.read<SessionAndErpProvider>().branchId);}}
+  Future<void> _login()async{
+    final session=context.read<SessionAndErpProvider>();
+    final pos=context.read<PosAndDrugsProvider>();
+    final inventory=context.read<InventoryAndPurchaseProvider>();
+    setState(()=>busy=true);
+    final ok=await session.login(user.text,pass.text);
+    if(!mounted)return;
+    setState((){busy=false;error=ok?null:'بيانات الدخول غير صحيحة';});
+    if(ok){
+      final activeBranch=session.branchId;
+      await pos.setBranchId(activeBranch);
+      if(!mounted)return;
+      await inventory.setBranch(activeBranch);
+    }
+  }
 }
