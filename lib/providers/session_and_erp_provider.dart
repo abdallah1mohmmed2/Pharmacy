@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import '../data/database/database_helper.dart';
 import '../data/models/erp_models.dart';
@@ -16,7 +18,7 @@ class SessionAndErpProvider extends ChangeNotifier {
   String? lastError;
 
   Future<bool> login(String username,String password) async {
-    final rows=await _db.rawQuery('SELECT * FROM users WHERE username=? AND password_hash=? AND is_active=1 AND is_deleted=0',[username.trim(),password]);
+    final rows=await _db.rawQuery('SELECT * FROM users WHERE username=? AND password_hash=? AND is_active=1 AND is_deleted=0',[username.trim(),sha256.convert(utf8.encode(password)).toString()]);
     if(rows.isEmpty)return false;
     currentUser=rows.first;branchId=rows.first['branch_id'] as int;notifyListeners();await refresh();return true;
   }
