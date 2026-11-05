@@ -4,8 +4,9 @@
 
 ## التشغيل
 - Flutter stable وDart 3.3 أو أحدث.
-- Android: flutter pub get ثم flutter run.
-- Windows: flutter config --enable-windows-desktop ثم flutter run -d windows.
+- أنشئ ملفات المنصات أول مرة: `flutter create --platforms=android,windows --org com.globalpharmacy .`
+- Android: `flutter pub get` ثم `flutter run`.
+- Windows: `flutter config --enable-windows-desktop` ثم `flutter run -d windows`.
 
 ## حساب التأسيس التجريبي
 - المستخدم: admin
