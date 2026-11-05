@@ -79,6 +79,6 @@ abstract final class SeedData {
       await db.insert('drugs',map);
     }
     await db.insert('number_sequences',{...base,'uuid':'seq-invoice','branch_id':branchId,'doc_type':'INVOICE','prefix':'INV','year':DateTime.now().year,'last_no':0,'pad_length':6});
-    await db.insert('number_sequences',{...base,'uuid':'seq-voucher','branch_id':branchId,'doc_type':'VOUCHER','prefix':'VCH','year':2026,'last_no':0,'pad_length':6});
+    await db.insert('number_sequences',{...base,'uuid':'seq-voucher','branch_id':branchId,'doc_type':'VOUCHER','prefix':'VCH','year':DateTime.now().year,'last_no':0,'pad_length':6});
   }
 }
