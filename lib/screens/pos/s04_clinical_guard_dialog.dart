@@ -23,7 +23,9 @@ class S04ClinicalGuardDialog extends StatefulWidget {
 class _S04ClinicalGuardDialogState extends State<S04ClinicalGuardDialog>{
   final reason=TextEditingController();
   final foods=TextEditingController();
-  @override void dispose(){reason.dispose();foods.dispose();super.dispose();}
+  final doseMg=TextEditingController();
+  int? doseDrugId;
+  @override void dispose(){reason.dispose();foods.dispose();doseMg.dispose();super.dispose();}
   @override Widget build(BuildContext context){
     final clinical=context.watch<ClinicalAndRxProvider>();
     final pos=context.watch<PosAndDrugsProvider>();
@@ -36,7 +38,9 @@ class _S04ClinicalGuardDialogState extends State<S04ClinicalGuardDialog>{
         if(patient!=null)Padding(padding:const EdgeInsets.symmetric(vertical:8),child:Wrap(spacing:8,runSpacing:8,children:[_tag('العمر',patient.ageYears==null?'غير محدد':'${patient.ageYears} سنة'),_tag('الوزن',patient.weightKg==null?'غير محدد':'${patient.weightKg} كجم'),_tag('CrCl',patient.crcl==null?'غير محسوب':'${patient.crcl!.toStringAsFixed(1)} مل/دقيقة'),_tag('الحمل',patient.isPregnant?'نعم':'لا'),_tag('الرضاعة',patient.isLactating?'نعم':'لا'),_tag('الكبد',patient.childPughClass??'غير محدد')])),
         if(patient!=null)Align(alignment:AlignmentDirectional.centerEnd,child:TextButton.icon(onPressed:()=>_editPatient(clinical,patient),icon:const Icon(Icons.edit),label:const Text('تعديل الملف السريري'))),
         TextField(controller:foods,decoration:const InputDecoration(labelText:'الأطعمة الحالية (افصل بينها بفاصلة)'),onChanged:(value)=>clinical.setFoodIntake(value.split(',').map((x)=>x.trim()).where((x)=>x.isNotEmpty).toList())),
-        Align(alignment:AlignmentDirectional.centerEnd,child:TextButton(onPressed:()=>clinical.evaluateCart(pos.cart.map((x)=>x.drug).toList()),child:const Text('إعادة الفحص'))),
+        DropdownButtonFormField<int?>(value:doseDrugId,decoration:const InputDecoration(labelText:'دواء حاسبة الجرعة'),items:[const DropdownMenuItem<int?>(value:null,child:Text('بدون جرعة مدخلة')), ...pos.cart.map((x)=>DropdownMenuItem<int?>(value:x.drug.id,child:Text(x.drug.tradeNameAr)))],onChanged:(value)=>setState(()=>doseDrugId=value)),
+        TextField(controller:doseMg,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'الجرعة المفردة المدخلة بالملغ (اختياري)')),
+        Align(alignment:AlignmentDirectional.centerEnd,child:TextButton(onPressed:()=>clinical.evaluateCart(pos.cart.map((x)=>x.drug).toList(),doses:doseDrugId==null||double.tryParse(doseMg.text)==null?const {}:{doseDrugId!:double.parse(doseMg.text)}),child:const Text('إعادة الفحص'))),
         const Divider(),
         if(clinical.verdict.alerts.isEmpty)const Padding(padding:EdgeInsets.all(20),child:Text('لا توجد تنبيهات مسجلة لهذه السلة حالياً.',textAlign:TextAlign.center)),
         for(final alert in clinical.verdict.alerts)Card(child:Padding(padding:const EdgeInsets.all(10),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
