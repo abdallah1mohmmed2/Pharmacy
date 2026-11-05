@@ -34,7 +34,7 @@ class SessionAndErpProvider extends ChangeNotifier {
     loading=true;notifyListeners();
     try{
       final db=await _db.database;
-      parties=(await db.rawQuery('SELECT p.*,v.total_alayh,v.total_lah,v.net,v.balance_side,v.balance_abs FROM parties p LEFT JOIN v_party_balance v ON v.party_id=p.id WHERE p.branch_id=? AND p.is_deleted=0 ORDER BY p.name_ar',[branchId]')).map(PartyModel.fromMap).toList();
+      parties=(await db.rawQuery('SELECT p.*,v.total_alayh,v.total_lah,v.net,v.balance_side,v.balance_abs FROM parties p LEFT JOIN v_party_balance v ON v.party_id=p.id WHERE p.branch_id=? AND p.is_deleted=0 ORDER BY p.name_ar',[branchId])).map(PartyModel.fromMap).toList();
       final cash=await db.query('cash_accounts',where:'branch_id=? AND is_deleted=0',whereArgs:[branchId],orderBy:'id');
       recentInvoices=await db.query('sales_invoices',where:'branch_id=? AND is_deleted=0',whereArgs:[branchId],orderBy:'id DESC',limit:5);
       recentVouchers=await db.query('vouchers',where:'branch_id=? AND is_deleted=0',whereArgs:[branchId],orderBy:'id DESC',limit:5);
