@@ -1,9 +1,11 @@
 import 'package:sqflite/sqflite.dart';
 import '../database/database_helper.dart';
+import 'posting_and_sales_service.dart';
 
 class InventoryOperationsService {
-  InventoryOperationsService({DatabaseHelper? helper}):_db=helper??DatabaseHelper.instance;
+  InventoryOperationsService({DatabaseHelper? helper,PostingAndSalesService? posting}):_db=helper??DatabaseHelper.instance,_posting=posting??PostingAndSalesService(helper:helper);
   final DatabaseHelper _db;
+  final PostingAndSalesService _posting;
   String _number(String prefix)=>prefix+'-'+DateTime.now().microsecondsSinceEpoch.toString();
 
   Future<int> createStocktaking({required int warehouseId,bool blind=false,String scope='WAREHOUSE'}) async {
@@ -141,9 +143,13 @@ class InventoryOperationsService {
 
   Future<int> _accountId(Transaction txn,String code) async {final rows=await txn.query('chart_of_accounts',columns:['id'],where:'code=?',whereArgs:[code],limit:1);if(rows.isEmpty)throw StateError('الحساب '+code+' غير موجود');return rows.first['id'] as int;}
   Future<int> _insertJournal(Transaction txn,{required int branchId,required String sourceType,required int sourceId,required String description,required List<Map<String,Object?>> lines}) async {
-    final now=DateTime.now().toIso8601String();final debit=lines.fold<double>(0,(sum,line)=>sum+(line['dr_amount'] as num).toDouble());final credit=lines.fold<double>(0,(sum,line)=>sum+(line['cr_amount'] as num).toDouble());if((debit-credit).abs()>0.005||debit<=0)throw StateError('القيد المحاسبي غير متوازن');
-    final id=await txn.insert('journal_entries',{'uuid':'inv-je-'+DateTime.now().microsecondsSinceEpoch.toString(),'branch_id':branchId,'created_at':now,'updated_at':now,'entry_no':_number('JE'),'entry_date':now,'description':description,'source_type':sourceType,'source_id':sourceId,'is_posted':1});
-    for(final line in lines){await txn.insert('journal_lines',{'uuid':'inv-jl-'+DateTime.now().microsecondsSinceEpoch.toString(),'branch_id':branchId,'created_at':now,'updated_at':now,'journal_entry_id':id,'account_id':line['account_id'],'dr_amount':line['dr_amount'],'cr_amount':line['cr_amount'],'memo':line['memo']});}
-    return id;
+    final normalized=lines.map((line)=>(
+      accountId:line['account_id'] as int,
+      debit:(line['dr_amount'] as num).toDouble(),
+      credit:(line['cr_amount'] as num).toDouble(),
+      partyId:line['party_id'] as int?,
+      memo:line['memo'] as String
+    )).toList();
+    return _posting.postBalancedEntry(txn,branchId:branchId,description:description,sourceType:sourceType,sourceId:sourceId,lines:normalized);
   }
 }
