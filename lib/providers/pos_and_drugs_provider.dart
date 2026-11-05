@@ -46,8 +46,16 @@ class PosAndDrugsProvider extends ChangeNotifier {
     map['uuid']=drug.uuid??'drug-'+DateTime.now().microsecondsSinceEpoch.toString();map['branch_id']=branchId;
     map['created_at']=drug.createdAt??now;map['updated_at']=now;
     map['internal_code']=drug.internalCode.isEmpty?'DR-'+DateTime.now().microsecondsSinceEpoch.toString():drug.internalCode;
-    map['sell_price_strip']=drug.stripPriceMode=='MANUAL'?drug.sellPriceStrip:drug.sellPricePack/drug.stripsPerPack;
-    map['sell_price_unit']=drug.sellPricePack/(drug.stripsPerPack*drug.unitsPerStrip);
+    final stripsPerPack = drug.stripsPerPack ?? 1;
+    final unitsPerStrip = drug.unitsPerStrip ?? 1;
+    if (stripsPerPack < 1 || unitsPerStrip < 1) {
+      throw ArgumentError('يجب أن يكون عدد الأشرطة والحبات أكبر من صفر');
+    }
+    map['sell_price_strip'] = drug.stripPriceMode == 'MANUAL'
+        ? drug.sellPriceStrip
+        : drug.sellPricePack / stripsPerPack;
+    map['sell_price_unit'] =
+        drug.sellPricePack / (stripsPerPack * unitsPerStrip);
     final db=await _db.database;if(drug.id==null){await db.insert('drugs',map);}else{await db.update('drugs',map,where:'id=?',whereArgs:[drug.id]);}await loadDrugs();
   }
   Future<int> checkout({required int cashierId,required String saleType,required List<({int cashAccountId,double amount,String method,String? walletRef})> payments,int? customerId,double discount=0,bool managerApproved=false,int branchId=1}) async {
