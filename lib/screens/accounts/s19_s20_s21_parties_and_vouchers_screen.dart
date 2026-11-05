@@ -24,14 +24,14 @@ class _S19S20S21PartiesAndVouchersScreenState extends State<S19S20S21PartiesAndV
   await showDialog<void>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,set)=>AlertDialog(title:const Text('إصدار سند'),content:SizedBox(width:430,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
    DropdownButtonFormField<String>(value:type,decoration:const InputDecoration(labelText:'نوع السند'),items:const [DropdownMenuItem(value:'RECEIPT',child:Text('سند قبض من عميل')),DropdownMenuItem(value:'PAYMENT',child:Text('سند صرف لمورد')),DropdownMenuItem(value:'SETTLEMENT',child:Text('تسوية مالية'))],onChanged:(v)=>set(()=>type=v??type)),
    TextField(controller:amount,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'المبلغ')),
-   DropdownButtonFormField<int>(value:cashId,decoration:const InputDecoration(labelText:'الصندوق / المحفظة'),items:p.cashAccounts.map((a)=>DropdownMenuItem(value:a.id,child:Text(a.nameAr))).toList(),onChanged:(v)=>set(()=>cashId=v)),
-   DropdownButtonFormField<String>(value:method,decoration:const InputDecoration(labelText:'وسيلة الدفع'),items:const [DropdownMenuItem(value:'CASH',child:Text('نقداً')),DropdownMenuItem(value:'WALLET',child:Text('محفظة')),DropdownMenuItem(value:'BANK',child:Text('بنك'))],onChanged:(v)=>set(()=>method=v??'CASH')),
+   if(method!='OFFSET')DropdownButtonFormField<int>(value:cashId,decoration:const InputDecoration(labelText:'الصندوق / المحفظة'),items:p.cashAccounts.map((a)=>DropdownMenuItem(value:a.id,child:Text(a.nameAr))).toList(),onChanged:(v)=>set(()=>cashId=v)),
+   DropdownButtonFormField<String>(value:method,decoration:const InputDecoration(labelText:'وسيلة الدفع'),items:const [DropdownMenuItem(value:'CASH',child:Text('نقداً')),DropdownMenuItem(value:'WALLET',child:Text('محفظة')),DropdownMenuItem(value:'BANK',child:Text('بنك')),DropdownMenuItem(value:'OFFSET',child:Text('تسوية بدون نقدية'))],onChanged:(v)=>set(()=>method=v??'CASH')),
    if(method=='WALLET')TextField(controller:ref,textDirection:TextDirection.ltr,decoration:const InputDecoration(labelText:'رقم إشعار المحفظة')),
    TextField(controller:note,decoration:const InputDecoration(labelText:'البيان')),
   ]))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{
-   final value=double.tryParse(amount.text);if(value==null||value<=0||cashId==null||(method=='WALLET'&&ref.text.trim().length<6))return;
+   final value=double.tryParse(amount.text);if(value==null||value<=0||(method!='OFFSET'&&cashId==null)||(method=='WALLET'&&ref.text.trim().length<6))return;
    final no='VCH-'+DateTime.now().microsecondsSinceEpoch.toString();
-   try{await p.issueVoucher(voucherNo:no,type:type,partyId:party.id!,cashAccountId:cashId!,amount:value,method:method,walletRef:method=='WALLET'?ref.text.trim():null,description:note.text);if(ctx.mounted)Navigator.pop(ctx);if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم حفظ السند')));}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+   try{await p.issueVoucher(voucherNo:no,type:type,partyId:party.id!,cashAccountId:cashId,amount:value,method:method,walletRef:method=='WALLET'?ref.text.trim():null,description:note.text);if(ctx.mounted)Navigator.pop(ctx);if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم حفظ السند')));}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   },child:const Text('حفظ السند'))])));
   amount.dispose();note.dispose();ref.dispose();await p.refresh();
  }
