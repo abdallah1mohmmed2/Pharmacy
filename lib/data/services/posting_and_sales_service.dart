@@ -39,7 +39,7 @@ class PostingAndSalesService {
       final invoiceNo=await _nextNumber(txn,branchId,'INVOICE');
       final invoiceId=await txn.insert('sales_invoices',{..._base(branchId),'invoice_no':invoiceNo,'invoice_date':DateTime.now().toIso8601String(),'cashier_user_id':cashierUserId,'customer_party_id':customerPartyId,'sale_type':saleType,'status':'COMPLETED','subtotal':subtotal,'discount_amount':discountAmount,'net_total':net,'paid_total':paid,'remaining_alayh':remaining,'total_cost':items.fold<double>(0,(s,i)=>s+i.drug.costPricePack*i.baseUnits/i.drug.effectiveUnitsPerPack)});
       for(final item in items){
-        await txn.insert('sales_invoice_items',{..._base(branchId),'invoice_id':invoiceId,'drug_id':item.drug.id,'sell_unit':item.sellUnit,'qty_in_sell_unit':item.quantity,'qty_units':item.baseUnits,'unit_price_sell_unit':item.unitPrice,'line_discount_amount':item.discount,'line_total':item.lineTotal,'line_cost':item.drug.costPricePack*item.baseUnits/item.drug.unitsPerPack});
+        await txn.insert('sales_invoice_items',{..._base(branchId),'invoice_id':invoiceId,'drug_id':item.drug.id,'sell_unit':item.sellUnit,'qty_in_sell_unit':item.quantity,'qty_units':item.baseUnits,'unit_price_sell_unit':item.unitPrice,'line_discount_amount':item.discount,'line_total':item.lineTotal,'line_cost':item.drug.costPricePack*item.baseUnits/item.drug.effectiveUnitsPerPack});
         final changed=await txn.rawUpdate('UPDATE drugs SET stock_total_units=stock_total_units-?, updated_at=? WHERE id=? AND stock_total_units>=?', [item.baseUnits,DateTime.now().toIso8601String(),item.drug.id,item.baseUnits]);
         if(changed!=1) throw StateError('تغير المخزون أثناء إتمام الفاتورة');
       }
