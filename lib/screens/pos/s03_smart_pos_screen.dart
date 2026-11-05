@@ -78,7 +78,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen>{
               ),
             ]
           : <({int cashAccountId, double amount, String method, String? walletRef})>[];
-  try{final id=await p.checkout(cashierId:(s.currentUser?['id'] as int?) ?? 1,saleType:method=='CREDIT'?'CREDIT':method=='MIXED'?'MIXED':'CASH',payments:payments,customerId:customerId,discount:discount,managerApproved:p.clinicalBlock!=null,branchId:s.branchId);if(mounted){_message('تم حفظ الفاتورة رقم '+id.toString());await s.refresh();await inventory.loadAll();}}catch(e){_message(e.toString());}
+  try{final id=await p.checkout(cashierId:(s.currentUser?['id'] as int?) ?? 1,saleType:method=='CREDIT'?'CREDIT':method=='MIXED'?'MIXED':'CASH',payments:payments,customerId:customerId,discount:discount,managerApproved:p.clinicalBlock!=null,branchId:s.branchId,clinicalVerdict:clinical.verdict);if(mounted){_message('تم حفظ الفاتورة رقم '+id.toString());await s.refresh();await inventory.loadAll();}}catch(e){_message(e.toString());}
  }
  void _message(String text)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(text)));
 }
