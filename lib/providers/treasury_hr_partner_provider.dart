@@ -49,7 +49,7 @@ class TreasuryHrPartnerProvider extends ChangeNotifier {
   Future<int> payPayroll({required int id,required int cashAccountId}) async {final v=await _hr.payPayroll(payrollId:id,cashAccountId:cashAccountId);await refresh();return v;}
   Future<Map<String,double>> calculateProfit(String period) async {profitSummary=await _partners.calculatePeriodNetProfit(branchId:branchId,periodCode:period);notifyListeners();return profitSummary;}
   Future<int> createDistribution({required String period,required double reservePct}) async {final id=await _partners.createDistribution(branchId:branchId,periodCode:period,reservePct:reservePct);distributionPreview=await _partners.planDistribution(branchId:branchId,periodCode:period,distributableProfit:profitSummary['net_profit']??0);await refresh();return id;}
-  Future<void> postDistribution(int id) async {_=await _partners.postPartnerDistribution(distributionId:id);await refresh();}
+  Future<void> postDistribution(int id) async {await _partners.postPartnerDistribution(distributionId:id);await refresh();}
   Future<void> switchDistributionMode(String mode,{required bool managerApproved}) async {await _partners.switchDistributionMode(newMode:mode,managerApproved:managerApproved);await refresh();}
   Future<void> validatePartnerFields({int? shares,double? percentage})=>_partners.validatePartnerFields(sharesCount:shares,percentage:percentage);
 }
