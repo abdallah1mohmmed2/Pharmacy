@@ -14,7 +14,7 @@ class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScr
    const SizedBox(height:8),
    Wrap(spacing:6,children:[for(final f in const [('ALL','الكل'),('ANTIBIOTIC','مضادات حيوية'),('CONTROLLED','مراقبة'),('COLD','ثلاجة'),('PREG_X','حمل X')])ChoiceChip(label:Text(f.$2),selected:filter==f.$1,onSelected:(_)=>setState(()=>filter=f.$1))]),
    Expanded(child:LayoutBuilder(builder:(context,c)=>Row(children:[
-    SizedBox(width:c.maxWidth>800?330:c.maxWidth*.42,child:ListView(children:list.map((d)=>Card(child:ListTile(selected:selected?.id==d.id,title:Text(d.tradeNameAr),subtitle:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(d.scientificName),LinearProgressIndicator(value:d.calculateCompletenessPct()/100,color:AppColors.primary),Text('اكتمال البيانات: '+d.calculateCompletenessPct().toStringAsFixed(0)+'%')]),onTap:()=>setState(()=>selected=d))).toList())),
+    SizedBox(width:c.maxWidth>800?330:c.maxWidth*.42,child:ListView(children:list.map((d)=>Card(child:ListTile(selected:selected?.id==d.id,title:Text(d.tradeNameAr),subtitle:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(d.scientificName),LinearProgressIndicator(value:d.calculateCompletenessPct()/100,color:AppColors.primary),Text('اكتمال البيانات: '+d.calculateCompletenessPct().toStringAsFixed(0)+'%')]),onTap:()=>setState(()=>selected=d))).toList()))),
     const VerticalDivider(width:12),Expanded(child:selected==null?const Center(child:Text('اختر دواء لعرض التفاصيل')):_details(selected!)),
    ]))),
   ])));
