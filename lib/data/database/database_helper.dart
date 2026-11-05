@@ -13,7 +13,7 @@ class DatabaseHelper {
   Future<Database> get database async => _db ??= await _open();
   Future<Database> _open() async {
     if(Platform.isWindows || Platform.isLinux || Platform.isMacOS){sqfliteFfiInit();databaseFactory=databaseFactoryFfi;}
-    final directory=(Platform.isWindows || Platform.isLinux || Platform.isMacOS)
+    final directory=Platform.isWindows
         ? p.join((await getApplicationSupportDirectory()).path,'databases')
         : await getDatabasesPath();
     await Directory(directory).create(recursive:true);
