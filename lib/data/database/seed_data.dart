@@ -55,7 +55,7 @@ abstract final class SeedData {
       final amount=alayhAmount+lahAmount;
       final journalId=await db.insert('journal_entries',{...base,'uuid':'opening-je-'+movementCode,'entry_no':'OPENING-'+movementCode,'entry_date':_now,'description':movementDescription,'source_type':'OPENING','source_id':partyId,'is_posted':1});
       await db.insert('journal_lines',{...base,'uuid':'opening-jl-'+movementCode+'-1','journal_entry_id':journalId,'account_id':isAlayh?partyAccountId:equityAccountId,'party_id':isAlayh?partyId:null,'dr_amount':amount,'cr_amount':0,'memo':movementDescription});
-      await db.insert('journal_lines',{...base,'uuid':'opening-jl-'+movementCode+'-2','journal_entry_id':journalId,'account_id':isAlayh?equityAccountId:partyAccountId,'party_id':isAlayh?null:partyId,'dr_amount':0,'cr_amount':amount,'memo':movement[3].toString()});
+      await db.insert('journal_lines',{...base,'uuid':'opening-jl-'+movementCode+'-2','journal_entry_id':journalId,'account_id':isAlayh?equityAccountId:partyAccountId,'party_id':isAlayh?null:partyId,'dr_amount':0,'cr_amount':amount,'memo':movementDescription});
       await db.insert('lah_alayh_ledger',{...base,'uuid':'opening-'+movementCode,'party_id':partyId,'entry_date':_now,'entry_type':'OPENING','alayh_amount':alayhAmount,'lah_amount':lahAmount,'doc_type':'OPENING','doc_id':journalId,'journal_entry_id':journalId,'statement_ar':movementDescription});
     }
     final ingredientIds=<String,int>{};
