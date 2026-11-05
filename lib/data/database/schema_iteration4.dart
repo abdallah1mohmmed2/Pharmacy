@@ -69,7 +69,7 @@ abstract final class SchemaIteration4 {
     if((openingRows.first['current_balance'] as num).toDouble()==0&&priorCashTransactions.isEmpty){
       final amount=10000.0;final cashGl=openingRows.first['gl_account_id'] as int;
       final equity=(await db.query('chart_of_accounts',columns:['id'],where:"code='3101'",limit:1)).first['id'] as int;
-      final je=await db.insert('journal_entries',{'uuid':'it4-safe-opening-je','branch_id':branchId,'created_at':now,'updated_at':now,'entry_no':'SEED-SAFE-OPENING','entry_date':now,'description':'رصيد افتتاحي تجريبي للخزينة','source_type':'OPENING','is_posted':1});
+      final je=await db.insert('journal_entries',{'uuid':'it4-safe-opening-je','branch_id':branchId,'created_at':now,'updated_at':now,'entry_no':'SEED-SAFE-OPENING','entry_date':now,'description':'رصيد افتتاحي تجريبي للخزينة','source_type':'CASH_ACCOUNT_OPENING','is_posted':1});
       await db.insert('journal_lines',{'uuid':'it4-safe-opening-jl1','branch_id':branchId,'created_at':now,'updated_at':now,'journal_entry_id':je,'account_id':cashGl,'dr_amount':amount,'cr_amount':0,'memo':'رصيد افتتاحي تجريبي'});
       await db.insert('journal_lines',{'uuid':'it4-safe-opening-jl2','branch_id':branchId,'created_at':now,'updated_at':now,'journal_entry_id':je,'account_id':equity,'dr_amount':0,'cr_amount':amount,'memo':'رصيد افتتاحي تجريبي'});
       await db.update('cash_accounts',{'current_balance':amount,'updated_at':now},where:'id=?',whereArgs:[safe['id']]);
