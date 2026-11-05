@@ -29,10 +29,12 @@ class DrugModel {
   final double? strengthValue, adultDoseMinMg, adultDoseMaxMgPerDay, pedDoseMgPerKgMin, pedDoseMgPerKgMax, pedMaxDailyMgPerKg, storageTempMinC, storageTempMaxC;
   final double costPricePack, lastPurchaseCostPack, sellPricePack, sellPriceStrip, sellPriceUnit, profitMarginPct, publicPricePack, taxRatePct;
   final int syncVersion;
+  final double completenessPct;
+  int get effectiveUnitsPerPack => unitsPerPack ?? ((stripsPerPack ?? 1) * (unitsPerStrip ?? 1));
   
   int toBaseUnits(String unit, num quantity) {
     if (quantity <= 0) throw ArgumentError.value(quantity, 'quantity', 'يجب أن تكون الكمية أكبر من صفر');
-    final multiplier = switch (unit.toUpperCase()) { 'PACK' => stripsPerPack * unitsPerStrip, 'STRIP' => unitsPerStrip, 'UNIT' => 1, _ => throw ArgumentError('وحدة بيع غير معروفة') };
+    final multiplier = switch (unit.toUpperCase()) { 'PACK' => (stripsPerPack ?? 1) * (unitsPerStrip ?? 1), 'STRIP' => unitsPerStrip ?? 1, 'UNIT' => 1, _ => throw ArgumentError('وحدة بيع غير معروفة') };
     return (quantity * multiplier).round();
   }
 
@@ -48,7 +50,7 @@ class DrugModel {
       warningsPrecautions.trim().isNotEmpty,
       interactionsSummary.trim().isNotEmpty,
       sideEffectsCommon.trim().isNotEmpty || sideEffectsSerious.trim().isNotEmpty,
-      stripsPerPack > 0 && unitsPerStrip > 0 && sellPricePack >= 0,
+      (stripsPerPack ?? 0) > 0 && (unitsPerStrip ?? 0) > 0 && sellPricePack >= 0,
       allowedPopulationsJson.trim().isNotEmpty,
       hepaticStatus != 'UNKNOWN' || hepaticNotes.isNotEmpty,
       renalStatus != 'UNKNOWN' || renalNotes.isNotEmpty,
@@ -70,7 +72,7 @@ class DrugModel {
     'indications':indications,'dosage_administration':dosageAdministration,'adult_dose_min_mg':adultDoseMinMg,'adult_dose_max_mg_per_day':adultDoseMaxMgPerDay,'dose_frequency_text':doseFrequencyText,'take_with_food':takeWithFood,'label_dose_text_ar':labelDoseTextAr,
     'contraindications':contraindications,'contraindications_json':contraindicationsJson,'warnings_precautions':warningsPrecautions,'black_box_warning':blackBoxWarning,'warnings_json':warningsJson,
     'interactions_summary':interactionsSummary,'has_critical_interactions':hasCriticalInteractions?1:0,'side_effects_common':sideEffectsCommon,'side_effects_serious':sideEffectsSerious,
-    'strips_per_pack':stripsPerPack,'units_per_strip':unitsPerStrip,'units_per_pack':stripsPerPack*unitsPerStrip,'cost_price_pack':costPricePack,'last_purchase_cost_pack':lastPurchaseCostPack,'sell_price_pack':sellPricePack,'sell_price_strip':sellPriceStrip,'sell_price_unit':sellPriceUnit,'strip_price_mode':stripPriceMode,'profit_margin_pct':profitMarginPct,'public_price_pack':publicPricePack,'tax_rate_pct':taxRatePct,'min_stock_units':minStockUnits,'reorder_qty_packs':reorderQtyPacks,'stock_total_units':stockTotalUnits,
+    'strips_per_pack':stripsPerPack,'units_per_strip':unitsPerStrip,'units_per_pack':(stripsPerPack ?? 1)*(unitsPerStrip ?? 1),'cost_price_pack':costPricePack,'last_purchase_cost_pack':lastPurchaseCostPack,'sell_price_pack':sellPricePack,'sell_price_strip':sellPriceStrip,'sell_price_unit':sellPriceUnit,'strip_price_mode':stripPriceMode,'profit_margin_pct':profitMarginPct,'public_price_pack':publicPricePack,'tax_rate_pct':taxRatePct,'min_stock_units':minStockUnits,'reorder_qty_packs':reorderQtyPacks,'stock_total_units':stockTotalUnits,
     'min_age_months':minAgeMonths,'max_age_months':maxAgeMonths,'allowed_populations_json':allowedPopulationsJson,
     'hepatic_status':hepaticStatus,'hepatic_notes':hepaticNotes,'renal_status':renalStatus,'renal_notes':renalNotes,'is_nephrotoxic':isNephrotoxic?1:0,
     'geriatric_status':geriatricStatus,'geriatric_notes':geriatricNotes,'beers_criteria':beersCriteria,'geriatric_age_threshold':geriatricAgeThreshold,
