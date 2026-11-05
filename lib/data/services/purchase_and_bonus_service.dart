@@ -19,18 +19,37 @@ class PurchaseAndBonusService {
     return (await _db.database).transaction((txn)async{
       final supplier=await txn.query('parties',where:"id=? AND party_type='SUPPLIER' AND is_deleted=0",whereArgs:[supplierPartyId]);
       if(supplier.isEmpty)throw StateError('المورد غير موجود');
-      final now=DateTime.now().toIso8601String();final prepared=<Map<String,Object?>>[];double subtotal=0;int totalBonus=0;
+      final warehouseRows=await txn.query('warehouses',where:'id=?',whereArgs:[warehouseId],limit:1);if(warehouseRows.isEmpty)throw StateError('المستودع المحدد غير موجود');
+      final now=DateTime.now().toIso8601String();final today=now.substring(0,10);final prepared=<Map<String,Object?>>[];double subtotal=0;int totalBonus=0;
       for(final item in items){
-        if(item.qtyPacksPaid<=0||item.bonusPacks<0||item.packPrice<0||item.lineDiscountPct<0||item.lineDiscountPct>100)throw ArgumentError('بيانات بند الشراء غير صحيحة');
-        final rows=await txn.query('drugs',columns:['units_per_pack','cost_price_pack','stock_total_units','sell_price_pack'],where:'id=? AND is_deleted=0',whereArgs:[item.drugId]);
+        if(item.warehouseId!=warehouseId||item.batchNo.trim().isEmpty||item.qtyPacksPaid<=0||item.bonusPacks<0||item.packPrice<0||item.lineDiscountPct<0||item.lineDiscountPct>100)throw ArgumentError('بيانات بند الشراء غير صحيحة');
+        final expiry=DateTime.tryParse(item.expiryDate);if(expiry==null||expiry.toIso8601String().substring(0,10)!=item.expiryDate||item.expiryDate.compareTo(today)<0)throw ArgumentError('لا يمكن توريد تشغيلة بصلاحية غير صحيحة أو منتهية');
+        final rows=await txn.query('drugs',columns:['units_per_pack','cost_price_pack','stock_total_units','sell_price_pack','requires_refrigeration'],where:'id=? AND is_deleted=0',whereArgs:[item.drugId]);
         if(rows.isEmpty)throw StateError('الصنف غير موجود');
         final drug=rows.first;final units=(drug['units_per_pack'] as int?)??1;if(units<=0)throw StateError('وحدات الباكت غير صالحة');
+        if(item.locationId!=null){final shelf=await txn.query('shelf_locations',where:'id=? AND warehouse_id=?',whereArgs:[item.locationId,warehouseId],limit:1);if(shelf.isEmpty)throw StateError('موقع الرف لا يتبع المستودع المحدد');}
+        if((drug['requires_refrigeration'] as int? ?? 0)==1){final shelf=item.locationId==null?[]:await txn.query('shelf_locations',where:'id=? AND warehouse_id=? AND is_fridge=1',whereArgs:[item.locationId,warehouseId],limit:1);if(warehouseRows.first['wh_type']!='FRIDGE'||shelf.isEmpty)throw StateError('الدواء المبرد يتطلب مستودعاً ورفاً مبردين');}
         final packs=item.qtyPacksPaid+item.bonusPacks;final lineTotal=item.qtyPacksPaid*item.packPrice*(1-item.lineDiscountPct/100);
         final effective=includeBonusInCost?lineTotal/packs:item.packPrice*(1-item.lineDiscountPct/100);
         final currentPacks=(drug['stock_total_units'] as int)/units;final oldAverage=(drug['cost_price_pack'] as num).toDouble();
         final newAverage=currentPacks+packs==0?effective:((currentPacks*oldAverage)+lineTotal)/(currentPacks+packs);
         subtotal+=lineTotal;totalBonus+=item.bonusPacks;
-        prepared.add({'item':item,'units':units,'packs':packs,'lineTotal':lineTotal,'effective':effective,'unitCost':effective/units,'oldAverage':oldAverage,'newAverage':newAverage,'oldSell':(drug['sell_price_pack'] as num).toDouble()});
+        prepared.add({'item':item,'units':units,'packs':packs,'lineTotal':lineTotal,'effective':effective,'unitCost':effective/units,'currentPacks':currentPacks,'oldAverage':oldAverage,'newAverage':newAverage,'oldSell':(drug['sell_price_pack'] as num).toDouble()});
+      }
+      final aggregateByDrug=<int,Map<String,double>>{};
+      for(final entry in prepared){
+        final item=entry['item'] as PurchaseLineInput;
+        final aggregate=aggregateByDrug.putIfAbsent(item.drugId,()=>{'packs':0,'cost':0,'currentPacks':entry['currentPacks'] as double,'oldAverage':entry['oldAverage'] as double});
+        aggregate['packs']=(aggregate['packs']??0)+(entry['packs'] as int);
+        aggregate['cost']=(aggregate['cost']??0)+(entry['lineTotal'] as double);
+      }
+      for(final entry in prepared){
+        final item=entry['item'] as PurchaseLineInput;
+        final aggregate=aggregateByDrug[item.drugId]!;
+        final oldPacks=aggregate['currentPacks']!;
+        final incomingPacks=aggregate['packs']!;
+        final denominator=oldPacks+incomingPacks;
+        entry['newAverage']=denominator<=0?0:((oldPacks*aggregate['oldAverage']!)+aggregate['cost']!)/denominator;
       }
       final net=(subtotal-discountAmount+taxAmount).clamp(0,double.infinity).toDouble();
       if(paidTotal<0||paidTotal>net+0.005)throw StateError('المبلغ المدفوع غير صحيح');
@@ -46,10 +65,10 @@ class PurchaseAndBonusService {
         final item=p['item'] as PurchaseLineInput;final units=p['units'] as int;final packs=p['packs'] as int;final lineTotal=p['lineTotal'] as double;final effective=p['effective'] as double;final unitCost=p['unitCost'] as double;
         final lineId=await txn.insert('purchase_invoice_items',{'invoice_id':invoiceId,'drug_id':item.drugId,'batch_no':item.batchNo,'expiry_date':item.expiryDate,'location_id':item.locationId,'qty_packs_paid':item.qtyPacksPaid,'bonus_packs':item.bonusPacks,'qty_packs_total':packs,'pack_price':item.packPrice,'line_discount_pct':item.lineDiscountPct,'line_total':lineTotal,'effective_pack_cost':effective,'new_sell_price_pack':item.newSellPricePack});
         final oldBatch=await txn.query('batches_fefo',where:'drug_id=? AND warehouse_id=? AND batch_no=? AND expiry_date=?',whereArgs:[item.drugId,warehouseId,item.batchNo,item.expiryDate]);
-        int batchId;int balance;
+        int batchId;int balance;final oldBalance=oldBatch.isEmpty?0:(oldBatch.first['total_units'] as int);final paidBalance=oldBalance+item.qtyPacksPaid*units;
         if(oldBatch.isEmpty){balance=packs*units;batchId=await txn.insert('batches_fefo',{'drug_id':item.drugId,'warehouse_id':warehouseId,'location_id':item.locationId,'batch_no':item.batchNo,'expiry_date':item.expiryDate,'sealed_packs':packs,'loose_units':0,'total_units':balance,'unit_cost':unitCost,'pack_cost':effective,'purchase_invoice_item_id':lineId,'status':'ACTIVE'});}
         else{final b=oldBatch.first;batchId=b['id'] as int;balance=(b['total_units'] as int)+packs*units;await txn.update('batches_fefo',{'sealed_packs':(b['sealed_packs'] as int)+packs,'total_units':balance,'unit_cost':unitCost,'pack_cost':effective,'location_id':item.locationId??b['location_id'],'status':'ACTIVE'},where:'id=?',whereArgs:[batchId]);}
-        if(item.qtyPacksPaid>0)await _movement(txn,item.drugId,batchId,warehouseId,'PURCHASE_IN',item.qtyPacksPaid*units,unitCost,balance,invoiceId,'توريد مدفوع');
+        if(item.qtyPacksPaid>0)await _movement(txn,item.drugId,batchId,warehouseId,'PURCHASE_IN',item.qtyPacksPaid*units,unitCost,paidBalance,invoiceId,'توريد مدفوع');
         if(item.bonusPacks>0)await _movement(txn,item.drugId,batchId,warehouseId,'BONUS_IN',item.bonusPacks*units,unitCost,balance,invoiceId,'بونص مجاني');
         final oldAvg=p['oldAverage'] as double;final newAvg=p['newAverage'] as double;final oldSell=p['oldSell'] as double;
         await txn.rawUpdate('UPDATE drugs SET stock_total_units=stock_total_units+?,cost_price_pack=?,last_purchase_cost_pack=?,updated_at=? WHERE id=?',[packs*units,newAvg,effective,now,item.drugId]);
