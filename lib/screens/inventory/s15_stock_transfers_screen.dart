@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/inventory_and_purchase_provider.dart';
+import '../../data/database/database_helper.dart';
 
 class S15StockTransfersScreen extends StatefulWidget{const S15StockTransfersScreen({super.key});@override State<S15StockTransfersScreen> createState()=>_S15StockTransfersScreenState();}
 class _S15StockTransfersScreenState extends State<S15StockTransfersScreen>{
@@ -9,7 +10,41 @@ class _S15StockTransfersScreenState extends State<S15StockTransfersScreen>{
  @override Widget build(BuildContext context){final p=context.watch<InventoryAndPurchaseProvider>();final sourceBatches=p.batches.where((b)=>b.warehouseId==from&&b.totalUnits>0).toList();return Padding(padding:const EdgeInsets.all(12),child:Column(children:[const Text('التحويلات المخزنية',style:TextStyle(fontSize:20,fontWeight:FontWeight.bold)),Row(children:[Expanded(child:DropdownButtonFormField<int>(value:from,decoration:const InputDecoration(labelText:'من مستودع'),items:p.warehouses.map((w)=>DropdownMenuItem(value:w.id,child:Text(w.nameAr))).toList(),onChanged:(v)=>setState(()=>from=v))),const SizedBox(width:8),Expanded(child:DropdownButtonFormField<int>(value:to,decoration:const InputDecoration(labelText:'إلى مستودع'),items:p.warehouses.where((w)=>w.id!=from).map((w)=>DropdownMenuItem(value:w.id,child:Text(w.nameAr))).toList(),onChanged:(v)=>setState(()=>to=v)))]),DropdownButtonFormField<int>(value:batch,decoration:const InputDecoration(labelText:'التشغيلة'),items:sourceBatches.map((b)=>DropdownMenuItem(value:b.id,child:Text(b.drugName+' • '+b.batchNo+' • '+b.totalUnits.toString()))).toList(),onChanged:(v)=>setState(()=>batch=v)),TextField(controller:qty,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'الكمية بالحبة')),FilledButton(onPressed:()=>_create(p),child:const Text('إنشاء تحويل')),TextButton.icon(onPressed:()=>_suggest(p),icon:const Icon(Icons.auto_awesome),label:const Text('اقتراح تغذية رفوف الصيدلية تلقائياً')),const Divider(),Expanded(child:ListView(children:p.transfers.map((t)=>Card(child:ListTile(title:Text(t.transferNo),subtitle:Text(t.transferType+' • '+t.status),trailing:Wrap(children:[if(t.status=='DRAFT')IconButton(onPressed:()=>_dispatch(p,t.id),icon:const Icon(Icons.send)),if(t.status=='IN_TRANSIT')IconButton(onPressed:()=>_receive(p,t.id),icon:const Icon(Icons.inventory_2))])))).toList()))]));}
  Future<void> _create(InventoryAndPurchaseProvider p)async{if(from==null||to==null||batch==null){_message('حدد المستودعين والتشغيلة');return;}final amount=int.tryParse(qty.text)??0;if(amount<=0){_message('أدخل كمية صحيحة');return;}try{await p.createTransfer(fromWarehouse:from!,toWarehouse:to!,items:[(batchId:batch!,qtyUnits:amount)]);qty.clear();_message('تم إنشاء التحويل');}catch(e){_message(e.toString());}}
  Future<void> _dispatch(InventoryAndPurchaseProvider p,int id)async{try{await p.dispatchTransfer(id);_message('تم إرسال التحويل وخصم الكمية من المستودع المصدر');}catch(e){_message(e.toString());}}
- Future<void> _receive(InventoryAndPurchaseProvider p,int id)async{try{await p.receiveTransfer(id);_message('تم تسجيل الاستلام الفعلي');}catch(e){_message(e.toString());}}
+ Future<void> _receive(InventoryAndPurchaseProvider p,int id)async{
+  final db=await DatabaseHelper.instance.database;
+  final rows=await db.rawQuery('SELECT i.id,i.qty_units,i.received_qty_units,b.batch_no,d.trade_name_ar FROM stock_transfer_items i JOIN batches_fefo b ON b.id=i.from_batch_id JOIN drugs d ON d.id=b.drug_id WHERE i.transfer_id=? ORDER BY i.id',[id]);
+  if(rows.isEmpty){_message('لا توجد بنود في هذا التحويل');return;}
+  final controllers=<int,TextEditingController>{};
+  for(final row in rows){controllers[row['id'] as int]=TextEditingController(text:(row['qty_units'] as int).toString());}
+  final accepted=await showDialog<bool>(context:context,builder:(dialogContext)=>AlertDialog(
+   title:const Text('مطابقة الاستلام الفعلي'),
+   content:SizedBox(width:520,child:ListView(shrinkWrap:true,children:rows.map((row){
+    final itemId=row['id'] as int;
+    return Padding(padding:const EdgeInsets.symmetric(vertical:6),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+     Text(row['trade_name_ar'].toString()+' • '+row['batch_no'].toString()),
+     Text('الكمية المرسلة: '+row['qty_units'].toString()+' حبة',style:const TextStyle(color:Colors.white70)),
+     TextField(controller:controllers[itemId],keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'الكمية المستلمة فعلياً بالحبة')),
+    ]));
+   }).toList())),
+   actions:[TextButton(onPressed:()=>Navigator.pop(dialogContext,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(dialogContext,true),child:const Text('تأكيد الاستلام'))],
+  ));
+  if(accepted==true){
+   final received=<int,int>{};
+   for(final row in rows){
+    final itemId=row['id'] as int;
+    final qty=int.tryParse(controllers[itemId]!.text);
+    if(qty==null||qty<0||qty>(row['qty_units'] as int)){for(final controller in controllers.values){controller.dispose();}_message('تأكد من أن كل كمية مستلمة بين صفر والكمية المرسلة');return;}
+    received[itemId]=qty;
+   }
+   try{
+    await p.receiveTransfer(id,received:received);
+    final sent=rows.fold<int>(0,(sum,row)=>sum+(row['qty_units'] as int));
+    final actual=received.values.fold<int>(0,(sum,value)=>sum+value);
+    _message('تم تسجيل الاستلام. فرق الاستلام: '+(sent-actual).toString()+' حبة');
+   }catch(e){_message(e.toString());}
+  }
+  for(final controller in controllers.values){controller.dispose();}
+ }
  Future<void> _suggest(InventoryAndPurchaseProvider p)async{final pharmacy=p.warehouses.where((w)=>w.whType=='PHARMACY_FLOOR').toList();final main=p.warehouses.where((w)=>w.whType=='MAIN_STORE').toList();if(pharmacy.isEmpty||main.isEmpty){_message('المستودع الرئيسي أو صالة الصيدلية غير مهيأ');return;}final candidates=p.batches.where((b)=>b.warehouseId==main.first.id&&b.totalUnits>0&&b.status=='ACTIVE'&&b.daysUntilExpiry>=0).take(5).toList();if(candidates.isEmpty){_message('لا توجد تشغيلات قابلة للتغذية');return;}try{await p.createTransfer(fromWarehouse:main.first.id,toWarehouse:pharmacy.first.id,items:candidates.map((b)=>(batchId:b.id,qtyUnits:b.totalUnits< b.sealedPacks*2?b.totalUnits:b.sealedPacks*2)).where((x)=>x.qtyUnits>0).toList());_message('تم إنشاء مقترح تحويل لتغذية الرفوف');}catch(e){_message(e.toString());}}
  void _message(String v)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(v)));
 }
