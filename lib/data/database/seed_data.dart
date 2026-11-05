@@ -34,6 +34,16 @@ abstract final class SeedData {
       ['CUSTOMER','C-001','عميل نقدي'],['CUSTOMER','C-002','عميل آجل تجريبي'],['SUPPLIER','S-001','مذخر الأمل'],['SUPPLIER','S-002','مذخر الشفاء']
     ];
     for(final p in parties){await db.insert('parties',{...base,'uuid':'party-'+p[1],'party_type':p[0],'code':p[1],'name_ar':p[2],'credit_limit':100000,'payment_terms_days':30,'opening_alayh':0,'opening_lah':0});}
+    final openingMovements=<List<Object>>[
+      ['C-002',3500.0,0.0,'رصيد افتتاحي للعميل'],
+      ['C-001',0.0,500.0,'رصيد افتتاحي لصالح العميل'],
+      ['S-001',8000.0,0.0,'رصيد افتتاحي للمذخر'],
+      ['S-002',0.0,1200.0,'رصيد افتتاحي لصالح المذخر'],
+    ];
+    for(final movement in openingMovements){
+      final party=await db.query('parties',columns:['id'],where:'code=?',whereArgs:[movement[0]],limit:1);
+      await db.insert('lah_alayh_ledger',{...base,'uuid':'opening-'+movement[0],'party_id':party.first['id'],'entry_date':_now,'entry_type':'OPENING','alayh_amount':movement[1],'lah_amount':movement[2],'doc_type':'OPENING','doc_id':null,'statement_ar':movement[3]});
+    }
     final ingredientId=await db.insert('active_ingredients',{...base,'uuid':'ingredient-amoxicillin','inn_name':'Amoxicillin','name_ar':'أموكسيسيلين'});
     final categoryId=await db.insert('drug_categories',{...base,'uuid':'category-medicine','code':'MED','name_ar':'أدوية عامة','atc_prefix':'J01'});
     final manufacturers=<int>[];
@@ -46,7 +56,21 @@ abstract final class SeedData {
       DrugModel(internalCode:'DR-0005',tradeNameAr:'ميتفورمين 500 مجم',tradeNameEn:'Metformin 500mg',scientificName:'Metformin',categoryId:categoryId,atcCode:'A10BA02',dosageForm:'TABLET',strengthText:'500 mg',route:'ORAL',indications:'السكري من النوع الثاني وفق الخطة العلاجية',dosageAdministration:'يبدأ ويعدل الطبيب الجرعة تدريجياً مع الطعام',contraindications:'حماض استقلابي وقصور كلوي شديد وفق النشرة',warningsPrecautions:'تقييم eGFR ومراجعة حالات الجفاف ونقص الأكسجة',interactionsSummary:'مواد التباين اليودية وبعض الأدوية قد تستلزم احتياطات',sideEffectsCommon:'إسهال وغثيان وطعم معدني',sideEffectsSerious:'حماض لبني نادر ونقص فيتامين B12 على المدى الطويل',stripsPerPack:3,unitsPerStrip:10,unitsPerPack:30,costPricePack:1000,sellPricePack:1500,sellPriceStrip:500,sellPriceUnit:50,stockTotalUnits:150,hepaticStatus:'AVOID',hepaticNotes:'تجنب عند القصور الكبدي المهم',renalStatus:'ADJUST',renalNotes:'يعتمد الاستخدام على eGFR ويمنع عند الانخفاض الشديد',isNephrotoxic:false,geriatricStatus:'ADJUST',geriatricNotes:'مراقبة وظائف الكلى بانتظام',pediatricStatus:'ADJUST',pediatricNotes:'استطبابات وأعمار محددة وفق الطبيب',pregnancyCategory:'UNKNOWN',pregnancyNotes:'قرار علاجي فردي وفق إرشادات السكري',lactationRisk:'L2',lactationNotes:'تقييم طبي فردي',storageConditions:'يحفظ جافاً بدرجة الغرفة',manufacturerId:manufacturers[4]),
       DrugModel(internalCode:'DR-0006',tradeNameAr:'جنتاميسين 80 مجم أمبول',tradeNameEn:'Gentamicin 80mg Ampoule',scientificName:'Gentamicin',categoryId:categoryId,atcCode:'J01GB03',dosageForm:'INJECTION',strengthText:'80 mg / 2 ml',route:'IM',indications:'عدوى بكتيرية خطيرة حساسة ضمن بروتوكول طبي',dosageAdministration:'جرعة ومدة حسب الوزن ووظائف الكلى ومستويات الدواء',contraindications:'تحسس للأمينوغليكوزيدات',warningsPrecautions:'سمية كلوية وسمعية؛ مراقبة وظائف الكلى والسمع',interactionsSummary:'يزداد خطر السمية مع أدوية كلوية أو أذنية السمية',hasCriticalInteractions:true,sideEffectsCommon:'غثيان وتهيج موضع الحقن',sideEffectsSerious:'فشل كلوي وسمية سمعية/دهليزية',stripsPerPack:1,unitsPerStrip:10,unitsPerPack:10,costPricePack:600,sellPricePack:900,sellPriceStrip:900,sellPriceUnit:90,stockTotalUnits:50,hepaticStatus:'SAFE',hepaticNotes:'لا يعتمد التخلص أساساً على الكبد',renalStatus:'ADJUST',renalNotes:'تعديل الجرعة والفاصل حسب وظائف الكلى ومراقبة مستويات الدواء',isNephrotoxic:true,geriatricStatus:'ADJUST',geriatricNotes:'خطر سمية أعلى مع ضعف الكلى',pediatricStatus:'ADJUST',pediatricNotes:'جرعات تخصصية محسوبة بالوزن والعمر',pregnancyCategory:'D',pregnancyNotes:'قد يسبب أذية سمعية جنينية؛ يقتصر على الضرورة القصوى',lactationRisk:'L2',lactationNotes:'تقييم الحالة السريرية',storageConditions:'يحفظ وفق نشرة المستحضر ولا يجمد',requiresPrescription:true,manufacturerId:manufacturers[5]),
     ];
-    for(final drug in drugs){final map=drug.toMap()..remove('id');map['uuid']='drug-'+drug.internalCode;map['branch_id']=branchId;map['created_at']=_now;map['updated_at']=_now;await db.insert('drugs',map);}
+    for(final drug in drugs){
+      final map=drug.toMap()..remove('id');
+      map['uuid']='drug-'+drug.internalCode;map['branch_id']=branchId;map['created_at']=_now;map['updated_at']=_now;
+      map['allowed_populations_json']='{"review_status":"PENDING_PHARMACIST"}';
+      map['pregnancy_trimester_json']='{"first":"REVIEW_REQUIRED","second":"REVIEW_REQUIRED","third":"REVIEW_REQUIRED"}';
+      map['chemical_composition']=drug.scientificName;
+      final reviewNote='لم يتم توثيق هذه الجزئية في بيانات البذر؛ يجب مراجعة النشرة الرسمية قبل الاستخدام.';
+      for(final pair in <String,String>{'hepatic_status':'hepatic_notes','renal_status':'renal_notes','geriatric_status':'geriatric_notes','pediatric_status':'pediatric_notes','pregnancy_category':'pregnancy_notes','lactation_risk':'lactation_notes'}.entries){
+        final status=map[pair.key]?.toString()??'UNKNOWN';
+        final note=map[pair.value]?.toString()??'';
+        if((status=='UNKNOWN'||status.isEmpty)&&note.isEmpty)map[pair.value]=reviewNote;
+      }
+      map['completeness_pct']=DrugModel.fromMap(map).calculateCompletenessPct();
+      await db.insert('drugs',map);
+    }
     await db.insert('number_sequences',{...base,'uuid':'seq-invoice','branch_id':branchId,'doc_type':'INVOICE','prefix':'INV','year':DateTime.now().year,'last_no':0,'pad_length':6});
     await db.insert('number_sequences',{...base,'uuid':'seq-voucher','branch_id':branchId,'doc_type':'VOUCHER','prefix':'VCH','year':2026,'last_no':0,'pad_length':6});
   }
