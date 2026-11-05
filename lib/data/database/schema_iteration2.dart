@@ -44,13 +44,27 @@ abstract final class SchemaIteration2 {
     final pharmacy=warehouses.firstWhere((r)=>r['code']=='PHARM')['id'] as int;
     final shelves=<List<Object>>[['A-01-01',main,0],['A-01-02',main,0],['A-02-01',main,0],['P-01-01',pharmacy,0],['F-01-01',fridge,1],['F-01-02',fridge,1]];
     for(final shelf in shelves){await db.insert('shelf_locations',{'warehouse_id':shelf[1],'code':shelf[0],'description':'رف \${shelf[0]}','is_fridge':shelf[2]});}
-    final drugs=await db.query('drugs',columns:['id','units_per_pack','cost_price_pack','requires_refrigeration'],where:'is_deleted=0');
+    final drugs=await db.query('drugs',columns:['id','units_per_pack','cost_price_pack','requires_refrigeration','stock_total_units'],where:'is_deleted=0');
     for(var index=0;index<drugs.length;index++){
-      final drug=drugs[index];final units=(drug['units_per_pack'] as int?)??1;final cold=(drug['requires_refrigeration'] as int? ?? 0)==1;final warehouse=cold?fridge:pharmacy;
+      final drug=drugs[index];
+      final units=(drug['units_per_pack'] as int?)??1;
+      if(units<=0)throw StateError('وحدات الباكت غير صالحة للصنف رقم '+drug['id'].toString());
+      final cold=(drug['requires_refrigeration'] as int? ?? 0)==1;
+      final warehouse=cold?fridge:pharmacy;
       final shelf=await db.query('shelf_locations',columns:['id'],where:'warehouse_id=?',whereArgs:[warehouse],limit:1);
-      final expiry=DateTime.now().add(Duration(days:[-4,25,55,110,240,400][index%6])).toIso8601String().substring(0,10);
+      if(shelf.isEmpty)throw StateError('لا يوجد رف افتراضي للمستودع');
+      final originalUnits=(drug['stock_total_units'] as int?)??0;
+      final first=originalUnits~/3;
+      final second=originalUnits~/3;
+      final portions=<int>[first,second,originalUnits-first-second];
+      final offsets=<int>[-4,25,55];
       final packCost=(drug['cost_price_pack'] as num? ?? 0).toDouble();
-      await db.insert('batches_fefo',{'drug_id':drug['id'],'warehouse_id':warehouse,'location_id':shelf.first['id'],'batch_no':'SEED-\${index+1}-A','expiry_date':expiry,'sealed_packs':5,'loose_units':0,'total_units':5*units,'unit_cost':packCost/units,'pack_cost':packCost,'status':expiry.compareTo(now.substring(0,10))<0?'EXPIRED':'ACTIVE'});
+      for(var lot=0;lot<portions.length;lot++){
+        final lotUnits=portions[lot];
+        if(lotUnits<=0)continue;
+        final expiry=DateTime.now().add(Duration(days:offsets[lot])).toIso8601String().substring(0,10);
+        await db.insert('batches_fefo',{'drug_id':drug['id'],'warehouse_id':warehouse,'location_id':shelf.first['id'],'batch_no':'SEED-'+(index+1).toString()+'-'+(lot+1).toString(),'expiry_date':expiry,'sealed_packs':lotUnits~/units,'loose_units':lotUnits%units,'total_units':lotUnits,'unit_cost':packCost/units,'pack_cost':packCost,'status':expiry.compareTo(now.substring(0,10))<0?'EXPIRED':'ACTIVE'});
+      }
     }
     await db.execute('UPDATE drugs SET stock_total_units=COALESCE((SELECT SUM(total_units) FROM batches_fefo WHERE batches_fefo.drug_id=drugs.id),0)');
   }
