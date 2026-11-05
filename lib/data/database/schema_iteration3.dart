@@ -30,6 +30,12 @@ abstract final class SchemaIteration3 {
   }
 
   static Future<void> _seed(DatabaseExecutor db) async {
+    final now=DateTime.now().toIso8601String();
+    final existingIngredients=await db.query('active_ingredients',columns:['inn_name']);
+    final knownIngredients=existingIngredients.map((r)=>r['inn_name'].toString().toLowerCase()).toSet();
+    for(final item in [('Ibuprofen','إيبوبروفين'),('Aspirin','أسبرين')]){
+      if(!knownIngredients.contains(item.$1.toLowerCase()))await db.insert('active_ingredients',{'uuid':'iteration3-ingredient-${item.$1.toLowerCase()}','branch_id':1,'created_at':now,'updated_at':now,'is_deleted':0,'sync_status':'LOCAL','sync_version':1,'inn_name':item.$1,'name_ar':item.$2});
+    }
     final ingredients=await db.query('active_ingredients',columns:['id','inn_name']);
     int? ingredient(String name){for(final r in ingredients){if((r['inn_name'] as String).toLowerCase()==name.toLowerCase())return r['id'] as int;}return null;}
     final baseIngredient=ingredient('Warfarin');
@@ -47,6 +53,28 @@ abstract final class SchemaIteration3 {
       if(grapefruit.isEmpty)await db.insert('drug_interactions',{'drug_a_ingredient_id':baseIngredient,'interactant_type':'FOOD','interactant_name':'الجريب فروت','severity':'MODERATE','severity_rank':2,'mechanism':'قد يؤثر الغذاء في استقلاب بعض الأدوية؛ يلزم تحقق المنتج المحدد','clinical_effect':'احتمال تغير التعرض الدوائي','management':'تحقق من النشرة الدوائية قبل إعطاء توصية','evidence_level':'REVIEW_REQUIRED'});
     }
     final drugs=await db.query('drugs',columns:['id','active_ingredient_id','scientific_name']);
+    final alternativeCount=Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM drugs WHERE internal_code LIKE ?', ['ALT-I3-%']))??0;
+    if(alternativeCount==0){
+      final originals=await db.query('drugs',limit:4,orderBy:'id ASC');
+      for(var i=0;i<originals.length;i++){
+        final clone=Map<String,Object?>.from(originals[i]);
+        clone.remove('id');
+        clone['uuid']='iteration3-alternative-${i+1}';
+        clone['internal_code']='ALT-I3-${(i+1).toString().padLeft(3,'0')}';
+        clone['trade_name_ar']='بديل تجريبي - ${clone['trade_name_ar']}';
+        clone['trade_name_en']='Generic alternative ${i+1}';
+        clone['barcode_international']='';
+        clone['barcode_local']='';
+        clone['registration_no']='';
+        clone['sell_price_pack']=((clone['sell_price_pack'] as num?)?.toDouble()??0)*0.9;
+        clone['sell_price_strip']=((clone['sell_price_strip'] as num?)?.toDouble()??0)*0.9;
+        clone['sell_price_unit']=((clone['sell_price_unit'] as num?)?.toDouble()??0)*0.9;
+        clone['stock_total_units']=0;
+        clone['created_at']=now;
+        clone['updated_at']=now;
+        await db.insert('drugs',clone);
+      }
+    }
     for(final d in drugs){
       final name=(d['scientific_name'] as String? ?? '').toLowerCase();
       final id=d['id'] as int;
