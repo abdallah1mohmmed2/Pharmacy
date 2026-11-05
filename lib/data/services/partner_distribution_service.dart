@@ -137,6 +137,22 @@ class PartnerDistributionService {
     await db.insert('partners',{'party_id':partyId,'capital_amount':capitalAmount,'shares_count':sharesCount,'percentage':percentage,'needs_input':needsInput?1:0,'join_date':joinDate??_now().substring(0,10),'is_active':isActive?1:0,'branch_id':branchId},conflictAlgorithm:ConflictAlgorithm.abort);
   }
 
+
+  Future<int> recordPartnerWithdrawal({required int partnerId,required int cashAccountId,required double amount,required String note}) async {
+    if(amount<=0||note.trim().length<3)throw ArgumentError('أدخل مبلغاً وبياناً صحيحين');
+    final db=await _helper.database;
+    return db.transaction((tx)async{
+      final rows=await tx.query('partners',where:'id=? AND is_active=1',whereArgs:[partnerId],limit:1);if(rows.isEmpty)throw StateError('الشريك غير موجود أو غير نشط');
+      final partner=rows.first;final partyId=partner['party_id'] as int;final branchId=partner['branch_id'] as int;
+      final cash=await tx.query('cash_accounts',columns:['current_balance','gl_account_id'],where:'id=? AND branch_id=?',whereArgs:[cashAccountId,branchId],limit:1);if(cash.isEmpty||_n(cash.first['current_balance'])<amount)throw StateError('رصيد حساب الدفع لا يكفي');
+      final cashGl=cash.first['gl_account_id'] as int;final payable=await _gl(tx,'2301');final je=await tx.insert('journal_entries',{'uuid':_uuid('je'),'branch_id':branchId,'created_at':_now(),'updated_at':_now(),'entry_no':'PART-WD-\\${DateTime.now().microsecondsSinceEpoch}','entry_date':_now(),'description':note,'source_type':'PARTNER_WITHDRAWAL','is_posted':1});
+      await _line(tx,branchId,je,payable,dr:amount,partyId:partyId,memo:note);await _line(tx,branchId,je,cashGl,cr:amount,memo:note);
+      final balance=_n(cash.first['current_balance'])-amount;await tx.update('cash_accounts',{'current_balance':balance,'updated_at':_now()},where:'id=?',whereArgs:[cashAccountId]);
+      final txId=await tx.insert('cash_transactions',{'cash_account_id':cashAccountId,'tx_date':_now(),'direction':'OUT','amount':amount,'tx_type':'PARTNER_WITHDRAWAL','doc_type':'JOURNAL','doc_id':je,'balance_after':balance,'note':note,'branch_id':branchId});
+      return tx.insert('lah_alayh_ledger',{'uuid':_uuid('partner-withdrawal'),'branch_id':branchId,'created_at':_now(),'updated_at':_now(),'party_id':partyId,'entry_date':_now(),'entry_type':'PARTNER_WITHDRAWAL','alayh_amount':amount,'lah_amount':0,'doc_type':'CASH_TRANSACTION','doc_id':txId,'journal_entry_id':je,'statement_ar':note});
+    });
+  }
+
   Future<int> _gl(DatabaseExecutor tx,String code) async {final r=await tx.query('chart_of_accounts',columns:['id'],where:'code=?',whereArgs:[code],limit:1);if(r.isEmpty)throw StateError('الحساب المحاسبي $code غير موجود');return r.first['id'] as int;}
   Future<void> _line(DatabaseExecutor tx,int branchId,int je,int account,{double dr=0,double cr=0,int? partyId,String? memo}) async {await tx.insert('journal_lines',{'uuid':_uuid('jl'),'branch_id':branchId,'created_at':_now(),'updated_at':_now(),'journal_entry_id':je,'account_id':account,'party_id':partyId,'dr_amount':dr,'cr_amount':cr,'memo':memo});}
 }
