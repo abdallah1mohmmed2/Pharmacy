@@ -154,7 +154,7 @@ class RxAndReturnsService {
   }
 
   Future<int> createSalesReturn({required int invoiceId,required int invoiceItemId,required int qtyUnits,required double refundAmount,required String reasonCode,required String reasonText,required String refundMethod,required String disposition,required int? approvedBy,required int? cashAccountId,int? batchId,bool openedLiquid=false,String? walletRef}) async {
-    if(qtyUnits<=0||refundAmount<0)throw ArgumentError('بيانات المرتجع غير صحيحة');
+    if(qtyUnits<=0||refundAmount<=0)throw ArgumentError('يجب أن تكون كمية وقيمة المرتجع أكبر من صفر');
     if(!['CASH','WALLET','CREDIT_TO_ACCOUNT'].contains(refundMethod))throw ArgumentError('طريقة الرد غير مدعومة');
     if(!['RESTOCK','QUARANTINE','DISPOSE'].contains(disposition))throw ArgumentError('قرار فحص التشغيلة غير صحيح');
     final db=await _helper.database;
@@ -189,20 +189,19 @@ class RxAndReturnsService {
         await txn.rawUpdate('UPDATE drugs SET stock_total_units=stock_total_units+? WHERE id=?',[qtyUnits,drug.id]);
       }else if(disposition=='QUARANTINE'){
         final wh=await txn.query('warehouses',where:"wh_type='QUARANTINE'",limit:1);if(wh.isEmpty)throw StateError('مستودع الحجر غير موجود');
-        final remainingUnits=oldTotal-qtyUnits;final unitsPerPack=drug.unitsPerPack??drug.effectiveUnitsPerPack;
-        await txn.update('batches_fefo',{'sealed_packs':remainingUnits~/unitsPerPack,'loose_units':remainingUnits%unitsPerPack,'total_units':remainingUnits,'status':remainingUnits==0?'DEPLETED':'ACTIVE'},where:'id=?',whereArgs:[actualBatchId]);
+        final remainingUnits=oldTotal;final unitsPerPack=drug.unitsPerPack??drug.effectiveUnitsPerPack;
+        await txn.insert('stock_movements',{'drug_id':drug.id,'batch_id':actualBatchId,'warehouse_id':batch['warehouse_id'],'movement_type':'SALE_RETURN_IN','qty_units':qtyUnits,'unit_cost':batch['unit_cost'],'unit_price':refundAmount/qtyUnits,'balance_after_units':oldTotal+qtyUnits,'doc_type':'SALES_RETURN','doc_id':returnId,'doc_line_id':invoiceItemId,'movement_at':DateTime.now().toIso8601String(),'note':'إثبات استلام المرتجع قبل الحجر'});
         final quarantineBatch=Map<String,Object?>.from(batch)..remove('id');
         quarantineBatch['warehouse_id']=wh.first['id'];quarantineBatch['location_id']=null;quarantineBatch['batch_no']='${batch['batch_no']}-RET-$returnId';quarantineBatch['sealed_packs']=qtyUnits~/unitsPerPack;quarantineBatch['loose_units']=qtyUnits%unitsPerPack;quarantineBatch['total_units']=qtyUnits;quarantineBatch['status']='QUARANTINED';
         final quarantineBatchId=await txn.insert('batches_fefo',quarantineBatch);
         await txn.update('sales_return_items',{'batch_id':quarantineBatchId},where:'sales_return_id=? AND invoice_item_id=?',whereArgs:[returnId,invoiceItemId]);
         await txn.insert('stock_movements',{'drug_id':drug.id,'batch_id':actualBatchId,'warehouse_id':batch['warehouse_id'],'movement_type':'TRANSFER_OUT','qty_units':-qtyUnits,'unit_cost':batch['unit_cost'],'unit_price':0,'balance_after_units':remainingUnits,'doc_type':'SALES_RETURN','doc_id':returnId,'doc_line_id':invoiceItemId,'movement_at':DateTime.now().toIso8601String(),'note':'تحويل مرتجع إلى الحجر'});
+        await txn.insert('stock_movements',{'drug_id':drug.id,'batch_id':actualBatchId,'warehouse_id':batch['warehouse_id'],'movement_type':'TRANSFER_OUT','qty_units':-qtyUnits,'unit_cost':batch['unit_cost'],'unit_price':0,'balance_after_units':remainingUnits,'doc_type':'SALES_RETURN','doc_id':returnId,'doc_line_id':invoiceItemId,'movement_at':DateTime.now().toIso8601String(),'note':'تحويل الكمية المرتجعة من التشغيلة الأصلية إلى الحجر'});
         await txn.insert('stock_movements',{'drug_id':drug.id,'batch_id':quarantineBatchId,'warehouse_id':wh.first['id'],'movement_type':'TRANSFER_IN','qty_units':qtyUnits,'unit_cost':batch['unit_cost'],'unit_price':0,'balance_after_units':qtyUnits,'doc_type':'SALES_RETURN','doc_id':returnId,'doc_line_id':invoiceItemId,'movement_at':DateTime.now().toIso8601String(),'note':'استلام المرتجع في الحجر'});
         await txn.rawUpdate('UPDATE drugs SET stock_total_units=stock_total_units+? WHERE id=?',[qtyUnits,drug.id]);
       }else{
-        final newTotal=(oldTotal-qtyUnits).clamp(0,1<<30);
-        final unitsPerPack=drug.unitsPerPack??drug.effectiveUnitsPerPack;
-        await txn.update('batches_fefo',{'sealed_packs':newTotal~/unitsPerPack,'loose_units':newTotal%unitsPerPack,'total_units':newTotal,'status':newTotal==0?'DISPOSED':'ACTIVE'},where:'id=?',whereArgs:[actualBatchId]);
-        await txn.insert('stock_movements',{'drug_id':drug.id,'batch_id':actualBatchId,'warehouse_id':batch['warehouse_id'],'movement_type':'DISPOSAL_OUT','qty_units':-qtyUnits,'unit_cost':batch['unit_cost'],'unit_price':0,'balance_after_units':oldTotal-qtyUnits,'doc_type':'SALES_RETURN','doc_id':returnId,'doc_line_id':invoiceItemId,'movement_at':DateTime.now().toIso8601String(),'note':'إتلاف مرتجع مبيعات'});
+        await txn.insert('stock_movements',{'drug_id':drug.id,'batch_id':actualBatchId,'warehouse_id':batch['warehouse_id'],'movement_type':'SALE_RETURN_IN','qty_units':qtyUnits,'unit_cost':batch['unit_cost'],'unit_price':refundAmount/qtyUnits,'balance_after_units':oldTotal+qtyUnits,'doc_type':'SALES_RETURN','doc_id':returnId,'doc_line_id':invoiceItemId,'movement_at':DateTime.now().toIso8601String(),'note':'إثبات استلام المرتجع قبل الإتلاف'});
+        await txn.insert('stock_movements',{'drug_id':drug.id,'batch_id':actualBatchId,'warehouse_id':batch['warehouse_id'],'movement_type':'DISPOSAL_OUT','qty_units':-qtyUnits,'unit_cost':batch['unit_cost'],'unit_price':0,'balance_after_units':oldTotal,'doc_type':'SALES_RETURN','doc_id':returnId,'doc_line_id':invoiceItemId,'movement_at':DateTime.now().toIso8601String(),'note':'إتلاف مرتجع مبيعات'});
         await txn.rawUpdate('UPDATE drugs SET stock_total_units=MAX(0,stock_total_units-?) WHERE id=?',[qtyUnits,drug.id]);
       }
       int? creditAccountId;
