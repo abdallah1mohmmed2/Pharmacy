@@ -39,7 +39,7 @@ class _PartyExtensionsScreenState extends State<PartyExtensionsScreen> with Sing
   Future<void> _dispenseCycle(SessionAndErpProvider p,Map<String,Object?> schedule)async{
     try{
       final db=await DatabaseHelper.instance.database;
-      final partyId=schedule['customer_party_id'] as int;
+      final dueDate=DateTime.tryParse(schedule['next_due_date']?.toString()??'');\n      if(dueDate!=null&&dueDate.isAfter(DateTime.now()))throw StateError('موعد الدورة القادمة لم يحن بعد.');\n      final partyId=schedule['customer_party_id'] as int;
       final patientRows=await db.query('patients',where:'party_id=?',whereArgs:[partyId],limit:1);
       if(patientRows.isEmpty)throw StateError('لا يمكن الصرف قبل إنشاء ملف سريري مرتبط بالعميل.');
       final patient=PatientClinicalModel.fromMap(patientRows.first);
