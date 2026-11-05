@@ -70,8 +70,8 @@ abstract final class SchemaIteration3 {
         clone['internal_code']='ALT-I3-${(i+1).toString().padLeft(3,'0')}';
         clone['trade_name_ar']='بديل تجريبي - ${clone['trade_name_ar']}';
         clone['trade_name_en']='Generic alternative ${i+1}';
-        clone['barcode_international']='';
-        clone['barcode_local']='';
+        clone['barcode_international']=null;
+        clone['barcode_local']=null;
         clone['registration_no']='';
         clone['sell_price_pack']=((clone['sell_price_pack'] as num?)?.toDouble()??0)*0.9;
         clone['sell_price_strip']=((clone['sell_price_strip'] as num?)?.toDouble()??0)*0.9;
