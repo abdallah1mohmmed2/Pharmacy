@@ -17,6 +17,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen>{
  @override void dispose(){search.dispose();walletRef.dispose();paidAmount.dispose();super.dispose();}
  @override Widget build(BuildContext context){final p=context.watch<PosAndDrugsProvider>();final s=context.watch<SessionAndErpProvider>();final inventory=context.watch<InventoryAndPurchaseProvider>();final clinical=context.watch<ClinicalAndRxProvider>();final wide=MediaQuery.sizeOf(context).width>850;
   return Focus(onKeyEvent:(node,event){
+    if(event is KeyDownEvent&&event.logicalKey==LogicalKeyboardKey.f8&&p.cart.isNotEmpty){_finish(p,s,inventory,clinical);return KeyEventResult.handled;}
     if(event is KeyDownEvent&&event.logicalKey==LogicalKeyboardKey.f12&&p.cart.isNotEmpty){
       final item=p.cart.last;
       S05DrugAlternativesSheet.show(context,item.drug,(replacement)=>p.replaceCartItem(item,replacement));
