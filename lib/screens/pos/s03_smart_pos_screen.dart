@@ -29,7 +29,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen>{
   if(method=='WALLET'||(method=='MIXED'&&mixedChannel=='WALLET'))WalletRefField(controller:walletRef),
   if(method=='CREDIT'||method=='MIXED')DropdownButtonFormField<int>(value:customerId,decoration:const InputDecoration(labelText:'العميل'),items:s.parties.where((a)=>a.partyType=='CUSTOMER').map((a)=>DropdownMenuItem(value:a.id,child:Text(a.nameAr))).toList(),onChanged:(v)=>setState(()=>customerId=v)),
   if(method=='CREDIT'||method=='MIXED')_creditPreview(p,s),
-  const SizedBox(height:8),FilledButton.icon(onPressed:p.cart.isEmpty?null:()=>_finish(p,s),icon:const Icon(Icons.check_circle),label:const Text('إتمام الفاتورة')),
+  const SizedBox(height:8),FilledButton.icon(onPressed:p.cart.isEmpty?null:()=>_finish(p,s,inventory),icon:const Icon(Icons.check_circle),label:const Text('إتمام الفاتورة')),
  ])));
  Widget _creditPreview(PosAndDrugsProvider p,SessionAndErpProvider s){
   final matches=s.parties.where((party)=>party.id==customerId).toList();
@@ -44,7 +44,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen>{
  }
  Widget _flag(PosAndDrugsProvider p,String code,String label)=>FilterChip(label:Text(label),selected:p.patientFlags.contains(code),onSelected:(v)=>p.setPatientFlag(code,v));
  Widget _cartLine(PosAndDrugsProvider p,CartItemModel item,InventoryAndPurchaseProvider inventory){final lots=inventory.batches.where((b)=>b.drugId==item.drug.id&&b.status=='ACTIVE'&&b.daysUntilExpiry>=0&&b.totalUnits>0).toList()..sort((a,b)=>a.expiryDate.compareTo(b.expiryDate));var remaining=item.baseUnits;final plan=<String>[];for(final lot in lots){if(remaining<=0)break;final take=lot.totalUnits<remaining?lot.totalUnits:remaining;plan.add(lot.batchNo+' • '+lot.expiryDate+' ('+take.toString()+' حبة)');remaining-=take;}final label=plan.isEmpty?'لا توجد تشغيلة صالحة للبيع':'سحب FEFO المتوقع: '+plan.join(' ← ')+(remaining>0?' • نقص '+remaining.toString()+' حبة':'');return ListTile(dense:true,title:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(item.drug.tradeNameAr),Text(label,style:TextStyle(fontSize:11,color:remaining>0?AppColors.danger:AppColors.success))]),subtitle:Row(children:[DropdownButton<String>(value:item.sellUnit,items:const [DropdownMenuItem(value:'PACK',child:Text('باكت')),DropdownMenuItem(value:'STRIP',child:Text('شريط')),DropdownMenuItem(value:'UNIT',child:Text('حبة'))],onChanged:(v)=>p.changeUnit(item,v??'UNIT')),const SizedBox(width:10),SizedBox(width:65,child:TextFormField(initialValue:item.quantity.toString(),keyboardType:TextInputType.number,onChanged:(v)=>p.changeQuantity(item,double.tryParse(v)??item.quantity)))]),trailing:IconButton(icon:const Icon(Icons.delete_outline,color:AppColors.danger),onPressed:()=>p.removeItem(item)));}
- Future<void> _finish(PosAndDrugsProvider p,SessionAndErpProvider s)async{
+ Future<void> _finish(PosAndDrugsProvider p,SessionAndErpProvider s,InventoryAndPurchaseProvider inventory)async{
   if(p.clinicalBlock!=null){final approved=await ManagerPinDialog.show(context,verifier:s.verifyManagerPin);if(!approved)return;}
   if(cashId==null){_message('اختر الصندوق أو المحفظة');return;}
   final tender=method=='MIXED'?mixedChannel:method;
@@ -63,7 +63,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen>{
               ),
             ]
           : <({int cashAccountId, double amount, String method, String? walletRef})>[];
-  try{final id=await p.checkout(cashierId:(s.currentUser?['id'] as int?) ?? 1,saleType:method=='CREDIT'?'CREDIT':method=='MIXED'?'MIXED':'CASH',payments:payments,customerId:customerId,discount:discount,managerApproved:p.clinicalBlock!=null,branchId:s.branchId);if(mounted){_message('تم حفظ الفاتورة رقم '+id.toString());await s.refresh();}}catch(e){_message(e.toString());}
+  try{final id=await p.checkout(cashierId:(s.currentUser?['id'] as int?) ?? 1,saleType:method=='CREDIT'?'CREDIT':method=='MIXED'?'MIXED':'CASH',payments:payments,customerId:customerId,discount:discount,managerApproved:p.clinicalBlock!=null,branchId:s.branchId);if(mounted){_message('تم حفظ الفاتورة رقم '+id.toString());await s.refresh();await inventory.loadAll();}}catch(e){_message(e.toString());}
  }
  void _message(String text)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(text)));
 }
