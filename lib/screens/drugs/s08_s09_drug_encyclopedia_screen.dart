@@ -169,6 +169,8 @@ class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScr
       if (dialogContext.mounted) Navigator.pop(dialogContext);
       setState(() => selected = model);
       await provider.loadDrugs();
+     },child:const Text('حفظ جميع البيانات')),
+    ],
   ));
   for(final controller in controllers.values){controller.dispose();}
  }
