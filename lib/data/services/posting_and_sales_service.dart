@@ -1,0 +1,103 @@
+import 'dart:math';
+import 'package:sqflite/sqflite.dart';
+import '../database/database_helper.dart';
+import '../models/erp_models.dart';
+
+class PostingAndSalesService {
+  PostingAndSalesService({DatabaseHelper? helper}):_helper=helper??DatabaseHelper.instance;
+  final DatabaseHelper _helper;
+  String _uuid()=>DateTime.now().microsecondsSinceEpoch.toString()+Random().nextInt(999999).toString().padLeft(6,'0');
+  Map<String,Object?> _base(int branchId)=>{'uuid':_uuid(),'branch_id':branchId,'created_at':DateTime.now().toIso8601String(),'updated_at':DateTime.now().toIso8601String(),'is_deleted':0,'sync_status':'LOCAL','sync_version':1};
+
+  Future<int> postBalancedEntry(Transaction txn,{required int branchId,required String description,required String sourceType,required int sourceId,required List<({int accountId,double debit,double credit,int? partyId,String memo})> lines}) async {
+    final debit=lines.fold<double>(0,(s,l)=>s+l.debit);
+    final credit=lines.fold<double>(0,(s,l)=>s+l.credit);
+    if((debit-credit).abs()>0.005 || debit<=0) throw StateError('القيد المحاسبي غير متوازن');
+    final no='JE-'+DateTime.now().microsecondsSinceEpoch.toString();
+    final entryId=await txn.insert('journal_entries',{..._base(branchId),'entry_no':no,'entry_date':DateTime.now().toIso8601String(),'description':description,'source_type':sourceType,'source_id':sourceId,'is_posted':1});
+    for(final line in lines){
+      await txn.insert('journal_lines',{..._base(branchId),'journal_entry_id':entryId,'account_id':line.accountId,'party_id':line.partyId,'dr_amount':line.debit,'cr_amount':line.credit,'memo':line.memo});
+    }
+    return entryId;
+  }
+
+  Future<int> postSale({required int branchId,required int cashierUserId,required List<CartItemModel> items,required String saleType,required List<({int cashAccountId,double amount,String method,String? walletRef})> payments, int? customerPartyId,double discountAmount=0}) async {
+    if(items.isEmpty) throw ArgumentError('لا يمكن حفظ فاتورة فارغة');
+    return (await _helper.database).transaction((txn) async {
+      final subtotal=items.fold<double>(0,(s,i)=>s+i.lineTotal);
+      final net=(subtotal-discountAmount).clamp(0,double.infinity).toDouble();
+      final paid=payments.fold<double>(0,(s,p)=>s+p.amount);
+      if(paid-net>0.005) throw StateError('إجمالي المدفوع أكبر من صافي الفاتورة');
+      final remaining=(net-paid).clamp(0,double.infinity).toDouble();
+      if(remaining>0 && customerPartyId==null) throw StateError('اختر العميل لتسجيل المبلغ المتبقي');
+      for(final item in items){
+        final rows=await txn.query('drugs',columns:['stock_total_units','cost_price_pack','units_per_pack'],where:'id=? AND is_deleted=0',whereArgs:[item.drug.id]);
+        if(rows.isEmpty) throw StateError('الصنف غير موجود');
+        final stock=rows.first['stock_total_units'] as int;
+        if(stock<item.baseUnits) throw StateError('المخزون غير كافٍ للصنف '+item.drug.tradeNameAr);
+      }
+      final invoiceNo='INV-'+DateTime.now().microsecondsSinceEpoch.toString();
+      final invoiceId=await txn.insert('sales_invoices',{..._base(branchId),'invoice_no':invoiceNo,'invoice_date':DateTime.now().toIso8601String(),'cashier_user_id':cashierUserId,'customer_party_id':customerPartyId,'sale_type':saleType,'status':'COMPLETED','subtotal':subtotal,'discount_amount':discountAmount,'net_total':net,'paid_total':paid,'remaining_alayh':remaining,'total_cost':items.fold<double>(0,(s,i)=>s+i.drug.costPricePack*i.baseUnits/i.drug.unitsPerPack)});
+      for(final item in items){
+        await txn.insert('sales_invoice_items',{..._base(branchId),'invoice_id':invoiceId,'drug_id':item.drug.id,'sell_unit':item.sellUnit,'qty_in_sell_unit':item.quantity,'qty_units':item.baseUnits,'unit_price_sell_unit':item.unitPrice,'line_discount_amount':item.discount,'line_total':item.lineTotal,'line_cost':item.drug.costPricePack*item.baseUnits/item.drug.unitsPerPack});
+        final changed=await txn.rawUpdate('UPDATE drugs SET stock_total_units=stock_total_units-?, updated_at=? WHERE id=? AND stock_total_units>=?', [item.baseUnits,DateTime.now().toIso8601String(),item.drug.id,item.baseUnits]);
+        if(changed!=1) throw StateError('تغير المخزون أثناء إتمام الفاتورة');
+      }
+      final journalLines=<({int accountId,double debit,double credit,int? partyId,String memo})>[];
+      for(final payment in payments){
+        if(payment.method=='WALLET' && (payment.walletRef==null || payment.walletRef!.trim().length<6)) throw StateError('رقم إشعار المحفظة إلزامي');
+        await txn.insert('sales_payments',{..._base(branchId),'invoice_id':invoiceId,'cash_account_id':payment.cashAccountId,'method':payment.method,'amount':payment.amount,'wallet_ref_no':payment.walletRef});
+        await txn.rawUpdate('UPDATE cash_accounts SET current_balance=current_balance+?,updated_at=? WHERE id=?',[payment.amount,DateTime.now().toIso8601String(),payment.cashAccountId]);
+        final cashAccount=await txn.query('cash_accounts',columns:['gl_account_id'],where:'id=?',whereArgs:[payment.cashAccountId]);
+        final gl=cashAccount.first['gl_account_id'] as int?;
+        if(gl!=null) journalLines.add((accountId:gl,debit:payment.amount,credit:0,partyId:null,memo:'تحصيل فاتورة'));
+      }
+      final revenue=await _accountId(txn,'4101');
+      if(remaining>0 && customerPartyId!=null){
+        await txn.insert('lah_alayh_ledger',{..._base(branchId),'party_id':customerPartyId,'entry_date':DateTime.now().toIso8601String(),'entry_type':'SALE','alayh_amount':remaining,'lah_amount':0,'doc_type':'INVOICE','doc_id':invoiceId,'statement_ar':'الجزء المتبقي من الفاتورة '+invoiceNo});
+        final receivable=await _accountId(txn,'1201');
+        journalLines.add((accountId:receivable,debit:remaining,credit:0,partyId:customerPartyId,memo:'ذمم فاتورة'));
+      }
+      journalLines.add((accountId:revenue,debit:0,credit:net,partyId:null,memo:'إيراد المبيعات'));
+      final cost=items.fold<double>(0,(s,i)=>s+i.drug.costPricePack*i.baseUnits/i.drug.unitsPerPack);
+      if(cost>0){final inventory=await _accountId(txn,'1301');final cogs=await _accountId(txn,'5101');journalLines.add((accountId:cogs,debit:cost,credit:0,partyId:null,memo:'تكلفة المبيعات'));journalLines.add((accountId:inventory,debit:0,credit:cost,partyId:null,memo:'تخفيض المخزون'));}
+      final entryId=await postBalancedEntry(txn,branchId:branchId,description:'فاتورة بيع '+invoiceNo,sourceType:'SALE',sourceId:invoiceId,lines:journalLines);
+      await txn.update('sales_invoices',{'journal_entry_id':entryId},where:'id=?',whereArgs:[invoiceId]);
+      return invoiceId;
+    });
+  }
+
+  Future<int> postVoucher({required int branchId,required String voucherNo,required String voucherType,required int partyId,required int cashAccountId,required double amount,required String method,required String description,String? walletRefNo}) async {
+    if(amount<=0) throw ArgumentError('المبلغ يجب أن يكون أكبر من صفر');
+    if(method=='WALLET' && (walletRefNo==null || walletRefNo.trim().length<6)) throw ArgumentError('رقم إشعار المحفظة مطلوب');
+    if(!['RECEIPT','PAYMENT','SETTLEMENT'].contains(voucherType)) throw ArgumentError('نوع سند غير صالح');
+    return (await _helper.database).transaction((txn) async {
+      final cash=await txn.query('cash_accounts',where:'id=?',whereArgs:[cashAccountId]);
+      if(cash.isEmpty) throw StateError('حساب الصندوق غير موجود');
+      final party=await txn.query('parties',where:'id=?',whereArgs:[partyId]);
+      if(party.isEmpty) throw StateError('الطرف غير موجود');
+      final voucherId=await txn.insert('vouchers',{..._base(branchId),'voucher_no':voucherNo,'voucher_type':voucherType,'voucher_date':DateTime.now().toIso8601String(),'party_id':partyId,'cash_account_id':cashAccountId,'amount':amount,'method':method,'wallet_ref_no':walletRefNo,'description':description});
+      final isReceipt=voucherType=='RECEIPT';
+      final alayh=isReceipt?0.0:amount;
+      final lah=isReceipt?amount:0.0;
+      await txn.insert('lah_alayh_ledger',{..._base(branchId),'party_id':partyId,'entry_date':DateTime.now().toIso8601String(),'entry_type':voucherType,'alayh_amount':alayh,'lah_amount':lah,'doc_type':'VOUCHER','doc_id':voucherId,'statement_ar':description.isEmpty?'سند '+voucherNo:description});
+      await txn.rawUpdate('UPDATE cash_accounts SET current_balance=current_balance+?,updated_at=? WHERE id=?',[isReceipt?amount:-amount,DateTime.now().toIso8601String(),cashAccountId]);
+      final cashGl=cash.first['gl_account_id'] as int?;
+      final partyGl=await _accountId(txn,isReceipt?'1201':'2101');
+      if(cashGl==null) throw StateError('اربط حساب الصندوق بدليل الحسابات أولاً');
+      final lines=<({int accountId,double debit,double credit,int? partyId,String memo})>[
+        if(isReceipt)(accountId:cashGl,debit:amount,credit:0,partyId:null,memo:'استلام نقدية') else (accountId:partyGl,debit:amount,credit:0,partyId:partyId,memo:'تسديد للطرف'),
+        if(isReceipt)(accountId:partyGl,debit:0,credit:amount,partyId:partyId,memo:'تخفيض رصيد الطرف') else (accountId:cashGl,debit:0,credit:amount,partyId:null,memo:'صرف نقدية'),
+      ];
+      final entryId=await postBalancedEntry(txn,branchId:branchId,description:description,sourceType:'VOUCHER',sourceId:voucherId,lines:lines);
+      await txn.update('vouchers',{'journal_entry_id':entryId},where:'id=?',whereArgs:[voucherId]);
+      return voucherId;
+    });
+  }
+
+  Future<int> _accountId(Transaction txn,String code) async {
+    final rows=await txn.query('chart_of_accounts',columns:['id'],where:'code=?',whereArgs:[code],limit:1);
+    if(rows.isEmpty) throw StateError('الحساب غير موجود في دليل الحسابات: '+code);
+    return rows.first['id'] as int;
+  }
+}
