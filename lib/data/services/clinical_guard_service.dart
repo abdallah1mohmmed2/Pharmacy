@@ -9,27 +9,33 @@ class ClinicalGuardService {
   ClinicalGuardService({DatabaseHelper? helper}):_helper=helper??DatabaseHelper.instance;
   final DatabaseHelper _helper;
 
-  Future<ClinicalVerdict> evaluate({required List<DrugModel> cart,required PatientClinicalModel? patient,Map<int,double> prescribedDoseMgByDrugId=const {},List<String> foodIntake=const [],int? invoiceId}) async {
+  Future<ClinicalVerdict> evaluate({required List<DrugModel> cart,required PatientClinicalModel? patient,Map<int,double> prescribedDoseMgByDrugId=const {},List<String> foodIntake=const [],Set<String> quickFlags=const {},int? invoiceId}) async {
     final db=await _helper.database;
+    final quickPatient=patient??_quickPatient(quickFlags);
+    final assessmentPatient=quickPatient;
     final alerts=<ClinicalAlertModel>[];
     final ids=cart.map((d)=>d.id).whereType<int>().toSet();
-    final currentIds=patient?.currentDrugIds.toSet()??<int>{};
+    final currentIds=assessmentPatient?.currentDrugIds.toSet()??<int>{};
     final currentRows=currentIds.isEmpty?<Map<String,Object?>>[]:await db.query('drugs',where:'id IN (${List.filled(currentIds.length,'?').join(',')})',whereArgs:currentIds.toList());
     final currentDrugs=currentRows.map(DrugModel.fromMap).toList();
     for(final drug in cart){
       final id=drug.id;
       if(id==null)continue;
-      alerts.addAll(await _ageRules(drug,patient));
-      alerts.addAll(await _renal(drug,patient));
-      alerts.addAll(await _hepatic(drug,patient));
-      alerts.addAll(await _pediatricDose(drug,patient,prescribedDoseMgByDrugId[id]));
-      alerts.addAll(_pregnancyLactation(drug,patient));
-      alerts.addAll(await _allergyRules(drug,patient));
-      alerts.addAll(await _foodInteractions(drug,foodIntake,patient?.id));
+      alerts.addAll(await _ageRules(drug,assessmentPatient));
+      alerts.addAll(await _renal(drug,assessmentPatient));
+      alerts.addAll(await _hepatic(drug,assessmentPatient));
+      alerts.addAll(await _pediatricDose(drug,assessmentPatient,prescribedDoseMgByDrugId[id]));
+      alerts.addAll(_pregnancyLactation(drug,assessmentPatient));
+      alerts.addAll(await _allergyRules(drug,assessmentPatient));
+      alerts.addAll(await _foodInteractions(drug,foodIntake,assessmentPatient?.id));
+      if(quickFlags.contains('KIDNEY')&&(drug.isNephrotoxic||drug.renalStatus=='ADJUST'||drug.renalStatus=='AVOID'||drug.renalStatus=='CONTRAINDICATED'))alerts.add(ClinicalAlertModel(category:'RENAL',level:ClinicalLevel.caution,drugId:id,messageAr:'المريض محدد كحالة كلوية؛ يلزم التحقق من CrCl والجرعة قبل الصرف.',recommendation:drug.renalNotes));
+      if(quickFlags.contains('LIVER')&&(drug.hepaticStatus=='ADJUST'||drug.hepaticStatus=='AVOID'||drug.hepaticStatus=='CONTRAINDICATED'))alerts.add(ClinicalAlertModel(category:'HEPATIC',level:ClinicalLevel.caution,drugId:id,messageAr:'المريض محدد كحالة كبدية؛ يلزم التحقق من Child-Pugh قبل الصرف.',recommendation:drug.hepaticNotes));
+      if(quickFlags.contains('CHILD')&&(drug.pediatricStatus!='SAFE'&&drug.pediatricStatus!='UNKNOWN'))alerts.add(ClinicalAlertModel(category:'PEDIATRIC',level:ClinicalLevel.caution,drugId:id,messageAr:'تحقق من العمر والوزن والتركيز لحساب جرعة الأطفال.',recommendation:drug.pediatricNotes));
+      if(quickFlags.contains('ELDERLY')&&(drug.geriatricStatus=='ADJUST'||drug.geriatricStatus=='AVOID'))alerts.add(ClinicalAlertModel(category:'GERIATRIC',level:ClinicalLevel.caution,drugId:id,messageAr:'تحذير خاص بكبار السن وفق بيانات الدواء.',recommendation:drug.geriatricNotes));
       if(drug.isControlled)alerts.add(ClinicalAlertModel(category:'CONTROLLED',level:ClinicalLevel.warning,drugId:id,messageAr:'هذا دواء خاضع للرقابة؛ يلزم توثيق بيانات المريض والمستلم والوصفة قبل الصرف.',recommendation:'تحقق من الوصفة والهوية وسجل الصرف.'));
       if(drug.requiresPrescription||drug.prescriptionRestricted||drug.isAntibiotic)alerts.add(ClinicalAlertModel(category:'RX_REQUIRED',level:ClinicalLevel.caution,drugId:id,messageAr:'يتطلب هذا الصنف التحقق من الوصفة الطبية والقيود المحلية.',recommendation:'راجع الوصفة قبل اعتماد البيع.'));
       alerts.addAll(await _interactions(drug,[...cart.where((x)=>x.id!=id),...currentDrugs],patient?.id));
-      if((drug.geriatricAgeThreshold)>0&&(patient?.ageYears??0)>=drug.geriatricAgeThreshold&&drug.geriatricStatus=='AVOID')alerts.add(ClinicalAlertModel(category:'GERIATRIC',level:ClinicalLevel.warning,drugId:id,messageAr:drug.geriatricNotes.isEmpty?'تنبيه خاص بكبار السن لهذا الدواء.':drug.geriatricNotes));
+      if((drug.geriatricAgeThreshold)>0&&(assessmentPatient?.ageYears??0)>=drug.geriatricAgeThreshold&&drug.geriatricStatus=='AVOID')alerts.add(ClinicalAlertModel(category:'GERIATRIC',level:ClinicalLevel.warning,drugId:id,messageAr:drug.geriatricNotes.isEmpty?'تنبيه خاص بكبار السن لهذا الدواء.':drug.geriatricNotes));
       final dose=prescribedDoseMgByDrugId[id];
       if(dose!=null&&drug.adultDoseMaxMgPerDay!=null&&dose>drug.adultDoseMaxMgPerDay!*1.1)alerts.add(ClinicalAlertModel(category:'DOSE_EXCEEDED',level:ClinicalLevel.warning,drugId:id,messageAr:'الجرعة المدخلة تتجاوز الحد اليومي المرجعي بأكثر من 10%.',recommendation:'تحقق من الجرعة والوحدة والمدة.'));
     }
@@ -39,6 +45,12 @@ class ClinicalGuardService {
     return ClinicalVerdict(unique.values);
   }
 
+  PatientClinicalModel? _quickPatient(Set<String> flags){
+    if(flags.isEmpty)return null;
+    final years=flags.contains('CHILD')?10:flags.contains('ELDERLY')?70:30;
+    final now=DateTime.now();
+    return PatientClinicalModel(fullName:'حالة سريعة من الكاشير',birthDate:DateTime(now.year-years,now.month,now.day),sex:flags.contains('PREGNANT')||flags.contains('BREASTFEEDING')?'F':'M',isPregnant:flags.contains('PREGNANT'),isLactating:flags.contains('BREASTFEEDING'));
+  }
   List<ClinicalAlertModel> _ageRules(DrugModel d,PatientClinicalModel? p){
     if(p==null||p.ageMonths==null)return [];
     final months=p.ageMonths!;
