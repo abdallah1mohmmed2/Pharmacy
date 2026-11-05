@@ -94,7 +94,7 @@ abstract final class SchemaIteration3 {
     final companies=await db.query('insurance_companies',columns:['id']);
     if(companies.isEmpty){
       for(var i=1;i<=2;i++){
-        final partyId=await db.insert('parties',{'uuid':'seed-insurance-party-$i','branch_id':1,'created_at':DateTime.now().toIso8601String(),'updated_at':DateTime.now().toIso8601String(),'is_deleted':0,'sync_status':'LOCAL','sync_version':1,'party_type':'INSURANCE','code':'INS-$i','name_ar':i==1?'شركة التأمين التجريبية الأولى':'شركة التأمين التجريبية الثانية','credit_limit':0,'payment_terms_days':30,'opening_alayh':0,'opening_lah':0});
+        final partyId=await db.insert('parties',{'uuid':'seed-insurance-party-$i','branch_id':1,'created_at':DateTime.now().toIso8601String(),'updated_at':DateTime.now().toIso8601String(),'is_deleted':0,'sync_status':'LOCAL','sync_version':1,'party_type':'CUSTOMER','code':'INS-$i','name_ar':i==1?'شركة التأمين التجريبية الأولى':'شركة التأمين التجريبية الثانية','credit_limit':0,'payment_terms_days':30,'opening_alayh':0,'opening_lah':0});
         final companyId=await db.insert('insurance_companies',{'party_id':partyId,'name_ar':i==1?'شركة التأمين التجريبية الأولى':'شركة التأمين التجريبية الثانية','default_coverage_pct':i==1?80:70,'claim_cycle_days':30});
         final customer=await db.query('parties',columns:['id'],where:"party_type='CUSTOMER'",limit:1,offset:i-1);
         if(customer.isNotEmpty)await db.insert('insurance_policies',{'insurance_company_id':companyId,'customer_party_id':customer.first['id'],'policy_no':'DEMO-POLICY-$i','coverage_pct':i==1?80:70,'copay_pct':i==1?20:30,'annual_limit':50000,'used_limit':0,'valid_from':'2026-01-01','valid_to':'2027-12-31','excluded_categories_json':'[]'});
