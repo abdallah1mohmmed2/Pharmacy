@@ -1,11 +1,8 @@
 // lib/screens/pos/s06_prescription_insurance_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/widgets/shared_widgets.dart';
 import '../../data/database/database_helper.dart';
-import '../../data/models/clinical_and_rx_models.dart';
 import '../../providers/clinical_and_rx_provider.dart';
-import '../../providers/session_and_erp_provider.dart';
 
 class S06PrescriptionInsuranceScreen extends StatefulWidget {
   const S06PrescriptionInsuranceScreen({super.key});
@@ -34,13 +31,13 @@ class _S06PrescriptionInsuranceScreenState extends State<S06PrescriptionInsuranc
         if(policy!=null)Wrap(spacing:8,children:[Chip(label:Text('تغطية ${policy.coveragePct}%')),Chip(label:Text('تحمل المريض ${policy.copayPct}%')),Chip(label:Text('السقف المتبقي ${policy.remainingLimit.toStringAsFixed(2)}'))]),
         if(patient.isNotEmpty)Text('المريض: ${patient.first.fullName}'),
         const SizedBox(height:8),
-        FilledButton.icon(onPressed:saving?null:()=>_create(session.currentUser?['id'] as int?),icon:const Icon(Icons.save),label:const Text('حفظ الوصفة')),
+        FilledButton.icon(onPressed:saving?null:_create,icon:const Icon(Icons.save),label:const Text('حفظ الوصفة')),
       ]))),
       const SizedBox(height:12),Text('الوصفات المسجلة',style:Theme.of(context).textTheme.titleMedium),
       for(final row in rxRows)Card(child:ListTile(title:Text('${row['rx_no']} • ${row['full_name']}'),subtitle:Text('${row['doctor_name']} • ${row['rx_type']} • ${row['status']}'),trailing:Text(row['valid_until'].toString().substring(0,10)))),
     ]));
   }
-  Future<void> _create(int? userId)async{
+  Future<void> _create()async{
     if(patientId==null||rxNo.text.trim().isEmpty||doctor.text.trim().isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('أدخل المريض ورقم الوصفة والطبيب')));return;}
     setState(()=>saving=true);
     try{
