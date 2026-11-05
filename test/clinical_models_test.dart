@@ -1,6 +1,7 @@
 // test/clinical_models_test.dart
 import 'package:flutter_test/flutter_test.dart';
 import 'package:global_enterprise_pharmacy_erp/data/models/clinical_and_rx_models.dart';
+import 'package:global_enterprise_pharmacy_erp/data/services/clinical_guard_service.dart';
 
 void main(){
   test('Cockcroft-Gault uses sex factor and manual eGFR override',(){
@@ -19,6 +20,35 @@ void main(){
     expect(unknown.pregnancyStatusKnown,isFalse);
     expect(negative.pregnancyStatusKnown,isTrue);
     expect(negative.isPregnant,isFalse);
+  });
+  test('a clinical BLOCK cannot be resolved by acknowledgement',(){
+    const alert=ClinicalAlertModel(category:'ALLERGY',level:ClinicalLevel.block,messageAr:'حظر');
+    expect(
+      ()=>ClinicalGuardService.validateDecision(alert,decision:'ACKNOWLEDGED'),
+      throwsA(isA<StateError>()),
+    );
+  });
+  test('a clinical BLOCK override requires a verified manager and reason',(){
+    const alert=ClinicalAlertModel(category:'ALLERGY',level:ClinicalLevel.block,messageAr:'حظر');
+    expect(
+      ()=>ClinicalGuardService.validateDecision(alert,decision:'OVERRIDDEN_WITH_PIN',reason:'سبب واضح'),
+      throwsA(isA<StateError>()),
+    );
+    expect(
+      ()=>ClinicalGuardService.validateDecision(alert,decision:'OVERRIDDEN_WITH_PIN',reason:'سبب واضح',managerUserId:7),
+      returnsNormally,
+    );
+  });
+  test('a WARNING acknowledgement requires a reason of at least five characters',(){
+    const alert=ClinicalAlertModel(category:'RENAL',level:ClinicalLevel.warning,messageAr:'تحذير');
+    expect(
+      ()=>ClinicalGuardService.validateDecision(alert,decision:'ACKNOWLEDGED',reason:'لا'),
+      throwsA(isA<StateError>()),
+    );
+    expect(
+      ()=>ClinicalGuardService.validateDecision(alert,decision:'ACKNOWLEDGED',reason:'سبب موثق'),
+      returnsNormally,
+    );
   });
   test('clinical verdict sorts block and warning before caution and info',(){
     final verdict=ClinicalVerdict([
