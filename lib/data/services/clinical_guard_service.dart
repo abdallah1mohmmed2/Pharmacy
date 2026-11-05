@@ -1,6 +1,5 @@
 // lib/data/services/clinical_guard_service.dart
 import 'dart:convert';
-import 'package:sqflite/sqflite.dart';
 import '../database/database_helper.dart';
 import '../models/drug_model.dart';
 import '../models/clinical_and_rx_models.dart';
@@ -33,7 +32,8 @@ class ClinicalGuardService {
       if(drug.isControlled)alerts.add(ClinicalAlertModel(category:'CONTROLLED',level:ClinicalLevel.warning,drugId:id,messageAr:'هذا دواء خاضع للرقابة؛ يلزم توثيق بيانات المريض والمستلم والوصفة قبل الصرف.',recommendation:'تحقق من الوصفة والهوية وسجل الصرف.'));
       if(drug.requiresPrescription||drug.prescriptionRestricted||drug.isAntibiotic)alerts.add(ClinicalAlertModel(category:'RX_REQUIRED',level:ClinicalLevel.caution,drugId:id,messageAr:'يتطلب هذا الصنف التحقق من الوصفة الطبية والقيود المحلية.',recommendation:'راجع الوصفة قبل اعتماد البيع.'));
       alerts.addAll(await _interactions(drug,[...cart.where((x)=>x.id!=id),...currentDrugs],assessmentPatient?.id));
-      if((drug.geriatricAgeThreshold)>0&&(assessmentPatient?.ageYears??0)>=drug.geriatricAgeThreshold&&drug.geriatricStatus=='AVOID')alerts.add(ClinicalAlertModel(category:'GERIATRIC',level:ClinicalLevel.warning,drugId:id,messageAr:drug.geriatricNotes.isEmpty?'تنبيه خاص بكبار السن لهذا الدواء.':drug.geriatricNotes));
+      final geriatricAge=drug.geriatricAgeThreshold;
+      if(geriatricAge!=null&&geriatricAge>0&&(assessmentPatient?.ageYears??0)>=geriatricAge&&drug.geriatricStatus=='AVOID')alerts.add(ClinicalAlertModel(category:'GERIATRIC',level:ClinicalLevel.warning,drugId:id,messageAr:drug.geriatricNotes.isEmpty?'تنبيه خاص بكبار السن لهذا الدواء.':drug.geriatricNotes));
       final dose=prescribedDoseMgByDrugId[id];
       if(dose!=null&&drug.adultDoseMaxMgPerDay!=null&&dose>drug.adultDoseMaxMgPerDay!*1.1)alerts.add(ClinicalAlertModel(category:'DOSE_EXCEEDED',level:ClinicalLevel.warning,drugId:id,messageAr:'الجرعة المدخلة تتجاوز الحد اليومي المرجعي بأكثر من 10%.',recommendation:'تحقق من الجرعة والوحدة والمدة.'));
     }
