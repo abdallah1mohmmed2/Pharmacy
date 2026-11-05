@@ -11,7 +11,7 @@ class S23ShiftCloseHandoverScreen extends StatefulWidget {
 class _S23ShiftCloseHandoverScreenState extends State<S23ShiftCloseHandoverScreen>{
   static const denominations=[1000,500,200,100,50,20,10];
   late final Map<int,TextEditingController> counts={for(final d in denominations)d:TextEditingController(text:'0')};
-  final walletCounts=<int,TextEditingController>{};String handling='POST_TO_CASHIER';double? expected,difference;int? nextUserId,treasuryId;List<Map<String,Object?>> users=[];
+  final walletCounts=<int,TextEditingController>{};String handling='POST_TO_CASHIER';double? expected,difference;int? nextUserId,treasuryId;List<Map<String,Object?>> users=[];final Set<int> enteredDenominations={};
   double get actual=>counts.entries.fold(0,(s,e)=>s+e.key*(int.tryParse(e.value.text)??0));
   @override void dispose(){for(final c in counts.values)c.dispose();for(final c in walletCounts.values)c.dispose();super.dispose();}
   @override Widget build(BuildContext context){
@@ -24,13 +24,13 @@ class _S23ShiftCloseHandoverScreenState extends State<S23ShiftCloseHandoverScree
         const Text('عدّ الفئات النقدية — الإغلاق الأعمى',style:TextStyle(fontSize:17,fontWeight:FontWeight.bold)),
         const Text('لن يظهر النقد المتوقع قبل إدخال العد الفعلي.',style:TextStyle(color:Colors.white60)),
         const SizedBox(height:8),
-        Wrap(spacing:10,runSpacing:10,children:denominations.map((d)=>SizedBox(width:130,child:TextField(controller:counts[d],keyboardType:TextInputType.number,decoration:InputDecoration(labelText:'فئة $d',suffixText:'عدد'),onChanged:(_)=>setState(()=>difference=null)))).toList()),
+        Wrap(spacing:10,runSpacing:10,children:denominations.map((d)=>SizedBox(width:130,child:TextField(controller:counts[d],keyboardType:TextInputType.number,decoration:InputDecoration(labelText:'فئة $d',suffixText:'عدد'),onChanged:(_)=>setState((){enteredDenominations.add(d);difference=null;})))).toList()),
         Card(child:ListTile(title:const Text('إجمالي النقد المعدود'),trailing:Text(actual.toStringAsFixed(2),style:const TextStyle(fontSize:20,fontWeight:FontWeight.bold,color:Color(0xFF66BB6A))))),
         const SizedBox(height:12),const Text('مطابقة إشعارات المحافظ',style:TextStyle(fontWeight:FontWeight.bold)),
         ...p.cashAccounts.where((a)=>a['account_kind']=='WALLET').map((a){final id=a['id'] as int;final expected=shift.expectedWallets[id.toString()]??((a['current_balance'] as num).toDouble());walletCounts.putIfAbsent(id,()=>TextEditingController(text:expected.toString()));return Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('الرصيد الدفتري — ${a['name_ar']}: ${expected.toStringAsFixed(2)}'),TextField(controller:walletCounts[id],keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'الرصيد الفعلي المعدود'))]);}),
         const SizedBox(height:12),
         DropdownButtonFormField<String>(value:handling,decoration:const InputDecoration(labelText:'معالجة فرق الصندوق'),items:const [DropdownMenuItem(value:'POST_TO_CASHIER',child:Text('ترحيل الفرق على حساب الكاشير')),DropdownMenuItem(value:'SUSPENSE',child:Text('تعليق العجز للمراجعة')),DropdownMenuItem(value:'NONE',child:Text('إغلاق دون ترحيل آلي'))],onChanged:(v)=>setState(()=>handling=v??handling)),
-        FilledButton.icon(onPressed:()async{final e=await p.expectedCash(shift.id!);setState((){expected=e;difference=((actual-e)*100).roundToDouble()/100;});},icon:const Icon(Icons.calculate),label:const Text('إظهار نتيجة المطابقة بعد العد')),
+        FilledButton.icon(onPressed:enteredDenominations.length!=denominations.length?null:()async{final e=await p.expectedCash(shift.id!);setState((){expected=e;difference=((actual-e)*100).roundToDouble()/100;});},icon:const Icon(Icons.calculate),label:const Text('إظهار نتيجة المطابقة بعد العد')),
         if(expected!=null)Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           Text('النقد المتوقع: ${expected!.toStringAsFixed(2)}'),Text('النقد الفعلي: ${actual.toStringAsFixed(2)}'),
           Text(difference!.abs()<0.005?'مطابق ✔':difference!<0?'عجز: ${difference!.abs().toStringAsFixed(2)}':'زيادة: ${difference!.toStringAsFixed(2)}',style:TextStyle(fontSize:19,fontWeight:FontWeight.bold,color:difference!.abs()<0.005?const Color(0xFF66BB6A):difference!<0?const Color(0xFFEF5350):const Color(0xFF66BB6A))),
