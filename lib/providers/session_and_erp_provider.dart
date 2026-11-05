@@ -55,6 +55,19 @@ class SessionAndErpProvider extends ChangeNotifier {
     final id=await db.transaction((txn)async{
       final now=DateTime.now().toIso8601String();
       final id=await txn.insert('parties',{'uuid':'party-'+DateTime.now().microsecondsSinceEpoch.toString(),'branch_id':branchId,'created_at':now,'updated_at':now,'party_type':party.partyType,'code':party.code,'name_ar':party.nameAr,'phone':party.phone,'address':party.address,'national_id':party.nationalId,'credit_limit':party.creditLimit,'payment_terms_days':party.paymentTermsDays,'is_chronic_patient':party.isChronicPatient?1:0,'is_blocked':party.isBlocked?1:0,'opening_alayh':openingAlayh,'opening_lah':openingLah});
+      final openingAmount=openingAlayh+openingLah;
+      if(openingAmount>0){
+        final partyAccountCode=party.partyType=='SUPPLIER'&&openingLah>0?'2101':'1201';
+        final partyAccountRows=await txn.query('chart_of_accounts',columns:['id'],where:'code=?',whereArgs:[partyAccountCode],limit:1);
+        final equityRows=await txn.query('chart_of_accounts',columns:['id'],where:'code=?',whereArgs:['3101'],limit:1);
+        final partyAccountId=partyAccountRows.first['id'] as int;
+        final equityAccountId=equityRows.first['id'] as int;
+        final journalId=await txn.insert('journal_entries',{'uuid':'party-opening-je-'+id.toString(),'branch_id':branchId,'created_at':now,'updated_at':now,'entry_no':'OPENING-PTY-'+party.code,'entry_date':now,'description':'الرصيد الافتتاحي للطرف '+party.nameAr,'source_type':'OPENING_PARTY','source_id':id,'is_posted':1});
+        final isAlayh=openingAlayh>0;
+        final amount=isAlayh?openingAlayh:openingLah;
+        await txn.insert('journal_lines',{'uuid':'party-opening-jl-'+id.toString()+'-1','branch_id':branchId,'created_at':now,'updated_at':now,'journal_entry_id':journalId,'account_id':isAlayh?partyAccountId:equityAccountId,'party_id':isAlayh?id:null,'dr_amount':amount,'cr_amount':0,'memo':'رصيد افتتاحي'});
+        await txn.insert('journal_lines',{'uuid':'party-opening-jl-'+id.toString()+'-2','branch_id':branchId,'created_at':now,'updated_at':now,'journal_entry_id':journalId,'account_id':isAlayh?equityAccountId:partyAccountId,'party_id':isAlayh?null:id,'dr_amount':0,'cr_amount':amount,'memo':'رصيد افتتاحي'});
+      }
       return id;
     });
     await refresh();
