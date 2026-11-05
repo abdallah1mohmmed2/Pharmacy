@@ -218,6 +218,10 @@ class RxAndReturnsService {
         refundGlAccountId=int.tryParse(cash.first['gl_account_id'].toString());
         if(refundGlAccountId==null)throw StateError('اربط حساب الصندوق بدليل الحسابات');
         await txn.rawUpdate('UPDATE cash_accounts SET current_balance=current_balance-? WHERE id=?',[refundAmount,cashAccountId]);
+        final balanceRows=await txn.query('cash_accounts',columns:['current_balance'],where:'id=?',whereArgs:[cashAccountId],limit:1);
+        final invoiceBranch=(invoiceRows.first['branch_id'] as num?)?.toInt()??1;
+        final openShifts=await txn.query('cashier_shifts',columns:['id'],where:"branch_id=? AND status='OPEN'",whereArgs:[invoiceBranch],orderBy:'id DESC',limit:1);
+        await txn.insert('cash_transactions',{'cash_account_id':cashAccountId,'tx_date':DateTime.now().toIso8601String(),'direction':'OUT','amount':refundAmount,'tx_type':'SALE_RETURN','doc_type':'SALES_RETURN','doc_id':returnId,'wallet_ref_no':walletRef,'cashier_shift_id':openShifts.isEmpty?null:openShifts.first['id'],'balance_after':(balanceRows.first['current_balance'] as num).toDouble(),'note':'رد قيمة مرتجع مبيعات','branch_id':invoiceBranch});
       }
       final jeId=await _postReturnJournal(txn,returnId:returnId,returnNo:returnNo,refundAmount:refundAmount,refundAccountId:creditAccountId??refundGlAccountId!,refundPartyId:creditAccountId==null?null:customerId,inventoryCost:(disposition=='DISPOSE'?0:(batch['unit_cost'] as num).toDouble()*qtyUnits));
       await txn.update('sales_returns',{'journal_entry_id':jeId},where:'id=?',whereArgs:[returnId]);
