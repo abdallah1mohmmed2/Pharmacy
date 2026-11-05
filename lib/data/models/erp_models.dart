@@ -46,10 +46,11 @@ class CartItemModel {
 }
 
 class PosTabSession {
-  PosTabSession({required this.id,this.label='',List<CartItemModel>? items,this.held=false,this.customerPartyId,this.createdAt}):items=items??[];
+  PosTabSession({required this.id,this.label='',List<CartItemModel>? items,this.held=false,this.customerPartyId,this.createdAt,Set<String>? patientFlags}):items=items??[],patientFlags=patientFlags??{};
   final String id;
   String label;
   final List<CartItemModel> items;
+  final Set<String> patientFlags;
   bool held;
   int? customerPartyId;
   final DateTime? createdAt;
