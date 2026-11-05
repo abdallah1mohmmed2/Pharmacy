@@ -38,7 +38,8 @@ class PostingAndSalesService {
       for(final item in items){
         final drugRows=await txn.query('drugs',columns:['units_per_pack'],where:'id=? AND is_deleted=0',whereArgs:[item.drug.id]);
         if(drugRows.isEmpty) throw StateError('الصنف غير موجود');
-        final units=(drugRows.first['units_per_pack'] as int?)??item.drug.effectiveUnitsPerPack;
+        final unitsValue=drugRows.first['units_per_pack'];
+        final int units=unitsValue is num?unitsValue.toInt():item.drug.effectiveUnitsPerPack;
         final invoiceItemId=await txn.insert('sales_invoice_items',{..._base(branchId),'invoice_id':invoiceId,'drug_id':item.drug.id,'sell_unit':item.sellUnit,'qty_in_sell_unit':item.quantity,'qty_units':item.baseUnits,'unit_price_sell_unit':item.unitPrice,'line_discount_amount':item.discount,'line_total':item.lineTotal,'line_cost':0});
         final allocations=await _fefo.allocateAndApply(txn:txn,drugId:item.drug.id,needUnits:item.baseUnits,unitsPerPack:units,invoiceItemId:invoiceItemId,warehouseId:null,unitPrice:item.unitPrice,docType:'SALE',docId:invoiceId);
         final lineCost=allocations.fold<double>(0,(sum,a)=>sum+a.qtyUnits*a.unitCost);
@@ -57,8 +58,10 @@ class PostingAndSalesService {
         if(payment.method=='WALLET'&&kind!='WALLET') throw StateError('اختر محفظة إلكترونية لطريقة الدفع هذه');
         if(payment.method=='CASH'&&kind=='WALLET') throw StateError('اختر الصندوق النقدي أو غيّر وسيلة الدفع إلى محفظة');
         if(payment.method=='BANK'&&kind!='BANK') throw StateError('اختر الحساب البنكي لطريقة الدفع هذه');
-        final gl=cashAccount.first['gl_account_id'] as int?;
-        if(gl!=null) journalLines.add((accountId:gl!,debit:payment.amount,credit:0,partyId:null,memo:'تحصيل فاتورة'));
+        final glValue=cashAccount.first['gl_account_id'];
+        if(glValue==null)throw StateError('اربط حساب الصندوق بدليل الحسابات أولاً');
+        final int gl=glValue as int;
+        journalLines.add((accountId:gl,debit:payment.amount,credit:0,partyId:null,memo:'تحصيل فاتورة'));
       }
       final revenue=await _accountId(txn,'4101');
       if(remaining>0 && customerPartyId!=null){
@@ -130,7 +133,7 @@ class PostingAndSalesService {
         final row=cashRow!;
         final cashGlValue=row['gl_account_id'];
         if(cashGlValue is! int)throw StateError('اربط حساب الصندوق بدليل الحسابات أولاً');
-        final int cashGl=cashGlValue;
+        final int cashGl=cashGlValue as int;
         await txn.rawUpdate('UPDATE cash_accounts SET current_balance=current_balance+?,updated_at=? WHERE id=?',[isReceipt?amount:-amount,now,cashId]);
         if(isReceipt){
           lines.add((accountId:cashGl,debit:amount,credit:0,partyId:null,memo:'استلام نقدية'));
