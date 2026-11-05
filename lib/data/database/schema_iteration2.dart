@@ -63,7 +63,8 @@ abstract final class SchemaIteration2 {
         final lotUnits=portions[lot];
         if(lotUnits<=0)continue;
         final expiry=DateTime.now().add(Duration(days:offsets[lot])).toIso8601String().substring(0,10);
-        await db.insert('batches_fefo',{'drug_id':drug['id'],'warehouse_id':warehouse,'location_id':shelf.first['id'],'batch_no':'SEED-'+(index+1).toString()+'-'+(lot+1).toString(),'expiry_date':expiry,'sealed_packs':lotUnits~/units,'loose_units':lotUnits%units,'total_units':lotUnits,'unit_cost':packCost/units,'pack_cost':packCost,'status':expiry.compareTo(now.substring(0,10))<0?'EXPIRED':'ACTIVE'});
+        final batchId=await db.insert('batches_fefo',{'drug_id':drug['id'],'warehouse_id':warehouse,'location_id':shelf.first['id'],'batch_no':'SEED-'+(index+1).toString()+'-'+(lot+1).toString(),'expiry_date':expiry,'sealed_packs':lotUnits~/units,'loose_units':lotUnits%units,'total_units':lotUnits,'unit_cost':packCost/units,'pack_cost':packCost,'status':expiry.compareTo(now.substring(0,10))<0?'EXPIRED':'ACTIVE'});
+        await db.insert('stock_movements',{'drug_id':drug['id'],'batch_id':batchId,'warehouse_id':warehouse,'movement_type':'OPENING_BALANCE','qty_units':lotUnits,'unit_cost':packCost/units,'balance_after_units':lotUnits,'movement_at':now,'doc_type':'OPENING','note':'رصيد افتتاحي محفوظ من الدورة الأولى'});
       }
     }
     await db.execute('UPDATE drugs SET stock_total_units=COALESCE((SELECT SUM(total_units) FROM batches_fefo WHERE batches_fefo.drug_id=drugs.id),0)');
