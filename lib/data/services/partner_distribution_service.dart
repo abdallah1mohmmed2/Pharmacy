@@ -121,10 +121,11 @@ class PartnerDistributionService {
     });
   }
 
-  Future<void> switchDistributionMode({required String newMode,required bool managerApproved}) async {
+  Future<void> switchDistributionMode({required String newMode,required int managerUserId}) async {
     if(newMode!='shares'&&newMode!='percentage')throw ArgumentError('نمط التوزيع غير صالح');
-    if(!managerApproved)throw StateError('يتطلب تغيير نمط التوزيع اعتماد المالك أو المدير');
     final db=await _helper.database;
+    final manager=await db.query('users',columns:['id'],where:"id=? AND role_code IN('OWNER','MANAGER') AND is_active=1 AND is_deleted=0",whereArgs:[managerUserId],limit:1);
+    if(manager.isEmpty)throw StateError('هوية اعتماد المالك أو المدير غير صالحة');
     await db.transaction((tx)async{
       final row=await tx.query('app_settings',columns:['value_text'],where:"setting_key='accounting.partner_distribution_mode'",limit:1);
       final current=row.isEmpty?'shares':row.first['value_text'] as String;
