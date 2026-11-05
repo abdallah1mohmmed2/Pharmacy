@@ -13,7 +13,7 @@ class S22TreasuryWalletsScreen extends StatelessWidget {
       const SizedBox(height:12),
       if(p.error!=null)Text(p.error!,style:const TextStyle(color:Color(0xFFEF5350))),
       Wrap(spacing:12,runSpacing:12,children:p.cashAccounts.map((a){
-        final id=a['id'];final movements=p.transactions.where((t)=>t['cash_account_id']==id&&'\${t['tx_date']}'.startsWith(today));
+        final id=a['id'];final movements=p.transactions.where((t)=>t['cash_account_id']==id&&t['tx_date'].toString().startsWith(today));
         final incoming=movements.where((t)=>t['direction']=='IN').fold<double>(0,(s,t)=>s+(t['amount'] as num).toDouble());
         final outgoing=movements.where((t)=>t['direction']=='OUT').fold<double>(0,(s,t)=>s+(t['amount'] as num).toDouble());
         return SizedBox(width:280,child:Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
