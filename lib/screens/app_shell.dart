@@ -14,6 +14,8 @@ import 'inventory/s14_disposals_screen.dart';
 import 'inventory/s15_stock_transfers_screen.dart';
 import 'purchases/s16_purchase_invoice_bonus_screen.dart';
 import 'purchases/s17_s18_returns_and_shortages_screen.dart';
+import 'pos/s06_prescription_insurance_screen.dart';
+import 'pos/s07_sales_returns_screen.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -21,8 +23,8 @@ class AppShell extends StatefulWidget {
 }
 class _AppShellState extends State<AppShell>{
   int index=0;
-  final pages=const [S02ExecutiveDashboardScreen(),S03SmartPosScreen(),S08S09DrugEncyclopediaScreen(),S19S20S21PartiesAndVouchersScreen(),S11InventoryBatchesShelvesScreen(),S12FefoExpiryRadarScreen(),S13StocktakingScreen(),S14DisposalsScreen(),S15StockTransfersScreen(),S16PurchaseInvoiceBonusScreen(),S17S18ReturnsAndShortagesScreen()];
-  final titles=const ['لوحة التحكم التنفيذية','الكاشير الذكي','الموسوعة الدوائية','حسابات الأطراف والسندات','المخزون والتشغيلات','رادار الصلاحية','الجرد المخزني','الإعدام والإتلاف','التحويلات المخزنية','فواتير المشتريات والبونص','المرتجعات والنواقص'];
+  final pages=const [S02ExecutiveDashboardScreen(),S03SmartPosScreen(),S08S09DrugEncyclopediaScreen(),S19S20S21PartiesAndVouchersScreen(),S11InventoryBatchesShelvesScreen(),S12FefoExpiryRadarScreen(),S13StocktakingScreen(),S14DisposalsScreen(),S15StockTransfersScreen(),S16PurchaseInvoiceBonusScreen(),S17S18ReturnsAndShortagesScreen(),S06PrescriptionInsuranceScreen(),S07SalesReturnsScreen()];
+  final titles=const ['لوحة التحكم التنفيذية','الكاشير الذكي','الموسوعة الدوائية','حسابات الأطراف والسندات','المخزون والتشغيلات','رادار الصلاحية','الجرد المخزني','الإعدام والإتلاف','التحويلات المخزنية','فواتير المشتريات والبونص','المرتجعات والنواقص','الوصفات والتأمين','مرتجع المبيعات'];
   @override Widget build(BuildContext context){
     final wide=MediaQuery.sizeOf(context).width>=900;
     final session=context.watch<SessionAndErpProvider>();
@@ -48,6 +50,8 @@ class _AppShellState extends State<AppShell>{
             NavigationRailDestination(icon:Icon(Icons.swap_horiz),label:Text('التحويلات')),
             NavigationRailDestination(icon:Icon(Icons.shopping_cart_outlined),label:Text('المشتريات')),
             NavigationRailDestination(icon:Icon(Icons.assignment_return_outlined),label:Text('المرتجعات والنواقص')),
+            NavigationRailDestination(icon:Icon(Icons.receipt_long_outlined),label:Text('الوصفات والتأمين')),
+            NavigationRailDestination(icon:Icon(Icons.assignment_return),label:Text('مرتجع المبيعات')),
           ])),
         Expanded(child:IndexedStack(index:index,children:pages)),
       ]),
