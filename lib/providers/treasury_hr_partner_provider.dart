@@ -42,7 +42,7 @@ class TreasuryHrPartnerProvider extends ChangeNotifier {
   Future<double> expectedCash(int shiftId)=>_treasury.expectedCash(shiftId);
   Future<double> closeShift({required int shiftId,required Map<String,int> denominations,required String handling,Map<String,double> wallets=const {},int? nextUserId}) async {final d=await _treasury.closeShiftBlind(shiftId:shiftId,denominations:denominations,diffHandling:handling,countedWallets:wallets,handoverToUserId:nextUserId);await refresh();return d;}
   Future<int> registerAttendance({required int employeeId,required String date,required String status,int? shiftId}) async {final id=await _hr.registerAttendance(employeeId:employeeId,workDate:date,status:status,workShiftId:shiftId);await refresh();return id;}
-  Future<int> advance({required int employeeId,required int cashAccountId,required double amount,required bool managerApproved}) async {final id=await _hr.postEmployeeAdvance(employeeId:employeeId,cashAccountId:cashAccountId,amount:amount,managerApproved:managerApproved);await refresh();return id;}
+  Future<int> advance({required int employeeId,required int cashAccountId,required double amount,int? managerUserId}) async {final id=await _hr.postEmployeeAdvance(employeeId:employeeId,cashAccountId:cashAccountId,amount:amount,managerUserId:managerUserId);await refresh();return id;}
   Future<int> adjustment({required int employeeId,required double amount,required bool bonus,required String reason}) async {final id=await _hr.recordAdjustment(employeeId:employeeId,amount:amount,isBonus:bonus,reason:reason);await refresh();return id;}
   Future<int> generatePayroll({required int employeeId,required String period})=>_hr.generatePayroll(employeeId:employeeId,periodCode:period);
   Future<void> approvePayroll(int id)=>_hr.approvePayroll(id);
@@ -50,6 +50,6 @@ class TreasuryHrPartnerProvider extends ChangeNotifier {
   Future<Map<String,double>> calculateProfit(String period) async {profitSummary=await _partners.calculatePeriodNetProfit(branchId:branchId,periodCode:period);notifyListeners();return profitSummary;}
   Future<int> createDistribution({required String period,required double reservePct}) async {profitSummary=await _partners.calculatePeriodNetProfit(branchId:branchId,periodCode:period);final id=await _partners.createDistribution(branchId:branchId,periodCode:period,reservePct:reservePct);final distributable=(profitSummary['net_profit']??0)*(1-reservePct/100);distributionPreview=await _partners.planDistribution(branchId:branchId,periodCode:period,distributableProfit:distributable);await refresh();return id;}
   Future<void> postDistribution(int id) async {await _partners.postPartnerDistribution(distributionId:id);await refresh();}
-  Future<void> switchDistributionMode(String mode,{required bool managerApproved}) async {await _partners.switchDistributionMode(newMode:mode,managerApproved:managerApproved);await refresh();}
+  Future<void> switchDistributionMode(String mode,{required int managerUserId}) async {await _partners.switchDistributionMode(newMode:mode,managerUserId:managerUserId);await refresh();}
   Future<void> validatePartnerFields({int? shares,double? percentage})=>_partners.validatePartnerFields(sharesCount:shares,percentage:percentage);
 }
