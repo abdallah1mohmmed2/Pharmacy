@@ -7,6 +7,7 @@ import '../../data/models/drug_model.dart';
 import '../../providers/clinical_and_rx_provider.dart';
 import '../../providers/pos_and_drugs_provider.dart';
 import '../../providers/session_and_erp_provider.dart';
+import 's05_drug_alternatives_sheet.dart';
 
 class S04ClinicalGuardDialog extends StatefulWidget {
   const S04ClinicalGuardDialog({super.key});
@@ -40,7 +41,8 @@ class _S04ClinicalGuardDialogState extends State<S04ClinicalGuardDialog>{
           if(alert.userDecision==null)Wrap(spacing:6,children:[
             if(alert.level==ClinicalLevel.info||alert.level==ClinicalLevel.caution)TextButton(onPressed:()=>_decide(clinical,alert,'ACKNOWLEDGED',session.currentUser?['id'] as int?),child:const Text('إقرار')),
             if(alert.level==ClinicalLevel.warning)FilledButton(onPressed:()async{if(reason.text.trim().length<5){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('اكتب سبباً لا يقل عن خمسة أحرف')));return;}await _decide(clinical,alert,'ACKNOWLEDGED',session.currentUser?['id'] as int?,reason.text.trim());},child:const Text('توثيق التجاوز')),
-            TextButton(onPressed:(){final id=alert.drugId;if(id!=null){final item=pos.cart.where((x)=>x.drug.id==id).toList();if(item.isNotEmpty)pos.removeItem(item.first);}},child:const Text('حذف الصنف')),
+            TextButton(onPressed:()async{final id=alert.drugId;if(id!=null){final matches=pos.cart.where((x)=>x.drug.id==id).toList();if(matches.isNotEmpty){await _decide(clinical,alert,'CANCELLED_ITEM',session.currentUser?['id'] as int?);pos.removeItem(matches.first);}}},child:const Text('حذف الصنف')),
+            TextButton(onPressed:()async{final id=alert.drugId;if(id!=null){final matches=pos.cart.where((x)=>x.drug.id==id).toList();if(matches.isNotEmpty){var replaced=false;await S05DrugAlternativesSheet.show(context,matches.first.drug,(replacement){pos.replaceCartItem(matches.first,replacement);replaced=true;});if(replaced)await _decide(clinical,alert,'SUBSTITUTED',session.currentUser?['id'] as int?);}}},child:const Text('استبدال ببديل آمن')),
             if(alert.level==ClinicalLevel.block)TextButton(onPressed:()async{final ok=await ManagerPinDialog.show(context,verifier:session.verifyManagerPin);if(ok&&reason.text.trim().length>=5)await _decide(clinical,alert,'OVERRIDDEN_WITH_PIN',session.currentUser?['id'] as int?,reason.text.trim(),session.currentUser?['id'] as int?);},child:const Text('تجاوز برمز المدير')),
           ]),
           if(alert.level==ClinicalLevel.warning||alert.level==ClinicalLevel.block)TextField(controller:reason,decoration:const InputDecoration(labelText:'سبب القرار (إلزامي)'),maxLines:2),
