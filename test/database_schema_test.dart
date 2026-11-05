@@ -98,6 +98,16 @@ void main() {
       expect(batches, greaterThan(0));
       expect(movements, greaterThan(0));
       expect(expiredBatches, greaterThan(0));
+      final activeExpired = (await db.rawQuery(
+        "SELECT COUNT(*) AS c FROM batches_fefo WHERE status='ACTIVE' AND expiry_date<date('now')",
+      )).first['c'] as int;
+      expect(activeExpired, 0);
+      final fefoViewRows = await db.rawQuery(
+        'SELECT units_per_pack,sell_price_pack,average_daily_units FROM v_fefo_batch_balances LIMIT 1',
+      );
+      expect(fefoViewRows, hasLength(1));
+      expect(fefoViewRows.first.containsKey('units_per_pack'), isTrue);
+      expect(fefoViewRows.first.containsKey('average_daily_units'), isTrue);
       expect(invalidBalances, isEmpty);
       expect(stockTotals, isEmpty);
 
