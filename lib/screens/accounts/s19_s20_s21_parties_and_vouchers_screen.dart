@@ -3,14 +3,15 @@ import 'package:provider/provider.dart';
 import '../../providers/session_and_erp_provider.dart';
 import '../../data/models/erp_models.dart';
 import '../../core/widgets/shared_widgets.dart';
+import 'party_extensions_screen.dart';
 
 class S19S20S21PartiesAndVouchersScreen extends StatefulWidget{const S19S20S21PartiesAndVouchersScreen({super.key});@override State<S19S20S21PartiesAndVouchersScreen> createState()=>_S19S20S21PartiesAndVouchersScreenState();}
 class _S19S20S21PartiesAndVouchersScreenState extends State<S19S20S21PartiesAndVouchersScreen> with SingleTickerProviderStateMixin{
- late final TabController tabs=TabController(length:2,vsync:this);
+ late final TabController tabs=TabController(length:3,vsync:this);
  @override void dispose(){tabs.dispose();super.dispose();}
  @override Widget build(BuildContext context){final p=context.watch<SessionAndErpProvider>();return Scaffold(backgroundColor:Colors.transparent,floatingActionButton:FloatingActionButton.extended(onPressed:()=>_addParty(context),icon:const Icon(Icons.person_add),label:const Text('إضافة طرف')),body:Column(children:[
-  TabBar(controller:tabs,tabs:const [Tab(text:'العملاء'),Tab(text:'الموردون / المذاخر')]),
-  Expanded(child:TabBarView(controller:tabs,children:[_partyList(p,'CUSTOMER'),_partyList(p,'SUPPLIER')])),
+  TabBar(controller:tabs,tabs:const [Tab(text:'العملاء'),Tab(text:'الموردون / المذاخر'),Tab(text:'خدمات الأطراف')]),
+  Expanded(child:TabBarView(controller:tabs,children:[_partyList(p,'CUSTOMER'),_partyList(p,'SUPPLIER'),const PartyExtensionsScreen()])),
  ]));}
  Widget _partyList(SessionAndErpProvider p,String type){final list=p.parties.where((x)=>x.partyType==type).toList();return ListView(padding:const EdgeInsets.all(12),children:list.map((party)=>Card(child:ListTile(leading:CircleAvatar(child:Icon(type=='CUSTOMER'?Icons.person:Icons.local_shipping)),title:Text(party.nameAr),subtitle:Text(party.phone),trailing:PartyBalanceChip(totalAlayh:party.totalAlayh,totalLah:party.totalLah,compact:true),onTap:()=>_statement(p,party)))).toList());}
  Future<void> _statement(SessionAndErpProvider p,PartyModel party)async{
