@@ -39,9 +39,20 @@ abstract final class SeedData {
       ['S-001',8000.0,0.0,'رصيد افتتاحي للمذخر'],
       ['S-002',0.0,1200.0,'رصيد افتتاحي لصالح المذخر'],
     ];
+    final equityRows=await db.query('chart_of_accounts',columns:['id'],where:'code=?',whereArgs:['3101'],limit:1);
+    final equityAccountId=equityRows.first['id'] as int;
     for(final movement in openingMovements){
-      final party=await db.query('parties',columns:['id'],where:'code=?',whereArgs:[movement[0]],limit:1);
-      await db.insert('lah_alayh_ledger',{...base,'uuid':'opening-'+movement[0],'party_id':party.first['id'],'entry_date':_now,'entry_type':'OPENING','alayh_amount':movement[1],'lah_amount':movement[2],'doc_type':'OPENING','doc_id':null,'statement_ar':movement[3]});
+      final party=await db.query('parties',columns:['id','party_type'],where:'code=?',whereArgs:[movement[0]],limit:1);
+      final partyId=party.first['id'] as int;
+      final isAlayh=(movement[1] as num)>0;
+      final partyAccountCode=party.first['party_type']=='SUPPLIER'&&!isAlayh?'2101':'1201';
+      final partyAccountRows=await db.query('chart_of_accounts',columns:['id'],where:'code=?',whereArgs:[partyAccountCode],limit:1);
+      final partyAccountId=partyAccountRows.first['id'] as int;
+      final amount=((movement[1] as num)+(movement[2] as num)).toDouble();
+      final journalId=await db.insert('journal_entries',{...base,'uuid':'opening-je-'+movement[0],'entry_no':'OPENING-'+movement[0],'entry_date':_now,'description':movement[3].toString(),'source_type':'OPENING','source_id':partyId,'is_posted':1});
+      await db.insert('journal_lines',{...base,'uuid':'opening-jl-'+movement[0]+'-1','journal_entry_id':journalId,'account_id':isAlayh?partyAccountId:equityAccountId,'party_id':isAlayh?partyId:null,'dr_amount':amount,'cr_amount':0,'memo':movement[3].toString()});
+      await db.insert('journal_lines',{...base,'uuid':'opening-jl-'+movement[0]+'-2','journal_entry_id':journalId,'account_id':isAlayh?equityAccountId:partyAccountId,'party_id':isAlayh?null:partyId,'dr_amount':0,'cr_amount':amount,'memo':movement[3].toString()});
+      await db.insert('lah_alayh_ledger',{...base,'uuid':'opening-'+movement[0],'party_id':partyId,'entry_date':_now,'entry_type':'OPENING','alayh_amount':movement[1],'lah_amount':movement[2],'doc_type':'OPENING','doc_id':journalId,'journal_entry_id':journalId,'statement_ar':movement[3]});
     }
     final ingredientIds=<String,int>{};
     final ingredientSeeds=<List<String>>[
