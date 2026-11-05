@@ -440,6 +440,7 @@ class _S16PurchaseInvoiceBonusScreenState
         paidNow < 0 ||
         paidNow > netTotal ||
         (payment == 'CASH' && (paidNow - netTotal).abs() > 0.005) ||
+        (payment == 'PARTIAL' && (paidNow <= 0 || paidNow >= netTotal)) ||
         (payment != 'CREDIT' && paidNow > 0 && cash == null)) {
       _message('تحقق من المورد والمستودع والبنود والخصم والضريبة وبيانات السداد');
       return;
