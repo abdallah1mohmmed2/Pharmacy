@@ -19,6 +19,7 @@ class ClinicalAndRxProvider extends ChangeNotifier {
   ClinicalVerdict verdict=ClinicalVerdict([]);
   bool loading=false;
   String? error;
+  List<String> currentFoods=[];
 
   Future<void> loadAll() async {
     loading=true;error=null;notifyListeners();
@@ -30,9 +31,10 @@ class ClinicalAndRxProvider extends ChangeNotifier {
     }catch(e){error=e.toString();}
     loading=false;notifyListeners();
   }
+  void setFoodIntake(List<String> foods){currentFoods=foods;notifyListeners();}
   void selectPatient(PatientClinicalModel? patient){currentPatient=patient;verdict=ClinicalVerdict([]);notifyListeners();}
   Future<ClinicalVerdict> evaluateCart(List<DrugModel> drugs,{Map<int,double> doses=const {}}) async {
-    verdict=await _guard.evaluate(cart:drugs,patient:currentPatient,prescribedDoseMgByDrugId:doses);notifyListeners();return verdict;
+    verdict=await _guard.evaluate(cart:drugs,patient:currentPatient,prescribedDoseMgByDrugId:doses,foodIntake:currentFoods);notifyListeners();return verdict;
   }
   Future<void> decideAlert(ClinicalAlertModel alert,{required String decision,required int? userId,String? reason,int? managerUserId}) async {
     await _guard.recordDecision(alert,decision:decision,userId:userId,reason:reason,managerUserId:managerUserId);
