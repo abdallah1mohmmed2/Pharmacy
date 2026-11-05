@@ -61,6 +61,18 @@ class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScr
    for(final key in labels.keys) key:TextEditingController(text:initial[key]?.toString()??'')
   };
   final form=GlobalKey<FormState>();
+  const enumValues=<String,Set<String>>{
+   'dosage_form':{'TABLET','CAPSULE','SYRUP','SUSPENSION','DROPS','INJECTION','CREAM','OINTMENT','INHALER','SUPPOSITORY','SACHET','OTHER'},
+   'route':{'ORAL','IV','IM','SC','TOPICAL','OPHTHALMIC','INHALATION','RECTAL','OTHER'},
+   'take_with_food':{'BEFORE','WITH','AFTER','ANY'},
+   'strip_price_mode':{'AUTO','MANUAL'},
+   'hepatic_status':{'SAFE','ADJUST','AVOID','CONTRAINDICATED','UNKNOWN'},
+   'renal_status':{'SAFE','ADJUST','AVOID','CONTRAINDICATED','UNKNOWN'},
+   'geriatric_status':{'SAFE','ADJUST','AVOID','UNKNOWN'},
+   'pediatric_status':{'SAFE','ADJUST','AVOID','CONTRAINDICATED','UNKNOWN'},
+   'pregnancy_category':{'A','B','C','D','X','N','UNKNOWN'},
+   'lactation_risk':{'L1','L2','L3','L4','L5','UNKNOWN'},
+  };
   List<String> groupFor(List<int> points)=>labels.keys.where((key){final point=int.tryParse(labels[key]!.split('.').first);return point!=null&&points.contains(point);}).toList();
   final tabGroups=<List<String>>[groupFor([1,2,3,4]),groupFor([5,6,7,8,9,10]),groupFor([11,12]),groupFor([13,14,15,16,17,18,19])];
   Widget buildField(String key){
@@ -88,7 +100,10 @@ class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScr
    actions:[
     TextButton(onPressed:()=>Navigator.pop(dialogContext),child:const Text('إلغاء')),
     FilledButton(onPressed:()async{
-     if(!form.currentState!.validate())return;
+     if(controllers['trade_name_ar']!.text.trim().isEmpty||controllers['internal_code']!.text.trim().isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('الاسم التجاري والرمز الداخلي مطلوبان')));return;}
+     for(final entry in enumValues.entries){if(!entry.value.contains(controllers[entry.key]!.text.trim())){ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('قيمة غير معتمدة في: '+labels[entry.key]!)));return;}}
+     for(final key in intKeys){final raw=controllers[key]!.text.trim();if(raw.isNotEmpty&&int.tryParse(raw)==null){ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('أدخل رقماً صحيحاً في: '+labels[key]!)));return;}}
+     for(final key in numberKeys){final raw=controllers[key]!.text.trim();if(raw.isNotEmpty&&double.tryParse(raw)==null){ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('أدخل قيمة رقمية صحيحة في: '+labels[key]!)));return;}}
      final map=Map<String,Object?>.from(initial);
      for(final entry in controllers.entries){
       final key=entry.key;final raw=entry.value.text.trim();
