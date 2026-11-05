@@ -85,11 +85,12 @@ class ClinicalAlertBanner extends StatelessWidget {
 }
 
 class ManagerPinDialog extends StatefulWidget {
-  const ManagerPinDialog({super.key, this.expectedPin = '9999', this.title = 'تأكيد المدير'});
-  final String expectedPin;
+  const ManagerPinDialog({super.key, this.expectedPin, this.verifier, this.title = 'تأكيد المدير'});
+  final String? expectedPin;
+  final Future<bool> Function(String)? verifier;
   final String title;
-  static Future<bool> show(BuildContext context, {String expectedPin = '9999'}) async =>
-      await showDialog<bool>(context: context, barrierDismissible: false, builder: (_) => ManagerPinDialog(expectedPin: expectedPin)) ?? false;
+  static Future<bool> show(BuildContext context, {String? expectedPin, Future<bool> Function(String)? verifier}) async =>
+      await showDialog<bool>(context: context, barrierDismissible: false, builder: (_) => ManagerPinDialog(expectedPin: expectedPin, verifier: verifier)) ?? false;
 
   @override State<ManagerPinDialog> createState() => _ManagerPinDialogState();
 }
@@ -107,8 +108,10 @@ class _ManagerPinDialogState extends State<ManagerPinDialog> {
       FilledButton(onPressed: _verify, child: const Text('تحقق')),
     ],
   );
-  void _verify() {
-    if (controller.text == widget.expectedPin) { Navigator.pop(context, true); }
+  Future<void> _verify() async {
+    final valid = widget.verifier != null ? await widget.verifier!(controller.text) : controller.text == widget.expectedPin;
+    if (!mounted) return;
+    if (valid) { Navigator.pop(context, true); }
     else { setState(() => error = 'رمز التحقق غير صحيح'); }
   }
 }
