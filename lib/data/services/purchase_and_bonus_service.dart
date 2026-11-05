@@ -74,22 +74,62 @@ class PurchaseAndBonusService {
   }
   Future<int> _accountId(Transaction txn,String code) async {final rows=await txn.query('chart_of_accounts',columns:['id'],where:'code=?',whereArgs:[code],limit:1);if(rows.isEmpty)throw StateError('الحساب '+code+' غير موجود');return rows.first['id'] as int;}
 
-  Future<int> postPurchaseReturn({required int branchId,required int supplierPartyId,required int batchId,required int qtyUnits,required String reason,required String settlementType,required double agreedCreditValue}) async {
+  Future<int> postPurchaseReturn({required int branchId,required int supplierPartyId,required int batchId,required int qtyUnits,required String reason,required String settlementType,required double agreedCreditValue,int? cashAccountId}) async {
     if(qtyUnits<=0||agreedCreditValue<0||!['CREDIT_NOTE','CASH_REFUND','EXCHANGE_GOODS'].contains(settlementType))throw ArgumentError('بيانات المرتجع غير صحيحة');
+    final int cashId=cashAccountId??-1;
+    if(settlementType=='CASH_REFUND'&&cashId<0)throw StateError('حدد الصندوق الذي استلم قيمة الاسترداد');
     final db=await _db.database;
     return db.transaction((txn)async{
-      final rows=await txn.query('batches_fefo',where:'id=?',whereArgs:[batchId]);if(rows.isEmpty)throw StateError('التشغيلة غير موجودة');final b=rows.first;
-      if(qtyUnits>(b['total_units'] as int))throw StateError('كمية المرتجع أكبر من الرصيد المتاح');
-      final unitCost=(b['unit_cost'] as num).toDouble();final creditUnit=agreedCreditValue/qtyUnits;final now=DateTime.now().toIso8601String();
-      final returnId=await txn.insert('purchase_returns',{'return_no':_number('PR'),'supplier_party_id':supplierPartyId,'return_date':now,'reason':reason,'settlement_type':settlementType,'total_value':agreedCreditValue,'status':'POSTED'});
+      final rows=await txn.query('batches_fefo',where:'id=?',whereArgs:[batchId]);
+      if(rows.isEmpty)throw StateError('التشغيلة غير موجودة');
+      final batch=rows.first;
+      if(qtyUnits>(batch['total_units'] as int))throw StateError('كمية المرتجع أكبر من الرصيد المتاح');
+      final sourceItem=batch['purchase_invoice_item_id'];
+      if(sourceItem!=null){
+        final source=await txn.rawQuery('SELECT supplier_party_id FROM purchase_invoice_items i JOIN purchase_invoices p ON p.id=i.invoice_id WHERE i.id=?',[sourceItem]);
+        if(source.isNotEmpty&&(source.first['supplier_party_id'] as int)!=supplierPartyId)throw StateError('هذه التشغيلة مرتبطة بمورد آخر');
+      }
+      final unitCost=(batch['unit_cost'] as num).toDouble();
+      final costValue=unitCost*qtyUnits;
+      final difference=costValue-agreedCreditValue;
+      final creditUnit=agreedCreditValue/qtyUnits;
+      final now=DateTime.now().toIso8601String();
+      final returnId=await txn.insert('purchase_returns',{
+        'return_no':_number('PR'),'supplier_party_id':supplierPartyId,'return_date':now,'reason':reason,
+        'settlement_type':settlementType,'total_value':agreedCreditValue,'cost_value':costValue,
+        'settlement_difference':difference,'status':settlementType=='EXCHANGE_GOODS'?'PENDING_EXCHANGE':'POSTED'
+      });
       await txn.insert('purchase_return_items',{'return_id':returnId,'batch_id':batchId,'qty_units':qtyUnits,'credit_unit_value':creditUnit,'cost_unit_value':unitCost});
-      final newTotal=(b['total_units'] as int)-qtyUnits;final drugRows=await txn.query('drugs',columns:['units_per_pack'],where:'id=?',whereArgs:[b['drug_id']]);final upp=(drugRows.first['units_per_pack'] as int?)??1;
-      final totalPackUnits=(b['sealed_packs'] as int)*upp+(b['loose_units'] as int)-qtyUnits;if(totalPackUnits<0)throw StateError('الرصيد غير كافٍ');final newSealed=totalPackUnits~/upp;final newLoose=totalPackUnits%upp;
-      await txn.update('batches_fefo',{'total_units':newTotal,'sealed_packs':newSealed,'loose_units':newLoose,'status':newTotal==0?'DEPLETED':'ACTIVE'},where:'id=?',whereArgs:[batchId]);
-      await txn.rawUpdate('UPDATE drugs SET stock_total_units=MAX(0,stock_total_units-?),updated_at=? WHERE id=?',[qtyUnits,now,b['drug_id']]);
-      await txn.insert('stock_movements',{'drug_id':b['drug_id'],'batch_id':batchId,'warehouse_id':b['warehouse_id'],'movement_type':'PURCHASE_RETURN_OUT','qty_units':-qtyUnits,'unit_cost':unitCost,'balance_after_units':newTotal,'doc_type':'PURCHASE_RETURN','doc_id':returnId,'movement_at':now,'note':reason});
-      final base={'branch_id':branchId,'created_at':now,'updated_at':now,'is_deleted':0,'sync_status':'LOCAL','sync_version':1};
-      if(settlementType=='CREDIT_NOTE')await txn.insert('lah_alayh_ledger',{...base,'uuid':'purchase-return-'+returnId.toString(),'party_id':supplierPartyId,'entry_date':now,'entry_type':'PURCHASE_RETURN','alayh_amount':agreedCreditValue,'lah_amount':0,'doc_type':'PURCHASE_RETURN','doc_id':returnId,'statement_ar':'إشعار خصم مرتجع مشتريات'});
+      final newTotal=(batch['total_units'] as int)-qtyUnits;
+      final drugRows=await txn.query('drugs',columns:['units_per_pack'],where:'id=?',whereArgs:[batch['drug_id']]);
+      final units=(drugRows.first['units_per_pack'] as int?)??1;
+      final packUnits=(batch['sealed_packs'] as int)*units+(batch['loose_units'] as int)-qtyUnits;
+      if(packUnits<0)throw StateError('الرصيد غير كافٍ');
+      await txn.update('batches_fefo',{'total_units':newTotal,'sealed_packs':packUnits~/units,'loose_units':packUnits%units,'status':newTotal==0?'DEPLETED':'ACTIVE'},where:'id=?',whereArgs:[batchId]);
+      await txn.rawUpdate('UPDATE drugs SET stock_total_units=MAX(0,stock_total_units-?),updated_at=? WHERE id=?',[qtyUnits,now,batch['drug_id']]);
+      await txn.insert('stock_movements',{'drug_id':batch['drug_id'],'batch_id':batchId,'warehouse_id':batch['warehouse_id'],'movement_type':'PURCHASE_RETURN_OUT','qty_units':-qtyUnits,'unit_cost':unitCost,'balance_after_units':newTotal,'doc_type':'PURCHASE_RETURN','doc_id':returnId,'movement_at':now,'note':reason});
+      int? journalId;
+      if(settlementType!='EXCHANGE_GOODS'){
+        final supplierAccount=await _accountId(txn,'2101');
+        final inventoryAccount=await _accountId(txn,'1301');
+        final varianceAccount=await _accountId(txn,'5304');
+        int settlementAccount=supplierAccount;
+        if(settlementType=='CASH_REFUND'){
+          final cashRows=await txn.query('cash_accounts',columns:['gl_account_id'],where:'id=?',whereArgs:[cashId]);
+          if(cashRows.isEmpty||cashRows.first['gl_account_id']==null)throw StateError('اربط الصندوق بدليل الحسابات أولاً');
+          settlementAccount=(cashRows.first['gl_account_id'] as num).toInt();
+          await txn.rawUpdate('UPDATE cash_accounts SET current_balance=current_balance+?,updated_at=? WHERE id=?',[agreedCreditValue,now,cashId]);
+        }
+        final lines=<({int accountId,double debit,double credit,int? partyId,String memo})>[];
+        lines.add((accountId:settlementAccount,debit:agreedCreditValue,credit:0,partyId:settlementType=='CREDIT_NOTE'?supplierPartyId:null,memo:settlementType=='CREDIT_NOTE'?'إشعار خصم مورد':'استرداد نقدي من المورد'));
+        lines.add((accountId:inventoryAccount,debit:0,credit:costValue,partyId:null,memo:'إخراج بضاعة مرتجعة بالتكلفة'));
+        if(difference>0)lines.add((accountId:varianceAccount,debit:difference,credit:0,partyId:null,memo:'فرق تكلفة المرتجع'));
+        if(difference<0)lines.add((accountId:varianceAccount,debit:0,credit:-difference,partyId:null,memo:'فرق تسوية لصالح المحطة'));
+        journalId=await _posting.postBalancedEntry(txn,branchId:branchId,description:'مرتجع مشتريات '+returnId.toString(),sourceType:'PURCHASE_RETURN',sourceId:returnId,lines:lines);
+        final base={'branch_id':branchId,'created_at':now,'updated_at':now,'is_deleted':0,'sync_status':'LOCAL','sync_version':1};
+        await txn.insert('lah_alayh_ledger',{...base,'uuid':'purchase-return-'+returnId.toString(),'party_id':supplierPartyId,'entry_date':now,'entry_type':'PURCHASE_RETURN','alayh_amount':agreedCreditValue,'lah_amount':0,'doc_type':'PURCHASE_RETURN','doc_id':returnId,'statement_ar':settlementType=='CREDIT_NOTE'?'إشعار خصم مرتجع مشتريات':'استرداد نقدي من المورد'});
+        await txn.update('purchase_returns',{'journal_entry_id':journalId},where:'id=?',whereArgs:[returnId]);
+      }
       return returnId;
     });
   }
