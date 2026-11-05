@@ -44,13 +44,13 @@ class _S23ShiftCloseHandoverScreenState extends State<S23ShiftCloseHandoverScree
     ]));
   }
   Widget _openShift(BuildContext context,TreasuryHrPartnerProvider p){
-    int? drawer=p.cashAccounts.firstWhere((a)=>a['account_kind']=='CASHIER_DRAWER',orElse:()=>p.cashAccounts.isEmpty?{'id':null}:p.cashAccounts.first)['id'] as int?;int? work=p.workShifts.isEmpty?null:p.workShifts.first['id'] as int?;final opening=TextEditingController(text:'0');
+    int? drawer=p.cashAccounts.firstWhere((a)=>a['account_kind']=='CASHIER_DRAWER',orElse:()=>p.cashAccounts.isEmpty?{'id':null}:p.cashAccounts.first)['id'] as int?;int? work=p.workShifts.isEmpty?null:p.workShifts.first['id'] as int?;int? cashierParty=p.employees.firstWhere((e)=>e['job_title']=='CASHIER',orElse:()=>p.employees.isEmpty?{'party_id':null}:p.employees.first)['party_id'] as int?;final opening=TextEditingController(text:'0');
     return Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(children:[
       const Text('لا توجد وردية مفتوحة. افتح وردية جديدة لاستلام العهدة.'),
       DropdownButtonFormField<int?>(value:drawer,decoration:const InputDecoration(labelText:'درج الكاشير'),items:p.cashAccounts.map((a)=>DropdownMenuItem<int?>(value:a['id'] as int,child:Text(a['name_ar'].toString()))).toList(),onChanged:(v)=>setState(()=>drawer=v)),
-      DropdownButtonFormField<int?>(value:work,decoration:const InputDecoration(labelText:'الوردية الوظيفية'),items:p.workShifts.map((a)=>DropdownMenuItem<int?>(value:a['id'] as int,child:Text(a['name_ar'].toString()))).toList(),onChanged:(v)=>setState(()=>work=v)),
+      DropdownButtonFormField<int?>(value:work,decoration:const InputDecoration(labelText:'الوردية الوظيفية'),items:p.workShifts.map((a)=>DropdownMenuItem<int?>(value:a['id'] as int,child:Text(a['name_ar'].toString()))).toList(),onChanged:(v)=>setState(()=>work=v)),\n      DropdownButtonFormField<int?>(value:cashierParty,decoration:const InputDecoration(labelText:'طرف الكاشير المسؤول عن العهدة'),items:p.employees.map((e)=>DropdownMenuItem<int?>(value:e['party_id'] as int,child:Text(e['name_ar'].toString()))).toList(),onChanged:(v)=>setState(()=>cashierParty=v)),
       TextField(controller:opening,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'العهدة الافتتاحية')),
-      FilledButton(onPressed:drawer==null?null:()async{try{await p.openShift(drawerAccountId:drawer!,openingCash:double.tryParse(opening.text)??0,workShiftId:work);if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم فتح الوردية')));}catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}},child:const Text('فتح الوردية'))
+      FilledButton(onPressed:drawer==null?null:()async{try{await p.openShift(drawerAccountId:drawer!,openingCash:double.tryParse(opening.text)??0,partyId:cashierParty,workShiftId:work);if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم فتح الوردية')));}catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}},child:const Text('فتح الوردية'))
     ])));
   }
 }
