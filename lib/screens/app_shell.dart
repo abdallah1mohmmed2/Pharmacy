@@ -6,6 +6,13 @@ import 'dashboard/s02_executive_dashboard_screen.dart';
 import 'pos/s03_smart_pos_screen.dart';
 import 'drugs/s08_s09_drug_encyclopedia_screen.dart';
 import 'accounts/s19_s20_s21_parties_and_vouchers_screen.dart';
+import 'inventory/s11_inventory_batches_shelves_screen.dart';
+import 'inventory/s12_fefo_expiry_radar_screen.dart';
+import 'inventory/s13_stocktaking_screen.dart';
+import 'inventory/s14_disposals_screen.dart';
+import 'inventory/s15_stock_transfers_screen.dart';
+import '../purchases/s16_purchase_invoice_bonus_screen.dart';
+import '../purchases/s17_s18_returns_and_shortages_screen.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -13,26 +20,34 @@ class AppShell extends StatefulWidget {
 }
 class _AppShellState extends State<AppShell>{
   int index=0;
-  final pages=const [S02ExecutiveDashboardScreen(),S03SmartPosScreen(),S08S09DrugEncyclopediaScreen(),S19S20S21PartiesAndVouchersScreen()];
-  final titles=const ['لوحة التحكم التنفيذية','الكاشير الذكي','الموسوعة الدوائية','حسابات الأطراف والسندات'];
+  final pages=const [S02ExecutiveDashboardScreen(),S03SmartPosScreen(),S08S09DrugEncyclopediaScreen(),S19S20S21PartiesAndVouchersScreen(),S11InventoryBatchesShelvesScreen(),S12FefoExpiryRadarScreen(),S13StocktakingScreen(),S14DisposalsScreen(),S15StockTransfersScreen(),S16PurchaseInvoiceBonusScreen(),S17S18ReturnsAndShortagesScreen()];
+  final titles=const ['لوحة التحكم التنفيذية','الكاشير الذكي','الموسوعة الدوائية','حسابات الأطراف والسندات','المخزون والتشغيلات','رادار الصلاحية','الجرد المخزني','الإعدام والإتلاف','التحويلات المخزنية','فواتير المشتريات والبونص','المرتجعات والنواقص'];
   @override Widget build(BuildContext context){
     final wide=MediaQuery.sizeOf(context).width>=900;
     final session=context.watch<SessionAndErpProvider>();
     if(session.currentUser==null)return const _LoginScreen();
     return Scaffold(
+      drawer:wide?null:Drawer(child:ListView(children:[const DrawerHeader(child:Text('Global Pharmacy ERP',style:TextStyle(fontSize:20))),for(var i=0;i<titles.length;i++)ListTile(selected:index==i,title:Text(titles[i]),onTap:(){setState(()=>index=i);Navigator.pop(context);})])),
       appBar:AppBar(title:Text(titles[index]),actions:[
         Padding(padding:const EdgeInsets.symmetric(horizontal:8),child:Center(child:Text('الصيدلية • الفرع الرئيسي • '+(session.currentUser?['full_name'] as String? ?? '')))),
         IconButton(tooltip:'تحديث',onPressed:session.refresh,icon:const Icon(Icons.refresh)),
         IconButton(tooltip:'تسجيل الخروج',onPressed:session.logout,icon:const Icon(Icons.logout)),
       ]),
       body:Row(children:[
-        if(wide)NavigationRail(selectedIndex:index,onDestinationSelected:(v)=>setState(()=>index=v),labelType:NavigationRailLabelType.all,
+        if(wide)SingleChildScrollView(child:NavigationRail(selectedIndex:index,onDestinationSelected:(v)=>setState(()=>index=v),labelType:NavigationRailLabelType.all,
           destinations:const [
             NavigationRailDestination(icon:Icon(Icons.dashboard_outlined),selectedIcon:Icon(Icons.dashboard),label:Text('الرئيسية')),
             NavigationRailDestination(icon:Icon(Icons.point_of_sale_outlined),selectedIcon:Icon(Icons.point_of_sale),label:Text('الكاشير')),
             NavigationRailDestination(icon:Icon(Icons.medication_outlined),selectedIcon:Icon(Icons.medication),label:Text('الأدوية')),
             NavigationRailDestination(icon:Icon(Icons.account_balance_wallet_outlined),selectedIcon:Icon(Icons.account_balance_wallet),label:Text('الحسابات')),
-          ]),
+            NavigationRailDestination(icon:Icon(Icons.inventory_2_outlined),label:Text('التشغيلات')),
+            NavigationRailDestination(icon:Icon(Icons.radar),label:Text('رادار الصلاحية')),
+            NavigationRailDestination(icon:Icon(Icons.fact_check_outlined),label:Text('الجرد')),
+            NavigationRailDestination(icon:Icon(Icons.delete_outline),label:Text('الإعدام')),
+            NavigationRailDestination(icon:Icon(Icons.swap_horiz),label:Text('التحويلات')),
+            NavigationRailDestination(icon:Icon(Icons.shopping_cart_outlined),label:Text('المشتريات')),
+            NavigationRailDestination(icon:Icon(Icons.assignment_return_outlined),label:Text('المرتجعات والنواقص')),
+          ])),
         Expanded(child:IndexedStack(index:index,children:pages)),
       ]),
       bottomNavigationBar:wide?null:NavigationBar(selectedIndex:index,onDestinationSelected:(v)=>setState(()=>index=v),destinations:const [
