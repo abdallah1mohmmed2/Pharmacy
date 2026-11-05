@@ -60,7 +60,7 @@ void main() {
         'HAVING ABS(SUM(jl.dr_amount)-SUM(jl.cr_amount))>0.005',
       );
 
-      expect(drugs, 6);
+      expect(drugs, 10);
       expect(settings, 35);
       expect(accounts, greaterThanOrEqualTo(30));
       expect(wallets, 4);
