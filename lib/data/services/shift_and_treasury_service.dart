@@ -103,7 +103,21 @@ class ShiftAndTreasuryService {
     if(openingCash<0)throw ArgumentError('العهدة الافتتاحية لا يمكن أن تكون سالبة');
     final db=await _helper.database;final existing=await db.query('cashier_shifts',columns:['id'],where:"branch_id=? AND status='OPEN'",whereArgs:[branchId],limit:1);
     if(existing.isNotEmpty)throw StateError('توجد وردية مفتوحة بالفعل');
-    return db.insert('cashier_shifts',{'shift_no':'SH-${DateTime.now().millisecondsSinceEpoch}','user_id':userId,'cashier_party_id':cashierPartyId,'drawer_account_id':drawerAccountId,'work_shift_id':workShiftId,'opened_at':_now(),'opening_cash':openingCash,'status':'OPEN','branch_id':branchId});
+    return db.transaction((tx)async{
+      final shiftId=await tx.insert('cashier_shifts',{'shift_no':'SH-${DateTime.now().millisecondsSinceEpoch}','user_id':userId,'cashier_party_id':cashierPartyId,'drawer_account_id':drawerAccountId,'work_shift_id':workShiftId,'opened_at':_now(),'opening_cash':openingCash,'status':'OPEN','branch_id':branchId});
+      final account=await tx.query('cash_accounts',columns:['current_balance','gl_account_id'],where:'id=? AND branch_id=?',whereArgs:[drawerAccountId,branchId],limit:1);
+      if(account.isEmpty)throw StateError('درج الكاشير غير موجود');
+      final current=_n(account.first['current_balance']);
+      if(openingCash>current){
+        final difference=openingCash-current;final cashGl=account.first['gl_account_id'] as int?;if(cashGl==null)throw StateError('اربط درج الكاشير بدليل الحسابات');
+        final equity=await _glId(tx,'3101');final je=await _journal(tx,branchId:branchId,source:'SHIFT_OPENING',sourceId:shiftId,description:'عهدة افتتاحية لوردية الكاشير');
+        await _journalLine(tx,branchId:branchId,entryId:je,accountId:cashGl,dr:difference,memo:'عهدة افتتاحية');
+        await _journalLine(tx,branchId:branchId,entryId:je,accountId:equity,cr:difference,memo:'عهدة افتتاحية');
+        await tx.update('cash_accounts',{'current_balance':openingCash,'updated_at':_now()},where:'id=?',whereArgs:[drawerAccountId]);
+        await tx.insert('cash_transactions',{'cash_account_id':drawerAccountId,'tx_date':_now(),'direction':'IN','amount':difference,'tx_type':'OPENING','doc_type':'CASHIER_SHIFT','doc_id':shiftId,'balance_after':openingCash,'note':'إثبات عهدة افتتاحية للوردية','branch_id':branchId});
+      }
+      return shiftId;
+    });
   }
 
   Future<double> expectedCash(int shiftId) async {
