@@ -15,10 +15,10 @@ class S06PrescriptionInsuranceScreen extends StatefulWidget {
   @override State<S06PrescriptionInsuranceScreen> createState()=>_S06PrescriptionInsuranceScreenState();
 }
 class _S06PrescriptionInsuranceScreenState extends State<S06PrescriptionInsuranceScreen>{
-  final rxNo=TextEditingController(),doctor=TextEditingController(),license=TextEditingController(),facility=TextEditingController(),validDays=TextEditingController(text:'30'),qty=TextEditingController(text:'1'),dose=TextEditingController(),duration=TextEditingController(text:'1'),paid=TextEditingController(text:'0'),walletRef=TextEditingController();
+  final rxNo=TextEditingController(),doctor=TextEditingController(),license=TextEditingController(),facility=TextEditingController(),validDays=TextEditingController(text:'30'),refillsAllowed=TextEditingController(text:'0'),qty=TextEditingController(text:'1'),dose=TextEditingController(),duration=TextEditingController(text:'1'),paid=TextEditingController(text:'0'),walletRef=TextEditingController();
   int? patientId,policyId,drugId,cashId,selectedRxId;String type='NORMAL',paymentMethod='CASH';List<Map<String,Object?>> rxRows=[],rxItems=[],alertRows=[];bool saving=false;
   @override void initState(){super.initState();WidgetsBinding.instance.addPostFrameCallback((_)async{await context.read<ClinicalAndRxProvider>().loadAll();await _load();});}
-  @override void dispose(){for(final x in [rxNo,doctor,license,facility,validDays,qty,dose,duration,paid,walletRef]){x.dispose();}super.dispose();}
+  @override void dispose(){for(final x in [rxNo,doctor,license,facility,validDays,refillsAllowed,qty,dose,duration,paid,walletRef]){x.dispose();}super.dispose();}
   Future<void> _load()async{
     final db=await DatabaseHelper.instance.database;
     final rows=await db.rawQuery('SELECT r.*,p.full_name FROM prescriptions r JOIN patients p ON p.id=r.patient_id ORDER BY r.id DESC LIMIT 100');
@@ -56,8 +56,9 @@ class _S06PrescriptionInsuranceScreenState extends State<S06PrescriptionInsuranc
         TextField(controller:license,decoration:const InputDecoration(labelText:'رقم ترخيص الطبيب')),
         TextField(controller:facility,decoration:const InputDecoration(labelText:'المنشأة الطبية')),
         TextField(controller:validDays,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'صلاحية الوصفة بالأيام')),
+        TextField(controller:refillsAllowed,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'مرات إعادة الصرف المسموحة')),
         DropdownButtonFormField<String>(value:type,decoration:const InputDecoration(labelText:'نوع الوصفة'),items:const [DropdownMenuItem(value:'NORMAL',child:Text('عادية')),DropdownMenuItem(value:'CONTROLLED',child:Text('مراقبة')),DropdownMenuItem(value:'CHRONIC_REFILL',child:Text('مزمنة')),DropdownMenuItem(value:'INSURANCE',child:Text('تأمين'))],onChanged:(v)=>setState(()=>type=v??'NORMAL')),
-        DropdownButtonFormField<int>(value:policyId,decoration:const InputDecoration(labelText:'بوليصة التأمين (اختياري)'),items:p.policies.map((x)=>DropdownMenuItem(value:x.id,child:Text(x.policyNo))).toList(),onChanged:(v)=>setState(()=>policyId=v)),
+        DropdownButtonFormField<int>(value:policyId,decoration:const InputDecoration(labelText:'بوليصة التأمين (اختياري)'),items:p.policies.map((x){final company=p.companies.where((c)=>c.id==x.insuranceCompanyId).toList();return DropdownMenuItem(value:x.id,child:Text('${x.policyNo} • ${company.isEmpty?'شركة تأمين':company.first.nameAr}'));}).toList(),onChanged:(v)=>setState(()=>policyId=v)),
         if(policy!=null)...[
           Wrap(spacing:8,children:[Chip(label:Text('تغطية ${policy.coveragePct}%')),Chip(label:Text('تحمل المريض ${policy.copayPct}%')),Chip(label:Text('السقف المتبقي ${policy.remainingLimit.toStringAsFixed(2)}'))]),
           Builder(builder:(context){final company=p.companies.firstWhere((x)=>x.id==policy.insuranceCompanyId);final party=session.parties.where((x)=>x.id==company.partyId).toList();return party.isEmpty?Text('شركة التأمين: ${company.nameAr}'):Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('رصيد شركة التأمين: ${company.nameAr}'),PartyBalanceChip(totalAlayh:party.first.totalAlayh,totalLah:party.first.totalLah)]);}),
@@ -96,7 +97,7 @@ class _S06PrescriptionInsuranceScreenState extends State<S06PrescriptionInsuranc
     setState(()=>saving=true);
     try{
       final db=await DatabaseHelper.instance.database;final now=DateTime.now();final days=int.tryParse(validDays.text)??30;
-      await db.insert('prescriptions',{'rx_no':rxNo.text.trim(),'patient_id':patientId,'customer_party_id':context.read<ClinicalAndRxProvider>().patients.firstWhere((p)=>p.id==patientId).partyId,'doctor_name':doctor.text.trim(),'doctor_license_no':license.text.trim(),'facility_name':facility.text.trim(),'rx_date':now.toIso8601String(),'valid_until':now.add(Duration(days:days)).toIso8601String(),'rx_type':type,'insurance_policy_id':policyId,'refills_allowed':0,'refills_used':0,'status':'OPEN'});
+      await db.insert('prescriptions',{'rx_no':rxNo.text.trim(),'patient_id':patientId,'customer_party_id':context.read<ClinicalAndRxProvider>().patients.firstWhere((p)=>p.id==patientId).partyId,'doctor_name':doctor.text.trim(),'doctor_license_no':license.text.trim(),'facility_name':facility.text.trim(),'rx_date':now.toIso8601String(),'valid_until':now.add(Duration(days:days)).toIso8601String(),'rx_type':type,'insurance_policy_id':policyId,'refills_allowed':int.tryParse(refillsAllowed.text)??0,'refills_used':0,'status':'OPEN'});
       final row=await db.query('prescriptions',columns:['id'],where:'rx_no=?',whereArgs:[rxNo.text.trim()],limit:1);
       rxNo.clear();await _load();if(row.isNotEmpty)await _selectRx(row.first['id'] as int);
     }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
