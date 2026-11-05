@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../data/models/drug_model.dart';
 import '../../providers/clinical_and_rx_provider.dart';
-import '../../providers/pos_and_drugs_provider.dart';
 import '../../data/database/database_helper.dart';
 
 class S05DrugAlternativesSheet extends StatefulWidget {
