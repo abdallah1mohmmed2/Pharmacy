@@ -38,7 +38,7 @@ class HrAndPayrollService {
     });
   }
 
-  Future<int> postEmployeeAdvance({required int employeeId,required int cashAccountId,required double amount,required bool managerApproved,String? managerName,String note='سلفة موظف'}) async {
+  Future<int> postEmployeeAdvance({required int employeeId,required int cashAccountId,required double amount,int? managerUserId,String note='سلفة موظف'}) async {
     if(amount<=0)throw ArgumentError('مبلغ السلفة يجب أن يكون أكبر من صفر');
     final db=await _helper.database;
     return db.transaction((tx)async{
@@ -49,7 +49,8 @@ class HrAndPayrollService {
       final currentDue=_n(balance.first['due']);
       final monthly=_n(employee['pay_rate'])*(employee['pay_type']=='DAILY'?26:1);
       final ceiling=monthly*_n(employee['max_advance_pct'])/100;
-      if(currentDue+amount>ceiling&&!managerApproved)throw StateError('تجاوزت السلفة سقف المسموح؛ يلزم اعتماد المدير');
+      final managerRows=managerUserId==null?<Map<String,Object?>>[]:await tx.query('users',columns:['id'],where:"id=? AND branch_id=? AND role_code IN('OWNER','MANAGER') AND is_active=1 AND is_deleted=0",whereArgs:[managerUserId,branchId],limit:1);
+      if(currentDue+amount>ceiling&&managerRows.isEmpty)throw StateError('تجاوزت السلفة سقف المسموح؛ يلزم اعتماد المدير');
       final account=await tx.query('cash_accounts',columns:['current_balance','gl_account_id'],where:'id=? AND branch_id=?',whereArgs:[cashAccountId,branchId],limit:1);
       if(account.isEmpty||_n(account.first['current_balance'])<amount)throw StateError('رصيد الصندوق لا يكفي');
       final cashGl=account.first['gl_account_id'] as int;final advanceGl=await _gl(tx,'1202');
