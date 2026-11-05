@@ -56,7 +56,7 @@ class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScr
  ]));
 
  Widget _clinicalRules(DrugModel d)=>FutureBuilder<List<List<Map<String,Object?>>>>(
-  future:Future.wait(['drug_interactions','drug_renal_rules','drug_hepatic_rules','drug_pediatric_rules'].map((t)=>DatabaseHelper.instance.query(t,where:'drug_id=?',whereArgs:[d.id??-1]))),
+  future:Future.wait([DatabaseHelper.instance.rawQuery('SELECT * FROM drug_interactions WHERE drug_a_id=? OR drug_a_ingredient_id=?',[d.id,d.activeIngredientId]),...['drug_renal_rules','drug_hepatic_rules','drug_pediatric_rules'].map((t)=>DatabaseHelper.instance.query(t,where:'drug_id=?',whereArgs:[d.id??-1]))]),
   builder:(context,snapshot){
    if(!snapshot.hasData)return const Center(child:CircularProgressIndicator());
    final tables=snapshot.data!;
