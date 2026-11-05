@@ -99,7 +99,10 @@ class PurchaseAndBonusService {
       final inventory=await _accountId(txn,'1301');final supplierAccount=await _accountId(txn,'2101');
       final lines=<({int accountId,double debit,double credit,int? partyId,String memo})>[(accountId:inventory,debit:net,credit:0,partyId:null,memo:'مخزون مشتريات')];
       if(remaining>0)lines.add((accountId:supplierAccount,debit:0,credit:remaining,partyId:supplierPartyId,memo:'المتبقي للمورد'));
-      if(paidTotal>0){final cash=await txn.query('cash_accounts',columns:['gl_account_id'],where:'id=?',whereArgs:[cashAccountId]);if(cash.isEmpty||cash.first['gl_account_id']==null)throw StateError('اربط الصندوق بدليل الحسابات أولاً');lines.add((accountId:cash.first['gl_account_id'] as int,debit:0,credit:paidTotal,partyId:null,memo:'سداد فاتورة مشتريات'));await txn.rawUpdate('UPDATE cash_accounts SET current_balance=current_balance-?,updated_at=? WHERE id=?',[paidTotal,now,cashAccountId]);}
+      if(paidTotal>0){final cash=await txn.query('cash_accounts',columns:['gl_account_id'],where:'id=?',whereArgs:[cashAccountId]);if(cash.isEmpty||cash.first['gl_account_id']==null)throw StateError('اربط الصندوق بدليل الحسابات أولاً');lines.add((accountId:cash.first['gl_account_id'] as int,debit:0,credit:paidTotal,partyId:null,memo:'سداد فاتورة مشتريات'));await txn.rawUpdate('UPDATE cash_accounts SET current_balance=current_balance-?,updated_at=? WHERE id=?',[paidTotal,now,cashAccountId]);
+        final cashAfterRows=await txn.query('cash_accounts',columns:['current_balance'],where:'id=?',whereArgs:[cashAccountId],limit:1);
+        final openShiftRows=await txn.query('cashier_shifts',columns:['id'],where:"branch_id=? AND status='OPEN'",whereArgs:[branchId],orderBy:'id DESC',limit:1);
+        await txn.insert('cash_transactions',{'cash_account_id':cashAccountId,'tx_date':now,'direction':'OUT','amount':paidTotal,'tx_type':'PURCHASE_PAYMENT','doc_type':'PURCHASE','doc_id':invoiceId,'cashier_shift_id':openShiftRows.isEmpty?null:openShiftRows.first['id'],'balance_after':(cashAfterRows.first['current_balance'] as num).toDouble(),'note':'سداد فاتورة مشتريات','branch_id':branchId});}
       final journal=await _posting.postBalancedEntry(txn,branchId:branchId,description:'فاتورة مشتريات '+generatedNo,sourceType:'PURCHASE',sourceId:invoiceId,lines:lines);
       await txn.update('purchase_invoices',{'journal_entry_id':journal},where:'id=?',whereArgs:[invoiceId]);
       if(purchaseOrderId!=null){
@@ -165,6 +168,9 @@ class PurchaseAndBonusService {
           if(cashRows.isEmpty||cashRows.first['gl_account_id']==null)throw StateError('اربط الصندوق بدليل الحسابات أولاً');
           settlementAccount=(cashRows.first['gl_account_id'] as num).toInt();
           await txn.rawUpdate('UPDATE cash_accounts SET current_balance=current_balance+?,updated_at=? WHERE id=?',[agreedCreditValue,now,cashId]);
+          final afterRows=await txn.query('cash_accounts',columns:['current_balance'],where:'id=?',whereArgs:[cashId],limit:1);
+          final openShiftRows=await txn.query('cashier_shifts',columns:['id'],where:"branch_id=? AND status='OPEN'",whereArgs:[branchId],orderBy:'id DESC',limit:1);
+          await txn.insert('cash_transactions',{'cash_account_id':cashId,'tx_date':now,'direction':'IN','amount':agreedCreditValue,'tx_type':'PURCHASE_PAYMENT','doc_type':'PURCHASE_RETURN','doc_id':returnId,'cashier_shift_id':openShiftRows.isEmpty?null:openShiftRows.first['id'],'balance_after':(afterRows.first['current_balance'] as num).toDouble(),'note':'استرداد نقدي من المورد','branch_id':branchId});
         }
         final lines=<({int accountId,double debit,double credit,int? partyId,String memo})>[];
         lines.add((accountId:settlementAccount,debit:agreedCreditValue,credit:0,partyId:settlementType=='CREDIT_NOTE'?supplierPartyId:null,memo:settlementType=='CREDIT_NOTE'?'إشعار خصم مورد':'استرداد نقدي من المورد'));
