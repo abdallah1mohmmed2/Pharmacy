@@ -20,7 +20,7 @@ class DatabaseHelper {
         ? p.join((await getApplicationSupportDirectory()).path,'databases')
         : await getDatabasesPath();
     await Directory(directory).create(recursive:true);
-    final db=await openDatabase(p.join(directory,'global_pharmacy_erp.db'),version:6,onConfigure:(database)async{
+    final db=await openDatabase(p.join(directory,'global_pharmacy_erp.db'),version:7,onConfigure:(database)async{
       await database.execute('PRAGMA foreign_keys = ON');
       await database.execute('PRAGMA journal_mode = WAL');
       await database.execute('PRAGMA synchronous = NORMAL');
@@ -35,7 +35,7 @@ class DatabaseHelper {
     },onUpgrade:(database,oldVersion,newVersion) async {
       if(oldVersion<4) await SchemaIteration2.upgrade(database);
       if(oldVersion<5) await SchemaIteration3.upgrade(database);
-      if(oldVersion<6) await SchemaIteration4.upgrade(database);
+      if(oldVersion<7) await SchemaIteration4.upgrade(database);
     });
     await db.execute('PRAGMA foreign_keys = ON');
     await db.execute('PRAGMA busy_timeout = 5000');
