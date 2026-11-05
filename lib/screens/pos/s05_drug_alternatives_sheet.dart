@@ -35,9 +35,9 @@ class _S05DrugAlternativesSheetState extends State<S05DrugAlternativesSheet>{
     final rows=await DatabaseHelper.instance.query('drugs',where:'id=?',whereArgs:[drugId],limit:1);
     if(rows.isEmpty||!mounted)return;
     final replacement=DrugModel.fromMap(rows.first);
-    final verdict=await context.read<ClinicalAndRxProvider>().evaluateCart([replacement]);
+    final verdict=await context.read<ClinicalAndRxProvider>().evaluateCandidate(replacement);
     if(!mounted)return;
-    if(verdict.blocked){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('هذا البديل يتضمن حظراً سريرياً؛ لم يتم اختياره.')));return;}
+    if(verdict.hasUnresolvedCritical){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('هذا البديل يتضمن حظراً سريرياً؛ لم يتم اختياره.')));return;}
     widget.onSelect(replacement);
     Navigator.pop(context);
   }
