@@ -49,7 +49,7 @@ abstract final class SchemaBuilder {
     indications TEXT, dosage_administration TEXT, adult_dose_min_mg REAL, adult_dose_max_mg_per_day REAL, dose_frequency_text TEXT, take_with_food TEXT NOT NULL DEFAULT 'ANY' CHECK(take_with_food IN('BEFORE','WITH','AFTER','ANY')), label_dose_text_ar TEXT,
     contraindications TEXT, contraindications_json TEXT DEFAULT '[]', warnings_precautions TEXT, black_box_warning TEXT, warnings_json TEXT DEFAULT '[]',
     interactions_summary TEXT, has_critical_interactions INTEGER NOT NULL DEFAULT 0, side_effects_common TEXT, side_effects_serious TEXT,
-    strips_per_pack INTEGER NOT NULL DEFAULT 1 CHECK(strips_per_pack>=1), units_per_strip INTEGER NOT NULL DEFAULT 1 CHECK(units_per_strip>=1), units_per_pack INTEGER NOT NULL DEFAULT 1 CHECK(units_per_pack>=1),
+    strips_per_pack INTEGER NOT NULL DEFAULT 1 CHECK(strips_per_pack>=1), units_per_strip INTEGER NOT NULL DEFAULT 1 CHECK(units_per_strip>=1), units_per_pack INTEGER NOT NULL DEFAULT 1 CHECK(units_per_pack>=1 AND units_per_pack=strips_per_pack*units_per_strip),
     cost_price_pack REAL NOT NULL DEFAULT 0 CHECK(cost_price_pack>=0), last_purchase_cost_pack REAL NOT NULL DEFAULT 0, sell_price_pack REAL NOT NULL DEFAULT 0, sell_price_strip REAL NOT NULL DEFAULT 0, sell_price_unit REAL NOT NULL DEFAULT 0,
     strip_price_mode TEXT NOT NULL DEFAULT 'AUTO' CHECK(strip_price_mode IN('AUTO','MANUAL')), profit_margin_pct REAL NOT NULL DEFAULT 0, public_price_pack REAL NOT NULL DEFAULT 0, tax_rate_pct REAL NOT NULL DEFAULT 0,
     min_stock_units INTEGER NOT NULL DEFAULT 0 CHECK(min_stock_units>=0), reorder_qty_packs INTEGER NOT NULL DEFAULT 0, stock_total_units INTEGER NOT NULL DEFAULT 0 CHECK(stock_total_units>=0),
