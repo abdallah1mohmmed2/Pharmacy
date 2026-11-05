@@ -13,6 +13,13 @@ void main(){
     final override=PatientClinicalModel(fullName:'O',birthDate:birth,sex:'M',weightKg:72,serumCreatinine:1,egfrMlMin:42);
     expect(override.crcl,42);
   });
+  test('pregnancy status distinguishes unknown from confirmed negative',(){
+    final unknown=PatientClinicalModel(fullName:'Unknown',sex:'F');
+    final negative=PatientClinicalModel(fullName:'Negative',sex:'F',pregnancyStatusKnown:true,isPregnant:false);
+    expect(unknown.pregnancyStatusKnown,isFalse);
+    expect(negative.pregnancyStatusKnown,isTrue);
+    expect(negative.isPregnant,isFalse);
+  });
   test('clinical verdict sorts block and warning before caution and info',(){
     final verdict=ClinicalVerdict([
       const ClinicalAlertModel(category:'I',level:ClinicalLevel.info,messageAr:'i'),
