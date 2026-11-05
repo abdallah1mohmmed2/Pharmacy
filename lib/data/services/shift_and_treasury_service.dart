@@ -37,6 +37,10 @@ class ShiftAndTreasuryService {
       if(source.isEmpty)throw StateError('حساب المصدر غير موجود');
       if(_n(source.first['current_balance'])<amount+fee)throw StateError('رصيد حساب المصدر لا يكفي');
       final transferId=DateTime.now().microsecondsSinceEpoch;
+      final sourceShiftRows=await tx.query('cashier_shifts',columns:['id'],where:"branch_id=? AND drawer_account_id=? AND status='OPEN'",whereArgs:[branchId,fromAccountId],orderBy:'id DESC',limit:1);
+      final destinationShiftRows=await tx.query('cashier_shifts',columns:['id'],where:"branch_id=? AND drawer_account_id=? AND status='OPEN'",whereArgs:[branchId,toAccountId],orderBy:'id DESC',limit:1);
+      final int? sourceShiftId=sourceShiftRows.isEmpty?null:sourceShiftRows.first['id'] as int;
+      final int? destinationShiftId=destinationShiftRows.isEmpty?null:destinationShiftRows.first['id'] as int;
       final sourceRows=await tx.query('cash_accounts',columns:['gl_account_id'],where:'id=?',whereArgs:[fromAccountId],limit:1);
       final destinationRows=await tx.query('cash_accounts',columns:['gl_account_id'],where:'id=?',whereArgs:[toAccountId],limit:1);
       final sourceGl=sourceRows.first['gl_account_id'] as int?;final destinationGl=destinationRows.first['gl_account_id'] as int?;
@@ -47,7 +51,7 @@ class ShiftAndTreasuryService {
       if(fee>0){final feeGl=await _glId(tx,'5301');await _journalLine(tx,branchId:branchId,entryId:je,accountId:feeGl,dr:fee,memo:'رسوم تحويل');}
       await _cashMove(tx,branchId:branchId,accountId:fromAccountId,direction:'OUT',amount:amount,type:'TRANSFER_BETWEEN_ACCOUNTS',docType:'CASH_TRANSFER',docId:transferId,ref:walletRefNo,note:note);
       await _cashMove(tx,branchId:branchId,accountId:toAccountId,direction:'IN',amount:amount,type:'TRANSFER_BETWEEN_ACCOUNTS',docType:'CASH_TRANSFER',docId:transferId,ref:walletRefNo,note:note);
-      if(fee>0)await _cashMove(tx,branchId:branchId,accountId:fromAccountId,direction:'OUT',amount:fee,type:'EXPENSE',docType:'TRANSFER_FEE',docId:transferId,ref:walletRefNo,note:'رسوم تحويل: $note');
+      if(fee>0)await _cashMove(tx,branchId:branchId,accountId:fromAccountId,direction:'OUT',amount:fee,type:'EXPENSE',docType:'TRANSFER_FEE',docId:transferId,ref:walletRefNo,shiftId:sourceShiftId,note:'رسوم تحويل: $note');
     });
   }
 
