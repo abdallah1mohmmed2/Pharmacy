@@ -123,7 +123,7 @@ class PostingAndSalesService {
         final cashGl=cash.first['gl_account_id'] as int?;
         if(cashGl==null) throw StateError('اربط حساب الصندوق بدليل الحسابات أولاً');
         lines.add(isReceipt ? (accountId:cashGl!,debit:amount,credit:0,partyId:null,memo:'استلام نقدية') : (accountId:partyGl,debit:amount,credit:0,partyId:partyId,memo:'تسديد للطرف'));
-        lines.add(isReceipt ? (accountId:partyGl,debit:0,credit:amount,partyId:partyId,memo:'تخفيض رصيد الطرف') : (accountId:cashGl,debit:0,credit:amount,partyId:null,memo:'صرف نقدية'));
+        lines.add(isReceipt ? (accountId:partyGl,debit:0,credit:amount,partyId:partyId,memo:'تخفيض رصيد الطرف') : (accountId:cashGl!,debit:0,credit:amount,partyId:null,memo:'صرف نقدية'));
       }
       final entryId=await postBalancedEntry(txn,branchId:branchId,description:description,sourceType:'VOUCHER',sourceId:voucherId,lines:lines);
       await txn.update('vouchers',{'journal_entry_id':entryId},where:'id=?',whereArgs:[voucherId]);
