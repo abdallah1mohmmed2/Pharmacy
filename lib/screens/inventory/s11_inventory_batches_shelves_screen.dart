@@ -42,7 +42,7 @@ class _S11InventoryBatchesShelvesScreenState extends State<S11InventoryBatchesSh
     final saved=await showDialog<bool>(context:context,builder:(dialogContext)=>StatefulBuilder(builder:(dialogContext,setDialog)=>AlertDialog(
       title:const Text('إدارة مواقع الأرفف'),
       content:SizedBox(width:420,child:Column(mainAxisSize:MainAxisSize.min,children:[
-        DropdownButtonFormField<int>(value:warehouse,decoration:const InputDecoration(labelText:'المستودع'),items:p.warehouses.map((w)=>DropdownMenuItem(value:w.id,child:Text(w.nameAr))).toList(),onChanged:(value)=>setDialog(()=>{warehouse=value??warehouse,isFridge=p.warehouses.firstWhere((w)=>w.id==(value??warehouse)).whType=='FRIDGE'})),
+        DropdownButtonFormField<int>(value:warehouse,decoration:const InputDecoration(labelText:'المستودع'),items:p.warehouses.map((w)=>DropdownMenuItem(value:w.id,child:Text(w.nameAr))).toList(),onChanged:(value)=>setDialog((){warehouse=value??warehouse;isFridge=p.warehouses.firstWhere((w)=>w.id==warehouse).whType=='FRIDGE';})),
         TextField(controller:code,decoration:const InputDecoration(labelText:'رمز الرف مثال A-01-02')),
         TextField(controller:description,decoration:const InputDecoration(labelText:'الوصف')),
         SwitchListTile(value:isFridge,onChanged:p.warehouses.firstWhere((w)=>w.id==warehouse).whType=='FRIDGE'?null:(value)=>setDialog(()=>isFridge=value),title:const Text('رف مبرد')),
