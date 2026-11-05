@@ -11,6 +11,7 @@ class PosAndDrugsProvider extends ChangeNotifier {
   List<DrugModel> drugs=[];
   final List<PosTabSession> tabs=[PosTabSession(id:'tab-1',label:'فاتورة 1',createdAt:DateTime.now())];
   int activeTab=0;
+  int branchId=1;
   String search='';
   bool loading=false;
   String? clinicalBlock;
@@ -19,8 +20,9 @@ class PosAndDrugsProvider extends ChangeNotifier {
   Set<String> get patientFlags=>currentTab.patientFlags;
   double get total=>currentTab.total;
 
-  Future<void> loadDrugs() async {loading=true;notifyListeners();final rows=await _db.query('drugs',where:'is_deleted=0 AND is_active=1',orderBy:'trade_name_ar');drugs=rows.map(DrugModel.fromMap).toList();loading=false;notifyListeners();}
-  Future<void> searchDrugs(String value) async {search=value;final rows=await _db.rawQuery("SELECT * FROM drugs WHERE is_deleted=0 AND is_active=1 AND (trade_name_ar LIKE ? OR trade_name_en LIKE ? OR scientific_name LIKE ? OR barcode_local LIKE ? OR barcode_international LIKE ?) ORDER BY trade_name_ar LIMIT 100",['%'+value+'%','%'+value+'%','%'+value+'%','%'+value+'%','%'+value+'%']);drugs=rows.map(DrugModel.fromMap).toList();notifyListeners();}
+  Future<void> setBranchId(int value) async {branchId=value;await loadDrugs();}
+  Future<void> loadDrugs() async {loading=true;notifyListeners();final rows=await _db.query('drugs',where:'branch_id=? AND is_deleted=0 AND is_active=1',whereArgs:[branchId],orderBy:'trade_name_ar');drugs=rows.map(DrugModel.fromMap).toList();loading=false;notifyListeners();}
+  Future<void> searchDrugs(String value) async {search=value;final rows=await _db.rawQuery("SELECT * FROM drugs WHERE branch_id=? AND is_deleted=0 AND is_active=1 AND (trade_name_ar LIKE ? OR trade_name_en LIKE ? OR scientific_name LIKE ? OR barcode_local LIKE ? OR barcode_international LIKE ?) ORDER BY trade_name_ar LIMIT 100",[branchId,'%'+value+'%','%'+value+'%','%'+value+'%','%'+value+'%','%'+value+'%']);drugs=rows.map(DrugModel.fromMap).toList();notifyListeners();}
   bool createTab(){if(tabs.length>=8)return false;tabs.add(PosTabSession(id:'tab-'+DateTime.now().microsecondsSinceEpoch.toString(),label:'فاتورة '+(tabs.length+1).toString(),createdAt:DateTime.now()));activeTab=tabs.length-1;clinicalBlock=null;notifyListeners();return true;}
   void selectTab(int index){if(index<0||index>=tabs.length)return;activeTab=index;clinicalBlock=null;for(final item in cart){_checkDrug(item.drug);}notifyListeners();}
   void holdCurrent(){currentTab.held=true;notifyListeners();}
@@ -41,7 +43,7 @@ class PosAndDrugsProvider extends ChangeNotifier {
   }
   Future<void> saveDrug(DrugModel drug) async {
     final now=DateTime.now().toIso8601String();final map=drug.toMap();map.remove('id');
-    map['uuid']=drug.uuid??'drug-'+DateTime.now().microsecondsSinceEpoch.toString();map['branch_id']=drug.branchId??1;
+    map['uuid']=drug.uuid??'drug-'+DateTime.now().microsecondsSinceEpoch.toString();map['branch_id']=branchId;
     map['created_at']=drug.createdAt??now;map['updated_at']=now;
     map['internal_code']=drug.internalCode.isEmpty?'DR-'+DateTime.now().microsecondsSinceEpoch.toString():drug.internalCode;
     map['sell_price_strip']=drug.stripPriceMode=='MANUAL'?drug.sellPriceStrip:drug.sellPricePack/drug.stripsPerPack;
