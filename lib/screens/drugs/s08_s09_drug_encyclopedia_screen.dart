@@ -10,6 +10,8 @@ class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScr
  String filter='ALL';DrugModel? selected;
  @override Widget build(BuildContext context){final p=context.watch<PosAndDrugsProvider>();final list=p.drugs.where((d)=>switch(filter){'ANTIBIOTIC'=>d.isAntibiotic,'CONTROLLED'=>d.isControlled,'COLD'=>d.requiresRefrigeration,'PREG_X'=>d.pregnancyCategory=='X',_=>true}).toList();
   return Scaffold(backgroundColor:Colors.transparent,floatingActionButton:FloatingActionButton.extended(onPressed:()=>_edit(context),icon:const Icon(Icons.add),label:const Text('إضافة دواء')),body:Padding(padding:const EdgeInsets.all(12),child:Column(children:[
+   TextField(decoration:const InputDecoration(prefixIcon:Icon(Icons.search),hintText:'ابحث بالاسم التجاري أو العلمي أو الباركود'),onChanged:p.searchDrugs),
+   const SizedBox(height:8),
    Wrap(spacing:6,children:[for(final f in const [('ALL','الكل'),('ANTIBIOTIC','مضادات حيوية'),('CONTROLLED','مراقبة'),('COLD','ثلاجة'),('PREG_X','حمل X')])ChoiceChip(label:Text(f.$2),selected:filter==f.$1,onSelected:(_)=>setState(()=>filter=f.$1))]),
    Expanded(child:LayoutBuilder(builder:(context,c)=>Row(children:[
     SizedBox(width:c.maxWidth>800?330:c.maxWidth*.42,child:ListView(children:list.map((d)=>Card(child:ListTile(selected:selected?.id==d.id,title:Text(d.tradeNameAr),subtitle:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(d.scientificName),LinearProgressIndicator(value:d.calculateCompletenessPct()/100,color:AppColors.primary),Text('اكتمال البيانات: '+d.calculateCompletenessPct().toStringAsFixed(0)+'%')]),onTap:()=>setState(()=>selected=d))).toList())),
