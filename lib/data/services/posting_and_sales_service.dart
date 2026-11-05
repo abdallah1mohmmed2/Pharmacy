@@ -41,7 +41,7 @@ class PostingAndSalesService {
         if(drugRows.isEmpty) throw StateError('الصنف غير موجود');
         final unitsValue=drugRows.first['units_per_pack'];
         final int units=unitsValue is num?unitsValue.toInt():item.drug.effectiveUnitsPerPack;
-        final invoiceItemId=await txn.insert('sales_invoice_items',{..._base(branchId),'invoice_id':invoiceId,'drug_id':drugId,'sell_unit':item.sellUnit,'qty_in_sell_unit':item.quantity,'qty_units':item.baseUnits,'unit_price_sell_unit':item.unitPrice,'line_discount_amount':item.discount,'line_total':item.lineTotal,'line_cost':0});
+        final invoiceItemId=await txn.insert('sales_invoice_items',{..._base(branchId),'invoice_id':invoiceId,'drug_id':drugId,'sell_unit':item.sellUnit,'qty_in_sell_unit':item.quantity,'qty_units':item.baseUnits,'unit_price_sell_unit':item.unitPrice,'line_discount_amount':item.discount,'line_total':item.lineTotal,'line_cost':0,'is_substitute':item.isSubstitute?1:0,'substituted_for_drug_id':item.substitutedForDrugId});
         final allocations=await _fefo.allocateAndApply(txn:txn,drugId:drugId,needUnits:item.baseUnits,unitsPerPack:units,invoiceItemId:invoiceItemId,warehouseId:null,unitPrice:item.unitPrice,docType:'SALE',docId:invoiceId);
         final lineCost=allocations.fold<double>(0,(sum,a)=>sum+a.qtyUnits*a.unitCost);
         actualTotalCost+=lineCost;
