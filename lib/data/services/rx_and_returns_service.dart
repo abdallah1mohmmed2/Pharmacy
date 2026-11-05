@@ -201,7 +201,6 @@ class RxAndReturnsService {
       }else{
         await txn.insert('stock_movements',{'drug_id':drug.id,'batch_id':actualBatchId,'warehouse_id':batch['warehouse_id'],'movement_type':'SALE_RETURN_IN','qty_units':qtyUnits,'unit_cost':batch['unit_cost'],'unit_price':refundAmount/qtyUnits,'balance_after_units':oldTotal+qtyUnits,'doc_type':'SALES_RETURN','doc_id':returnId,'doc_line_id':invoiceItemId,'movement_at':DateTime.now().toIso8601String(),'note':'إثبات استلام المرتجع قبل الإتلاف'});
         await txn.insert('stock_movements',{'drug_id':drug.id,'batch_id':actualBatchId,'warehouse_id':batch['warehouse_id'],'movement_type':'DISPOSAL_OUT','qty_units':-qtyUnits,'unit_cost':batch['unit_cost'],'unit_price':0,'balance_after_units':oldTotal,'doc_type':'SALES_RETURN','doc_id':returnId,'doc_line_id':invoiceItemId,'movement_at':DateTime.now().toIso8601String(),'note':'إتلاف مرتجع مبيعات'});
-        await txn.rawUpdate('UPDATE drugs SET stock_total_units=MAX(0,stock_total_units-?) WHERE id=?',[qtyUnits,drug.id]);
       }
       int? creditAccountId;
       int? refundGlAccountId;
