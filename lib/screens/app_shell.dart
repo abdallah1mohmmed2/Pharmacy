@@ -1,0 +1,59 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/session_and_erp_provider.dart';
+import '../providers/pos_and_drugs_provider.dart';
+import 'dashboard/s02_executive_dashboard_screen.dart';
+import 'pos/s03_smart_pos_screen.dart';
+import 'drugs/s08_s09_drug_encyclopedia_screen.dart';
+import 'accounts/s19_s20_s21_parties_and_vouchers_screen.dart';
+
+class AppShell extends StatefulWidget {
+  const AppShell({super.key});
+  @override State<AppShell> createState()=>_AppShellState();
+}
+class _AppShellState extends State<AppShell>{
+  int index=0;
+  final pages=const [S02ExecutiveDashboardScreen(),S03SmartPosScreen(),S08S09DrugEncyclopediaScreen(),S19S20S21PartiesAndVouchersScreen()];
+  final titles=const ['لوحة التحكم التنفيذية','الكاشير الذكي','الموسوعة الدوائية','حسابات الأطراف والسندات'];
+  @override Widget build(BuildContext context){
+    final wide=MediaQuery.sizeOf(context).width>=900;
+    final session=context.watch<SessionAndErpProvider>();
+    if(session.currentUser==null)return const _LoginScreen();
+    return Scaffold(
+      appBar:AppBar(title:Text(titles[index]),actions:[
+        Padding(padding:const EdgeInsets.symmetric(horizontal:8),child:Center(child:Text('الصيدلية • الفرع الرئيسي • '+(session.currentUser?['full_name'] as String? ?? '')))),
+        IconButton(tooltip:'تحديث',onPressed:session.refresh,icon:const Icon(Icons.refresh)),
+        IconButton(tooltip:'تسجيل الخروج',onPressed:session.logout,icon:const Icon(Icons.logout)),
+      ]),
+      body:Row(children:[
+        if(wide)NavigationRail(selectedIndex:index,onDestinationSelected:(v)=>setState(()=>index=v),labelType:NavigationRailLabelType.all,
+          destinations:const [
+            NavigationRailDestination(icon:Icon(Icons.dashboard_outlined),selectedIcon:Icon(Icons.dashboard),label:Text('الرئيسية')),
+            NavigationRailDestination(icon:Icon(Icons.point_of_sale_outlined),selectedIcon:Icon(Icons.point_of_sale),label:Text('الكاشير')),
+            NavigationRailDestination(icon:Icon(Icons.medication_outlined),selectedIcon:Icon(Icons.medication),label:Text('الأدوية')),
+            NavigationRailDestination(icon:Icon(Icons.account_balance_wallet_outlined),selectedIcon:Icon(Icons.account_balance_wallet),label:Text('الحسابات')),
+          ]),
+        Expanded(child:IndexedStack(index:index,children:pages)),
+      ]),
+      bottomNavigationBar:wide?null:NavigationBar(selectedIndex:index,onDestinationSelected:(v)=>setState(()=>index=v),destinations:const [
+        NavigationDestination(icon:Icon(Icons.dashboard_outlined),label:'الرئيسية'),NavigationDestination(icon:Icon(Icons.point_of_sale_outlined),label:'الكاشير'),
+        NavigationDestination(icon:Icon(Icons.medication_outlined),label:'الأدوية'),NavigationDestination(icon:Icon(Icons.account_balance_wallet_outlined),label:'الحسابات'),
+      ]),
+    );
+  }
+}
+
+class _LoginScreen extends StatefulWidget{const _LoginScreen();}
+class _LoginScreenState extends State<_LoginScreen>{
+  final user=TextEditingController(text:'admin');final pass=TextEditingController(text:'123456');bool busy=false;String? error;
+  @override void dispose(){user.dispose();pass.dispose();super.dispose();}
+  @override Widget build(BuildContext context)=>Scaffold(body:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:380),child:Card(child:Padding(padding:const EdgeInsets.all(24),child:Column(mainAxisSize:MainAxisSize.min,children:[
+    const Icon(Icons.local_pharmacy,size:58,color:Color(0xFF4DB6AC)),const SizedBox(height:14),const Text('Global Pharmacy ERP',style:TextStyle(fontSize:22,fontWeight:FontWeight.bold)),
+    const SizedBox(height:20),TextField(controller:user,decoration:const InputDecoration(labelText:'اسم المستخدم')),
+    const SizedBox(height:10),TextField(controller:pass,obscureText:true,decoration:const InputDecoration(labelText:'كلمة المرور'),onSubmitted:(_)=>_login()),
+    if(error!=null)Padding(padding:const EdgeInsets.all(8),child:Text(error!,style:const TextStyle(color:Colors.redAccent))),
+    const SizedBox(height:14),SizedBox(width:double.infinity,child:FilledButton(onPressed:busy?null:_login,child:Text(busy?'جارٍ الدخول':'تسجيل الدخول'))),
+    const Text('حساب التأسيس: admin / 123456',style:TextStyle(color:Colors.white54,fontSize:11)),
+  ]))))));
+  Future<void> _login()async{setState(()=>busy=true);final ok=await context.read<SessionAndErpProvider>().login(user.text,pass.text);if(!mounted)return;setState(()=>{busy=false,error:ok?null:'بيانات الدخول غير صحيحة'});if(ok){await context.read<PosAndDrugsProvider>().loadDrugs();}}
+}
