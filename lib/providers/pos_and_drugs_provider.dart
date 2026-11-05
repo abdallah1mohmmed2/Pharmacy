@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../data/database/database_helper.dart';
 import '../data/models/drug_model.dart';
 import '../data/models/erp_models.dart';
+import '../data/models/clinical_and_rx_models.dart';
 import '../data/services/posting_and_sales_service.dart';
 
 class PosAndDrugsProvider extends ChangeNotifier {
@@ -59,10 +60,10 @@ class PosAndDrugsProvider extends ChangeNotifier {
         drug.sellPricePack / (stripsPerPack * unitsPerStrip);
     final db=await _db.database;if(drug.id==null){await db.insert('drugs',map);}else{await db.update('drugs',map,where:'id=?',whereArgs:[drug.id]);}await loadDrugs();
   }
-  Future<int> checkout({required int cashierId,required String saleType,required List<({int cashAccountId,double amount,String method,String? walletRef})> payments,int? customerId,double discount=0,bool managerApproved=false,int branchId=1}) async {
+  Future<int> checkout({required int cashierId,required String saleType,required List<({int cashAccountId,double amount,String method,String? walletRef})> payments,int? customerId,double discount=0,bool managerApproved=false,int branchId=1,required ClinicalVerdict clinicalVerdict}) async {
     if(currentTab.held)throw StateError('استرجع الفاتورة قبل إتمامها');
     if(clinicalBlock!=null&&!managerApproved)throw StateError('يلزم حذف الدواء المتعارض أو اعتماد المدير');
-    final id=await _posting.postSale(branchId:branchId,cashierUserId:cashierId,items:List<CartItemModel>.from(cart),saleType:saleType,payments:payments,customerPartyId:customerId??0,discountAmount:discount);
+    final id=await _posting.postSale(branchId:branchId,cashierUserId:cashierId,items:List<CartItemModel>.from(cart),saleType:saleType,payments:payments,customerPartyId:customerId??0,discountAmount:discount,clinicalVerdict:clinicalVerdict);
     currentTab.items.clear();currentTab.held=false;await loadDrugs();notifyListeners();return id;
   }
 }
