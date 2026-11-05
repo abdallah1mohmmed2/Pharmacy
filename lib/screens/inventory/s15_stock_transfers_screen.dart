@@ -45,6 +45,34 @@ class _S15StockTransfersScreenState extends State<S15StockTransfersScreen>{
   }
   for(final controller in controllers.values){controller.dispose();}
  }
- Future<void> _suggest(InventoryAndPurchaseProvider p)async{final pharmacy=p.warehouses.where((w)=>w.whType=='PHARMACY_FLOOR').toList();final main=p.warehouses.where((w)=>w.whType=='MAIN_STORE').toList();if(pharmacy.isEmpty||main.isEmpty){_message('المستودع الرئيسي أو صالة الصيدلية غير مهيأ');return;}final candidates=p.batches.where((b)=>b.warehouseId==main.first.id&&b.totalUnits>0&&b.status=='ACTIVE'&&b.daysUntilExpiry>=0).take(5).toList();if(candidates.isEmpty){_message('لا توجد تشغيلات قابلة للتغذية');return;}try{await p.createTransfer(fromWarehouse:main.first.id,toWarehouse:pharmacy.first.id,items:candidates.map((b)=>(batchId:b.id,qtyUnits:b.totalUnits< b.sealedPacks*2?b.totalUnits:b.sealedPacks*2)).where((x)=>x.qtyUnits>0).toList());_message('تم إنشاء مقترح تحويل لتغذية الرفوف');}catch(e){_message(e.toString());}}
+ Future<void> _suggest(InventoryAndPurchaseProvider p)async{
+  final pharmacy=p.warehouses.where((w)=>w.whType=='PHARMACY_FLOOR').toList();
+  final main=p.warehouses.where((w)=>w.whType=='MAIN_STORE').toList();
+  if(pharmacy.isEmpty||main.isEmpty){_message('المستودع الرئيسي أو صالة الصيدلية غير مهيأ');return;}
+  final db=await DatabaseHelper.instance.database;
+  final levels=await db.rawQuery(
+   "SELECT d.id,d.min_stock_units,d.requires_refrigeration,COALESCE(SUM(CASE WHEN b.warehouse_id=? AND b.status='ACTIVE' AND b.expiry_date>=date('now') THEN b.total_units ELSE 0 END),0) pharmacy_units FROM drugs d LEFT JOIN batches_fefo b ON b.drug_id=d.id GROUP BY d.id",
+   [pharmacy.first.id],
+  );
+  final items=<({int batchId,int qtyUnits})>[];
+  for(final level in levels){
+   if((level['requires_refrigeration'] as int? ?? 0)==1)continue;
+   final minimum=(level['min_stock_units'] as int? ?? 0);
+   final current=(level['pharmacy_units'] as int? ?? 0);
+   var needed=minimum*2-current;
+   if(needed<=0)continue;
+   final drugId=level['id'] as int;
+   final source=p.batches.where((b)=>b.drugId==drugId&&b.warehouseId==main.first.id&&b.status=='ACTIVE'&&!b.isExpired).toList()
+    ..sort((a,b)=>a.expiryDate.compareTo(b.expiryDate));
+   for(final batch in source){
+    if(needed<=0)break;
+    final amount=batch.totalUnits<needed?batch.totalUnits:needed;
+    if(amount>0){items.add((batchId:batch.id,qtyUnits:amount));needed-=amount;}
+   }
+  }
+  if(items.isEmpty){_message('لا توجد كميات صالحة في المخزن الرئيسي تحتاجها صالة الصيدلية');return;}
+  try{await p.createTransfer(fromWarehouse:main.first.id,toWarehouse:pharmacy.first.id,items:items);_message('تم إنشاء مقترح تغذية الرفوف من التشغيلات الأقرب انتهاءً');}
+  catch(error){_message(error.toString());}
+ }
  void _message(String v)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(v)));
 }
