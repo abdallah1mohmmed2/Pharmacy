@@ -54,18 +54,19 @@ class _S17S18ReturnsAndShortagesScreenState extends State<S17S18ReturnsAndShorta
  Future<void> _order(InventoryAndPurchaseProvider p)async{
   if(p.shortages.isEmpty){_msg('لا توجد أصناف ناقصة لإنشاء أمر شراء');return;}
   final grouped=<int,List<({int drugId,int packs,double cost,int bonus})>>{};
+  var skipped=0;
   for(final item in p.shortages.where((x)=>x.suggestedPacks>0)){
    final supplierId=item.bestSupplierId??supplier;
-   if(supplierId==null)continue;
+   if(supplierId==null||item.effectivePackCost<=0){skipped++;continue;}
    grouped.putIfAbsent(supplierId,()=>[]).add((drugId:item.drugId,packs:item.suggestedPacks,cost:item.effectivePackCost,bonus:0));
   }
-  if(grouped.isEmpty){_msg('لا يوجد مورد مرتبط بتكلفة شراء سابقة؛ اختر مورداً أولاً');return;}
+  if(grouped.isEmpty){_msg('لا توجد توصيات لها مورد وتكلفة شراء فعلية موثوقة؛ سجّل فاتورة شراء سابقة أو حدّد مورداً وتكلفة الصنف');return;}
   try{
    final created=<int>[];
    for(final entry in grouped.entries){
     created.add(await p.createShortageOrder(supplierId:entry.key,items:entry.value));
    }
-   _msg('تم إنشاء '+created.length.toString()+' أمر شراء تلقائياً: '+created.join('، '));
+   _msg('تم إنشاء '+created.length.toString()+' أمر شراء. أصناف تم تجاوزها لعدم توفر تكلفة: '+skipped.toString());
   }catch(e){_msg(e.toString());}
  }
  Future<void> _convertOrder(InventoryAndPurchaseProvider p,Map<String,Object?> order)async{
