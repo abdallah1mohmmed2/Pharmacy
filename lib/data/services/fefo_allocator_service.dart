@@ -15,7 +15,7 @@ class FefoAllocator {
     if(needUnits<=0||unitsPerPack<=0)throw ArgumentError('الكمية ووحدات الباكت يجب أن تكون موجبة');
     final db=await _helper.database;
     final today=DateTime.now().toIso8601String().substring(0,10);
-    final rows=await db.rawQuery("SELECT * FROM batches_fefo WHERE drug_id=? AND status='ACTIVE' AND total_units>0 AND expiry_date>=? \${warehouseId==null?'':'AND warehouse_id=?'} ORDER BY expiry_date ASC,id ASC",warehouseId==null?[drugId,today]:[drugId,today,warehouseId]);
+    final rows=await db.rawQuery("SELECT b.* FROM batches_fefo b JOIN warehouses w ON w.id=b.warehouse_id WHERE b.drug_id=? AND b.status='ACTIVE' AND b.total_units>0 AND b.expiry_date>=? AND w.is_sellable=1 ${warehouseId==null?'':'AND b.warehouse_id=?'} ORDER BY b.expiry_date ASC,b.id ASC",warehouseId==null?[drugId,today]:[drugId,today,warehouseId]);
     var remaining=needUnits;final result=<FefoAllocation>[];
     for(final row in rows){
       if(remaining<=0)break;
