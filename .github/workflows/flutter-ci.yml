@@ -19,6 +19,8 @@ jobs:
       - run: flutter create --platforms=android,windows --org com.globalpharmacy .
       - run: flutter pub get
       - run: dart format lib test
+      - name: Inspect formatted sales posting source
+        run: nl -ba lib/data/services/posting_and_sales_service.dart | sed -n '125,145p'
       - run: flutter analyze --no-fatal-infos
       - run: flutter test
       - run: flutter build apk --release
