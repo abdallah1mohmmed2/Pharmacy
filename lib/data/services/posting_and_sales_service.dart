@@ -36,7 +36,7 @@ class PostingAndSalesService {
         final stock=rows.first['stock_total_units'] as int;
         if(stock<item.baseUnits) throw StateError('المخزون غير كافٍ للصنف '+item.drug.tradeNameAr);
       }
-      final invoiceNo='INV-'+DateTime.now().microsecondsSinceEpoch.toString();
+      final invoiceNo=await _nextNumber(txn,branchId,'INVOICE');
       final invoiceId=await txn.insert('sales_invoices',{..._base(branchId),'invoice_no':invoiceNo,'invoice_date':DateTime.now().toIso8601String(),'cashier_user_id':cashierUserId,'customer_party_id':customerPartyId,'sale_type':saleType,'status':'COMPLETED','subtotal':subtotal,'discount_amount':discountAmount,'net_total':net,'paid_total':paid,'remaining_alayh':remaining,'total_cost':items.fold<double>(0,(s,i)=>s+i.drug.costPricePack*i.baseUnits/i.drug.unitsPerPack)});
       for(final item in items){
         await txn.insert('sales_invoice_items',{..._base(branchId),'invoice_id':invoiceId,'drug_id':item.drug.id,'sell_unit':item.sellUnit,'qty_in_sell_unit':item.quantity,'qty_units':item.baseUnits,'unit_price_sell_unit':item.unitPrice,'line_discount_amount':item.discount,'line_total':item.lineTotal,'line_cost':item.drug.costPricePack*item.baseUnits/item.drug.unitsPerPack});
@@ -54,6 +54,11 @@ class PostingAndSalesService {
       }
       final revenue=await _accountId(txn,'4101');
       if(remaining>0 && customerPartyId!=null){
+        final creditRows=await txn.rawQuery('SELECT p.credit_limit, COALESCE(v.net,0) AS net FROM parties p LEFT JOIN v_party_balance v ON v.party_id=p.id WHERE p.id=?',[customerPartyId]);
+        if(creditRows.isEmpty) throw StateError('العميل غير موجود');
+        final limit=(creditRows.first['credit_limit'] as num).toDouble();
+        final existing=(creditRows.first['net'] as num).toDouble();
+        if(limit>0 && existing+remaining>limit) throw StateError('تجاوز الحد الائتماني للعميل');
         await txn.insert('lah_alayh_ledger',{..._base(branchId),'party_id':customerPartyId,'entry_date':DateTime.now().toIso8601String(),'entry_type':'SALE','alayh_amount':remaining,'lah_amount':0,'doc_type':'INVOICE','doc_id':invoiceId,'statement_ar':'الجزء المتبقي من الفاتورة '+invoiceNo});
         final receivable=await _accountId(txn,'1201');
         journalLines.add((accountId:receivable,debit:remaining,credit:0,partyId:customerPartyId,memo:'ذمم فاتورة'));
@@ -72,15 +77,16 @@ class PostingAndSalesService {
     if(method=='WALLET' && (walletRefNo==null || walletRefNo.trim().length<6)) throw ArgumentError('رقم إشعار المحفظة مطلوب');
     if(!['RECEIPT','PAYMENT','SETTLEMENT'].contains(voucherType)) throw ArgumentError('نوع سند غير صالح');
     return (await _helper.database).transaction((txn) async {
+      final generatedVoucherNo=await _nextNumber(txn,branchId,'VOUCHER');
       final cash=await txn.query('cash_accounts',where:'id=?',whereArgs:[cashAccountId]);
       if(cash.isEmpty) throw StateError('حساب الصندوق غير موجود');
       final party=await txn.query('parties',where:'id=?',whereArgs:[partyId]);
       if(party.isEmpty) throw StateError('الطرف غير موجود');
-      final voucherId=await txn.insert('vouchers',{..._base(branchId),'voucher_no':voucherNo,'voucher_type':voucherType,'voucher_date':DateTime.now().toIso8601String(),'party_id':partyId,'cash_account_id':cashAccountId,'amount':amount,'method':method,'wallet_ref_no':walletRefNo,'description':description});
+      final voucherId=await txn.insert('vouchers',{..._base(branchId),'voucher_no':generatedVoucherNo,'voucher_type':voucherType,'voucher_date':DateTime.now().toIso8601String(),'party_id':partyId,'cash_account_id':cashAccountId,'amount':amount,'method':method,'wallet_ref_no':walletRefNo,'description':description});
       final isReceipt=voucherType=='RECEIPT';
       final alayh=isReceipt?0.0:amount;
       final lah=isReceipt?amount:0.0;
-      await txn.insert('lah_alayh_ledger',{..._base(branchId),'party_id':partyId,'entry_date':DateTime.now().toIso8601String(),'entry_type':voucherType,'alayh_amount':alayh,'lah_amount':lah,'doc_type':'VOUCHER','doc_id':voucherId,'statement_ar':description.isEmpty?'سند '+voucherNo:description});
+      await txn.insert('lah_alayh_ledger',{..._base(branchId),'party_id':partyId,'entry_date':DateTime.now().toIso8601String(),'entry_type':voucherType,'alayh_amount':alayh,'lah_amount':lah,'doc_type':'VOUCHER','doc_id':voucherId,'statement_ar':description.isEmpty?'سند '+generatedVoucherNo:description});
       await txn.rawUpdate('UPDATE cash_accounts SET current_balance=current_balance+?,updated_at=? WHERE id=?',[isReceipt?amount:-amount,DateTime.now().toIso8601String(),cashAccountId]);
       final cashGl=cash.first['gl_account_id'] as int?;
       final partyGl=await _accountId(txn,isReceipt?'1201':'2101');
@@ -93,6 +99,15 @@ class PostingAndSalesService {
       await txn.update('vouchers',{'journal_entry_id':entryId},where:'id=?',whereArgs:[voucherId]);
       return voucherId;
     });
+  }
+
+  Future<String> _nextNumber(Transaction txn,int branchId,String docType) async {
+    final year=DateTime.now().year;
+    final rows=await txn.query('number_sequences',where:'branch_id=? AND doc_type=? AND year=?',whereArgs:[branchId,docType,year],limit:1);
+    if(rows.isEmpty) throw StateError('تسلسل المستند غير مهيأ: '+docType);
+    final row=rows.first;final next=(row['last_no'] as int)+1;final id=row['id'] as int;final prefix=row['prefix'] as String;final pad=row['pad_length'] as int;
+    await txn.update('number_sequences',{'last_no':next,'updated_at':DateTime.now().toIso8601String()},where:'id=?',whereArgs:[id]);
+    return prefix+'-'+year.toString()+'-'+next.toString().padLeft(pad,'0');
   }
 
   Future<int> _accountId(Transaction txn,String code) async {
