@@ -56,8 +56,10 @@ class _S25EmployeesShiftsPayrollScreenState extends State<S25EmployeesShiftsPayr
     ]);
   }
   Future<void> _statement(Map<String,Object?> employee)async{
-    final rows=await DatabaseHelper.instance.rawQuery('SELECT entry_date,entry_type,alayh_amount,lah_amount,statement_ar FROM lah_alayh_ledger WHERE party_id=? ORDER BY entry_date,id',[employee['party_id']]);
-    if(!mounted)return;await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(title:Text('كشف حساب • ${employee['name_ar']}'),content:SizedBox(width:700,height:450,child:SingleChildScrollView(child:DataTable(columns:const [DataColumn(label:Text('التاريخ')),DataColumn(label:Text('البيان')),DataColumn(label:Text('له')),DataColumn(label:Text('عليه'))],rows:rows.map((r)=>DataRow(cells:[DataCell(Text(r['entry_date'].toString().split('T').first)),DataCell(Text(r['statement_ar'].toString())),DataCell(Text((r['lah_amount'] as num).toStringAsFixed(2))),DataCell(Text((r['alayh_amount'] as num).toStringAsFixed(2)))] )).toList()))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إغلاق'))]));
+    final entries=await DatabaseHelper.instance.rawQuery('SELECT entry_date,entry_type,alayh_amount,lah_amount,statement_ar,doc_type,doc_id FROM lah_alayh_ledger WHERE party_id=? ORDER BY entry_date,id',[employee['party_id']]);
+    if(!mounted)return;
+    final rows=entries.map((r)=>LahAlayhRow(date:r['entry_date'].toString().split('T').first,statement:r['statement_ar'].toString(),document:'${r['doc_type']} #${r['doc_id']??''}',alayh:(r['alayh_amount'] as num),lah:(r['lah_amount'] as num))).toList();
+    await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(title:Text('كشف حساب • ${employee['name_ar']}'),content:SizedBox(width:850,height:480,child:LahAlayhTable(rows:rows)),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إغلاق'))]));
   }
   Future<void> _advance(TreasuryHrPartnerProvider p,Map<String,Object?> employee)async{
     final amount=TextEditingController();final session=context.read<SessionAndErpProvider>();bool manager=false;
