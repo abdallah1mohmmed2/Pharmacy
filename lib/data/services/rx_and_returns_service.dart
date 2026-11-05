@@ -127,7 +127,7 @@ class RxAndReturnsService {
         final quarantineBatch=Map<String,Object?>.from(batch)..remove('id');
         quarantineBatch['warehouse_id']=wh.first['id'];quarantineBatch['location_id']=null;quarantineBatch['batch_no']='${batch['batch_no']}-RET-$returnId';quarantineBatch['sealed_packs']=qtyUnits~/unitsPerPack;quarantineBatch['loose_units']=qtyUnits%unitsPerPack;quarantineBatch['total_units']=qtyUnits;quarantineBatch['status']='QUARANTINED';
         final quarantineBatchId=await txn.insert('batches_fefo',quarantineBatch);
-        await txn.update('sales_return_items',{'batch_id':quarantineBatchId},where:'sales_return_id=? AND invoice_item_id=?',[returnId,invoiceItemId]);
+        await txn.update('sales_return_items',{'batch_id':quarantineBatchId},where:'sales_return_id=? AND invoice_item_id=?',whereArgs:[returnId,invoiceItemId]);
         await txn.insert('stock_movements',{'drug_id':drug.id,'batch_id':actualBatchId,'warehouse_id':batch['warehouse_id'],'movement_type':'TRANSFER_OUT','qty_units':-qtyUnits,'unit_cost':batch['unit_cost'],'unit_price':0,'balance_after_units':remainingUnits,'doc_type':'SALES_RETURN','doc_id':returnId,'doc_line_id':invoiceItemId,'movement_at':DateTime.now().toIso8601String(),'note':'تحويل مرتجع إلى الحجر'});
         await txn.insert('stock_movements',{'drug_id':drug.id,'batch_id':quarantineBatchId,'warehouse_id':wh.first['id'],'movement_type':'TRANSFER_IN','qty_units':qtyUnits,'unit_cost':batch['unit_cost'],'unit_price':0,'balance_after_units':qtyUnits,'doc_type':'SALES_RETURN','doc_id':returnId,'doc_line_id':invoiceItemId,'movement_at':DateTime.now().toIso8601String(),'note':'استلام المرتجع في الحجر'});
         await txn.rawUpdate('UPDATE drugs SET stock_total_units=stock_total_units+? WHERE id=?',[qtyUnits,drug.id]);
@@ -151,9 +151,9 @@ class RxAndReturnsService {
         if(refundGlAccountId==null)throw StateError('اربط حساب الصندوق بدليل الحسابات');
         await txn.rawUpdate('UPDATE cash_accounts SET current_balance=current_balance-? WHERE id=?',[refundAmount,cashAccountId]);
       }
-      final jeId=await _postReturnJournal(txn,returnId:returnId,returnNo:returnNo,refundAmount:refundAmount,refundAccountId:creditAccountId??refundGlAccountId!,inventoryCost:(disposition=='DISPOSE'?0:(batch['unit_cost'] as num).toDouble()*qtyUnits),approvedBy:approvedBy);
+      final jeId=await _postReturnJournal(txn,returnId:returnId,returnNo:returnNo,refundAmount:refundAmount,refundAccountId:creditAccountId??refundGlAccountId!,inventoryCost:(disposition=='DISPOSE'?0:(batch['unit_cost'] as num).toDouble()*qtyUnits));
       await txn.update('sales_returns',{'journal_entry_id':jeId},where:'id=?',whereArgs:[returnId]);
-      await txn.update('lah_alayh_ledger',{'journal_entry_id':jeId},where:"doc_type='SALES_RETURN' AND doc_id=?",[returnId]);
+      await txn.update('lah_alayh_ledger',{'journal_entry_id':jeId},where:"doc_type='SALES_RETURN' AND doc_id=?",whereArgs:[returnId]);
       return returnId;
     });
   }
@@ -163,7 +163,7 @@ class RxAndReturnsService {
     if(rows.isEmpty)throw StateError('الحساب المحاسبي $code غير موجود');
     return rows.first['id'] as int;
   }
-  Future<int> _postReturnJournal(Transaction txn,{required int returnId,required String returnNo,required double refundAmount,required int refundAccountId,required double inventoryCost,required int? approvedBy}) async {
+  Future<int> _postReturnJournal(Transaction txn,{required int returnId,required String returnNo,required double refundAmount,required int refundAccountId,required double inventoryCost) async {
     final now=DateTime.now().toIso8601String();
     final je=await txn.insert('journal_entries',{'uuid':_number('JE'),'branch_id':1,'created_at':now,'updated_at':now,'is_deleted':0,'sync_status':'LOCAL','sync_version':1,'entry_no':_number('RET-JE'),'entry_date':now,'description':'قيد مرتجع المبيعات $returnNo','source_type':'SALES_RETURN','source_id':returnId,'is_posted':1});
     final salesReturns=await _accountId(txn,'4101');
@@ -176,4 +176,11 @@ class RxAndReturnsService {
     return je;
   }
   List<String> jsonDecodeSafe(String raw){try{return (jsonDecode(raw) as List).map((e)=>e.toString()).toList();}catch(_){return [];}}
+}
+
+class SalesReturnService {
+  SalesReturnService({DatabaseHelper? helper}):_delegate=RxAndReturnsService(helper:helper);
+  final RxAndReturnsService _delegate;
+  Future<int> createReturn({required int invoiceId,required int invoiceItemId,required int qtyUnits,required double refundAmount,required String reasonCode,required String reasonText,required String refundMethod,required String disposition,required int? approvedBy,required int? cashAccountId,int? batchId,bool openedLiquid=false,String? walletRef}) =>
+    _delegate.createSalesReturn(invoiceId:invoiceId,invoiceItemId:invoiceItemId,qtyUnits:qtyUnits,refundAmount:refundAmount,reasonCode:reasonCode,reasonText:reasonText,refundMethod:refundMethod,disposition:disposition,approvedBy:approvedBy,cashAccountId:cashAccountId,batchId:batchId,openedLiquid:openedLiquid,walletRef:walletRef);
 }
