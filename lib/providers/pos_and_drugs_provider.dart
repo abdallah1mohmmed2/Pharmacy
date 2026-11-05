@@ -13,21 +13,21 @@ class PosAndDrugsProvider extends ChangeNotifier {
   int activeTab=0;
   String search='';
   bool loading=false;
-  final Set<String> patientFlags={};
   String? clinicalBlock;
   PosTabSession get currentTab=>tabs[activeTab];
   List<CartItemModel> get cart=>currentTab.items;
+  Set<String> get patientFlags=>currentTab.patientFlags;
   double get total=>currentTab.total;
 
   Future<void> loadDrugs() async {loading=true;notifyListeners();final rows=await _db.query('drugs',where:'is_deleted=0 AND is_active=1',orderBy:'trade_name_ar');drugs=rows.map(DrugModel.fromMap).toList();loading=false;notifyListeners();}
   Future<void> searchDrugs(String value) async {search=value;final rows=await _db.rawQuery("SELECT * FROM drugs WHERE is_deleted=0 AND is_active=1 AND (trade_name_ar LIKE ? OR trade_name_en LIKE ? OR scientific_name LIKE ? OR barcode_local LIKE ? OR barcode_international LIKE ?) ORDER BY trade_name_ar LIMIT 100",['%'+value+'%','%'+value+'%','%'+value+'%','%'+value+'%','%'+value+'%']);drugs=rows.map(DrugModel.fromMap).toList();notifyListeners();}
   bool createTab(){if(tabs.length>=8)return false;tabs.add(PosTabSession(id:'tab-'+DateTime.now().microsecondsSinceEpoch.toString(),label:'فاتورة '+(tabs.length+1).toString(),createdAt:DateTime.now()));activeTab=tabs.length-1;notifyListeners();return true;}
-  void selectTab(int index){if(index<0||index>=tabs.length)return;activeTab=index;clinicalBlock=null;notifyListeners();}
+  void selectTab(int index){if(index<0||index>=tabs.length)return;activeTab=index;clinicalBlock=null;for(final item in cart){_checkDrug(item.drug);}notifyListeners();}
   void holdCurrent(){currentTab.held=true;notifyListeners();}
   bool restoreCurrent(){if(!currentTab.held)return false;currentTab.held=false;notifyListeners();return true;}
-  void closeCurrent(){if(tabs.length==1){currentTab.items.clear();currentTab.held=false;}else{tabs.removeAt(activeTab);activeTab=activeTab.clamp(0,tabs.length-1).toInt();}clinicalBlock=null;notifyListeners();}
+  void closeCurrent(){if(tabs.length==1){currentTab.items.clear();currentTab.patientFlags.clear();currentTab.held=false;}else{tabs.removeAt(activeTab);activeTab=activeTab.clamp(0,tabs.length-1).toInt();}clinicalBlock=null;notifyListeners();}
   void setPatientFlag(String flag,bool enabled){if(enabled){patientFlags.add(flag);}else{patientFlags.remove(flag);}clinicalBlock=null;for(final item in cart){_checkDrug(item.drug);}notifyListeners();}
-  void addDrug(DrugModel drug,{String unit='UNIT'}){_checkDrug(drug);cart.add(CartItemModel(drug:drug,sellUnit:unit));notifyListeners();}
+  void addDrug(DrugModel drug,{String unit='UNIT'}){if(currentTab.held)throw StateError('استرجع الفاتورة قبل تعديلها');_checkDrug(drug);cart.add(CartItemModel(drug:drug,sellUnit:unit));notifyListeners();}
   void removeItem(CartItemModel item){cart.remove(item);clinicalBlock=null;for(final i in cart){_checkDrug(i.drug);}notifyListeners();}
   void changeQuantity(CartItemModel item,double qty){if(qty<=0){removeItem(item);}else{item.quantity=qty;notifyListeners();}}
   void changeUnit(CartItemModel item,String unit){item.sellUnit=unit;notifyListeners();}
@@ -49,6 +49,7 @@ class PosAndDrugsProvider extends ChangeNotifier {
     final db=await _db.database;if(drug.id==null){await db.insert('drugs',map);}else{await db.update('drugs',map,where:'id=?',whereArgs:[drug.id]);}await loadDrugs();
   }
   Future<int> checkout({required int cashierId,required String saleType,required List<({int cashAccountId,double amount,String method,String? walletRef})> payments,int? customerId,double discount=0,bool managerApproved=false,int branchId=1}) async {
+    if(currentTab.held)throw StateError('استرجع الفاتورة قبل إتمامها');
     if(clinicalBlock!=null&&!managerApproved)throw StateError('يلزم حذف الدواء المتعارض أو اعتماد المدير');
     final id=await _posting.postSale(branchId:branchId,cashierUserId:cashierId,items:List<CartItemModel>.from(cart),saleType:saleType,payments:payments,customerPartyId:customerId,discountAmount:discount);
     currentTab.items.clear();currentTab.held=false;await loadDrugs();notifyListeners();return id;
