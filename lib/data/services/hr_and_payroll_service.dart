@@ -46,7 +46,7 @@ class HrAndPayrollService {
       if(rows.isEmpty)throw StateError('الموظف غير موجود');
       final employee=rows.first;final partyId=employee['party_id'] as int;final branchId=employee['branch_id'] as int;
       final balance=await tx.rawQuery('SELECT COALESCE(SUM(alayh_amount),0)-COALESCE(SUM(lah_amount),0) due FROM lah_alayh_ledger WHERE party_id=?',[partyId]);
-      final currentDue=_n(balance.first['due']);
+      final currentDue=_n(balance.first['due']).clamp(0,double.infinity).toDouble();
       final monthly=_n(employee['pay_rate'])*(employee['pay_type']=='DAILY'?26:1);
       final ceiling=monthly*_n(employee['max_advance_pct'])/100;
       final managerRows=managerUserId==null?<Map<String,Object?>>[]:await tx.query('users',columns:['id'],where:"id=? AND branch_id=? AND role_code IN('OWNER','MANAGER') AND is_active=1 AND is_deleted=0",whereArgs:[managerUserId,branchId],limit:1);
