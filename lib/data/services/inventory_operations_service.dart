@@ -124,10 +124,10 @@ class InventoryOperationsService {
           balance=total;
           final shelf=await txn.query('shelf_locations',columns:['id'],where:'warehouse_id=?',whereArgs:[destination],limit:1);
           if(existing.isEmpty){
-            batchId=await txn.insert('batches_fefo',{'drug_id':source['drug_id'],'warehouse_id':destination,'location_id':shelf.isEmpty?null:shelf.first['id'],'batch_no':source['batch_no'],'expiry_date':source['expiry_date'],'manufacture_date':source['manufacture_date'],'sealed_packs':total~/units,'loose_units':total%units,'total_units':total,'unit_cost':item['unit_cost'],'pack_cost':source['pack_cost'],'status':'ACTIVE'});
+            batchId=await txn.insert('batches_fefo',{'drug_id':source['drug_id'],'warehouse_id':destination,'location_id':shelf.isEmpty?null:shelf.first['id'],'batch_no':source['batch_no'],'expiry_date':source['expiry_date'],'manufacture_date':source['manufacture_date'],'sealed_packs':total~/units,'loose_units':total%units,'total_units':total,'unit_cost':item['unit_cost'],'pack_cost':source['pack_cost'],'purchase_invoice_item_id':source['purchase_invoice_item_id'],'status':'ACTIVE'});
           }else{
             batchId=existing.first['id'] as int;
-            await txn.update('batches_fefo',{'sealed_packs':total~/units,'loose_units':total%units,'total_units':total,'status':'ACTIVE'},where:'id=?',whereArgs:[batchId]);
+            await txn.update('batches_fefo',{'sealed_packs':total~/units,'loose_units':total%units,'total_units':total,'purchase_invoice_item_id':source['purchase_invoice_item_id'],'status':'ACTIVE'},where:'id=?',whereArgs:[batchId]);
           }
           await txn.insert('stock_movements',{'drug_id':source['drug_id'],'batch_id':batchId,'warehouse_id':destination,'movement_type':'TRANSFER_IN','qty_units':qty,'unit_cost':item['unit_cost'],'balance_after_units':balance,'movement_at':now,'doc_type':'TRANSFER','doc_id':transferId});
           await txn.rawUpdate('UPDATE drugs SET stock_total_units=stock_total_units+?,updated_at=? WHERE id=?',[qty,now,source['drug_id']]);
