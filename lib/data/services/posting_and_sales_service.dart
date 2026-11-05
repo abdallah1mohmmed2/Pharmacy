@@ -31,8 +31,8 @@ class PostingAndSalesService {
       final paid=payments.fold<double>(0,(s,p)=>s+p.amount);
       if(paid-net>0.005) throw StateError('إجمالي المدفوع أكبر من صافي الفاتورة');
       final remaining=(net-paid).clamp(0,double.infinity).toDouble();
-      if(remaining>0 && actualCustomerId==null) throw StateError('اختر العميل لتسجيل المبلغ المتبقي');
       final int? actualCustomerId=customerPartyId<=0?null:customerPartyId;
+      if(remaining>0 && actualCustomerId==null) throw StateError('اختر العميل لتسجيل المبلغ المتبقي');
       final invoiceNo=await _nextNumber(txn,branchId,'INVOICE');
       final invoiceId=await txn.insert('sales_invoices',{..._base(branchId),'invoice_no':invoiceNo,'invoice_date':DateTime.now().toIso8601String(),'cashier_user_id':cashierUserId,'customer_party_id':actualCustomerId,'sale_type':saleType,'status':'COMPLETED','subtotal':subtotal,'discount_amount':discountAmount,'net_total':net,'paid_total':paid,'remaining_alayh':remaining,'total_cost':0});
       double actualTotalCost=0;
