@@ -44,6 +44,7 @@ class RxAndReturnsService {
       final rxRows=await txn.query('prescriptions',where:'id=?',whereArgs:[prescriptionId],limit:1);
       if(rxRows.isEmpty)throw StateError('الوصفة غير موجودة');
       final rx=rxRows.first;
+      if(rx['rx_type']=='CHRONIC_REFILL'&&(rx['refills_used'] as int)>=(rx['refills_allowed'] as int))throw StateError('استنفدت مرات إعادة الصرف المسموحة للوصفة');
       final now=DateTime.now();
       if(DateTime.parse(rx['valid_until'] as String).isBefore(now))throw StateError('انتهت صلاحية الوصفة');
       if((rx['customer_party_id'] as int?)!=null&&(rx['customer_party_id'] as int)!=patientPartyId)throw StateError('الوصفة لا تخص حساب العميل المحدد');
@@ -137,7 +138,7 @@ class RxAndReturnsService {
       final updated=await txn.query('prescription_items',where:'prescription_id=?',whereArgs:[prescriptionId]);
       final allDispensed=updated.every((r)=>(r['dispensed_qty_units'] as int)>=(r['prescribed_qty_units'] as int));
       final anyDispensed=updated.any((r)=>(r['dispensed_qty_units'] as int)>0);
-      await txn.update('prescriptions',{'status':allDispensed?'DISPENSED':anyDispensed?'PARTIAL':'OPEN'},where:'id=?',whereArgs:[prescriptionId]);
+      await txn.update('prescriptions',{'status':allDispensed?'DISPENSED':anyDispensed?'PARTIAL':'OPEN','refills_used':(rx['rx_type']=='CHRONIC_REFILL'&&allDispensed)?(rx['refills_used'] as int)+1:rx['refills_used']},where:'id=?',whereArgs:[prescriptionId]);
       return invoiceId;
     });
   }
