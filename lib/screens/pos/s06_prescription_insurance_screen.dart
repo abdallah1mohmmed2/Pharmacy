@@ -16,14 +16,15 @@ class S06PrescriptionInsuranceScreen extends StatefulWidget {
 }
 class _S06PrescriptionInsuranceScreenState extends State<S06PrescriptionInsuranceScreen>{
   final rxNo=TextEditingController(),doctor=TextEditingController(),license=TextEditingController(),facility=TextEditingController(),validDays=TextEditingController(text:'30'),refillsAllowed=TextEditingController(text:'0'),qty=TextEditingController(text:'1'),dose=TextEditingController(),duration=TextEditingController(text:'1'),paid=TextEditingController(text:'0'),walletRef=TextEditingController();
-  int? patientId,policyId,drugId,cashId,selectedRxId;String type='NORMAL',paymentMethod='CASH';List<Map<String,Object?>> rxRows=[],rxItems=[],alertRows=[];bool saving=false;
+  int? patientId,policyId,drugId,cashId,selectedRxId;String type='NORMAL',paymentMethod='CASH';List<Map<String,Object?>> rxRows=[],rxItems=[],alertRows=[],controlledRows=[];bool saving=false;
   @override void initState(){super.initState();WidgetsBinding.instance.addPostFrameCallback((_)async{await context.read<ClinicalAndRxProvider>().loadAll();await _load();});}
   @override void dispose(){for(final x in [rxNo,doctor,license,facility,validDays,refillsAllowed,qty,dose,duration,paid,walletRef]){x.dispose();}super.dispose();}
   Future<void> _load()async{
     final db=await DatabaseHelper.instance.database;
     final rows=await db.rawQuery('SELECT r.*,p.full_name FROM prescriptions r JOIN patients p ON p.id=r.patient_id ORDER BY r.id DESC LIMIT 100');
     final alerts=await db.rawQuery('SELECT l.*,d.trade_name_ar,p.full_name FROM clinical_alert_logs l LEFT JOIN drugs d ON d.id=l.drug_id LEFT JOIN patients p ON p.id=l.patient_id ORDER BY l.id DESC LIMIT 100');
-    if(mounted)setState((){rxRows=rows;alertRows=alerts;});
+    final controlled=await db.rawQuery('SELECT c.*,d.trade_name_ar FROM controlled_drug_log c JOIN drugs d ON d.id=c.drug_id ORDER BY c.id DESC LIMIT 100');
+    if(mounted)setState((){rxRows=rows;alertRows=alerts;controlledRows=controlled;});
   }
   Future<void> _selectRx(int id)async{
     final rows=await DatabaseHelper.instance.rawQuery('SELECT i.*,d.trade_name_ar,d.sell_price_unit,d.is_controlled,d.category_id FROM prescription_items i JOIN drugs d ON d.id=i.drug_id WHERE i.prescription_id=? ORDER BY i.id',[id]);
@@ -90,6 +91,8 @@ class _S06PrescriptionInsuranceScreenState extends State<S06PrescriptionInsuranc
       ],
       const SizedBox(height:16),Text('سجل الرقابة والتنبيهات السريرية',style:Theme.of(context).textTheme.titleMedium),
       for(final row in alertRows)Card(child:ListTile(title:Text('${row['level']} • ${row['alert_category']}'),subtitle:Text('${row['message_ar']}'),trailing:Text(row['user_decision']?.toString()??'غير محسوم'))),
+      const SizedBox(height:12),Text('سجل الأدوية المراقبة',style:Theme.of(context).textTheme.titleMedium),
+      for(final row in controlledRows)Card(child:ListTile(title:Text('${row['trade_name_ar']} • ${row['qty_units']} حبة'),subtitle:Text('المريض: ${row['patient_name']} • المستلم: ${row['receiver_name']} • الطبيب: ${row['doctor_name']}'),trailing:Text('الرصيد ${row['running_balance_units']}'))),
     ]));
   }
   Future<void> _create()async{
