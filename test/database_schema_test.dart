@@ -141,8 +141,69 @@ void main() {
       expect(saleItemColumns.any((r) => r['name'] == 'substituted_for_drug_id'), isTrue);
       final returnColumns = await db.rawQuery('PRAGMA table_info(sales_returns)');
       expect(returnColumns.any((r) => r['name'] == 'wallet_ref_no'), isTrue);
-      await SchemaIteration4.upgrade(db);\n\n      final patientColumns = await db.rawQuery('PRAGMA table_info(patients)');
+      await SchemaIteration4.upgrade(db);
+
+      final patientColumns = await db.rawQuery('PRAGMA table_info(patients)');
       expect(patientColumns.any((r) => r['name'] == 'pregnancy_status_known'), isTrue);
+
+      final iteration4Tables = [
+        'cash_transactions','work_shifts','cashier_shifts','expense_categories',
+        'expenses','employees','employee_attendance','payroll_runs','partners',
+        'partner_distributions','partner_distribution_lines','chronic_medication_schedules',
+        'representative_visit_days','party_settlements',
+      ];
+      for (final table in iteration4Tables) {
+        final rows = await db.rawQuery(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+          [table],
+        );
+        expect(rows, hasLength(1), reason: 'Missing Iteration 4 table $table');
+      }
+      final triggerNames = [
+        'trg_partner_lock_pct_ins','trg_partner_lock_pct_upd',
+        'trg_partner_lock_shares_ins','trg_partner_lock_shares_upd',
+        'trg_partner_mode_switch_requires_clear','trg_partner_mode_switch_requires_clear_pct',
+        'trg_partner_mode_setting_delete','trg_partner_mode_setting_value',
+        'trg_partner_mode_setting_value_upd',
+      ];
+      for (final trigger in triggerNames) {
+        final rows = await db.rawQuery(
+          "SELECT name FROM sqlite_master WHERE type='trigger' AND name=?",
+          [trigger],
+        );
+        expect(rows, hasLength(1), reason: 'Missing partner state-lock trigger $trigger');
+      }
+      final distributionMode = await db.query(
+        'app_settings',
+        where: "setting_key='accounting.partner_distribution_mode'",
+        limit: 1,
+      );
+      expect(distributionMode.single['value_text'], 'shares');
+      expect(await db.rawQuery("SELECT id FROM partners WHERE percentage IS NOT NULL"), isEmpty);
+      expect(await db.rawQuery("SELECT id FROM employees"), hasLength(3));
+      expect(await db.rawQuery("SELECT id FROM expense_categories"), hasLength(8));
+      expect(await db.rawQuery("SELECT id FROM expenses"), hasLength(3));
+      expect(await db.rawQuery("SELECT id FROM cashier_shifts WHERE status='OPEN'"), hasLength(1));
+      expect(await db.rawQuery("SELECT id FROM lah_alayh_ledger WHERE entry_type='EMPLOYEE_ADVANCE' AND alayh_amount>0"), isNotEmpty);
+      final partnerId = (await db.query('partners', columns: ['id'], limit: 1)).first['id'];
+      await expectLater(
+        db.update('partners', {'percentage': 25.0}, where: 'id=?', whereArgs: [partnerId]),
+        throwsA(anything),
+      );
+      await expectLater(
+        db.update('app_settings', {'value_text':'percentage'}, where: "setting_key='accounting.partner_distribution_mode'"),
+        throwsA(anything),
+      );
+      await db.update('partners', {'shares_count':null}, where:'1=1');
+      await db.update(
+        'app_settings',
+        {'value_text':'percentage'},
+        where: "setting_key='accounting.partner_distribution_mode'",
+      );
+      await expectLater(
+        db.update('partners', {'shares_count': 99}, where: 'id=?', whereArgs: [partnerId]),
+        throwsA(anything),
+      );
 
 
       final requiredTables = [
