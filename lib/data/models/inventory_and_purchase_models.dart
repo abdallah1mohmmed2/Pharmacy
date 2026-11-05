@@ -70,9 +70,9 @@ class PurchaseItemModel {
 }
 @immutable
 class PurchaseReturnModel {
-  const PurchaseReturnModel({required this.id,required this.returnNo,required this.supplierPartyId,required this.returnDate,required this.reason,required this.settlementType,this.totalValue=0,this.status='DRAFT'});
-  final int id,supplierPartyId; final String returnNo,returnDate,reason,settlementType,status; final double totalValue;
-  factory PurchaseReturnModel.fromMap(Map<String,Object?> m)=>PurchaseReturnModel(id:_asInt(m['id']),returnNo:_asString(m['return_no']),supplierPartyId:_asInt(m['supplier_party_id']),returnDate:_asString(m['return_date']),reason:_asString(m['reason']),settlementType:_asString(m['settlement_type']),totalValue:_asDouble(m['total_value']),status:_asString(m['status']));
+  const PurchaseReturnModel({required this.id,required this.returnNo,required this.supplierPartyId,required this.returnDate,required this.reason,required this.settlementType,this.totalValue=0,this.costValue=0,this.settlementDifference=0,this.status='DRAFT'});
+  final int id,supplierPartyId; final String returnNo,returnDate,reason,settlementType,status; final double totalValue,costValue,settlementDifference;
+  factory PurchaseReturnModel.fromMap(Map<String,Object?> m)=>PurchaseReturnModel(id:_asInt(m['id']),returnNo:_asString(m['return_no']),supplierPartyId:_asInt(m['supplier_party_id']),returnDate:_asString(m['return_date']),reason:_asString(m['reason']),settlementType:_asString(m['settlement_type']),totalValue:_asDouble(m['total_value']),costValue:_asDouble(m['cost_value']),settlementDifference:_asDouble(m['settlement_difference']),status:_asString(m['status']));
 }
 @immutable
 class ShortageItemModel {
