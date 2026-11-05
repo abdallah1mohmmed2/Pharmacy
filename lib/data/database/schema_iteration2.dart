@@ -43,7 +43,8 @@ abstract final class SchemaIteration2 {
       "CREATE INDEX IF NOT EXISTS idx_stocktake_session_status ON stocktaking_sessions(status,warehouse_id,created_at)",
       "CREATE INDEX IF NOT EXISTS idx_cold_chain_warehouse_date ON cold_chain_log(warehouse_id,reading_at)",
       """CREATE VIEW IF NOT EXISTS v_inventory_by_drug AS SELECT d.id drug_id,d.trade_name_ar,COALESCE(SUM(CASE WHEN b.status='ACTIVE' AND b.expiry_date>=date('now') THEN b.total_units ELSE 0 END),0) sellable_units,COALESCE(SUM(CASE WHEN b.total_units>0 THEN b.total_units ELSE 0 END),0) physical_units,COALESCE(SUM(CASE WHEN b.total_units>0 THEN b.total_units*b.unit_cost ELSE 0 END),0) inventory_cost FROM drugs d LEFT JOIN batches_fefo b ON b.drug_id=d.id GROUP BY d.id""",
-      """CREATE VIEW IF NOT EXISTS v_fefo_batch_balances AS SELECT b.*,d.trade_name_ar,s.code shelf_code FROM batches_fefo b JOIN drugs d ON d.id=b.drug_id LEFT JOIN shelf_locations s ON s.id=b.location_id"""
+      "DROP VIEW IF EXISTS v_fefo_batch_balances",
+      """CREATE VIEW v_fefo_batch_balances AS SELECT b.*,d.trade_name_ar,d.units_per_pack,d.sell_price_pack,s.code shelf_code,COALESCE((SELECT SUM(-m.qty_units)/30.0 FROM stock_movements m WHERE m.drug_id=d.id AND m.movement_type='SALE_OUT' AND m.movement_at>=datetime('now','-30 days')),0) average_daily_units FROM batches_fefo b JOIN drugs d ON d.id=b.drug_id LEFT JOIN shelf_locations s ON s.id=b.location_id"""
     ];
     for(final sql in statements){await db.execute(sql);}
     final stocktakingColumns = await db.rawQuery('PRAGMA table_info(stocktaking_lines)');
