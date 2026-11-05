@@ -14,19 +14,21 @@ class S05DrugAlternativesSheet extends StatefulWidget {
 }
 class _S05DrugAlternativesSheetState extends State<S05DrugAlternativesSheet>{
   bool exactOnly=false,inStock=false,cheapest=false,safeOnly=false;
-  Set<int> safeIds={};
+  Set<int> safeIds={},checkedIds={};
   @override void initState(){super.initState();WidgetsBinding.instance.addPostFrameCallback((_)=>_load());}
   Future<void> _load()async{
     final provider=context.read<ClinicalAndRxProvider>();
     final rows=await provider.loadAlternatives(widget.original.id??0,inStockOnly:inStock,cheapestFirst:cheapest);
     final checked=<int>{};
+    final safe=<int>{};
     for(final alternative in rows){
       final matches=await DatabaseHelper.instance.query('drugs',where:'id=?',whereArgs:[alternative.drugId],limit:1);
       if(matches.isEmpty)continue;
       final verdict=await provider.evaluateCandidate(DrugModel.fromMap(matches.first));
-      if(!verdict.hasUnresolvedCritical)checked.add(alternative.drugId);
+      checked.add(alternative.drugId);
+      if(!verdict.hasUnresolvedCritical)safe.add(alternative.drugId);
     }
-    if(mounted)setState(()=>safeIds=checked);
+    if(mounted)setState((){safeIds=safe;checkedIds=checked;});
   }
   @override Widget build(BuildContext context){
     final clinical=context.watch<ClinicalAndRxProvider>();
@@ -40,7 +42,7 @@ class _S05DrugAlternativesSheetState extends State<S05DrugAlternativesSheet>{
         FilterChip(label:const Text('آمن للمريض الحالي'),selected:safeOnly,onSelected:(v){setState(()=>safeOnly=v);_load();}),
       ]),
       const SizedBox(height:8),
-      Expanded(child:clinical.loading?const Center(child:CircularProgressIndicator()):rows.isEmpty?const Center(child:Text('لا توجد بدائل مسجلة للمادة الفعالة.')):ListView.builder(itemCount:rows.length,itemBuilder:(context,index){final a=rows[index];return Card(child:ListTile(title:Text(a.nameAr),subtitle:Text('${a.strengthText} • ${a.dosageForm} • ${a.matchType} • الرصيد ${a.availableUnits} • أقرب صلاحية ${a.nearestExpiry??'—'}'),trailing:Row(mainAxisSize:MainAxisSize.min,children:[Column(mainAxisAlignment:MainAxisAlignment.center,children:[Text(a.sellPricePack.toStringAsFixed(2)),Text((a.priceDiffPack>=0?'+':'')+a.priceDiffPack.toStringAsFixed(2),style:TextStyle(color:a.priceDiffPack<=0?const Color(0xff66BB6A):const Color(0xffFFB74D)))]),IconButton(tooltip:'مقارنة 19 نقطة',onPressed:()=>_compare(a),icon:const Icon(Icons.compare_arrows))]),onTap:()=>_choose(a.drugId)));})),
+      Expanded(child:clinical.loading?const Center(child:CircularProgressIndicator()):rows.isEmpty?const Center(child:Text('لا توجد بدائل مسجلة للمادة الفعالة.')):ListView.builder(itemCount:rows.length,itemBuilder:(context,index){final a=rows[index];return Card(child:ListTile(title:Text(a.nameAr),subtitle:Text('${a.strengthText} • ${a.dosageForm} • ${a.matchType} • الرصيد ${a.availableUnits} • أقرب صلاحية ${a.nearestExpiry??'—'} • سعر الشريط ${a.sellPriceStrip.toStringAsFixed(2)} • ${!checkedIds.contains(a.drugId)?'جارٍ الفحص':safeIds.contains(a.drugId)?'✔ آمن':'⚠ يوجد تنبيه'}'),trailing:Row(mainAxisSize:MainAxisSize.min,children:[Column(mainAxisAlignment:MainAxisAlignment.center,children:[Text(a.sellPricePack.toStringAsFixed(2)),Text((a.priceDiffPack>=0?'+':'')+a.priceDiffPack.toStringAsFixed(2),style:TextStyle(color:a.priceDiffPack<=0?const Color(0xff66BB6A):const Color(0xffFFB74D)))]),IconButton(tooltip:'مقارنة 19 نقطة',onPressed:()=>_compare(a),icon:const Icon(Icons.compare_arrows))]),onTap:()=>_choose(a.drugId)));})),
       const Text('يُعاد فحص البديل سريرياً قبل تثبيته في السلة.'),
     ]))));
   }
