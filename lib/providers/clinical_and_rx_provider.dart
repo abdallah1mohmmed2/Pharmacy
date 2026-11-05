@@ -39,6 +39,7 @@ class ClinicalAndRxProvider extends ChangeNotifier {
     final updated=verdict.alerts.map((a)=>identical(a,alert)?ClinicalAlertModel(id:a.id,category:a.category,level:a.level,messageAr:a.messageAr,drugId:a.drugId,otherDrugId:a.otherDrugId,ruleRef:a.ruleRef,recommendation:a.recommendation,patientId:a.patientId,invoiceId:a.invoiceId,userDecision:decision,overrideReason:reason):a).toList();
     verdict=ClinicalVerdict(updated);notifyListeners();
   }
+  Future<ClinicalVerdict> evaluateCandidate(DrugModel drug) => _guard.evaluate(cart:[drug],patient:currentPatient);
   Future<List<AlternativeDrugModel>> loadAlternatives(int drugId,{bool inStockOnly=false,bool cheapestFirst=false}) async {
     alternatives=await _rx.findAlternatives(drugId,inStockOnly:inStockOnly,cheapestFirst:cheapestFirst);notifyListeners();return alternatives;
   }
