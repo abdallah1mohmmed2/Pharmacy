@@ -44,3 +44,10 @@
 - إصلاح آخر استخدام nullable لـ `unitsPerPack` في تكلفة بند فاتورة البيع؛ توحيد الحساب على `effectiveUnitsPerPack` لتفادي تمرير `int?` إلى عملية حسابية تتطلب `num` غير nullable.
 
 - ضبط فحص CI في Android وWindows باستخدام `flutter analyze --no-fatal-infos`؛ لأن Flutter يجعل ملاحظات info قاتلة افتراضياً. تظل أخطاء التحليل والتحذيرات قاتلة، ولا يُستخدم `continue-on-error` ولا يتم تجاوز فشل البناء أو الاختبارات.
+
+
+## حزم التنزيل الموحدة — 2026-11-05
+- توحيد مخرجات CI إلى Artifact واحد فقط للأندرويد باسم `pharmacy-android`، ويحتوي ملف ZIP واحداً باسم `pharmacy-android.zip` بداخله ملف APK.
+- توحيد مخرجات CI إلى Artifact واحد فقط لويندوز باسم `pharmacy-windows`، ويحتوي ملف ZIP واحداً باسم `pharmacy-windows.zip` بداخله جميع ملفات مجلد Release اللازمة لتشغيل التطبيق.
+- لا تُرفع ملفات APK أو ملفات Windows كـ Artifacts منفصلة؛ لكل منصة حزمة ZIP واحدة فقط.
+- التغيير خاص بآلية التغليف والتنزيل في GitHub Actions، ولا يغيّر كود التطبيق أو قاعدة البيانات.
