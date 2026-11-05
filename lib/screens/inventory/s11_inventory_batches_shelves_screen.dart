@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../providers/inventory_and_purchase_provider.dart';
-import '../../../data/database/database_helper.dart';
-import '../../../data/models/inventory_and_purchase_models.dart';
+import '../../providers/inventory_and_purchase_provider.dart';
+import '../../data/database/database_helper.dart';
+import '../../data/models/inventory_and_purchase_models.dart';
 
 class S11InventoryBatchesShelvesScreen extends StatefulWidget {
   const S11InventoryBatchesShelvesScreen({super.key});
