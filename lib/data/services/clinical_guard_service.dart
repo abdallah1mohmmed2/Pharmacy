@@ -139,7 +139,7 @@ class ClinicalGuardService {
       final cls=d.therapeuticClass.trim().toLowerCase();if(cls.isNotEmpty&&byClass.containsKey(cls))out.add(ClinicalAlertModel(category:'DUPLICATE_THERAPY',level:ClinicalLevel.caution,drugId:d.id,otherDrugId:byClass[cls]!.id,messageAr:'تكرار محتمل ضمن الفئة العلاجية ${d.therapeuticClass}.'));else if(cls.isNotEmpty)byClass[cls]=d;
     }return out;
   }
-  Future<void> recordDecision(ClinicalAlertModel alert,{required String decision,required int? userId,String? reason,int? managerUserId,int? invoiceId}) async {
+  static void validateDecision(ClinicalAlertModel alert,{required String decision,String? reason,int? managerUserId}) {
     const allowed={'ACKNOWLEDGED','CANCELLED_ITEM','SUBSTITUTED','OVERRIDDEN_WITH_PIN'};
     if(!allowed.contains(decision))throw StateError('قرار سريري غير مدعوم');
     if(alert.level==ClinicalLevel.block){
@@ -149,6 +149,10 @@ class ClinicalGuardService {
     }
     if(alert.level==ClinicalLevel.warning&&decision=='ACKNOWLEDGED'&&(reason??'').trim().length<5)throw StateError('سبب التجاوز يجب ألا يقل عن خمسة أحرف');
     if(alert.level==ClinicalLevel.warning&&decision=='OVERRIDDEN_WITH_PIN')throw StateError('تنبيه التحذير يوثق بسبب الصيدلي ولا يحتاج تجاوز حظر المدير');
+  }
+
+  Future<void> recordDecision(ClinicalAlertModel alert,{required String decision,required int? userId,String? reason,int? managerUserId,int? invoiceId}) async {
+    validateDecision(alert,decision:decision,reason:reason,managerUserId:managerUserId);
     await (await _helper.database).insert('clinical_alert_logs',alert.toLogMap(decidedBy:userId,managerUserId:managerUserId)..['user_decision']=decision..['override_reason']=reason..['invoice_id']=invoiceId??alert.invoiceId);
   }
 }
