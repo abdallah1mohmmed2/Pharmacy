@@ -42,7 +42,7 @@ class _S25EmployeesShiftsPayrollScreenState extends State<S25EmployeesShiftsPayr
   }
   Widget _payroll(TreasuryHrPartnerProvider p){
     return ListView(padding:const EdgeInsets.all(12),children:[
-      TextField(decoration:InputDecoration(labelText:'الفترة (YYYY-MM)',hintText:periodController.text),controller:periodController),
+      TextField(decoration:InputDecoration(labelText:'الفترة (YYYY-MM)',hintText:periodController.text),controller:periodController,onSubmitted:(_)=>setState((){})),
       DropdownButtonFormField<int>(value:selectedEmployee,decoration:const InputDecoration(labelText:'الموظف'),items:p.employees.map((e)=>DropdownMenuItem(value:e['id'] as int,child:Text(e['name_ar'].toString()))).toList(),onChanged:(v)=>setState(()=>selectedEmployee=v)),
       FilledButton(onPressed:selectedEmployee==null?null:()async{try{await p.generatePayroll(employeeId:selectedEmployee!,period:periodController.text.trim());if(mounted)setState((){});}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}},child:const Text('توليد مسير الراتب')),
       const SizedBox(height:10),
