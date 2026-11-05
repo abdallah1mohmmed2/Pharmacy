@@ -28,7 +28,7 @@ class DatabaseHelper {
       await SchemaBuilder.build(database);
       await SeedData.run(database);
       await SchemaIteration2.upgrade(database);
-    ,onUpgrade:(database,oldVersion,newVersion) async {
+    },onUpgrade:(database,oldVersion,newVersion) async {
       if(oldVersion<2) await SchemaIteration2.upgrade(database);
     });
     await db.execute('PRAGMA foreign_keys = ON');
