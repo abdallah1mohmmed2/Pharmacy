@@ -44,6 +44,8 @@ abstract final class SchemaIteration4 {
     if(!rows.any((row)=>row['name']==column)){await db.execute('ALTER TABLE $table ADD COLUMN $column $definition');}
   }
 
+  static Future<void> seedIteration4(DatabaseExecutor db) => _seed(db);
+
   static Future<void> _seed(DatabaseExecutor db) async {
     final branches=await db.query('branches',columns:['id'],orderBy:'id',limit:1);
     if(branches.isEmpty)return;
@@ -71,6 +73,9 @@ abstract final class SchemaIteration4 {
     for(final p in partySeeds){var rows=await db.query('parties',columns:['id'],where:'code=?',whereArgs:[p[1]],limit:1);int partyId;if(rows.isEmpty){partyId=await db.insert('parties',{'uuid':'it4-party-${p[1]}','branch_id':branchId,'created_at':now,'updated_at':now,'party_type':p[0],'code':p[1],'name_ar':p[2],'opening_alayh':0,'opening_lah':0});}else{partyId=rows.first['id'] as int;}final emp=await db.query('employees',columns:['id'],where:'party_id=?',whereArgs:[partyId],limit:1);int employeeId;if(emp.isEmpty){employeeId=await db.insert('employees',{'party_id':partyId,'job_title':p[3],'hire_date':now.substring(0,10),'pay_type':p[4],'pay_rate':p[5],'max_advance_pct':50,'branch_id':branchId});}else{employeeId=emp.first['id'] as int;}employeeIds.add(employeeId);}
     final work=await db.query('work_shifts',columns:['id'],where:'name_ar=?',whereArgs:['صباحية'],limit:1);
     for(final employeeId in employeeIds){await db.insert('employee_attendance',{'employee_id':employeeId,'work_date':now.substring(0,10),'work_shift_id':work.first['id'],'status':'PRESENT','wage_earned':0},conflictAlgorithm:ConflictAlgorithm.ignore);}
+    final advanceEmployee=await db.query('employees',columns:['party_id'],where:'id=?',whereArgs:[employeeIds[1]],limit:1);
+    final advanceExists=await db.query('lah_alayh_ledger',columns:['id'],where:"entry_type='EMPLOYEE_ADVANCE' AND statement_ar='سلفة تجريبية للموظف'",limit:1);
+    if(advanceEmployee.isNotEmpty&&advanceExists.isEmpty){await db.insert('lah_alayh_ledger',{'uuid':'it4-employee-advance','branch_id':branchId,'created_at':now,'updated_at':now,'party_id':advanceEmployee.first['party_id'],'entry_date':now,'entry_type':'EMPLOYEE_ADVANCE','alayh_amount':500,'lah_amount':0,'doc_type':'SEED','statement_ar':'سلفة تجريبية للموظف'});}
     final cashierParty=await db.query('parties',columns:['id'],where:'code=?',whereArgs:['EMP-CASH'],limit:1);
     if(users.isNotEmpty){final open=await db.query('cashier_shifts',columns:['id'],where:"branch_id=? AND status='OPEN'",whereArgs:[branchId],limit:1);if(open.isEmpty){await db.insert('cashier_shifts',{'shift_no':'SHIFT-SEED-${now.substring(0,10)}','user_id':users.first['id'],'cashier_party_id':cashierParty.isEmpty?null:cashierParty.first['id'],'drawer_account_id':drawer['id'],'work_shift_id':work.first['id'],'opened_at':now,'opening_cash':0,'status':'OPEN','branch_id':branchId});}}
     final partnerSeeds=<List<Object>>[['PART-50','الشريك الأول',50],['PART-30','الشريك الثاني',30],['PART-20','الشريك الثالث',20]];
