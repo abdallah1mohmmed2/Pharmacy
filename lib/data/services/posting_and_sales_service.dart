@@ -2,10 +2,12 @@ import 'dart:math';
 import 'package:sqflite/sqflite.dart';
 import '../database/database_helper.dart';
 import '../models/erp_models.dart';
+import 'fefo_allocator_service.dart';
 
 class PostingAndSalesService {
   PostingAndSalesService({DatabaseHelper? helper}):_helper=helper??DatabaseHelper.instance;
   final DatabaseHelper _helper;
+  final FefoAllocator _fefo = FefoAllocator();
   String _uuid()=>DateTime.now().microsecondsSinceEpoch.toString()+Random().nextInt(999999).toString().padLeft(6,'0');
   Map<String,Object?> _base(int branchId)=>{'uuid':_uuid(),'branch_id':branchId,'created_at':DateTime.now().toIso8601String(),'updated_at':DateTime.now().toIso8601String(),'is_deleted':0,'sync_status':'LOCAL','sync_version':1};
 
@@ -30,19 +32,23 @@ class PostingAndSalesService {
       if(paid-net>0.005) throw StateError('إجمالي المدفوع أكبر من صافي الفاتورة');
       final remaining=(net-paid).clamp(0,double.infinity).toDouble();
       if(remaining>0 && customerPartyId==null) throw StateError('اختر العميل لتسجيل المبلغ المتبقي');
-      for(final item in items){
-        final rows=await txn.query('drugs',columns:['stock_total_units','cost_price_pack','units_per_pack'],where:'id=? AND is_deleted=0',whereArgs:[item.drug.id]);
-        if(rows.isEmpty) throw StateError('الصنف غير موجود');
-        final stock=rows.first['stock_total_units'] as int;
-        if(stock<item.baseUnits) throw StateError('المخزون غير كافٍ للصنف '+item.drug.tradeNameAr);
-      }
+      final warehouseRows=await txn.query('warehouses',columns:['id'],where:"code='MAIN'",limit:1);
+      if(warehouseRows.isEmpty) throw StateError('المخزن الرئيسي غير مهيأ');
+      final warehouseId=warehouseRows.first['id'] as int;
       final invoiceNo=await _nextNumber(txn,branchId,'INVOICE');
-      final invoiceId=await txn.insert('sales_invoices',{..._base(branchId),'invoice_no':invoiceNo,'invoice_date':DateTime.now().toIso8601String(),'cashier_user_id':cashierUserId,'customer_party_id':customerPartyId,'sale_type':saleType,'status':'COMPLETED','subtotal':subtotal,'discount_amount':discountAmount,'net_total':net,'paid_total':paid,'remaining_alayh':remaining,'total_cost':items.fold<double>(0,(s,i)=>s+i.drug.costPricePack*i.baseUnits/i.drug.effectiveUnitsPerPack)});
+      final invoiceId=await txn.insert('sales_invoices',{..._base(branchId),'invoice_no':invoiceNo,'invoice_date':DateTime.now().toIso8601String(),'cashier_user_id':cashierUserId,'customer_party_id':customerPartyId,'sale_type':saleType,'status':'COMPLETED','subtotal':subtotal,'discount_amount':discountAmount,'net_total':net,'paid_total':paid,'remaining_alayh':remaining,'total_cost':0});
+      double actualTotalCost=0;
       for(final item in items){
-        await txn.insert('sales_invoice_items',{..._base(branchId),'invoice_id':invoiceId,'drug_id':item.drug.id,'sell_unit':item.sellUnit,'qty_in_sell_unit':item.quantity,'qty_units':item.baseUnits,'unit_price_sell_unit':item.unitPrice,'line_discount_amount':item.discount,'line_total':item.lineTotal,'line_cost':item.drug.costPricePack*item.baseUnits/item.drug.effectiveUnitsPerPack});
-        final changed=await txn.rawUpdate('UPDATE drugs SET stock_total_units=stock_total_units-?, updated_at=? WHERE id=? AND stock_total_units>=?', [item.baseUnits,DateTime.now().toIso8601String(),item.drug.id,item.baseUnits]);
-        if(changed!=1) throw StateError('تغير المخزون أثناء إتمام الفاتورة');
+        final drugRows=await txn.query('drugs',columns:['units_per_pack'],where:'id=? AND is_deleted=0',whereArgs:[item.drug.id]);
+        if(drugRows.isEmpty) throw StateError('الصنف غير موجود');
+        final units=(drugRows.first['units_per_pack'] as int?)??item.drug.effectiveUnitsPerPack;
+        final invoiceItemId=await txn.insert('sales_invoice_items',{..._base(branchId),'invoice_id':invoiceId,'drug_id':item.drug.id,'sell_unit':item.sellUnit,'qty_in_sell_unit':item.quantity,'qty_units':item.baseUnits,'unit_price_sell_unit':item.unitPrice,'line_discount_amount':item.discount,'line_total':item.lineTotal,'line_cost':0});
+        final allocations=await _fefo.allocateAndApply(txn:txn,drugId:item.drug.id,needUnits:item.baseUnits,unitsPerPack:units,invoiceItemId:invoiceItemId,warehouseId:warehouseId,unitPrice:item.unitPrice,docType:'SALE',docId:invoiceId);
+        final lineCost=allocations.fold<double>(0,(sum,a)=>sum+a.qtyUnits*a.unitCost);
+        actualTotalCost+=lineCost;
+        await txn.update('sales_invoice_items',{'line_cost':lineCost},where:'id=?',whereArgs:[invoiceItemId]);
       }
+      await txn.update('sales_invoices',{'total_cost':actualTotalCost},where:'id=?',whereArgs:[invoiceId]);
       final journalLines=<({int accountId,double debit,double credit,int? partyId,String memo})>[];
       for(final payment in payments){
         if(payment.method=='WALLET' && (payment.walletRef==null || payment.walletRef!.trim().length<6)) throw StateError('رقم إشعار المحفظة إلزامي');
@@ -69,7 +75,7 @@ class PostingAndSalesService {
         journalLines.add((accountId:receivable,debit:remaining,credit:0,partyId:customerPartyId,memo:'ذمم فاتورة'));
       }
       journalLines.add((accountId:revenue,debit:0,credit:net,partyId:null,memo:'إيراد المبيعات'));
-      final cost=items.fold<double>(0,(s,i)=>s+i.drug.costPricePack*i.baseUnits/i.drug.effectiveUnitsPerPack);
+      final cost=actualTotalCost;
       if(cost>0){final inventory=await _accountId(txn,'1301');final cogs=await _accountId(txn,'5101');journalLines.add((accountId:cogs,debit:cost,credit:0,partyId:null,memo:'تكلفة المبيعات'));journalLines.add((accountId:inventory,debit:0,credit:cost,partyId:null,memo:'تخفيض المخزون'));}
       final entryId=await postBalancedEntry(txn,branchId:branchId,description:'فاتورة بيع '+invoiceNo,sourceType:'SALE',sourceId:invoiceId,lines:journalLines);
       await txn.update('sales_invoices',{'journal_entry_id':entryId},where:'id=?',whereArgs:[invoiceId]);
