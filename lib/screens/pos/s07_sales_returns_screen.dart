@@ -15,7 +15,6 @@ class _S07SalesReturnsScreenState extends State<S07SalesReturnsScreen>{
   @override void dispose(){search.dispose();qty.dispose();refund.dispose();reason.dispose();super.dispose();}
   @override Widget build(BuildContext context){
     final session=context.watch<SessionAndErpProvider>();
-    final drug=selected?['drug_id'];
     final selectedDrug=selected;
     final refrigerated=(selectedDrug?['requires_refrigeration'] as int? ?? 0)==1;
     final liquid=['SYRUP','DROPS'].contains(selectedDrug?['dosage_form']);
