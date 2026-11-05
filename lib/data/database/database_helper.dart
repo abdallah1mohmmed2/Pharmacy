@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'schema_builder.dart';
@@ -12,7 +13,10 @@ class DatabaseHelper {
   Future<Database> get database async => _db ??= await _open();
   Future<Database> _open() async {
     if(Platform.isWindows || Platform.isLinux || Platform.isMacOS){sqfliteFfiInit();databaseFactory=databaseFactoryFfi;}
-    final directory=await getDatabasesPath();
+    final directory=(Platform.isWindows || Platform.isLinux || Platform.isMacOS)
+        ? p.join((await getApplicationSupportDirectory()).path,'databases')
+        : await getDatabasesPath();
+    await Directory(directory).create(recursive:true);
     final db=await openDatabase(p.join(directory,'global_pharmacy_erp.db'),version:1,onConfigure:(database)async{
       await database.execute('PRAGMA foreign_keys = ON');
       await database.execute('PRAGMA journal_mode = WAL');
