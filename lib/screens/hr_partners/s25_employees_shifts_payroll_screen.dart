@@ -42,11 +42,11 @@ class _S25EmployeesShiftsPayrollScreenState extends State<S25EmployeesShiftsPayr
   }
   Widget _payroll(TreasuryHrPartnerProvider p){
     return ListView(padding:const EdgeInsets.all(12),children:[
-      TextField(decoration:InputDecoration(labelText:'الفترة (YYYY-MM)',hintText:period),controller:periodController),
+      TextField(decoration:InputDecoration(labelText:'الفترة (YYYY-MM)',hintText:periodController.text),controller:periodController),
       DropdownButtonFormField<int>(value:selectedEmployee,decoration:const InputDecoration(labelText:'الموظف'),items:p.employees.map((e)=>DropdownMenuItem(value:e['id'] as int,child:Text(e['name_ar'].toString()))).toList(),onChanged:(v)=>setState(()=>selectedEmployee=v)),
       FilledButton(onPressed:selectedEmployee==null?null:()async{try{await p.generatePayroll(employeeId:selectedEmployee!,period:periodController.text.trim());if(mounted)setState((){});}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}},child:const Text('توليد مسير الراتب')),
       const SizedBox(height:10),
-      FutureBuilder<List<Map<String,Object?>>>(future:DatabaseHelper.instance.rawQuery('SELECT r.*,p.name_ar FROM payroll_runs r JOIN employees e ON e.id=r.employee_id JOIN parties p ON p.id=e.party_id WHERE substr(r.period_code,1,7)=? ORDER BY r.id DESC',[period]),builder:(context,snapshot){
+      FutureBuilder<List<Map<String,Object?>>>(future:DatabaseHelper.instance.rawQuery('SELECT r.*,p.name_ar FROM payroll_runs r JOIN employees e ON e.id=r.employee_id JOIN parties p ON p.id=e.party_id WHERE substr(r.period_code,1,7)=? ORDER BY r.id DESC',[periodController.text.trim()]),builder:(context,snapshot){
         final rows=snapshot.data??[];
         return Column(children:rows.map((r){final lah=(r['gross_lah'] as num).toDouble()+(r['bonuses_lah'] as num).toDouble();final alayh=(r['advances_alayh'] as num).toDouble()+(r['deductions_alayh'] as num).toDouble();final net=(r['net_amount'] as num).toDouble();return Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           Text(r['name_ar'].toString(),style:const TextStyle(fontWeight:FontWeight.bold)),Text('الاستحقاق والإضافي (له): ${lah.toStringAsFixed(2)}'),Text('السلف والخصومات (عليه): ${alayh.toStringAsFixed(2)}'),Text(net>0?'الصافي المستحق للصرف: ${net.toStringAsFixed(2)}':net<0?'المتبقي عليه على الموظف: ${net.abs().toStringAsFixed(2)}':'مسدَّد (0.00)',style:TextStyle(color:net>0?const Color(0xFF66BB6A):net<0?const Color(0xFFEF5350):Colors.white70,fontWeight:FontWeight.bold)),Text('الحالة: ${r['status']}'),
