@@ -102,4 +102,3 @@ class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScr
   for(final controller in controllers.values){controller.dispose();}
  }
 }
-}
