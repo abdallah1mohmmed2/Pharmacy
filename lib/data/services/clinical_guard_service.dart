@@ -14,7 +14,6 @@ class ClinicalGuardService {
     final quickPatient=patient??_quickPatient(quickFlags);
     final assessmentPatient=quickPatient;
     final alerts=<ClinicalAlertModel>[];
-    final ids=cart.map((d)=>d.id).whereType<int>().toSet();
     final currentIds=assessmentPatient?.currentDrugIds.toSet()??<int>{};
     final currentRows=currentIds.isEmpty?<Map<String,Object?>>[]:await db.query('drugs',where:'id IN (${List.filled(currentIds.length,'?').join(',')})',whereArgs:currentIds.toList());
     final currentDrugs=currentRows.map(DrugModel.fromMap).toList();
@@ -34,7 +33,7 @@ class ClinicalGuardService {
       if(quickFlags.contains('ELDERLY')&&(drug.geriatricStatus=='ADJUST'||drug.geriatricStatus=='AVOID'))alerts.add(ClinicalAlertModel(category:'GERIATRIC',level:ClinicalLevel.caution,drugId:id,messageAr:'تحذير خاص بكبار السن وفق بيانات الدواء.',recommendation:drug.geriatricNotes));
       if(drug.isControlled)alerts.add(ClinicalAlertModel(category:'CONTROLLED',level:ClinicalLevel.warning,drugId:id,messageAr:'هذا دواء خاضع للرقابة؛ يلزم توثيق بيانات المريض والمستلم والوصفة قبل الصرف.',recommendation:'تحقق من الوصفة والهوية وسجل الصرف.'));
       if(drug.requiresPrescription||drug.prescriptionRestricted||drug.isAntibiotic)alerts.add(ClinicalAlertModel(category:'RX_REQUIRED',level:ClinicalLevel.caution,drugId:id,messageAr:'يتطلب هذا الصنف التحقق من الوصفة الطبية والقيود المحلية.',recommendation:'راجع الوصفة قبل اعتماد البيع.'));
-      alerts.addAll(await _interactions(drug,[...cart.where((x)=>x.id!=id),...currentDrugs],patient?.id));
+      alerts.addAll(await _interactions(drug,[...cart.where((x)=>x.id!=id),...currentDrugs],assessmentPatient?.id));
       if((drug.geriatricAgeThreshold)>0&&(assessmentPatient?.ageYears??0)>=drug.geriatricAgeThreshold&&drug.geriatricStatus=='AVOID')alerts.add(ClinicalAlertModel(category:'GERIATRIC',level:ClinicalLevel.warning,drugId:id,messageAr:drug.geriatricNotes.isEmpty?'تنبيه خاص بكبار السن لهذا الدواء.':drug.geriatricNotes));
       final dose=prescribedDoseMgByDrugId[id];
       if(dose!=null&&drug.adultDoseMaxMgPerDay!=null&&dose>drug.adultDoseMaxMgPerDay!*1.1)alerts.add(ClinicalAlertModel(category:'DOSE_EXCEEDED',level:ClinicalLevel.warning,drugId:id,messageAr:'الجرعة المدخلة تتجاوز الحد اليومي المرجعي بأكثر من 10%.',recommendation:'تحقق من الجرعة والوحدة والمدة.'));
