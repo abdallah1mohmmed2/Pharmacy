@@ -64,6 +64,17 @@ abstract final class SchemaIteration4 {
     ];
     for(final c in categories){final gl=await db.query('chart_of_accounts',columns:['id'],where:'code=?',whereArgs:[c[2]],limit:1);await db.insert('expense_categories',{'name_ar':c[0],'recurrence':'MONTHLY','monthly_budget_limit':c[1],'gl_account_id':gl.isEmpty?null:gl.first['id'],'branch_id':branchId},conflictAlgorithm:ConflictAlgorithm.ignore);}
     final catRows=await db.query('expense_categories',columns:['id','name_ar'],where:'branch_id=?',whereArgs:[branchId],orderBy:'id');
+    final openingRows=await db.query('cash_accounts',columns:['current_balance','gl_account_id'],where:'id=?',whereArgs:[safe['id']],limit:1);
+    final priorCashTransactions=await db.query('cash_transactions',columns:['id'],where:'cash_account_id=?',whereArgs:[safe['id']],limit:1);
+    if((openingRows.first['current_balance'] as num).toDouble()==0&&priorCashTransactions.isEmpty){
+      final amount=10000.0;final cashGl=openingRows.first['gl_account_id'] as int;
+      final equity=(await db.query('chart_of_accounts',columns:['id'],where:"code='3101'",limit:1)).first['id'] as int;
+      final je=await db.insert('journal_entries',{'uuid':'it4-safe-opening-je','branch_id':branchId,'created_at':now,'updated_at':now,'entry_no':'SEED-SAFE-OPENING','entry_date':now,'description':'رصيد افتتاحي تجريبي للخزينة','source_type':'OPENING','is_posted':1});
+      await db.insert('journal_lines',{'uuid':'it4-safe-opening-jl1','branch_id':branchId,'created_at':now,'updated_at':now,'journal_entry_id':je,'account_id':cashGl,'dr_amount':amount,'cr_amount':0,'memo':'رصيد افتتاحي تجريبي'});
+      await db.insert('journal_lines',{'uuid':'it4-safe-opening-jl2','branch_id':branchId,'created_at':now,'updated_at':now,'journal_entry_id':je,'account_id':equity,'dr_amount':0,'cr_amount':amount,'memo':'رصيد افتتاحي تجريبي'});
+      await db.update('cash_accounts',{'current_balance':amount,'updated_at':now},where:'id=?',whereArgs:[safe['id']]);
+      await db.insert('cash_transactions',{'cash_account_id':safe['id'],'tx_date':now,'direction':'IN','amount':amount,'tx_type':'OPENING','doc_type':'JOURNAL','doc_id':je,'balance_after':amount,'note':'رصيد افتتاحي تجريبي للخزينة','branch_id':branchId});
+    }
     final expSeeds=<List<Object>>[['كهرباء',1200.0,'فاتورة كهرباء تجريبية'],['ماء',300.0,'فاتورة ماء تجريبية'],['أكياس وتغليف',450.0,'مواد تغليف تجريبية']];
     for(var i=0;i<expSeeds.length;i++){
       final e=expSeeds[i];final expenseNo='SEED-EXP-${i+1}';
