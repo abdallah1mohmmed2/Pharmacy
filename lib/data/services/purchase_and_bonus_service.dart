@@ -68,7 +68,9 @@ class PurchaseAndBonusService {
       }
       if(discountAmount<0||discountAmount>subtotal||taxAmount<0)throw ArgumentError('خصم وضريبة الفاتورة غير صحيحين');
       final net=(subtotal-discountAmount+taxAmount).clamp(0,double.infinity).toDouble();
+      if(!['CASH','CREDIT','PARTIAL'].contains(paymentType))throw ArgumentError('نوع الدفع غير مدعوم');
       if(paidTotal<0||paidTotal>net+0.005)throw StateError('المبلغ المدفوع غير صحيح');
+      if(paymentType=='PARTIAL'&&(paidTotal<=0||paidTotal>=net))throw StateError('الدفع الجزئي يجب أن يكون أكبر من صفر وأقل من صافي الفاتورة');
       if(paidTotal>0&&cashAccountId==null)throw StateError('حدد الصندوق أو المحفظة');
       if(paymentType=='CASH'&&(paidTotal-net).abs()>0.005)throw StateError('الفاتورة النقدية يجب سدادها بالكامل');
       if(paymentType=='CREDIT'&&paidTotal>0)throw StateError('الفاتورة الآجلة لا تسجل دفعة فورية؛ اختر دفعاً جزئياً');
