@@ -22,10 +22,13 @@ jobs:
       - run: flutter analyze --no-fatal-infos
       - run: flutter test
       - run: flutter build apk --release
-      - uses: actions/upload-artifact@v4
+      - name: Package Android APK into one ZIP
+        run: zip -j pharmacy-android.zip build/app/outputs/flutter-apk/app-release.apk
+      - name: Upload Android ZIP
+        uses: actions/upload-artifact@v4
         with:
-          name: pharmacy-iteration-1-android-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: pharmacy-android
+          path: pharmacy-android.zip
           if-no-files-found: error
   windows:
     runs-on: windows-latest
@@ -40,3 +43,12 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze --no-fatal-infos
       - run: flutter build windows --release
+      - name: Package Windows release into one ZIP
+        shell: pwsh
+        run: Compress-Archive -Path "build/windows/x64/runner/Release/*" -DestinationPath "pharmacy-windows.zip" -Force
+      - name: Upload Windows ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: pharmacy-windows
+          path: pharmacy-windows.zip
+          if-no-files-found: error
