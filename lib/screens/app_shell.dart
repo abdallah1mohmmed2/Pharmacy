@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/session_and_erp_provider.dart';
 import '../providers/pos_and_drugs_provider.dart';
 import '../providers/inventory_and_purchase_provider.dart';
+import '../providers/treasury_hr_partner_provider.dart';
 import 'dashboard/s02_executive_dashboard_screen.dart';
 import 'pos/s03_smart_pos_screen.dart';
 import 'drugs/s08_s09_drug_encyclopedia_screen.dart';
@@ -17,6 +18,11 @@ import 'purchases/s17_s18_returns_and_shortages_screen.dart';
 import 'pos/s06_prescription_insurance_screen.dart';
 import 'pos/s07_sales_returns_screen.dart';
 import 'clinical/s08_clinical_audit_screen.dart';
+import 'finance/s22_treasury_wallets_screen.dart';
+import 'finance/s23_shift_close_handover_screen.dart';
+import 'finance/s24_operating_expenses_screen.dart';
+import 'hr_partners/s25_employees_shifts_payroll_screen.dart';
+import 'hr_partners/s26_owner_partners_profit_screen.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -24,8 +30,8 @@ class AppShell extends StatefulWidget {
 }
 class _AppShellState extends State<AppShell>{
   int index=0;
-  final pages=const [S02ExecutiveDashboardScreen(),S03SmartPosScreen(),S08S09DrugEncyclopediaScreen(),S19S20S21PartiesAndVouchersScreen(),S11InventoryBatchesShelvesScreen(),S12FefoExpiryRadarScreen(),S13StocktakingScreen(),S14DisposalsScreen(),S15StockTransfersScreen(),S16PurchaseInvoiceBonusScreen(),S17S18ReturnsAndShortagesScreen(),S06PrescriptionInsuranceScreen(),S07SalesReturnsScreen(),S08ClinicalAuditScreen()];
-  final titles=const ['لوحة التحكم التنفيذية','الكاشير الذكي','الموسوعة الدوائية','حسابات الأطراف والسندات','المخزون والتشغيلات','رادار الصلاحية','الجرد المخزني','الإعدام والإتلاف','التحويلات المخزنية','فواتير المشتريات والبونص','المرتجعات والنواقص','الوصفات والتأمين','مرتجع المبيعات','سجل الرقابة السريرية'];
+  final pages=const [S02ExecutiveDashboardScreen(),S03SmartPosScreen(),S08S09DrugEncyclopediaScreen(),S19S20S21PartiesAndVouchersScreen(),S11InventoryBatchesShelvesScreen(),S12FefoExpiryRadarScreen(),S13StocktakingScreen(),S14DisposalsScreen(),S15StockTransfersScreen(),S16PurchaseInvoiceBonusScreen(),S17S18ReturnsAndShortagesScreen(),S06PrescriptionInsuranceScreen(),S07SalesReturnsScreen(),S08ClinicalAuditScreen(),S22TreasuryWalletsScreen(),S23ShiftCloseHandoverScreen(),S24OperatingExpensesScreen(),S25EmployeesShiftsPayrollScreen(),S26OwnerPartnersProfitScreen()];
+  final titles=const ['لوحة التحكم التنفيذية','الكاشير الذكي','الموسوعة الدوائية','حسابات الأطراف والسندات','المخزون والتشغيلات','رادار الصلاحية','الجرد المخزني','الإعدام والإتلاف','التحويلات المخزنية','فواتير المشتريات والبونص','المرتجعات والنواقص','الوصفات والتأمين','مرتجع المبيعات','سجل الرقابة السريرية','الخزينة والمحافظ','إغلاق وتسليم الوردية','المصروفات التشغيلية','الموظفون والرواتب','المالك والشركاء'];
   @override Widget build(BuildContext context){
     final wide=MediaQuery.sizeOf(context).width>=900;
     final session=context.watch<SessionAndErpProvider>();
@@ -54,6 +60,11 @@ class _AppShellState extends State<AppShell>{
             NavigationRailDestination(icon:Icon(Icons.receipt_long_outlined),label:Text('الوصفات والتأمين')),
             NavigationRailDestination(icon:Icon(Icons.assignment_return),label:Text('مرتجع المبيعات')),
             NavigationRailDestination(icon:Icon(Icons.health_and_safety_outlined),label:Text('الرقابة السريرية')),
+            NavigationRailDestination(icon:Icon(Icons.account_balance_wallet),label:Text('الخزينة والمحافظ')),
+            NavigationRailDestination(icon:Icon(Icons.lock_clock),label:Text('إغلاق الوردية')),
+            NavigationRailDestination(icon:Icon(Icons.receipt_long),label:Text('المصروفات')),
+            NavigationRailDestination(icon:Icon(Icons.groups),label:Text('الموظفون والرواتب')),
+            NavigationRailDestination(icon:Icon(Icons.pie_chart),label:Text('المالك والشركاء')),
           ])),
         Expanded(child:IndexedStack(index:index,children:pages)),
       ]),
@@ -81,6 +92,7 @@ class _LoginScreenState extends State<_LoginScreen>{
     final session=context.read<SessionAndErpProvider>();
     final pos=context.read<PosAndDrugsProvider>();
     final inventory=context.read<InventoryAndPurchaseProvider>();
+    final finance=context.read<TreasuryHrPartnerProvider>();
     setState(()=>busy=true);
     final ok=await session.login(user.text,pass.text);
     if(!mounted)return;
@@ -90,6 +102,8 @@ class _LoginScreenState extends State<_LoginScreen>{
       await pos.setBranchId(activeBranch);
       if(!mounted)return;
       await inventory.setBranch(activeBranch);
+      if(!mounted)return;
+      await finance.loadAll(branchId:activeBranch,userId:session.currentUser!['id'] as int);
     }
   }
 }
