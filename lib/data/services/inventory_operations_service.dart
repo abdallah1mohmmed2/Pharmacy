@@ -22,10 +22,15 @@ class InventoryOperationsService {
   Future<void> countBatch({required int sessionId,required int batchId,required int countedPacks,required int countedLooseUnits,required int unitsPerPack,String reason=''}) async {
     if(countedPacks<0||countedLooseUnits<0||unitsPerPack<=0||countedLooseUnits>=unitsPerPack)throw ArgumentError('العد الفعلي غير صحيح');
     final db=await _db.database;
-    final rows=await db.rawQuery("SELECT l.id,l.system_units,l.unit_cost FROM stocktaking_lines l JOIN stocktaking_sessions s ON s.id=l.session_id WHERE l.session_id=? AND l.batch_id=? AND s.status='COUNTING'",[sessionId,batchId]);
+    final rows=await db.rawQuery("SELECT l.id,l.system_units,l.unit_cost,d.units_per_pack FROM stocktaking_lines l JOIN stocktaking_sessions s ON s.id=l.session_id JOIN batches_fefo b ON b.id=l.batch_id JOIN drugs d ON d.id=b.drug_id WHERE l.session_id=? AND l.batch_id=? AND s.status IN('COUNTING','REVIEW')",[sessionId,batchId]);
     if(rows.isEmpty)throw StateError('جلسة الجرد أو التشغيلة غير متاحة');
+    if((rows.first['units_per_pack'] as int? ?? 1)!=unitsPerPack)throw StateError('وحدات الباكت لا تطابق تعريف الصنف');
     final counted=countedPacks*unitsPerPack+countedLooseUnits;final diff=counted-(rows.first['system_units'] as int);final cost=(rows.first['unit_cost'] as num).toDouble();
-    await db.update('stocktaking_lines',{'counted_packs':countedPacks,'counted_loose_units':countedLooseUnits,'counted_units':counted,'is_counted':1,'diff_units':diff,'diff_value':diff*cost,'reason_code':reason},where:'id=?',whereArgs:[rows.first['id']]);
+    await db.transaction((txn)async{
+      await txn.update('stocktaking_lines',{'counted_packs':countedPacks,'counted_loose_units':countedLooseUnits,'counted_units':counted,'is_counted':1,'diff_units':diff,'diff_value':diff*cost,'reason_code':reason},where:'id=?',whereArgs:[rows.first['id']]);
+      final pending=await txn.rawQuery('SELECT COUNT(*) pending FROM stocktaking_lines WHERE session_id=? AND is_counted=0',[sessionId]);
+      if((pending.first['pending'] as int)==0)await txn.update('stocktaking_sessions',{'status':'REVIEW'},where:'id=? AND status=?',whereArgs:[sessionId,'COUNTING']);
+    });
   }
 
   Future<void> approveStocktaking({required int sessionId,required int managerUserId,int branchId=1}) async {
@@ -57,13 +62,16 @@ class InventoryOperationsService {
 
   Future<int> createDisposal({required int branchId,required String reason,required String method,required String witnessName,String authorityRef='',required List<({int batchId,int qtyUnits})> items}) async {
     if(items.isEmpty)throw ArgumentError('اختر تشغيلات للإعدام');
+    if(!['EXPIRED','BROKEN','DAMAGED_STORAGE','RECALL','CONTAMINATED'].contains(reason)||method.trim().isEmpty||witnessName.trim().isEmpty)throw ArgumentError('بيانات محضر الإعدام غير مكتملة');
     final db=await _db.database;
     return db.transaction((txn)async{
       final now=DateTime.now().toIso8601String();double total=0;final prepared=<Map<String,Object?>>[];
       for(final item in items){
         if(item.qtyUnits<=0)throw ArgumentError('كمية الإعدام غير صحيحة');
         final rows=await txn.query('batches_fefo',where:'id=?',whereArgs:[item.batchId]);if(rows.isEmpty||item.qtyUnits>(rows.first['total_units'] as int))throw StateError('كمية الإعدام تتجاوز المتاح');
-        final batch=rows.first;final cost=(batch['unit_cost'] as num).toDouble();total+=item.qtyUnits*cost;prepared.add({'input':item,'batch':batch,'cost':cost});
+        final batch=rows.first;
+        if(reason=='EXPIRED'&&(batch['expiry_date'] as String).compareTo(DateTime.now().toIso8601String().substring(0,10))>=0)throw StateError('لا يمكن إعدام تشغيلة غير منتهية بسبب انتهاء الصلاحية');
+        final cost=(batch['unit_cost'] as num).toDouble();total+=item.qtyUnits*cost;prepared.add({'input':item,'batch':batch,'cost':cost});
       }
       final id=await txn.insert('disposals',{'disposal_no':_number('DSP'),'disposal_date':now,'reason':reason,'method':method,'authority_ref':authorityRef,'witness_name':witnessName,'status':'APPROVED','total_cost_value':total});
       for(final p in prepared){
@@ -138,7 +146,9 @@ class InventoryOperationsService {
     });
   }
   Future<int> recordTemperature({required int warehouseId,required double tempC,double? humidityPct,int? userId,String correctiveAction=''}) async {
-    final db=await _db.database;return db.insert('cold_chain_log',{'warehouse_id':warehouseId,'reading_at':DateTime.now().toIso8601String(),'temp_c':tempC,'humidity_pct':humidityPct,'is_out_of_range':tempC<2||tempC>8?1:0,'corrective_action':correctiveAction,'recorded_by':userId});
+    if(!tempC.isFinite||(humidityPct!=null&&(!humidityPct.isFinite||humidityPct<0||humidityPct>100)))throw ArgumentError('قراءة الحرارة أو الرطوبة غير صحيحة');
+    final db=await _db.database;final warehouses=await db.query('warehouses',columns:['id'],where:"id=? AND wh_type='FRIDGE'",whereArgs:[warehouseId],limit:1);if(warehouses.isEmpty)throw StateError('تسجيل سلسلة التبريد متاح لمستودع الثلاجة فقط');
+    return db.insert('cold_chain_log',{'warehouse_id':warehouseId,'reading_at':DateTime.now().toIso8601String(),'temp_c':tempC,'humidity_pct':humidityPct,'is_out_of_range':tempC<2||tempC>8?1:0,'corrective_action':correctiveAction,'recorded_by':userId});
   }
 
   Future<int> _accountId(Transaction txn,String code) async {final rows=await txn.query('chart_of_accounts',columns:['id'],where:'code=?',whereArgs:[code],limit:1);if(rows.isEmpty)throw StateError('الحساب '+code+' غير موجود');return rows.first['id'] as int;}
