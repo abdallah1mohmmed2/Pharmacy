@@ -34,7 +34,7 @@ abstract final class SchemaIteration4 {
       '''CREATE TRIGGER IF NOT EXISTS trg_partner_lock_shares_ins BEFORE INSERT ON partners WHEN NEW.shares_count IS NOT NULL AND (SELECT value_text FROM app_settings WHERE setting_key='accounting.partner_distribution_mode')='percentage' BEGIN SELECT RAISE(ABORT,'PARTNER_SHARES_LOCKED_IN_PERCENTAGE_MODE'); END''',
       '''CREATE TRIGGER IF NOT EXISTS trg_partner_lock_shares_upd BEFORE UPDATE OF shares_count ON partners WHEN NEW.shares_count IS NOT NULL AND (SELECT value_text FROM app_settings WHERE setting_key='accounting.partner_distribution_mode')='percentage' BEGIN SELECT RAISE(ABORT,'PARTNER_SHARES_LOCKED_IN_PERCENTAGE_MODE'); END''',
     ];
-    for (final sql in statements) { await db.execute(sql); }
+    for (final sql in statements) { await db.execute(sql); }\n    await _ensureColumn(db, 'chronic_medication_schedules', 'last_dispensed_at', 'TEXT');\n    await _ensureColumn(db, 'chronic_medication_schedules', 'last_dispensed_invoice_id', 'INTEGER');
     await db.insert('app_settings', {'setting_key':'accounting.partner_distribution_mode','value_text':'shares'}, conflictAlgorithm: ConflictAlgorithm.ignore);
     await _seed(db);
   }
