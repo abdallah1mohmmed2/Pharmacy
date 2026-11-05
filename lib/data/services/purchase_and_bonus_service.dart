@@ -40,7 +40,7 @@ class PurchaseAndBonusService {
       for(final entry in prepared){
         final item=entry['item'] as PurchaseLineInput;
         final aggregate=aggregateByDrug.putIfAbsent(item.drugId,()=>{'packs':0,'cost':0,'currentPacks':entry['currentPacks'] as double,'oldAverage':entry['oldAverage'] as double});
-        aggregate['packs']=(aggregate['packs']??0)+(entry['packs'] as int);
+        aggregate['packs']=(aggregate['packs']??0)+(entry['packs'] as int).toDouble();
         aggregate['cost']=(aggregate['cost']??0)+(entry['lineTotal'] as double);
       }
       for(final entry in prepared){
@@ -51,6 +51,7 @@ class PurchaseAndBonusService {
         final denominator=oldPacks+incomingPacks;
         entry['newAverage']=denominator<=0?0:((oldPacks*aggregate['oldAverage']!)+aggregate['cost']!)/denominator;
       }
+      if(discountAmount<0||discountAmount>subtotal||taxAmount<0)throw ArgumentError('خصم وضريبة الفاتورة غير صحيحين');
       final net=(subtotal-discountAmount+taxAmount).clamp(0,double.infinity).toDouble();
       if(paidTotal<0||paidTotal>net+0.005)throw StateError('المبلغ المدفوع غير صحيح');
       if(paidTotal>0&&cashAccountId==null)throw StateError('حدد الصندوق أو المحفظة');
