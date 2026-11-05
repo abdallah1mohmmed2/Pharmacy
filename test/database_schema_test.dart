@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_builder.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration2.dart';
+import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration3.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/seed_data.dart';
 
 void main() {
@@ -17,7 +18,7 @@ void main() {
     final db = await databaseFactoryFfi.openDatabase(
       inMemoryDatabasePath,
       options: OpenDatabaseOptions(
-        version: 4,
+        version: 5,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
           await database.execute('PRAGMA journal_mode = WAL');
@@ -29,6 +30,7 @@ void main() {
           await SchemaBuilder.build(database);
           await SeedData.run(database);
           await SchemaIteration2.upgrade(database);
+          await SchemaIteration3.upgrade(database);
         },
       ),
     );
@@ -109,7 +111,22 @@ void main() {
       expect(fefoViewRows.first.containsKey('units_per_pack'), isTrue);
       expect(fefoViewRows.first.containsKey('average_daily_units'), isTrue);
       expect(invalidBalances, isEmpty);
+
       expect(stockTotals, isEmpty);
+      final clinicalTables = ['drug_interactions','drug_renal_rules','drug_hepatic_rules','drug_pediatric_rules','patients','clinical_alert_logs','controlled_drug_log','insurance_companies','insurance_policies','prescriptions','prescription_items','sales_returns','sales_return_items'];
+      for (final table in clinicalTables) {
+        final rows = await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name=?", [table]);
+        expect(rows, hasLength(1), reason: 'Missing clinical table $table');
+      }
+      final alternativesView = await db.rawQuery("SELECT name FROM sqlite_master WHERE type='view' AND name='v_drug_alternatives'");
+      expect(alternativesView, hasLength(1));
+      final patientCount = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM patients')) ?? 0;
+      final insuranceCount = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM insurance_companies')) ?? 0;
+      final alternativeCount = Sqflite.firstIntValue(await db.rawQuery("SELECT COUNT(*) FROM drugs WHERE internal_code LIKE 'ALT-I3-%'")) ?? 0;
+      expect(patientCount, 3);
+      expect(insuranceCount, 2);
+      expect(alternativeCount, 4);
+
 
       final requiredTables = [
         'warehouses',
