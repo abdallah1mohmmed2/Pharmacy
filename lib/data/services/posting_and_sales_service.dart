@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:sqflite/sqflite.dart';
 import '../database/database_helper.dart';
 import '../models/erp_models.dart';
+import '../models/clinical_and_rx_models.dart';
 import 'fefo_allocator_service.dart';
 
 class PostingAndSalesService {
@@ -23,8 +24,9 @@ class PostingAndSalesService {
     return entryId;
   }
 
-  Future<int> postSale({required int branchId,required int cashierUserId,required List<CartItemModel> items,required String saleType,required List<({int cashAccountId,double amount,String method,String? walletRef})> payments, int customerPartyId=0,double discountAmount=0}) async {
+  Future<int> postSale({required int branchId,required int cashierUserId,required List<CartItemModel> items,required String saleType,required List<({int cashAccountId,double amount,String method,String? walletRef})> payments, int customerPartyId=0,double discountAmount=0,required ClinicalVerdict clinicalVerdict}) async {
     if(items.isEmpty) throw ArgumentError('لا يمكن حفظ فاتورة فارغة');
+    if(clinicalVerdict.hasUnresolvedCritical)throw StateError('لا يمكن ترحيل الفاتورة قبل توثيق قرارات التنبيهات السريرية الحرجة');
     return (await _helper.database).transaction((txn) async {
       final subtotal=items.fold<double>(0,(s,i)=>s+i.lineTotal);
       final net=(subtotal-discountAmount).clamp(0,double.infinity).toDouble();
