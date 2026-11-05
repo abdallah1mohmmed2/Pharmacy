@@ -15,6 +15,7 @@ class SessionAndErpProvider extends ChangeNotifier {
   List<Map<String,Object?>> recentInvoices=[];
   List<Map<String,Object?>> recentVouchers=[];
   List<Map<String,Object?>> lowStockDrugs=[];
+  List<Map<String,Object?>> criticalDrugs=[];
   Map<String,double> dashboard={};
   bool loading=false;
   String? lastError;
@@ -38,6 +39,7 @@ class SessionAndErpProvider extends ChangeNotifier {
       recentInvoices=await db.query('sales_invoices',where:'branch_id=? AND is_deleted=0',whereArgs:[branchId],orderBy:'id DESC',limit:5);
       recentVouchers=await db.query('vouchers',where:'branch_id=? AND is_deleted=0',whereArgs:[branchId],orderBy:'id DESC',limit:5);
       lowStockDrugs=await db.rawQuery('SELECT id,trade_name_ar,stock_total_units,min_stock_units FROM drugs WHERE branch_id=? AND is_deleted=0 AND is_active=1 AND stock_total_units<=min_stock_units ORDER BY stock_total_units LIMIT 10',[branchId]);
+      criticalDrugs=await db.rawQuery("SELECT id,trade_name_ar,pregnancy_category,is_controlled,is_nephrotoxic,has_critical_interactions FROM drugs WHERE branch_id=? AND is_deleted=0 AND is_active=1 AND (pregnancy_category='X' OR is_controlled=1 OR is_nephrotoxic=1 OR has_critical_interactions=1) ORDER BY trade_name_ar LIMIT 10",[branchId]);
       cashAccounts=cash.map((m)=>CashAccountModel(id:m['id'] as int,uuid:m['uuid'] as String?,branchId:m['branch_id'] as int,code:m['code'] as String,nameAr:m['name_ar'] as String,accountKind:m['account_kind'] as String,walletProvider:m['wallet_provider'] as String?,walletPhone:m['wallet_phone'] as String?,glAccountId:m['gl_account_id'] as int?,currentBalance:(m['current_balance'] as num).toDouble())).toList();
       final today=DateTime.now().toIso8601String().substring(0,10);
       final sales=await db.rawQuery("SELECT COALESCE(SUM(net_total),0) total, COALESCE(SUM(total_cost),0) cost, COUNT(*) count FROM sales_invoices WHERE status='COMPLETED' AND substr(invoice_date,1,10)=?",[today]);
