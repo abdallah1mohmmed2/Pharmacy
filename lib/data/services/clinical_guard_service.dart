@@ -47,15 +47,13 @@ class ClinicalGuardService {
     id:p.id,partyId:p.partyId,fullName:p.fullName,birthDate:p.birthDate,
     sex:flags.contains('PREGNANT')||flags.contains('BREASTFEEDING')?'F':p.sex,
     weightKg:p.weightKg,heightCm:p.heightCm,isPregnant:p.isPregnant||flags.contains('PREGNANT'),
-    pregnancyTrimester:p.pregnancyTrimester,isLactating:p.isLactating||flags.contains('BREASTFEEDING'),
+    pregnancyTrimester:p.pregnancyTrimester,pregnancyStatusKnown:p.pregnancyStatusKnown||flags.contains('PREGNANT'),isLactating:p.isLactating||flags.contains('BREASTFEEDING'),
     serumCreatinine:p.serumCreatinine,egfrMlMin:p.egfrMlMin,renalStage:p.renalStage,
     childPughClass:p.childPughClass,allergiesJson:p.allergiesJson,
     chronicConditionsJson:p.chronicConditionsJson,currentMedsJson:p.currentMedsJson);
   PatientClinicalModel? _quickPatient(Set<String> flags){
     if(flags.isEmpty)return null;
-    final years=flags.contains('CHILD')?10:flags.contains('ELDERLY')?70:30;
-    final now=DateTime.now();
-    return PatientClinicalModel(fullName:'حالة سريعة من الكاشير',birthDate:DateTime(now.year-years,now.month,now.day),sex:flags.contains('PREGNANT')||flags.contains('BREASTFEEDING')?'F':'M',isPregnant:flags.contains('PREGNANT'),isLactating:flags.contains('BREASTFEEDING'));
+    return PatientClinicalModel(fullName:'حالة سريعة من الكاشير',sex:flags.contains('PREGNANT')||flags.contains('BREASTFEEDING')?'F':'M',isPregnant:flags.contains('PREGNANT'),pregnancyStatusKnown:flags.contains('PREGNANT'),isLactating:flags.contains('BREASTFEEDING'));
   }
   List<ClinicalAlertModel> _ageRules(DrugModel d,PatientClinicalModel? p){
     if(p==null||p.ageMonths==null)return [];
@@ -87,7 +85,7 @@ class ClinicalGuardService {
       if(category=='X')out.add(ClinicalAlertModel(category:'PREGNANCY',level:ClinicalLevel.block,drugId:d.id,messageAr:'الدواء مصنف ضمن فئة الحمل X ويُمنع استخدامه أثناء الحمل.',recommendation:'لا تصرفه دون تقييم اختصاصي وإجراء تجاوز إداري موثق.'));
       if(category=='D')out.add(ClinicalAlertModel(category:'PREGNANCY',level:ClinicalLevel.warning,drugId:d.id,messageAr:'توجد مخاطر جنينية مثبتة؛ يلزم تقييم المنفعة والمخاطر.'));
       if(category=='C')out.add(ClinicalAlertModel(category:'PREGNANCY',level:ClinicalLevel.caution,drugId:d.id,messageAr:'بيانات الحمل تستلزم موازنة المنفعة والمخاطر.'));
-    }else if(reproductive&&!p.isPregnant&&(category=='X'||category=='D'))out.add(ClinicalAlertModel(category:'PREGNANCY',level:ClinicalLevel.warning,drugId:d.id,messageAr:'حالة الحمل غير محددة؛ اسأل المريضة قبل صرف هذا الدواء.',ruleRef:'PREG_ASK'));
+    }else if(reproductive&&!p.pregnancyStatusKnown&&(category=='X'||category=='D'))out.add(ClinicalAlertModel(category:'PREGNANCY',level:ClinicalLevel.warning,drugId:d.id,messageAr:'حالة الحمل غير محددة؛ اسأل المريضة قبل صرف هذا الدواء.',ruleRef:'PREG_ASK'));
     if(p.isLactating){final risk=d.lactationRisk.toUpperCase();if(risk=='L5')out.add(ClinicalAlertModel(category:'LACTATION',level:ClinicalLevel.block,drugId:d.id,messageAr:'الدواء غير متوافق مع الرضاعة وفق تصنيف الخطر المسجل.'));if(risk=='L4')out.add(ClinicalAlertModel(category:'LACTATION',level:ClinicalLevel.warning,drugId:d.id,messageAr:'يوجد خطر محتمل على الرضيع أثناء الرضاعة.'));if(risk=='L3')out.add(ClinicalAlertModel(category:'LACTATION',level:ClinicalLevel.caution,drugId:d.id,messageAr:'يلزم تقييم الاستخدام أثناء الرضاعة ومراقبة الرضيع.'));}
     return out;
   }
@@ -120,7 +118,7 @@ class ClinicalGuardService {
     if(foods.isEmpty||drug.id==null)return [];
     final out=<ClinicalAlertModel>[];
     for(final food in foods.where((x)=>x.trim().isNotEmpty)){
-      final rows=await (await _helper.database).rawQuery("SELECT * FROM drug_interactions WHERE interactant_type='FOOD' AND (drug_a_id=? OR drug_a_ingredient_id=?) AND lower(interactant_name) LIKE ?",[drug.id,drug.activeIngredientId,'%'+food.toLowerCase()+'%']);
+      final rows=await (await _helper.database).rawQuery("SELECT * FROM drug_interactions WHERE interactant_type='FOOD' AND ((drug_a_id=? OR drug_a_ingredient_id=?) OR (drug_b_id=? OR drug_b_ingredient_id=?)) AND lower(interactant_name) LIKE ?",[drug.id,drug.activeIngredientId,drug.id,drug.activeIngredientId,'%'+food.toLowerCase()+'%']);
       for(final r in rows){final severity=r['severity'] as String;final level=switch(severity){'CONTRAINDICATED'=>ClinicalLevel.block,'MAJOR'=>ClinicalLevel.warning,'MODERATE'=>ClinicalLevel.caution,_=>ClinicalLevel.info};out.add(ClinicalAlertModel(category:'INTERACTION',level:level,drugId:drug.id,patientId:patientId,ruleRef:'drug_interactions:${r['id']}',messageAr:'تفاعل غذائي محتمل بين ${drug.tradeNameAr} و${r['interactant_name']}: ${r['clinical_effect']}',recommendation:r['management'] as String? ?? 'تحقق من النشرة الدوائية.'));}
     }
     return out;
@@ -142,8 +140,15 @@ class ClinicalGuardService {
     }return out;
   }
   Future<void> recordDecision(ClinicalAlertModel alert,{required String decision,required int? userId,String? reason,int? managerUserId,int? invoiceId}) async {
-    if((decision=='ACKNOWLEDGED'||decision=='OVERRIDDEN_WITH_PIN')&&(reason??'').trim().length<5&&alert.level==ClinicalLevel.warning)throw StateError('سبب التجاوز يجب ألا يقل عن خمسة أحرف');
-    if(alert.level==ClinicalLevel.block&&decision=='OVERRIDDEN_WITH_PIN'&&(managerUserId==null||(reason??'').trim().length<5))throw StateError('يلزم رمز المدير وسبب واضح لتجاوز الحظر');
+    const allowed={'ACKNOWLEDGED','CANCELLED_ITEM','SUBSTITUTED','OVERRIDDEN_WITH_PIN'};
+    if(!allowed.contains(decision))throw StateError('قرار سريري غير مدعوم');
+    if(alert.level==ClinicalLevel.block){
+      if(decision=='ACKNOWLEDGED')throw StateError('لا يمكن تجاوز الحظر السريري بمجرد الإقرار');
+      if(decision=='OVERRIDDEN_WITH_PIN'&&(managerUserId==null||(reason??'').trim().length<5))throw StateError('يلزم تحقق رمز المدير وسبب واضح لتجاوز الحظر');
+      if(decision!='CANCELLED_ITEM'&&decision!='SUBSTITUTED'&&decision!='OVERRIDDEN_WITH_PIN')throw StateError('يجب حذف الصنف أو استبداله أو اعتماد تجاوز المدير');
+    }
+    if(alert.level==ClinicalLevel.warning&&decision=='ACKNOWLEDGED'&&(reason??'').trim().length<5)throw StateError('سبب التجاوز يجب ألا يقل عن خمسة أحرف');
+    if(alert.level==ClinicalLevel.warning&&decision=='OVERRIDDEN_WITH_PIN')throw StateError('تنبيه التحذير يوثق بسبب الصيدلي ولا يحتاج تجاوز حظر المدير');
     await (await _helper.database).insert('clinical_alert_logs',alert.toLogMap(decidedBy:userId,managerUserId:managerUserId)..['user_decision']=decision..['override_reason']=reason..['invoice_id']=invoiceId??alert.invoiceId);
   }
 }
