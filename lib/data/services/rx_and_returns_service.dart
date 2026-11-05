@@ -227,7 +227,7 @@ class RxAndReturnsService {
     if(rows.isEmpty)throw StateError('الحساب المحاسبي $code غير موجود');
     return rows.first['id'] as int;
   }
-  Future<int> _postReturnJournal(Transaction txn,{required int returnId,required String returnNo,required double refundAmount,required int refundAccountId,required double inventoryCost) async {
+  Future<int> _postReturnJournal(Transaction txn,{required int returnId,required String returnNo,required double refundAmount,required int refundAccountId,required double inventoryCost}) async {
     final now=DateTime.now().toIso8601String();
     final je=await txn.insert('journal_entries',{'uuid':_number('JE'),'branch_id':1,'created_at':now,'updated_at':now,'is_deleted':0,'sync_status':'LOCAL','sync_version':1,'entry_no':_number('RET-JE'),'entry_date':now,'description':'قيد مرتجع المبيعات $returnNo','source_type':'SALES_RETURN','source_id':returnId,'is_posted':1});
     final salesReturns=await _accountId(txn,'4101');
