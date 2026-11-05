@@ -164,11 +164,11 @@ class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScr
      if(map['strip_price_mode']=='AUTO')map['sell_price_strip']=packPrice/strips;
      map['sell_price_unit']=packPrice/(strips*units);
      final model=DrugModel.fromMap(map);
-     await context.read<PosAndDrugsProvider>().saveDrug(model);
-     if(dialogContext.mounted)Navigator.pop(dialogContext);
-     if(mounted){setState(()=>selected=model);await context.read<PosAndDrugsProvider>().loadDrugs();}
-    },child:const Text('حفظ جميع البيانات')),
-   ],
+      await provider.saveDrug(model);
+      if (!mounted) return;
+      if (dialogContext.mounted) Navigator.pop(dialogContext);
+      setState(() => selected = model);
+      await provider.loadDrugs();
   ));
   for(final controller in controllers.values){controller.dispose();}
  }
