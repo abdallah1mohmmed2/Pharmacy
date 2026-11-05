@@ -122,7 +122,7 @@ class PostingAndSalesService {
         await txn.rawUpdate('UPDATE cash_accounts SET current_balance=current_balance+?,updated_at=? WHERE id=?',[isReceipt?amount:-amount,DateTime.now().toIso8601String(),cashAccountId]);
         final cashGl=cash.first['gl_account_id'] as int?;
         if(cashGl==null) throw StateError('اربط حساب الصندوق بدليل الحسابات أولاً');
-        lines.add(isReceipt ? (accountId:cashGl,debit:amount,credit:0,partyId:null,memo:'استلام نقدية') : (accountId:partyGl,debit:amount,credit:0,partyId:partyId,memo:'تسديد للطرف'));
+        lines.add(isReceipt ? (accountId:cashGl!,debit:amount,credit:0,partyId:null,memo:'استلام نقدية') : (accountId:partyGl,debit:amount,credit:0,partyId:partyId,memo:'تسديد للطرف'));
         lines.add(isReceipt ? (accountId:partyGl,debit:0,credit:amount,partyId:partyId,memo:'تخفيض رصيد الطرف') : (accountId:cashGl,debit:0,credit:amount,partyId:null,memo:'صرف نقدية'));
       }
       final entryId=await postBalancedEntry(txn,branchId:branchId,description:description,sourceType:'VOUCHER',sourceId:voucherId,lines:lines);
