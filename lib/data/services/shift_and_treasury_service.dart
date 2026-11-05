@@ -37,6 +37,14 @@ class ShiftAndTreasuryService {
       if(source.isEmpty)throw StateError('حساب المصدر غير موجود');
       if(_n(source.first['current_balance'])<amount+fee)throw StateError('رصيد حساب المصدر لا يكفي');
       final transferId=DateTime.now().microsecondsSinceEpoch;
+      final sourceRows=await tx.query('cash_accounts',columns:['gl_account_id'],where:'id=?',whereArgs:[fromAccountId],limit:1);
+      final destinationRows=await tx.query('cash_accounts',columns:['gl_account_id'],where:'id=?',whereArgs:[toAccountId],limit:1);
+      final sourceGl=sourceRows.first['gl_account_id'] as int?;final destinationGl=destinationRows.first['gl_account_id'] as int?;
+      if(sourceGl==null||destinationGl==null)throw StateError('يجب ربط حسابي التحويل بدليل الحسابات');
+      final je=await _journal(tx,branchId:branchId,source:'CASH_TRANSFER',sourceId:transferId,description:note.isEmpty?'تحويل بين حسابين':note);
+      await _journalLine(tx,branchId:branchId,entryId:je,accountId:destinationGl,dr:amount,memo:'تحويل وارد');
+      await _journalLine(tx,branchId:branchId,entryId:je,accountId:sourceGl,cr:amount+fee,memo:'تحويل صادر ورسوم');
+      if(fee>0){final feeGl=await _glId(tx,'5301');await _journalLine(tx,branchId:branchId,entryId:je,accountId:feeGl,dr:fee,memo:'رسوم تحويل');}
       await _cashMove(tx,branchId:branchId,accountId:fromAccountId,direction:'OUT',amount:amount,type:'TRANSFER_BETWEEN_ACCOUNTS',docType:'CASH_TRANSFER',docId:transferId,ref:walletRefNo,note:note);
       await _cashMove(tx,branchId:branchId,accountId:toAccountId,direction:'IN',amount:amount,type:'TRANSFER_BETWEEN_ACCOUNTS',docType:'CASH_TRANSFER',docId:transferId,ref:walletRefNo,note:note);
       if(fee>0)await _cashMove(tx,branchId:branchId,accountId:fromAccountId,direction:'OUT',amount:fee,type:'EXPENSE',docType:'TRANSFER_FEE',docId:transferId,ref:walletRefNo,note:'رسوم تحويل: $note');
