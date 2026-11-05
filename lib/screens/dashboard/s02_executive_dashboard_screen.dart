@@ -25,7 +25,11 @@ class S02ExecutiveDashboardScreen extends StatelessWidget{
    const SizedBox(height:18),const Text('الصناديق والمحافظ',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
    ...p.cashAccounts.map((a)=>Card(child:ListTile(leading:const Icon(Icons.account_balance_wallet_outlined,color:AppColors.info),title:Text(a.nameAr),subtitle:Text(a.accountKind),trailing:Text(MoneyFormatter.format(a.currentBalance))))),
    const SizedBox(height:12),const Text('تنبيهات المخزون',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
-   if((d['lowStock']??0)==0)const Text('لا توجد أصناف وصلت حد النقص.') else const ClinicalAlertBanner(message:'توجد أصناف عند حد إعادة الطلب أو دونه. راجع موسوعة الأدوية.',level:ClinicalAlertLevel.warning),
+   if(p.lowStockDrugs.isEmpty)const Text('لا توجد أصناف وصلت حد النقص.') else ...p.lowStockDrugs.map((drug)=>Card(child:ListTile(leading:const Icon(Icons.warning_amber,color:AppColors.warning),title:Text(drug['trade_name_ar'] as String),subtitle:Text('المخزون: '+drug['stock_total_units'].toString()+' • حد الطلب: '+drug['min_stock_units'].toString())))),
+   const SizedBox(height:16),const Text('آخر الفواتير',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
+   ...p.recentInvoices.map((invoice)=>Card(child:ListTile(leading:const Icon(Icons.receipt_long),title:Text(invoice['invoice_no'] as String),subtitle:Text(invoice['invoice_date'] as String),trailing:Text(MoneyFormatter.format((invoice['net_total'] as num).toDouble()))))),
+   const SizedBox(height:12),const Text('آخر السندات',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
+   ...p.recentVouchers.map((voucher)=>Card(child:ListTile(leading:const Icon(Icons.request_quote_outlined),title:Text(voucher['voucher_no'] as String),subtitle:Text(voucher['voucher_type'] as String),trailing:Text(MoneyFormatter.format((voucher['amount'] as num).toDouble()))))),
   ]));
  }
 }
