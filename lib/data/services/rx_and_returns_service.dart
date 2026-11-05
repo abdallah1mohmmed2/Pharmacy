@@ -36,8 +36,8 @@ class RxAndReturnsService {
     final insurance=wanted.clamp(0,policy.remainingLimit).toDouble();
     return CopayLine(gross:lineTotal,insuranceShare:insurance,patientShare:lineTotal-insurance,limitExceeded:wanted>insurance+0.005,excluded:excluded);
   }
-  Future<int> dispensePrescription({required int prescriptionId,required Map<int,int> quantitiesByItemId,required int patientPartyId,required int? policyId,required List<({double amount,int? cashAccountId,String method,String? walletRef})> patientPayments,required int pharmacistUserId,Map<int,({String patientName,String patientNationalId,String receiverName,String receiverNationalId,String doctorName,int? batchId})> controlledDetails=const {},required Map<int,double> lineTotalsByItemId,int branchId=1,ClinicalVerdict? clinicalVerdict}) async {
-    if(clinicalVerdict?.hasUnresolvedCritical==true)throw StateError('لا يمكن صرف الوصفة قبل حسم التنبيهات السريرية الحرجة');
+  Future<int> dispensePrescription({required int prescriptionId,required Map<int,int> quantitiesByItemId,required int patientPartyId,required int? policyId,required List<({double amount,int? cashAccountId,String method,String? walletRef})> patientPayments,required int pharmacistUserId,Map<int,({String patientName,String patientNationalId,String receiverName,String receiverNationalId,String doctorName,int? batchId})> controlledDetails=const {},required Map<int,double> lineTotalsByItemId,int branchId=1,required ClinicalVerdict clinicalVerdict}) async {
+    if(clinicalVerdict.hasUnresolvedCritical)throw StateError('لا يمكن صرف الوصفة قبل حسم التنبيهات السريرية الحرجة');
     final db=await _helper.database;
     final fefo=FefoAllocator(helper:_helper);
     return db.transaction((txn) async {
