@@ -36,8 +36,10 @@ class VoucherModel {
 }
 
 class CartItemModel {
-  CartItemModel({required this.drug,required this.sellUnit,this.quantity=1,this.discount=0});
+  CartItemModel({required this.drug,required this.sellUnit,this.quantity=1,this.discount=0,this.isSubstitute=false,this.substitutedForDrugId});
   final DrugModel drug;
+  final bool isSubstitute;
+  final int? substitutedForDrugId;
   String sellUnit;
   double quantity,discount;
   int get baseUnits=>drug.toBaseUnits(sellUnit,quantity);
