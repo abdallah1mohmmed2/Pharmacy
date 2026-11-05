@@ -43,7 +43,7 @@ class _AppShellState extends State<AppShell>{
   }
 }
 
-class _LoginScreen extends StatefulWidget{const _LoginScreen();}
+class _LoginScreen extends StatefulWidget{const _LoginScreen();@override State<_LoginScreen> createState()=>_LoginScreenState();}
 class _LoginScreenState extends State<_LoginScreen>{
   final user=TextEditingController(text:'admin');final pass=TextEditingController(text:'123456');bool busy=false;String? error;
   @override void dispose(){user.dispose();pass.dispose();super.dispose();}

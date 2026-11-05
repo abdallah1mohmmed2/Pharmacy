@@ -36,7 +36,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen>{
   final credit=method=='CREDIT'||method=='MIXED';if(credit&&customerId==null){_message('اختر العميل');return;}
   final paid=method=='CREDIT'?0.0:p.total;
   final payments=paid>0?[ (cashAccountId:cashId!,amount:paid,method:method=='WALLET'?'WALLET':'CASH',walletRef:isWallet?walletRef.text.trim():null) ]:[];
-  try{final id=await p.checkout(cashierId:s.currentUser?['id'] as int ?? 1,saleType:method=='CREDIT'?'CREDIT':method=='MIXED'?'MIXED':'CASH',payments:payments,customerId:customerId,discount:discount);if(mounted){_message('تم حفظ الفاتورة رقم '+id.toString());await s.refresh();}}catch(e){_message(e.toString());}
+  try{final id=await p.checkout(cashierId:s.currentUser?['id'] as int ?? 1,saleType:method=='CREDIT'?'CREDIT':method=='MIXED'?'MIXED':'CASH',payments:payments,customerId:customerId,discount:discount,managerApproved:p.clinicalBlock!=null,branchId:s.branchId);if(mounted){_message('تم حفظ الفاتورة رقم '+id.toString());await s.refresh();}}catch(e){_message(e.toString());}
  }
  void _message(String text)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(text)));
 }
