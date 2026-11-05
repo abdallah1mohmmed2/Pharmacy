@@ -10,9 +10,9 @@ class S07SalesReturnsScreen extends StatefulWidget {
   @override State<S07SalesReturnsScreen> createState()=>_S07SalesReturnsScreenState();
 }
 class _S07SalesReturnsScreenState extends State<S07SalesReturnsScreen>{
-  final search=TextEditingController(),qty=TextEditingController(text:'1'),refund=TextEditingController(),reason=TextEditingController();
+  final search=TextEditingController(),qty=TextEditingController(text:'1'),refund=TextEditingController(),reason=TextEditingController(),walletRef=TextEditingController();
   Map<String,Object?>? invoice,selected;List<Map<String,Object?>> items=[];String refundMethod='CASH',disposition='RESTOCK',reasonCode='OTHER';int? cashId;bool openedLiquid=false,busy=false;
-  @override void dispose(){search.dispose();qty.dispose();refund.dispose();reason.dispose();super.dispose();}
+  @override void dispose(){search.dispose();qty.dispose();refund.dispose();reason.dispose();walletRef.dispose();super.dispose();}
   @override Widget build(BuildContext context){
     final session=context.watch<SessionAndErpProvider>();
     final selectedDrug=selected;
@@ -33,6 +33,7 @@ class _S07SalesReturnsScreenState extends State<S07SalesReturnsScreen>{
         DropdownButtonFormField<String>(value:disposition,decoration:const InputDecoration(labelText:'قرار فحص التشغيلة'),items:[if(restockAllowed)const DropdownMenuItem(value:'RESTOCK',child:Text('إعادة للمخزون الصالح')),const DropdownMenuItem(value:'QUARANTINE',child:Text('تحويل لمستودع الحجر')),const DropdownMenuItem(value:'DISPOSE',child:Text('إتلاف فوري'))],onChanged:(v)=>setState(()=>disposition=v??'QUARANTINE')),
         if(!restockAllowed)const Text('إعادة التخزين الصالح مقفلة لأن الدواء مبرّد أو سائل مفتوح.',style:TextStyle(color:Color(0xffEF5350))),
         DropdownButtonFormField<String>(value:refundMethod,decoration:const InputDecoration(labelText:'طريقة رد المبلغ'),items:const [DropdownMenuItem(value:'CASH',child:Text('نقداً')),DropdownMenuItem(value:'WALLET',child:Text('محفظة إلكترونية')),DropdownMenuItem(value:'CREDIT_TO_ACCOUNT',child:Text('إضافة لحساب العميل — له'))],onChanged:(v)=>setState(()=>refundMethod=v??'CASH')),
+        if(refundMethod=='WALLET')TextField(controller:walletRef,decoration:const InputDecoration(labelText:'رقم إشعار المحفظة')),
         if(refundMethod!='CREDIT_TO_ACCOUNT')DropdownButtonFormField<int>(value:cashId,decoration:const InputDecoration(labelText:'الصندوق / المحفظة'),items:session.cashAccounts.map((a)=>DropdownMenuItem(value:a.id,child:Text(a.nameAr))).toList(),onChanged:(v)=>setState(()=>cashId=v)),
         FilledButton.icon(onPressed:busy?null:()=>_complete(session.currentUser?['id'] as int?),icon:const Icon(Icons.assignment_return),label:const Text('إتمام المرتجع')),
       ]
@@ -50,7 +51,7 @@ class _S07SalesReturnsScreenState extends State<S07SalesReturnsScreen>{
     setState(()=>busy=true);
     try{
       final qtyValue=int.tryParse(qty.text)??0;final amount=double.tryParse(refund.text)??-1;
-      final id=await context.read<ClinicalAndRxProvider>().completeReturn(invoiceId:invoice!['id'] as int,invoiceItemId:selected!['id'] as int,qtyUnits:qtyValue,refundAmount:amount,reasonCode:reasonCode,reasonText:reason.text,refundMethod:refundMethod,disposition:disposition,approvedBy:userId,cashAccountId:cashId,batchId:selected!['batch_id'] as int?,openedLiquid:openedLiquid);
+      final id=await context.read<ClinicalAndRxProvider>().completeReturn(invoiceId:invoice!['id'] as int,invoiceItemId:selected!['id'] as int,qtyUnits:qtyValue,refundAmount:amount,reasonCode:reasonCode,reasonText:reason.text,refundMethod:refundMethod,disposition:disposition,approvedBy:userId,cashAccountId:cashId,batchId:selected!['batch_id'] as int?,openedLiquid:openedLiquid,walletRef:refundMethod=='WALLET'?walletRef.text.trim():null);
       if(mounted){ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تم تسجيل المرتجع رقم $id')));await _find();}
     }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
     if(mounted)setState(()=>busy=false);
