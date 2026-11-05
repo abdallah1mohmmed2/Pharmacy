@@ -29,7 +29,7 @@ class _S17S18ReturnsAndShortagesScreenState extends State<S17S18ReturnsAndShorta
     ]),
     ListView(children:[
      const Text('الأصناف التي وصلت للحد الأدنى'),
-     ...p.shortages.map((x)=>ListTile(title:Text(x.drugName),subtitle:Text('الرصيد '+x.currentUnits.toString()+' • الحد '+x.minimumUnits.toString()+' • متوسط البيع اليومي '+x.averageDailySales.toStringAsFixed(1)),trailing:Text('طلب '+x.suggestedPacks.toString()+' باكت'))),
+     ...p.shortages.map((x)=>ListTile(title:Text(x.drugName),subtitle:Text('الرصيد '+x.currentUnits.toString()+' • الحد '+x.minimumUnits.toString()+' • متوسط البيع اليومي '+x.averageDailySales.toStringAsFixed(1)+' • أفضل مورد '+(x.bestSupplierName.isEmpty?'غير متاح':x.bestSupplierName)+' • تكلفة فعلية '+x.effectivePackCost.toStringAsFixed(2)),trailing:Text('طلب '+x.suggestedPacks.toString()+' باكت'))),
      DropdownButtonFormField<int>(value:supplier,decoration:const InputDecoration(labelText:'المورد'),items:suppliers.map((x)=>DropdownMenuItem(value:x.id,child:Text(x.nameAr))).toList(),onChanged:(v)=>setState(()=>supplier=v)),
      FilledButton(onPressed:()=>_order(p),child:const Text('توليد أوامر شراء تلقائياً'))
     ])
