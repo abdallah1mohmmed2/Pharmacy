@@ -9,7 +9,7 @@ class ClinicalGuardService {
   ClinicalGuardService({DatabaseHelper? helper}):_helper=helper??DatabaseHelper.instance;
   final DatabaseHelper _helper;
 
-  Future<ClinicalVerdict> evaluate({required List<DrugModel> cart,required PatientClinicalModel? patient,Map<int,double> prescribedDoseMgByDrugId=const {},int? invoiceId}) async {
+  Future<ClinicalVerdict> evaluate({required List<DrugModel> cart,required PatientClinicalModel? patient,Map<int,double> prescribedDoseMgByDrugId=const {},List<String> foodIntake=const [],int? invoiceId}) async {
     final db=await _helper.database;
     final alerts=<ClinicalAlertModel>[];
     final ids=cart.map((d)=>d.id).whereType<int>().toSet();
@@ -25,6 +25,7 @@ class ClinicalGuardService {
       alerts.addAll(await _pediatricDose(drug,patient,prescribedDoseMgByDrugId[id]));
       alerts.addAll(_pregnancyLactation(drug,patient));
       alerts.addAll(await _allergyRules(drug,patient));
+      alerts.addAll(await _foodInteractions(drug,foodIntake,patient?.id));
       if(drug.isControlled)alerts.add(ClinicalAlertModel(category:'CONTROLLED',level:ClinicalLevel.warning,drugId:id,messageAr:'هذا دواء خاضع للرقابة؛ يلزم توثيق بيانات المريض والمستلم والوصفة قبل الصرف.',recommendation:'تحقق من الوصفة والهوية وسجل الصرف.'));
       if(drug.requiresPrescription||drug.prescriptionRestricted||drug.isAntibiotic)alerts.add(ClinicalAlertModel(category:'RX_REQUIRED',level:ClinicalLevel.caution,drugId:id,messageAr:'يتطلب هذا الصنف التحقق من الوصفة الطبية والقيود المحلية.',recommendation:'راجع الوصفة قبل اعتماد البيع.'));
       alerts.addAll(await _interactions(drug,[...cart.where((x)=>x.id!=id),...currentDrugs],patient?.id));
@@ -94,6 +95,15 @@ class ClinicalGuardService {
     for(final other in others){if(other.id==null||drug.id==other.id)continue;
       final rows=await db.rawQuery('SELECT * FROM drug_interactions WHERE (drug_a_id=? AND (drug_b_id=? OR drug_b_ingredient_id=?)) OR (drug_a_ingredient_id=? AND (drug_b_id=? OR drug_b_ingredient_id=?)) OR (drug_a_id=? AND drug_b_ingredient_id=?) OR (drug_a_ingredient_id=? AND drug_b_id=?)',[drug.id,other.id,other.activeIngredientId,drug.activeIngredientId,other.id,other.activeIngredientId,other.id,drug.activeIngredientId,other.activeIngredientId,drug.id]);
       for(final r in rows){final severity=r['severity'] as String;final level=switch(severity){'CONTRAINDICATED'=>ClinicalLevel.block,'MAJOR'=>ClinicalLevel.warning,'MODERATE'=>ClinicalLevel.caution,_=>ClinicalLevel.info};out.add(ClinicalAlertModel(category:'INTERACTION',level:level,drugId:drug.id,otherDrugId:other.id,patientId:patientId,ruleRef:'drug_interactions:${r['id']}',messageAr:'تفاعل بين ${drug.tradeNameAr} و${other.tradeNameAr}: ${r['clinical_effect']??r['interactant_name']}',recommendation:'${r['management']??''}'));}
+    }
+    return out;
+  }
+  Future<List<ClinicalAlertModel>> _foodInteractions(DrugModel drug,List<String> foods,int? patientId) async {
+    if(foods.isEmpty||drug.id==null)return [];
+    final out=<ClinicalAlertModel>[];
+    for(final food in foods.where((x)=>x.trim().isNotEmpty)){
+      final rows=await (await _helper.database).rawQuery("SELECT * FROM drug_interactions WHERE interactant_type='FOOD' AND (drug_a_id=? OR drug_a_ingredient_id=?) AND lower(interactant_name) LIKE ?",[drug.id,drug.activeIngredientId,'%\${food.toLowerCase()}%']);
+      for(final r in rows){final severity=r['severity'] as String;final level=switch(severity){'CONTRAINDICATED'=>ClinicalLevel.block,'MAJOR'=>ClinicalLevel.warning,'MODERATE'=>ClinicalLevel.caution,_=>ClinicalLevel.info};out.add(ClinicalAlertModel(category:'INTERACTION',level:level,drugId:drug.id,patientId:patientId,ruleRef:'drug_interactions:${r['id']}',messageAr:'تفاعل غذائي محتمل بين ${drug.tradeNameAr} و${r['interactant_name']}: ${r['clinical_effect']}',recommendation:r['management'] as String? ?? 'تحقق من النشرة الدوائية.'));}
     }
     return out;
   }
