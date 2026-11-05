@@ -170,6 +170,7 @@ class RxAndReturnsService {
       final remainingRefund=((item['line_total'] as num).toDouble()-alreadyRefunded).clamp(0,double.infinity).toDouble();
       if(refundAmount>remainingRefund+0.005)throw StateError('قيمة الرد تتجاوز صافي قيمة البند المتبقية بعد المرتجعات السابقة');
       final actualBatchId=allocation['batch_id'] as int;
+      int? disposalId;
       if(disposition=='RESTOCK'&&(drug.requiresRefrigeration||((drug.dosageForm=='SYRUP'||drug.dosageForm=='DROPS')&&openedLiquid)))throw StateError('لا يمكن إعادة الدواء المبرّد أو السائل المفتوح إلى المخزون الصالح؛ اختر الحجر أو الإتلاف');
       final customerId=invoiceRows.first['customer_party_id'] as int?;
       if(refundMethod=='CREDIT_TO_ACCOUNT'&&customerId==null)throw StateError('الفاتورة لا ترتبط بعميل لحساب المرتجع');
@@ -198,6 +199,9 @@ class RxAndReturnsService {
       }else{
         await txn.insert('stock_movements',{'drug_id':drug.id,'batch_id':actualBatchId,'warehouse_id':batch['warehouse_id'],'movement_type':'SALE_RETURN_IN','qty_units':qtyUnits,'unit_cost':batch['unit_cost'],'unit_price':refundAmount/qtyUnits,'balance_after_units':oldTotal+qtyUnits,'doc_type':'SALES_RETURN','doc_id':returnId,'doc_line_id':invoiceItemId,'movement_at':DateTime.now().toIso8601String(),'note':'إثبات استلام المرتجع قبل الإتلاف'});
         await txn.insert('stock_movements',{'drug_id':drug.id,'batch_id':actualBatchId,'warehouse_id':batch['warehouse_id'],'movement_type':'DISPOSAL_OUT','qty_units':-qtyUnits,'unit_cost':batch['unit_cost'],'unit_price':0,'balance_after_units':oldTotal,'doc_type':'SALES_RETURN','doc_id':returnId,'doc_line_id':invoiceItemId,'movement_at':DateTime.now().toIso8601String(),'note':'إتلاف مرتجع مبيعات'});
+        final disposalReason=switch(reasonCode){'EXPIRED_AT_SALE'=>'EXPIRED','DAMAGED'=>'BROKEN','ADVERSE_REACTION'=>'CONTAMINATED',_=>'DAMAGED_STORAGE'};
+        disposalId=await txn.insert('disposals',{'disposal_no':_number('DISP'),'disposal_date':DateTime.now().toIso8601String(),'reason':disposalReason,'method':'إتلاف فوري لمرتجع مبيعات','authority_ref':null,'witness_name':null,'status':'APPROVED','total_cost_value':(batch['unit_cost'] as num).toDouble()*qtyUnits,'journal_entry_id':null});
+        await txn.insert('disposal_items',{'disposal_id':disposalId,'batch_id':actualBatchId,'qty_units':qtyUnits,'unit_cost':batch['unit_cost'],'recoverable_from_supplier':0});
       }
       int? creditAccountId;
       int? refundGlAccountId;
@@ -217,6 +221,7 @@ class RxAndReturnsService {
       }
       final jeId=await _postReturnJournal(txn,returnId:returnId,returnNo:returnNo,refundAmount:refundAmount,refundAccountId:creditAccountId??refundGlAccountId!,refundPartyId:creditAccountId==null?null:customerId,inventoryCost:(disposition=='DISPOSE'?0:(batch['unit_cost'] as num).toDouble()*qtyUnits));
       await txn.update('sales_returns',{'journal_entry_id':jeId},where:'id=?',whereArgs:[returnId]);
+      if(disposalId!=null)await txn.update('disposals',{'journal_entry_id':jeId},where:'id=?',whereArgs:[disposalId]);
       await txn.update('lah_alayh_ledger',{'journal_entry_id':jeId},where:"doc_type='SALES_RETURN' AND doc_id=?",whereArgs:[returnId]);
       return returnId;
     });
