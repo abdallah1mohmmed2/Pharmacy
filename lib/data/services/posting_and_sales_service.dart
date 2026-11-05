@@ -48,7 +48,12 @@ class PostingAndSalesService {
         if(payment.method=='WALLET' && (payment.walletRef==null || payment.walletRef!.trim().length<6)) throw StateError('رقم إشعار المحفظة إلزامي');
         await txn.insert('sales_payments',{..._base(branchId),'invoice_id':invoiceId,'cash_account_id':payment.cashAccountId,'method':payment.method,'amount':payment.amount,'wallet_ref_no':payment.walletRef});
         await txn.rawUpdate('UPDATE cash_accounts SET current_balance=current_balance+?,updated_at=? WHERE id=?',[payment.amount,DateTime.now().toIso8601String(),payment.cashAccountId]);
-        final cashAccount=await txn.query('cash_accounts',columns:['gl_account_id'],where:'id=?',whereArgs:[payment.cashAccountId]);
+        final cashAccount=await txn.query('cash_accounts',columns:['gl_account_id','account_kind'],where:'id=?',whereArgs:[payment.cashAccountId]);
+        if(cashAccount.isEmpty) throw StateError('حساب التحصيل غير موجود');
+        final kind=cashAccount.first['account_kind'] as String;
+        if(payment.method=='WALLET'&&kind!='WALLET') throw StateError('اختر محفظة إلكترونية لطريقة الدفع هذه');
+        if(payment.method=='CASH'&&kind=='WALLET') throw StateError('اختر الصندوق النقدي أو غيّر وسيلة الدفع إلى محفظة');
+        if(payment.method=='BANK'&&kind!='BANK') throw StateError('اختر الحساب البنكي لطريقة الدفع هذه');
         final gl=cashAccount.first['gl_account_id'] as int?;
         if(gl!=null) journalLines.add((accountId:gl,debit:payment.amount,credit:0,partyId:null,memo:'تحصيل فاتورة'));
       }
@@ -82,6 +87,7 @@ class PostingAndSalesService {
       final isOffset=method=='OFFSET';
       final cash=cashAccountId==null? <Map<String,Object?>>[] : await txn.query('cash_accounts',where:'id=?',whereArgs:[cashAccountId]);
       if(!isOffset && (cashAccountId==null||cash.isEmpty)) throw StateError('حساب الصندوق غير موجود');
+      if(!isOffset){final kind=cash.first['account_kind'] as String;if(method=='WALLET'&&kind!='WALLET')throw StateError('اختر محفظة إلكترونية');if(method=='CASH'&&kind=='WALLET')throw StateError('اختر الصندوق النقدي');if(method=='BANK'&&kind!='BANK')throw StateError('اختر الحساب البنكي');}
       final party=await txn.query('parties',where:'id=?',whereArgs:[partyId]);
       if(party.isEmpty) throw StateError('الطرف غير موجود');
       final voucherId=await txn.insert('vouchers',{..._base(branchId),'voucher_no':generatedVoucherNo,'voucher_type':voucherType,'voucher_date':DateTime.now().toIso8601String(),'party_id':partyId,'cash_account_id':cashAccountId,'amount':amount,'method':method,'wallet_ref_no':walletRefNo,'description':description});
