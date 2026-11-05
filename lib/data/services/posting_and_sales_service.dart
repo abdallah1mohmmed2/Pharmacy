@@ -37,8 +37,9 @@ class PostingAndSalesService {
       double actualTotalCost=0;
       for(final item in items){
         final int drugId=item.drug.id??(throw StateError('معرّف الدواء غير محفوظ'));
-        final drugRows=await txn.query('drugs',columns:['units_per_pack'],where:'id=? AND is_deleted=0',whereArgs:[drugId]);
+        final drugRows=await txn.query('drugs',columns:['units_per_pack','is_controlled'],where:'id=? AND is_deleted=0',whereArgs:[drugId]);
         if(drugRows.isEmpty) throw StateError('الصنف غير موجود');
+        if((drugRows.first['is_controlled'] as num? ?? 0)==1)throw StateError('الأدوية المراقبة تُصرف من شاشة الوصفات مع توثيق بيانات المريض والمستلم فقط');
         final unitsValue=drugRows.first['units_per_pack'];
         final int units=unitsValue is num?unitsValue.toInt():item.drug.effectiveUnitsPerPack;
         final invoiceItemId=await txn.insert('sales_invoice_items',{..._base(branchId),'invoice_id':invoiceId,'drug_id':drugId,'sell_unit':item.sellUnit,'qty_in_sell_unit':item.quantity,'qty_units':item.baseUnits,'unit_price_sell_unit':item.unitPrice,'line_discount_amount':item.discount,'line_total':item.lineTotal,'line_cost':0,'is_substitute':item.isSubstitute?1:0,'substituted_for_drug_id':item.substitutedForDrugId});
