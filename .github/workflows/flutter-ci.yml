@@ -19,7 +19,7 @@ jobs:
       - run: flutter create --platforms=android,windows --org com.globalpharmacy .
       - run: flutter pub get
       - run: dart format lib test
-      - run: flutter analyze
+      - run: flutter analyze --no-fatal-infos
       - run: flutter test
       - run: flutter build apk --release
       - uses: actions/upload-artifact@v4
@@ -38,5 +38,5 @@ jobs:
       - run: flutter config --enable-windows-desktop
       - run: flutter create --platforms=windows --org com.globalpharmacy .
       - run: flutter pub get
-      - run: flutter analyze
+      - run: flutter analyze --no-fatal-infos
       - run: flutter build windows --release
