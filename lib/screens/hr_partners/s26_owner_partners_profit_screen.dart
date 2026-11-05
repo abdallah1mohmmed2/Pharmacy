@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../data/database/database_helper.dart';
 import '../../providers/treasury_hr_partner_provider.dart';
 import '../../providers/session_and_erp_provider.dart';
+import '../../core/widgets/shared_widgets.dart';
 
 class S26OwnerPartnersProfitScreen extends StatefulWidget {
   const S26OwnerPartnersProfitScreen({super.key});
@@ -29,7 +30,7 @@ class _S26OwnerPartnersProfitScreenState extends State<S26OwnerPartnersProfitScr
       Card(child:ListTile(leading:const Icon(Icons.group),title:const Text('إدارة الشركاء'),subtitle:Text('النظام الحالي: ${p.partnerPolicy.mode=='shares'?'الحصص':'النسب المئوية'}'),trailing:IconButton(onPressed:()=>_addPartner(context,p),icon:const Icon(Icons.person_add_alt_1)))),
       ...p.partners.map((partner){final shares=(partner['shares_count'] as num?)?.toDouble();final pct=(partner['percentage'] as num?)?.toDouble();final ratio=total<=0?0:(shares??0)/total*100;return Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
         Row(children:[Expanded(child:Text(partner['name_ar'].toString(),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:16))),Text('رأس المال: ${((partner['capital_amount'] as num?)??0).toStringAsFixed(2)}')]),
-        if(p.partnerPolicy.mode=='shares')Text('الحصص: ${shares?.toStringAsFixed(0)??'—'} • الحصة المشتقة للقراءة فقط: ${ratio.toStringAsFixed(2)}%') else Text('النسبة: ${pct?.toStringAsFixed(2)??'غير محددة'}%'),
+        PartyBalanceChip(totalAlayh:((partner['total_alayh'] as num?)??0).toDouble(),totalLah:((partner['total_lah'] as num?)??0).toDouble(),compact:true),\n        if(p.partnerPolicy.mode=='shares')Text('الحصص: ${shares?.toStringAsFixed(0)??'—'} • الحصة المشتقة للقراءة فقط: ${ratio.toStringAsFixed(2)}%') else Text('النسبة: ${pct?.toStringAsFixed(2)??'غير محددة'}%'),
         if(partner['needs_input']==1)const Text('يلزم استكمال بيانات التوزيع',style:TextStyle(color:Color(0xFFFFB74D))),
         Wrap(children:[TextButton.icon(onPressed:()=>_withdraw(context,p,partner),icon:const Icon(Icons.outbox),label:const Text('تسجيل سحب شخصي (عليه)')),TextButton.icon(onPressed:()=>_statement(context,partner),icon:const Icon(Icons.receipt_long),label:const Text('كشف حساب'))])
       ])));}),
@@ -61,7 +62,7 @@ class _S26OwnerPartnersProfitScreenState extends State<S26OwnerPartnersProfitScr
     if(approved==true){try{await p.switchDistributionMode(mode,managerApproved:true);if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم تغيير نمط التوزيع وقفل الحقول المقابلة')));}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}}
   }
   Future<void> _addPartner(BuildContext context,TreasuryHrPartnerProvider p)async{
-    final name=TextEditingController(),code=TextEditingController(text:'PART-${DateTime.now().millisecondsSinceEpoch}'),capital=TextEditingController(text:'0'),shares=TextEditingController(),percentage=TextEditingController();final mode=p.partnerPolicy.mode;
+    final name=TextEditingController(),code=TextEditingController(text:'PART-${DateTime.now().millisecondsSinceEpoch}'),capital=TextEditingController(text:'0'),shares=TextEditingController(text:mode=='percentage'?'—':''),percentage=TextEditingController(text:mode=='shares'?'—':'');final mode=p.partnerPolicy.mode;
     await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(title:const Text('إضافة شريك'),content:SizedBox(width:430,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
       TextField(controller:name,decoration:const InputDecoration(labelText:'اسم الشريك')),TextField(controller:code,decoration:const InputDecoration(labelText:'كود الشريك')),TextField(controller:capital,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'رأس المال')),
       TextField(controller:shares,enabled:mode=='shares',keyboardType:TextInputType.number,decoration:InputDecoration(labelText:'عدد الحصص',suffixIcon:mode=='shares'?null:const Icon(Icons.lock),helperText:mode=='shares'?'مفتوح في نظام الحصص':'مقفل لأن النظام مضبوط على النسب')),
