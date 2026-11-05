@@ -31,8 +31,9 @@ class FefoAllocator {
 
   Future<void> deductFromBatch(Transaction txn,{required int batchId,required int needUnits,required int unitsPerPack,required int invoiceItemId,required int drugId,required int warehouseId,double unitPrice=0,String docType='SALE',int? docId}) async {
     if(needUnits<=0||unitsPerPack<=0)throw ArgumentError('كمية الخصم غير صالحة');
-    final rows=await txn.rawQuery("SELECT * FROM batches_fefo WHERE id=? AND status='ACTIVE' AND expiry_date>=?",[batchId,DateTime.now().toIso8601String().substring(0,10)]);
+    final rows=await txn.rawQuery("SELECT b.* FROM batches_fefo b JOIN warehouses w ON w.id=b.warehouse_id WHERE b.id=? AND b.drug_id=? AND b.warehouse_id=? AND b.status='ACTIVE' AND b.total_units>0 AND b.expiry_date>=? AND w.is_sellable=1",[batchId,drugId,warehouseId,DateTime.now().toIso8601String().substring(0,10)]);
     if(rows.isEmpty)throw StateError('التشغيلة غير متاحة أو منتهية الصلاحية');
+    final packRows=await txn.query('drugs',columns:['units_per_pack'],where:'id=?',whereArgs:[drugId],limit:1);if(packRows.isEmpty||(packRows.first['units_per_pack'] as int? ?? 1)!=unitsPerPack)throw StateError('وحدات التعبئة لا تطابق تعريف الصنف');
     final batch=rows.first;final sealed=batch['sealed_packs'] as int;final loose=batch['loose_units'] as int;final available=batch['total_units'] as int;
     if(needUnits>available)throw StateError('الكمية المطلوبة أكبر من رصيد التشغيلة');
     final shortfall=needUnits-loose;final opened=shortfall>0?(shortfall+unitsPerPack-1)~/unitsPerPack:0;
@@ -45,10 +46,11 @@ class FefoAllocator {
     await txn.update('batches_fefo',{'sealed_packs':newSealed,'loose_units':newLoose,'total_units':balance,'status':balance==0?'DEPLETED':'ACTIVE'},where:'id=?',whereArgs:[batchId]);
     await txn.insert('stock_movements',{'drug_id':drugId,'batch_id':batchId,'warehouse_id':warehouseId,'movement_type':'SALE_OUT','qty_units':-needUnits,'unit_cost':cost,'unit_price':unitPrice,'balance_after_units':balance,'movement_at':now,'doc_type':docType,'doc_id':docId});
     await txn.insert('sales_invoice_item_batches',{'invoice_item_id':invoiceItemId,'batch_id':batchId,'qty_units':needUnits,'unit_cost':cost});
-    await txn.rawUpdate('UPDATE drugs SET stock_total_units=MAX(0,stock_total_units-?),updated_at=? WHERE id=?',[needUnits,now,drugId]);
+    final changed=await txn.rawUpdate('UPDATE drugs SET stock_total_units=stock_total_units-?,updated_at=? WHERE id=? AND stock_total_units>=?',[needUnits,now,drugId,needUnits]);if(changed!=1)throw StateError('إجمالي مخزون الصنف لا يطابق رصيد التشغيلات');
   }
 
   Future<List<FefoAllocation>> allocateAndApply({required Transaction txn,required int drugId,required int needUnits,required int unitsPerPack,required int invoiceItemId,int? warehouseId,double unitPrice=0,String docType='SALE',int? docId}) async {
+    if(needUnits<=0||unitsPerPack<=0)throw ArgumentError('كمية البيع ووحدات الباكت يجب أن تكون موجبة');
     final today=DateTime.now().toIso8601String().substring(0,10);
     final rows=await txn.rawQuery("SELECT b.* FROM batches_fefo b JOIN warehouses w ON w.id=b.warehouse_id WHERE b.drug_id=? AND b.status='ACTIVE' AND b.total_units>0 AND b.expiry_date>=? AND w.is_sellable=1 ${warehouseId==null?'':'AND b.warehouse_id=?'} ORDER BY b.expiry_date ASC,b.id ASC",warehouseId==null?[drugId,today]:[drugId,today,warehouseId]);
     var remaining=needUnits;final allocations=<FefoAllocation>[];
@@ -76,7 +78,8 @@ class FefoAllocator {
       final batch=batches.first;final newTotal=(batch['total_units'] as int)+give;final unitCost=(row['unit_cost'] as num).toDouble();
       final units=await txn.query('drugs',columns:['units_per_pack'],where:'id=?',whereArgs:[batch['drug_id']]);final upp=(units.first['units_per_pack'] as int?)??1;
       final loose=(batch['loose_units'] as int)+give;final sealed=(batch['sealed_packs'] as int)+(loose~/upp);final normalizedLoose=loose%upp;
-      await txn.update('batches_fefo',{'total_units':newTotal,'loose_units':normalizedLoose,'sealed_packs':sealed,'status':'ACTIVE'},where:'id=?',whereArgs:[batchId]);
+      final today=DateTime.now().toIso8601String().substring(0,10);final returnedStatus=(batch['expiry_date'] as String).compareTo(today)<0?'EXPIRED':'ACTIVE';
+      await txn.update('batches_fefo',{'total_units':newTotal,'loose_units':normalizedLoose,'sealed_packs':sealed,'status':returnedStatus},where:'id=?',whereArgs:[batchId]);
       await txn.update('sales_invoice_item_batches',{'returned_qty_units':(row['returned_qty_units'] as int)+give},where:'id=?',whereArgs:[row['id']]);
       await txn.insert('stock_movements',{'drug_id':batch['drug_id'],'batch_id':batchId,'warehouse_id':batch['warehouse_id'],'movement_type':'SALE_RETURN_IN','qty_units':give,'unit_cost':unitCost,'balance_after_units':newTotal,'doc_type':docType,'doc_id':docId,'movement_at':now});
       await txn.rawUpdate('UPDATE drugs SET stock_total_units=stock_total_units+?,updated_at=? WHERE id=?',[give,now,batch['drug_id']]);
