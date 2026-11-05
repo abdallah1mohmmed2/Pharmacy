@@ -43,15 +43,19 @@ class PartnerDistributionService {
     final db=await _helper.database;
     final sales=await db.rawQuery("SELECT COALESCE(SUM(subtotal),0) gross,COALESCE(SUM(discount_amount),0) discounts,COALESCE(SUM(total_cost),0) cogs FROM sales_invoices WHERE branch_id=? AND status='COMPLETED' AND substr(invoice_date,1,7)=?",[branchId,periodCode]);
     final returns=await db.rawQuery("SELECT COALESCE(SUM(total_refund),0) refunds FROM sales_returns WHERE substr(return_date,1,7)=?",[periodCode]);
+    final returnedCost=await db.rawQuery("SELECT COALESCE(SUM(CASE WHEN i.qty_units>0 THEN i.line_cost*r.qty_units/i.qty_units ELSE 0 END),0) total FROM sales_return_items r JOIN sales_returns s ON s.id=r.sales_return_id JOIN sales_invoice_items i ON i.id=r.invoice_item_id WHERE r.disposition='RESTOCK' AND substr(s.return_date,1,7)=?",[periodCode]);
     final expense=await db.rawQuery("SELECT COALESCE(SUM(amount),0) total FROM expenses WHERE branch_id=? AND substr(expense_date,1,7)=?",[branchId,periodCode]);
     final dailyWages=await db.rawQuery("SELECT COALESCE(SUM(a.wage_earned),0) total FROM employee_attendance a JOIN employees e ON e.id=a.employee_id WHERE e.branch_id=? AND substr(a.work_date,1,7)=? AND e.pay_type='DAILY'",[branchId,periodCode]);
     final monthlyWages=await db.rawQuery("SELECT COALESCE(SUM(e.pay_rate),0) total FROM employees e WHERE e.branch_id=? AND e.pay_type='MONTHLY' AND e.termination_date IS NULL AND e.hire_date<=?",[branchId,'$periodCode-31']);
+    final employeeBonuses=await db.rawQuery("SELECT COALESCE(SUM(l.lah_amount),0) total FROM lah_alayh_ledger l JOIN parties p ON p.id=l.party_id JOIN employees e ON e.party_id=p.id WHERE e.branch_id=? AND l.entry_type='EMPLOYEE_BONUS' AND substr(l.entry_date,1,7)=?",[branchId,periodCode]);
+    final disposalLosses=await db.rawQuery("SELECT COALESCE(SUM(total_cost_value),0) total FROM disposals WHERE substr(disposal_date,1,7)=? AND status<>'DRAFT'",[periodCode]);
     final revenue=_n(sales.first['gross']);final discounts=_n(sales.first['discounts']);final refund=_n(returns.first['refunds']);
-    final netSales=revenue-discounts-refund;final cogs=_n(sales.first['cogs']);
-    final expenses=_n(expense.first['total']);final wages=_n(dailyWages.first['total'])+_n(monthlyWages.first['total']);
-    final totalExpenses=expenses+wages+additionalLosses;
+    final netSales=revenue-discounts-refund;final cogs=(_n(sales.first['cogs'])-_n(returnedCost.first['total'])).clamp(0,double.infinity).toDouble();
+    final expenses=_n(expense.first['total']);final wages=_n(dailyWages.first['total'])+_n(monthlyWages.first['total'])+_n(employeeBonuses.first['total']);
+    final losses=_n(disposalLosses.first['total'])+additionalLosses;
+    final totalExpenses=expenses+wages+losses;
     final netProfit=netSales-cogs-totalExpenses+inventoryGain;
-    return {'gross_sales':revenue,'discounts':discounts,'returns':refund,'net_sales':netSales,'cogs':cogs,'operating_expenses':expenses,'wages':wages,'additional_losses':additionalLosses,'inventory_gain':inventoryGain,'total_expenses_and_losses':totalExpenses,'net_profit':netProfit};
+    return {'gross_sales':revenue,'discounts':discounts,'returns':refund,'net_sales':netSales,'cogs':cogs,'operating_expenses':expenses,'wages':wages,'additional_losses':losses,'inventory_gain':inventoryGain,'total_expenses_and_losses':totalExpenses,'net_profit':netProfit};
   }
 
   Future<List<Map<String,Object?>>> planDistribution({required int branchId,required String periodCode,required double distributableProfit}) async {
