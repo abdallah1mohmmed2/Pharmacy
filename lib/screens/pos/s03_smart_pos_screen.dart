@@ -23,12 +23,24 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen>{
   Expanded(child:p.cart.isEmpty?const Center(child:Text('السلة فارغة')):ListView(children:p.cart.map((item)=>_cartLine(p,item)).toList())),
   Text('الإجمالي: '+MoneyFormatter.format(p.total),textAlign:TextAlign.center,style:const TextStyle(fontSize:20,fontWeight:FontWeight.bold)),
   Row(children:[Expanded(child:DropdownButtonFormField<String>(value:method,decoration:const InputDecoration(labelText:'طريقة الدفع'),items:const [DropdownMenuItem(value:'CASH',child:Text('نقداً')),DropdownMenuItem(value:'WALLET',child:Text('محفظة إلكترونية')),DropdownMenuItem(value:'CREDIT',child:Text('آجل')),DropdownMenuItem(value:'MIXED',child:Text('مختلط'))],onChanged:(v)=>setState(()=>method=v??'CASH'))),const SizedBox(width:8),Expanded(child:DropdownButtonFormField<int>(value:cashId,decoration:const InputDecoration(labelText:'الصندوق / المحفظة'),items:s.cashAccounts.map((a)=>DropdownMenuItem(value:a.id,child:Text(a.nameAr))).toList(),onChanged:(v)=>setState(()=>cashId=v))) ]),
-  if(method=='MIXED')TextField(controller:paidAmount,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'المبلغ المدفوع الآن (والباقي على حساب العميل)')),
+  if(method=='MIXED')TextField(controller:paidAmount,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'المبلغ المدفوع الآن (والباقي على حساب العميل)'),onChanged:(_)=>setState((){})),
   if(method=='MIXED')DropdownButtonFormField<String>(value:mixedChannel,decoration:const InputDecoration(labelText:'وسيلة الجزء المدفوع'),items:const [DropdownMenuItem(value:'CASH',child:Text('نقداً')),DropdownMenuItem(value:'WALLET',child:Text('محفظة إلكترونية'))],onChanged:(v)=>setState(()=>mixedChannel=v??'CASH')),
   if(method=='WALLET'||(method=='MIXED'&&mixedChannel=='WALLET'))WalletRefField(controller:walletRef),
   if(method=='CREDIT'||method=='MIXED')DropdownButtonFormField<int>(value:customerId,decoration:const InputDecoration(labelText:'العميل'),items:s.parties.where((a)=>a.partyType=='CUSTOMER').map((a)=>DropdownMenuItem(value:a.id,child:Text(a.nameAr))).toList(),onChanged:(v)=>setState(()=>customerId=v)),
+  if(method=='CREDIT'||method=='MIXED')_creditPreview(p,s),
   const SizedBox(height:8),FilledButton.icon(onPressed:p.cart.isEmpty?null:()=>_finish(p,s),icon:const Icon(Icons.check_circle),label:const Text('إتمام الفاتورة')),
  ])));
+ Widget _creditPreview(PosAndDrugsProvider p,SessionAndErpProvider s){
+  final matches=s.parties.where((party)=>party.id==customerId).toList();
+  if(matches.isEmpty)return const SizedBox.shrink();
+  final party=matches.first;
+  final paid=method=='CREDIT'?0.0:double.tryParse(paidAmount.text)??0.0;
+  final remaining=(p.total-paid).clamp(0,double.infinity).toDouble();
+  return Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+   const Text('المتبقي عليه بعد الفاتورة',style:TextStyle(color:Colors.white70,fontSize:12)),
+   PartyBalanceChip(totalAlayh:party.totalAlayh+remaining,totalLah:party.totalLah),
+  ]);
+ }
  Widget _flag(PosAndDrugsProvider p,String code,String label)=>FilterChip(label:Text(label),selected:p.patientFlags.contains(code),onSelected:(v)=>p.setPatientFlag(code,v));
  Widget _cartLine(PosAndDrugsProvider p,CartItemModel item)=>ListTile(dense:true,title:Text(item.drug.tradeNameAr),subtitle:Row(children:[DropdownButton<String>(value:item.sellUnit,items:const [DropdownMenuItem(value:'PACK',child:Text('باكت')),DropdownMenuItem(value:'STRIP',child:Text('شريط')),DropdownMenuItem(value:'UNIT',child:Text('حبة'))],onChanged:(v)=>p.changeUnit(item,v??'UNIT')),const SizedBox(width:10),SizedBox(width:65,child:TextFormField(initialValue:item.quantity.toString(),keyboardType:TextInputType.number,onChanged:(v)=>p.changeQuantity(item,double.tryParse(v)??item.quantity))) ]),trailing:IconButton(icon:const Icon(Icons.delete_outline,color:AppColors.danger),onPressed:()=>p.removeItem(item)));
  Future<void> _finish(PosAndDrugsProvider p,SessionAndErpProvider s)async{
