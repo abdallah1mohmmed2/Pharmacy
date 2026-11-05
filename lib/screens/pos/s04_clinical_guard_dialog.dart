@@ -3,15 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/widgets/shared_widgets.dart';
 import '../../data/models/clinical_and_rx_models.dart';
+import '../../data/models/drug_model.dart';
 import '../../providers/clinical_and_rx_provider.dart';
 import '../../providers/pos_and_drugs_provider.dart';
 import '../../providers/session_and_erp_provider.dart';
 
 class S04ClinicalGuardDialog extends StatefulWidget {
   const S04ClinicalGuardDialog({super.key});
-  static Future<bool> show(BuildContext context) async {
+  static Future<bool> show(BuildContext context,{List<DrugModel>? drugs}) async {
     final pos=context.read<PosAndDrugsProvider>();
-    await context.read<ClinicalAndRxProvider>().evaluateCart(pos.cart.map((e)=>e.drug).toList());
+    await context.read<ClinicalAndRxProvider>().evaluateCart(drugs??pos.cart.map((e)=>e.drug).toList());
     if(!context.mounted)return false;
     return await showDialog<bool>(context:context,builder:(_)=>const S04ClinicalGuardDialog())??false;
   }
