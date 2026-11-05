@@ -80,7 +80,7 @@ class PurchaseAndBonusService {
     return db.transaction((txn)async{
       final rows=await txn.query('batches_fefo',where:'id=?',whereArgs:[batchId]);if(rows.isEmpty)throw StateError('التشغيلة غير موجودة');final b=rows.first;
       if(qtyUnits>(b['total_units'] as int))throw StateError('كمية المرتجع أكبر من الرصيد المتاح');
-      final unitCost=(b['unit_cost'] as num).toDouble();final costValue=unitCost*qtyUnits;final creditUnit=agreedCreditValue/qtyUnits;final now=DateTime.now().toIso8601String();
+      final unitCost=(b['unit_cost'] as num).toDouble();final creditUnit=agreedCreditValue/qtyUnits;final now=DateTime.now().toIso8601String();
       final returnId=await txn.insert('purchase_returns',{'return_no':_number('PR'),'supplier_party_id':supplierPartyId,'return_date':now,'reason':reason,'settlement_type':settlementType,'total_value':agreedCreditValue,'status':'POSTED'});
       await txn.insert('purchase_return_items',{'return_id':returnId,'batch_id':batchId,'qty_units':qtyUnits,'credit_unit_value':creditUnit,'cost_unit_value':unitCost});
       final newTotal=(b['total_units'] as int)-qtyUnits;final drugRows=await txn.query('drugs',columns:['units_per_pack'],where:'id=?',whereArgs:[b['drug_id']]);final upp=(drugRows.first['units_per_pack'] as int?)??1;
