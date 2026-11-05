@@ -4,6 +4,7 @@ import 'core/theme/enterprise_dark_theme.dart';
 import 'data/database/database_helper.dart';
 import 'providers/session_and_erp_provider.dart';
 import 'providers/pos_and_drugs_provider.dart';
+import 'providers/inventory_and_purchase_provider.dart';
 import 'screens/app_shell.dart';
 
 Future<void> main() async {
@@ -17,6 +18,7 @@ class PharmacyErpApplication extends StatelessWidget {
   providers:[
    ChangeNotifierProvider(create:(_)=>SessionAndErpProvider()..refresh()),
    ChangeNotifierProvider(create:(_)=>PosAndDrugsProvider()..loadDrugs()),
+   ChangeNotifierProvider(create:(_)=>InventoryAndPurchaseProvider()..loadAll()),
   ],
   child:MaterialApp(
    title:'Global Enterprise Pharmacy ERP',
