@@ -250,7 +250,7 @@ class PurchaseAndFinanceQueries {
         COALESCE((SELECT SUM(sr.total_refund) FROM sales_returns sr WHERE sr.status IN('APPROVED','POSTED') AND sr.original_invoice_id IN(SELECT id FROM sales_invoices WHERE branch_id=?) ${_range('sr.return_date')}),0) AS returns,
         COALESCE((SELECT SUM(total_cost) FROM sales_invoices WHERE branch_id=? AND status='COMPLETED' ${_range('invoice_date')}),0) AS cogs,
         COALESCE((SELECT SUM(amount) FROM expenses WHERE branch_id=? ${_range('expense_date')}),0) AS operating_expenses,
-        COALESCE((SELECT SUM(wage_earned) FROM employee_attendance WHERE substr(work_date,1,10) BETWEEN COALESCE(?,date('now','start of month')) AND COALESCE(?,date('now'))),0) AS daily_wages,
+        COALESCE((SELECT SUM(a.wage_earned) FROM employee_attendance a JOIN employees e ON e.id=a.employee_id WHERE e.branch_id=? AND substr(a.work_date,1,10) BETWEEN COALESCE(?,date('now','start of month')) AND COALESCE(?,date('now'))),0) AS daily_wages,
         COALESCE((SELECT SUM(di.qty_units*di.unit_cost) FROM disposals dp JOIN disposal_items di ON di.disposal_id=dp.id JOIN batches_fefo b ON b.id=di.batch_id JOIN drugs d ON d.id=b.drug_id WHERE dp.status IN('APPROVED','POSTED') AND d.branch_id=? ${_range('dp.disposal_date')}),0) AS disposal_losses
     ''',[
       p.branchId,..._rangeArgs(p),
@@ -258,7 +258,7 @@ class PurchaseAndFinanceQueries {
       p.branchId,..._rangeArgs(p),
       p.branchId,..._rangeArgs(p),
       p.branchId,..._rangeArgs(p),
-      p.stringValue('date_from'),p.stringValue('date_to'),
+      p.branchId,p.stringValue('date_from'),p.stringValue('date_to'),
       p.branchId,..._rangeArgs(p),
     ]);
     final r=rows.first;
