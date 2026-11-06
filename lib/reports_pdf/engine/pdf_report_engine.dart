@@ -523,26 +523,34 @@ class TotalsRow {
   pw.Widget build() => pw.Container(
         margin: const pw.EdgeInsets.only(top: 4),
         decoration: const pw.BoxDecoration(
-          border: pw.Border(top: pw.BorderSide(width: 1.2), bottom: pw.BorderSide(width: 0.5)),
+          border: pw.Border(bottom: pw.BorderSide(width: 0.5)),
         ),
-        padding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 3),
-        child: pw.Row(
+        padding: const pw.EdgeInsets.fromLTRB(3, 0, 3, 5),
+        child: pw.Column(
           children: [
-            for (final column in columns)
-              pw.Expanded(
-                flex: (column.widthWeight * 100).round().clamp(1, 1000).toInt(),
-                child: pw.Text(
-                  column.key == columns.first.key
-                      ? label
-                      : (totals.containsKey(column.key) ? column.display(totals[column.key]) : ''),
-                  textAlign: column.align == ColAlign.center
-                      ? pw.TextAlign.center
-                      : column.align == ColAlign.end
-                          ? pw.TextAlign.left
-                          : pw.TextAlign.right,
-                  style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, font: column.type == ColType.text ? FontCache.instance.bold : FontCache.instance.mono),
-                ),
-              ),
+            pw.Container(height: 1.2, color: PdfColors.black),
+            pw.SizedBox(height: 1.5),
+            pw.Container(height: 0.5, color: PdfColors.black),
+            pw.SizedBox(height: 5),
+            pw.Row(
+              children: [
+                for (final column in columns)
+                  pw.Expanded(
+                    flex: (column.widthWeight * 100).round().clamp(1, 1000).toInt(),
+                    child: pw.Text(
+                      column.key == columns.first.key
+                          ? label
+                          : (totals.containsKey(column.key) ? column.display(totals[column.key]) : ''),
+                      textAlign: column.align == ColAlign.center
+                          ? pw.TextAlign.center
+                          : column.align == ColAlign.end
+                              ? pw.TextAlign.left
+                              : pw.TextAlign.right,
+                      style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, font: column.type == ColType.text ? FontCache.instance.bold : FontCache.instance.mono),
+                    ),
+                  ),
+              ],
+            ),
           ],
         ),
       );
