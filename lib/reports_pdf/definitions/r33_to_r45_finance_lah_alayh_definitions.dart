@@ -16,7 +16,7 @@ class R45PartnerDistributionDefinition extends ReportDefinition {
           title:'توزيع أرباح الشركاء النهائي',
           category:ReportCategory.financeAndParties,
           query:q.r45,
-          params:const [ReportParam(key:'distribution_id',label:'توزيع الأرباح',kind:ReportParamKind.number)],
+          params:const [ReportParam(key:'distribution_id',label:'توزيع الأرباح',kind:ReportParamKind.number),ReportParam(key:'partner_id',label:'الشريك',kind:ReportParamKind.number)],
           signatures:SignatureSpec.finance,
           columns:const [],
           description:'يعرض نمط التوزيع المعتمد فقط، ويخفي أساس التوزيع غير المستخدم.',
