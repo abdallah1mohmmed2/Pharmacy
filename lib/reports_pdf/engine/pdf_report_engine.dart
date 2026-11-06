@@ -491,7 +491,7 @@ class TotalsRow {
           children: [
             for (final column in columns)
               pw.Expanded(
-                flex: (column.widthWeight * 100).round().clamp(1, 1000),
+                flex: (column.widthWeight * 100).round().clamp(1, 1000).toInt(),
                 child: pw.Text(
                   column.key == columns.first.key
                       ? label
