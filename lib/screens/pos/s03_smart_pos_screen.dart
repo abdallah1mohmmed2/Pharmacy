@@ -85,7 +85,6 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen>{
   try{final id=await p.checkout(cashierId:(s.currentUser?['id'] as int?) ?? 1,saleType:method=='CREDIT'?'CREDIT':method=='MIXED'?'MIXED':'CASH',payments:payments,customerId:customerId,discount:discount,managerApproved:p.clinicalBlock!=null,branchId:s.branchId,clinicalVerdict:clinical.verdict);if(mounted){await _loadReceipt(id);_message('تم حفظ الفاتورة رقم '+id.toString()+' • اضغط F9 لطباعة الإيصال');await s.refresh();await inventory.loadAll();}}catch(e){_message(e.toString());}
  }
  void _message(String text)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(text)));
-}
 
   Future<void> _loadReceipt(int invoiceId) async {
     final db=DatabaseHelper.instance;
@@ -126,3 +125,4 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen>{
       remainingAfterInvoice:(row['remaining_alayh'] as num?)??0,
     );
   }
+}
