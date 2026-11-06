@@ -24,7 +24,7 @@ class SalesAndInventoryQueries {
   Future<List<Map<String, Object?>>> r01(ReportParams p) => _q('''
     SELECT i.invoice_no AS invoice_no, time(i.invoice_date) AS invoice_time,
       COALESCE(c.name_ar,'عميل نقدي') AS customer, u.full_name AS cashier,
-      i.sale_type AS payment_method, i.subtotal AS gross, i.discount_amount AS discount,
+      COALESCE((SELECT GROUP_CONCAT(DISTINCT sp.method) FROM sales_payments sp WHERE sp.invoice_id=i.id),i.sale_type) AS payment_method, i.subtotal AS gross, i.discount_amount AS discount,
       i.net_total AS net, i.paid_total AS paid, i.remaining_alayh AS remaining
     FROM sales_invoices i
     LEFT JOIN parties c ON c.id=i.customer_party_id
@@ -48,32 +48,46 @@ class SalesAndInventoryQueries {
   ''', [p.stringValue('grouping') ?? 'daily', p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r03(ReportParams p) => _q('''
-    SELECT u.full_name AS cashier, COUNT(DISTINCT i.id) AS invoice_count,
+    WITH payment_by_invoice AS (
+      SELECT invoice_id,
+        SUM(CASE WHEN method='CASH' THEN amount ELSE 0 END) AS cash_total,
+        SUM(CASE WHEN method<>'CASH' THEN amount ELSE 0 END) AS wallets_total
+      FROM sales_payments GROUP BY invoice_id
+    ), return_by_invoice AS (
+      SELECT original_invoice_id,SUM(total_refund) AS returns
+      FROM sales_returns WHERE status IN('APPROVED','POSTED') GROUP BY original_invoice_id
+    ), shift_by_user_day AS (
+      SELECT user_id,date(opened_at) AS shift_day,SUM(COALESCE(diff_amount,0)) AS shift_difference
+      FROM cashier_shifts GROUP BY user_id,date(opened_at)
+    )
+    SELECT u.full_name AS cashier,COUNT(i.id) AS invoice_count,
       COALESCE(SUM(i.subtotal),0) AS gross_sales,
-      COALESCE(SUM(CASE WHEN sp.method='CASH' THEN sp.amount ELSE 0 END),0) AS cash_total,
-      COALESCE(SUM(CASE WHEN sp.method<>'CASH' AND sp.method<>'CREDIT' THEN sp.amount ELSE 0 END),0) AS wallets_total,
-      COALESCE(SUM(CASE WHEN sp.method='CREDIT' THEN sp.amount ELSE 0 END),0) AS credit_total,
+      COALESCE(SUM(pay.cash_total),0) AS cash_total,
+      COALESCE(SUM(pay.wallets_total),0) AS wallets_total,
+      COALESCE(SUM(i.remaining_alayh),0) AS credit_total,
       COALESCE(SUM(i.discount_amount),0) AS discounts,
-      COALESCE(SUM(sr.total_refund),0) AS returns,
-      COALESCE(SUM(cs.diff_amount),0) AS shift_difference,
+      COALESCE(SUM(ret.returns),0) AS returns,
+      COALESCE(SUM(sh.shift_difference),0) AS shift_difference,
       AVG(i.net_total) AS average_invoice
     FROM sales_invoices i JOIN users u ON u.id=i.cashier_user_id
-    LEFT JOIN sales_payments sp ON sp.invoice_id=i.id
-    LEFT JOIN (SELECT original_invoice_id,SUM(total_refund) total_refund FROM sales_returns WHERE status IN('APPROVED','POSTED') GROUP BY original_invoice_id) sr ON sr.original_invoice_id=i.id
-    LEFT JOIN cashier_shifts cs ON cs.user_id=u.id AND date(cs.opened_at)=date(i.invoice_date)
+    LEFT JOIN payment_by_invoice pay ON pay.invoice_id=i.id
+    LEFT JOIN return_by_invoice ret ON ret.original_invoice_id=i.id
+    LEFT JOIN shift_by_user_day sh ON sh.user_id=u.id AND sh.shift_day=date(i.invoice_date)
     WHERE i.branch_id=? AND i.is_deleted=0 AND i.status='COMPLETED'
       ${_range('i.invoice_date', p)}
     GROUP BY u.id,u.full_name ORDER BY gross_sales DESC
   ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r04(ReportParams p) => _q('''
-    SELECT COALESCE(method,'غير محدد') AS payment_method, COUNT(*) AS operation_count,
+    WITH filtered AS (
+      SELECT sp.method,sp.amount FROM sales_payments sp
+      JOIN sales_invoices i ON i.id=sp.invoice_id
+      WHERE i.branch_id=? AND i.status='COMPLETED' ${_range('i.invoice_date', p)}
+    )
+    SELECT COALESCE(method,'غير محدد') AS payment_method,COUNT(*) AS operation_count,
       SUM(amount) AS amount,
-      CASE WHEN (SELECT SUM(amount) FROM sales_payments) > 0
-        THEN SUM(amount)*100.0/(SELECT SUM(amount) FROM sales_payments) ELSE 0 END AS percentage
-    FROM sales_payments sp JOIN sales_invoices i ON i.id=sp.invoice_id
-    WHERE i.branch_id=? AND i.status='COMPLETED' ${_range('i.invoice_date', p)}
-    GROUP BY method ORDER BY amount DESC
+      CASE WHEN SUM(SUM(amount)) OVER()>0 THEN SUM(amount)*100.0/SUM(SUM(amount)) OVER() ELSE 0 END AS percentage
+    FROM filtered GROUP BY method ORDER BY amount DESC
   ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r05(ReportParams p) => _q('''
@@ -173,13 +187,15 @@ class SalesAndInventoryQueries {
   ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r12(ReportParams p) => _q('''
-    SELECT CAST(strftime('%H',i.invoice_date) AS INTEGER) AS hour,
-      COUNT(*) AS invoice_count,SUM(i.net_total) AS sales_total,AVG(i.net_total) AS average_invoice,
-      CASE WHEN (SELECT SUM(net_total) FROM sales_invoices WHERE branch_id=? AND status='COMPLETED' AND date(invoice_date)=date(i.invoice_date))>0
-        THEN SUM(i.net_total)*100.0/(SELECT SUM(net_total) FROM sales_invoices WHERE branch_id=? AND status='COMPLETED' AND date(invoice_date)=date(i.invoice_date)) ELSE 0 END AS day_percentage
-    FROM sales_invoices i WHERE i.branch_id=? AND i.status='COMPLETED' ${_range('i.invoice_date', p)}
-    GROUP BY hour ORDER BY hour
-  ''', [p.branchId,p.branchId,p.branchId,..._rangeArgs(p)]);
+    WITH filtered AS (
+      SELECT CAST(strftime('%H',invoice_date) AS INTEGER) AS hour,net_total
+      FROM sales_invoices WHERE branch_id=? AND status='COMPLETED' ${_range('invoice_date', p)}
+    )
+    SELECT hour,COUNT(*) AS invoice_count,SUM(net_total) AS sales_total,
+      AVG(net_total) AS average_invoice,
+      CASE WHEN SUM(SUM(net_total)) OVER()>0 THEN SUM(net_total)*100.0/SUM(SUM(net_total)) OVER() ELSE 0 END AS day_percentage
+    FROM filtered GROUP BY hour ORDER BY hour
+  ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r13(ReportParams p) => _q('''
     SELECT d.trade_name_ar AS drug,d.strength_text AS strength,
@@ -313,16 +329,32 @@ class SalesAndInventoryQueries {
   ''', [p.branchId]);
 
   Future<List<Map<String, Object?>>> r24(ReportParams p) => _q('''
-    WITH sold AS (
-      SELECT si.drug_id,SUM(si.line_cost) AS cogs FROM sales_invoice_items si
-      JOIN sales_invoices i ON i.id=si.invoice_id
-      WHERE i.branch_id=? AND i.status='COMPLETED' ${_range('i.invoice_date', p)} GROUP BY si.drug_id
+    WITH sales_cost AS (
+      SELECT si.drug_id,SUM(si.line_cost) AS cogs
+      FROM sales_invoice_items si JOIN sales_invoices i ON i.id=si.invoice_id
+      WHERE i.branch_id=? AND i.status='COMPLETED' ${_range('i.invoice_date', p)}
+      GROUP BY si.drug_id
+    ), period_movements AS (
+      SELECT m.drug_id,SUM(m.qty_units) AS movement_units
+      FROM stock_movements m
+      WHERE (? IS NULL OR m.movement_at>=?)
+        AND (? IS NULL OR m.movement_at<date(?,'+1 day'))
+      GROUP BY m.drug_id
     )
-    SELECT d.trade_name_ar AS drug,d.stock_total_units AS opening_stock,
-      d.stock_total_units AS closing_stock,d.stock_total_units AS average_stock,
-      COALESCE(s.cogs,0) AS cogs,
-      CASE WHEN d.stock_total_units>0 THEN COALESCE(s.cogs,0)/(d.stock_total_units*d.last_purchase_cost_pack/CASE WHEN COALESCE(d.units_per_pack,0)>0 THEN d.units_per_pack ELSE 1 END) ELSE 0 END AS turnover_rate,
-      CASE WHEN COALESCE(s.cogs,0)>0 THEN d.stock_total_units*d.last_purchase_cost_pack/CASE WHEN COALESCE(d.units_per_pack,0)>0 THEN d.units_per_pack ELSE 1 END*365.0/s.cogs ELSE 0 END AS days_inventory
-    FROM drugs d LEFT JOIN sold s ON s.drug_id=d.id WHERE d.branch_id=? ORDER BY turnover_rate DESC
-  ''', [p.branchId,..._rangeArgs(p),p.branchId]);
+    SELECT d.trade_name_ar AS drug,
+      MAX(d.stock_total_units-COALESCE(pm.movement_units,0),0) AS opening_stock,
+      d.stock_total_units AS closing_stock,
+      (MAX(d.stock_total_units-COALESCE(pm.movement_units,0),0)+d.stock_total_units)/2.0 AS average_stock,
+      COALESCE(sc.cogs,0) AS cogs,
+      CASE WHEN ((MAX(d.stock_total_units-COALESCE(pm.movement_units,0),0)+d.stock_total_units)/2.0)>0
+        THEN COALESCE(sc.cogs,0)/(((MAX(d.stock_total_units-COALESCE(pm.movement_units,0),0)+d.stock_total_units)/2.0)*d.last_purchase_cost_pack/CASE WHEN COALESCE(d.units_per_pack,0)>0 THEN d.units_per_pack ELSE 1 END)
+        ELSE 0 END AS turnover_rate,
+      CASE WHEN COALESCE(sc.cogs,0)>0
+        THEN (((MAX(d.stock_total_units-COALESCE(pm.movement_units,0),0)+d.stock_total_units)/2.0)*d.last_purchase_cost_pack/CASE WHEN COALESCE(d.units_per_pack,0)>0 THEN d.units_per_pack ELSE 1 END)*365.0/sc.cogs
+        ELSE 0 END AS days_inventory
+    FROM drugs d LEFT JOIN sales_cost sc ON sc.drug_id=d.id
+    LEFT JOIN period_movements pm ON pm.drug_id=d.id
+    WHERE d.branch_id=? ORDER BY turnover_rate DESC
+  ''', [p.branchId, ..._rangeArgs(p), ..._rangeArgs(p), p.branchId]);
+
 }
