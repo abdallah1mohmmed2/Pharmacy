@@ -20,7 +20,7 @@ class HrAndPayrollService {
       if(employeeRows.isEmpty)throw StateError('الموظف غير موجود');
       final employee=employeeRows.first;final daily=employee['pay_type']=='DAILY';
       final rate=_n(employee['pay_rate']);
-      final earned=daily?(status=='PRESENT'||status=='OVERTIME'?rate+(overtimeHours*rate/8):status=='HALF_DAY'?rate/2:0):0;
+      final earned=(daily?(status=='PRESENT'||status=='OVERTIME'?rate+(overtimeHours*rate/8):status=='HALF_DAY'?rate/2:0):0).toDouble();
       final existing=await tx.query('employee_attendance',columns:['id','wage_earned'],where:'employee_id=? AND work_date=? AND work_shift_id IS ?',whereArgs:[employeeId,workDate,workShiftId],limit:1);
       final values={'employee_id':employeeId,'work_date':workDate,'work_shift_id':workShiftId,'check_in':checkIn,'check_out':checkOut,'status':status,'overtime_hours':overtimeHours,'wage_earned':earned};
       if(existing.isNotEmpty){
