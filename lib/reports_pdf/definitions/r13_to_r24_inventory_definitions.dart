@@ -42,7 +42,7 @@ List<ReportDefinition> buildR13ToR24InventoryDefinitions(SalesAndInventoryQuerie
   ],totals:const TotalsSpec(sumKeys:['sent_qty','received_qty','receiving_difference','value'])),
   ConfiguredReportDefinition(number:23,title:'تقييم المخزون حسب التصنيف الدوائي',category:ReportCategory.inventoryAndExpiry,query:q.r23,signatures:SignatureSpec.inventory,columns:[
     _c('therapeutic_category','الفئة العلاجية'),_c('drug_count','عدد الأصناف',type:ColType.integer,sum:true),_c('total_units','إجمالي الحبات',type:ColType.integer,sum:true),_c('cost_value','قيمة التكلفة',type:ColType.currency,sum:true,cost:true),_c('sale_value','قيمة البيع',type:ColType.currency,sum:true),_c('inventory_percentage','نسبة من إجمالي المخزون',type:ColType.percent),
-  ],totals:const TotalsSpec(sumKeys:['drug_count','total_units','cost_value','sale_value'])),
+  ],totals:TotalsSpec(sumKeys:['drug_count','total_units','cost_value','sale_value'],derivedValues:{'inventory_percentage':(v)=>v['cost_value']!>0?100:0})),
   ConfiguredReportDefinition(number:24,title:'معدل دوران المخزون',category:ReportCategory.inventoryAndExpiry,query:q.r24,params:_dates,signatures:SignatureSpec.inventory,columns:[
     _c('drug','الصنف'),_c('opening_stock','مخزون أول المدة',type:ColType.integer),_c('closing_stock','مخزون آخر المدة',type:ColType.integer),_c('average_stock','متوسط المخزون',type:ColType.decimal),_c('cogs','تكلفة البضاعة المباعة',type:ColType.currency,sum:true,cost:true),_c('turnover_rate','معدل الدوران',type:ColType.decimal),_c('days_inventory','أيام البقاء في المخزن',type:ColType.decimal),
   ],totals:const TotalsSpec(sumKeys:['cogs'])),
