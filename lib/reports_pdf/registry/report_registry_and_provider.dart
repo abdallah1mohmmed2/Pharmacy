@@ -268,7 +268,7 @@ class ReportsCenterProvider extends ChangeNotifier {
         columns: visibleColumns,
         rows: visibleRows,
         totals: visibleTotals,
-        summary: raw.summary,
+        summary: engine.costMasker.canShow(_params) ? raw.summary : const <String,Object?>{},
         generatedAt: raw.generatedAt,
         warnings: raw.warnings,
       );
