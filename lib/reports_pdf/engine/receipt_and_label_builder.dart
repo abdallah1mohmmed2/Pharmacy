@@ -6,7 +6,6 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
-import '../models_and_contracts.dart';
 import 'pdf_report_engine.dart';
 
 enum ThermalPaper { mm80, mm58 }
