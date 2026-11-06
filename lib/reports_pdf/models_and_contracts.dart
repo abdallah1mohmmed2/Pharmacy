@@ -330,3 +330,19 @@ double _number(Object? value) {
   if (value is num) return value.toDouble();
   return double.tryParse(value?.toString() ?? '') ?? 0;
 }
+
+class ConfiguredReportDefinition extends ReportDefinition {
+  const ConfiguredReportDefinition({
+    required super.number,
+    required super.title,
+    required super.category,
+    required super.columns,
+    required super.query,
+    super.params = const [],
+    super.totals = const TotalsSpec(),
+    super.signatures = SignatureSpec.finance,
+    super.forceLandscape = false,
+    super.description = '',
+    super.includeTotals = true,
+  });
+}
