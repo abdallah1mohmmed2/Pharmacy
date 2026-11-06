@@ -334,4 +334,8 @@ class ClinicalAndAuditQueries {
     return rows;
   }
 
+
+
+  double _n(Object? value) =>
+      value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
 }
