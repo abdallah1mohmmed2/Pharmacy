@@ -241,16 +241,39 @@ class SalesAndInventoryQueries {
   ''', [p.branchId, p.intValue('expiry_days') ?? 90]);
 
   Future<List<Map<String, Object?>>> r16(ReportParams p) => _q('''
-    SELECT m.movement_at AS movement_date,m.movement_type AS movement_type,
-      m.doc_type || ':' || COALESCE(m.doc_id,'') AS document,b.batch_no AS batch_no,
-      CASE WHEN m.qty_units>0 THEN m.qty_units ELSE 0 END AS incoming,
-      CASE WHEN m.qty_units<0 THEN -m.qty_units ELSE 0 END AS outgoing,
-      m.balance_after_units AS running_balance,m.unit_cost AS unit_cost
-    FROM stock_movements m JOIN drugs d ON d.id=m.drug_id
-    LEFT JOIN batches_fefo b ON b.id=m.batch_id
-    WHERE d.branch_id=? AND d.id=? ${_range('m.movement_at', p)}
-    ORDER BY m.movement_at,m.id
-  ''', [p.branchId,p.intValue('drug_id') ?? -1,..._rangeArgs(p)]);
+    WITH selected_drug AS (
+      SELECT id,stock_total_units FROM drugs WHERE branch_id=? AND id=?
+    ), opening AS (
+      SELECT COALESCE(d.stock_total_units,0)-COALESCE((
+        SELECT SUM(m.qty_units) FROM stock_movements m
+        WHERE m.drug_id=d.id AND (? IS NULL OR m.movement_at>=?)
+      ),0) AS opening_balance
+      FROM selected_drug d
+    ), report_rows AS (
+      SELECT 0 AS sort_order,COALESCE(?,'بداية السجل') AS movement_date,
+        'رصيد افتتاحي' AS movement_type,'—' AS document,'' AS batch_no,
+        0 AS incoming,0 AS outgoing,o.opening_balance AS running_balance,0 AS unit_cost,
+        '' AS movement_id
+      FROM opening o
+      UNION ALL
+      SELECT 1 AS sort_order,m.movement_at AS movement_date,m.movement_type AS movement_type,
+        m.doc_type || ':' || COALESCE(m.doc_id,'') AS document,
+        COALESCE(b.batch_no,'') AS batch_no,
+        CASE WHEN m.qty_units>0 THEN m.qty_units ELSE 0 END AS incoming,
+        CASE WHEN m.qty_units<0 THEN -m.qty_units ELSE 0 END AS outgoing,
+        m.balance_after_units AS running_balance,m.unit_cost AS unit_cost,
+        CAST(m.id AS TEXT) AS movement_id
+      FROM stock_movements m JOIN drugs d ON d.id=m.drug_id
+      LEFT JOIN batches_fefo b ON b.id=m.batch_id
+      WHERE d.branch_id=? AND d.id=? ${_range('m.movement_at', p)}
+    )
+    SELECT movement_date,movement_type,document,batch_no,incoming,outgoing,
+      running_balance,unit_cost FROM report_rows
+    ORDER BY sort_order,movement_date,movement_id
+  ''', [p.branchId,p.intValue('drug_id') ?? -1,
+        p.stringValue('date_from'),p.stringValue('date_from'),
+        p.stringValue('date_from'),
+        p.branchId,p.intValue('drug_id') ?? -1,..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r17(ReportParams p) => _q('''
     SELECT d.trade_name_ar AS drug,d.stock_total_units AS current_balance,d.min_stock_units AS minimum_stock,
