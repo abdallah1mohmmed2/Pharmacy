@@ -187,17 +187,18 @@ class ClinicalAndAuditQueries {
     SELECT 'المركز المالي: المتبقي على العملاء',COALESCE(SUM(alayh_amount-lah_amount),0)
       FROM lah_alayh_ledger WHERE branch_id=? AND party_id IN(SELECT id FROM parties WHERE party_type='CUSTOMER')
     UNION ALL
-    SELECT 'المركز المالي: المتبقي للموردين',COALESCE(SUM(remaining_lah),0) FROM purchase_invoices WHERE branch_id=?
+    SELECT 'المركز المالي: المتبقي للموردين',COALESCE(SUM(pi.remaining_lah),0) FROM purchase_invoices pi WHERE EXISTS(SELECT 1 FROM purchase_invoice_items pii JOIN drugs d ON d.id=pii.drug_id WHERE pii.invoice_id=pi.id AND d.branch_id=?)
     UNION ALL
     SELECT 'الجرد السنوي: قيمة المخزون بالتكلفة',COALESCE(SUM(b.total_units*b.unit_cost),0)
       FROM batches_fefo b JOIN drugs d ON d.id=b.drug_id WHERE d.branch_id=? AND b.total_units>0
     UNION ALL
-    SELECT 'الجرد السنوي: فروق الجرد',COALESCE(SUM(diff_value),0)
-      FROM stocktaking_lines l JOIN stocktaking_sessions s ON s.id=l.session_id
-      WHERE s.status='APPROVED' AND substr(COALESCE(s.approved_at,s.created_at),1,4)=?
+    SELECT 'الجرد السنوي: فروق الجرد',COALESCE(SUM(l.diff_value),0)
+      FROM stocktaking_lines l JOIN stocktaking_sessions s ON s.id=l.session_id JOIN batches_fefo b ON b.id=l.batch_id JOIN drugs d ON d.id=b.drug_id
+      WHERE d.branch_id=? AND s.status='APPROVED' AND substr(COALESCE(s.approved_at,s.created_at),1,4)=?
     UNION ALL
-    SELECT 'التوالف والمنتهي: قيمة الخسائر',COALESCE(SUM(total_cost_value),0)
-      FROM disposals WHERE status IN('APPROVED','POSTED') AND substr(disposal_date,1,4)=?
+    SELECT 'التوالف والمنتهي: قيمة الخسائر',COALESCE(SUM(di.qty_units*di.unit_cost),0)
+      FROM disposals dp JOIN disposal_items di ON di.disposal_id=dp.id JOIN batches_fefo b ON b.id=di.batch_id JOIN drugs d ON d.id=b.drug_id
+      WHERE d.branch_id=? AND dp.status IN('APPROVED','POSTED') AND substr(dp.disposal_date,1,4)=?
     UNION ALL
     SELECT 'أرصدة الموظفين: صافي الحركات',COALESCE(SUM(alayh_amount-lah_amount),0)
       FROM lah_alayh_ledger WHERE branch_id=? AND party_id IN(SELECT party_id FROM employees)
@@ -208,7 +209,7 @@ class ClinicalAndAuditQueries {
   ''',[p.branchId,p.stringValue('year')??DateTime.now().year.toString(),
        p.branchId,p.stringValue('year')??DateTime.now().year.toString(),
        p.branchId,p.branchId,p.branchId,p.branchId,
-       p.stringValue('year')??DateTime.now().year.toString(),
-       p.stringValue('year')??DateTime.now().year.toString(),
+       p.branchId,p.stringValue('year')??DateTime.now().year.toString(),
+       p.branchId,p.stringValue('year')??DateTime.now().year.toString(),
        p.branchId,p.branchId,p.stringValue('year')??DateTime.now().year.toString()]);
 }
