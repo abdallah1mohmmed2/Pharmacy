@@ -219,6 +219,7 @@ class PdfReportEngine {
     final year=params.stringValue('year')??DateTime.now().year.toString();
     final doc=pw.Document(title:'إغلاق العام المالي $year',author:params.userName);
     final sections=data.rows;
+    final showSensitiveAmounts=costMasker.canShow(params);
     doc.addPage(pw.MultiPage(
       pageFormat:PdfPageFormat.a4.landscape,
       theme:FontCache.instance.theme,
@@ -235,7 +236,7 @@ class PdfReportEngine {
             decoration:pw.BoxDecoration(border:pw.Border.all(color:PdfColors.grey400,width:.5)),
             child:pw.Row(children:[
               pw.Expanded(child:pw.Text(section['section']?.toString()??'قسم مالي',style:pw.TextStyle(fontSize:10,fontWeight:pw.FontWeight.bold))),
-              pw.Text((section['amount'] as num? ?? 0).toStringAsFixed(2),style:pw.TextStyle(fontSize:10,font:FontCache.instance.mono,fontWeight:pw.FontWeight.bold)),
+              pw.Text(showSensitiveAmounts ? (section['amount'] as num? ?? 0).toStringAsFixed(2) : 'محجوب حسب الصلاحية',style:pw.TextStyle(fontSize:10,font:FontCache.instance.mono,fontWeight:pw.FontWeight.bold)),
             ]),
           ),
         pw.SizedBox(height:18),
