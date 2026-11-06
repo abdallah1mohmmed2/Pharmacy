@@ -207,7 +207,25 @@ class ReportsCenterProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      _data = await definition.run(_params);
+      final raw = await definition.run(_params);
+      final visibleColumns = engine.costMasker.filter(raw.columns, _params);
+      final visibleRows = raw.rows
+          .map((row) => engine.costMasker.filterRow(row, visibleColumns))
+          .toList(growable: false);
+      final visibleTotals = Map<String, double>.fromEntries(
+        raw.totals.entries.where((entry) =>
+            visibleColumns.any((column) => column.key == entry.key)),
+      );
+      _data = ReportDataSet(
+        reportNumber: raw.reportNumber,
+        title: raw.title,
+        columns: visibleColumns,
+        rows: visibleRows,
+        totals: visibleTotals,
+        summary: raw.summary,
+        generatedAt: raw.generatedAt,
+        warnings: raw.warnings,
+      );
       return _data;
     } catch (e) {
       _error = e.toString();
