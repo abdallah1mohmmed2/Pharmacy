@@ -234,6 +234,14 @@ class ReceiptAndLabelBuilder {
     await Printing.directPrintPdf(printer: printer, onLayout: (_) async => bytes);
   }
 
+  Future<void> previewDoseLabel(BuildContext context, DoseLabelData label) async {
+    final bytes = await buildDoseLabel(label);
+    await Printing.layoutPdf(
+      name: 'dose-label.pdf',
+      onLayout: (_) async => bytes,
+    );
+  }
+
   Future<void> printDoseLabelNow(BuildContext context, DoseLabelData label) async {
     final bytes = await buildDoseLabel(label);
     final printer = await Printing.pickPrinter(context: context);
