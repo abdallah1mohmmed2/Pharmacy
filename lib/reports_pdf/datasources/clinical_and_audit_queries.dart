@@ -174,43 +174,162 @@ class ClinicalAndAuditQueries {
     ORDER BY a.occurred_at DESC,a.id DESC
   ''',[p.branchId,..._rangeArgs(p)]);
 
-  Future<List<Map<String, Object?>>> r55(ReportParams p) => _q('''
-    SELECT 'قائمة الدخل: إجمالي المبيعات' AS section,
-      COALESCE((SELECT SUM(net_total) FROM sales_invoices WHERE branch_id=? AND status='COMPLETED'
-        AND substr(invoice_date,1,4)=?),0) AS amount
-    UNION ALL
-    SELECT 'قائمة الدخل: تكلفة البضاعة المباعة',
-      COALESCE((SELECT SUM(total_cost) FROM sales_invoices WHERE branch_id=? AND status='COMPLETED'
-        AND substr(invoice_date,1,4)=?),0)
-    UNION ALL
-    SELECT 'المركز المالي: النقد والمحافظ',COALESCE(SUM(current_balance),0) FROM cash_accounts WHERE branch_id=?
-    UNION ALL
-    SELECT 'المركز المالي: المتبقي على العملاء',COALESCE(SUM(alayh_amount-lah_amount),0)
-      FROM lah_alayh_ledger WHERE branch_id=? AND party_id IN(SELECT id FROM parties WHERE party_type='CUSTOMER')
-    UNION ALL
-    SELECT 'المركز المالي: المتبقي للموردين',COALESCE(SUM(pi.remaining_lah),0) FROM purchase_invoices pi WHERE EXISTS(SELECT 1 FROM purchase_invoice_items pii JOIN drugs d ON d.id=pii.drug_id WHERE pii.invoice_id=pi.id AND d.branch_id=?)
-    UNION ALL
-    SELECT 'الجرد السنوي: قيمة المخزون بالتكلفة',COALESCE(SUM(b.total_units*b.unit_cost),0)
-      FROM batches_fefo b JOIN drugs d ON d.id=b.drug_id WHERE d.branch_id=? AND b.total_units>0
-    UNION ALL
-    SELECT 'الجرد السنوي: فروق الجرد',COALESCE(SUM(l.diff_value),0)
-      FROM stocktaking_lines l JOIN stocktaking_sessions s ON s.id=l.session_id JOIN batches_fefo b ON b.id=l.batch_id JOIN drugs d ON d.id=b.drug_id
-      WHERE d.branch_id=? AND s.status='APPROVED' AND substr(COALESCE(s.approved_at,s.created_at),1,4)=?
-    UNION ALL
-    SELECT 'التوالف والمنتهي: قيمة الخسائر',COALESCE(SUM(di.qty_units*di.unit_cost),0)
-      FROM disposals dp JOIN disposal_items di ON di.disposal_id=dp.id JOIN batches_fefo b ON b.id=di.batch_id JOIN drugs d ON d.id=b.drug_id
-      WHERE d.branch_id=? AND dp.status IN('APPROVED','POSTED') AND substr(dp.disposal_date,1,4)=?
-    UNION ALL
-    SELECT 'أرصدة الموظفين: صافي الحركات',COALESCE(SUM(alayh_amount-lah_amount),0)
-      FROM lah_alayh_ledger WHERE branch_id=? AND party_id IN(SELECT party_id FROM employees)
-    UNION ALL
-    SELECT 'توزيعات الشركاء: صافي الأرباح الموزعة',COALESCE(SUM(distributable_profit),0)
-      FROM partner_distributions WHERE branch_id=? AND status IN('APPROVED','POSTED') AND substr(period_code,1,4)=?
-    ORDER BY section
-  ''',[p.branchId,p.stringValue('year')??DateTime.now().year.toString(),
-       p.branchId,p.stringValue('year')??DateTime.now().year.toString(),
-       p.branchId,p.branchId,p.branchId,p.branchId,
-       p.branchId,p.stringValue('year')??DateTime.now().year.toString(),
-       p.branchId,p.stringValue('year')??DateTime.now().year.toString(),
-       p.branchId,p.branchId,p.stringValue('year')??DateTime.now().year.toString()]);
+  Future<List<Map<String, Object?>>> r55(ReportParams p) async {
+    final year = int.tryParse(p.stringValue('year') ?? '') ?? DateTime.now().year;
+    final yearText = year.toString();
+    final rows = <Map<String, Object?>>[];
+
+    Future<double> scalar(String sql, [List<Object?> args = const []]) async {
+      final result = await _q(sql, args);
+      if (result.isEmpty) return 0;
+      return _n(result.first.values.first);
+    }
+
+    void add(String section, String metric, double amount) {
+      rows.add({'section': '$section — $metric', 'amount': amount});
+    }
+
+    // 1) قائمة الدخل السنوية.
+    final gross = await scalar(
+      "SELECT COALESCE(SUM(subtotal),0) FROM sales_invoices WHERE branch_id=? AND status='COMPLETED' AND substr(invoice_date,1,4)=?",
+      [p.branchId, yearText],
+    );
+    final discounts = await scalar(
+      "SELECT COALESCE(SUM(discount_amount),0) FROM sales_invoices WHERE branch_id=? AND status='COMPLETED' AND substr(invoice_date,1,4)=?",
+      [p.branchId, yearText],
+    );
+    final returns = await scalar(
+      "SELECT COALESCE(SUM(sr.total_refund),0) FROM sales_returns sr JOIN sales_invoices i ON i.id=sr.original_invoice_id WHERE i.branch_id=? AND sr.status IN('APPROVED','POSTED') AND substr(sr.return_date,1,4)=?",
+      [p.branchId, yearText],
+    );
+    final cogs = await scalar(
+      "SELECT COALESCE(SUM(total_cost),0) FROM sales_invoices WHERE branch_id=? AND status='COMPLETED' AND substr(invoice_date,1,4)=?",
+      [p.branchId, yearText],
+    );
+    final operating = await scalar(
+      "SELECT COALESCE(SUM(amount),0) FROM expenses WHERE branch_id=? AND substr(expense_date,1,4)=?",
+      [p.branchId, yearText],
+    );
+    final wages = await scalar(
+      "SELECT COALESCE(SUM(a.wage_earned),0) FROM employee_attendance a JOIN employees e ON e.id=a.employee_id WHERE e.branch_id=? AND substr(a.work_date,1,4)=?",
+      [p.branchId, yearText],
+    );
+    final disposalLoss = await scalar(
+      "SELECT COALESCE(SUM(di.qty_units*di.unit_cost),0) FROM disposals dp JOIN disposal_items di ON di.disposal_id=dp.id JOIN batches_fefo b ON b.id=di.batch_id JOIN drugs d ON d.id=b.drug_id WHERE d.branch_id=? AND dp.status IN('APPROVED','POSTED') AND substr(dp.disposal_date,1,4)=?",
+      [p.branchId, yearText],
+    );
+    final netSales = gross - discounts - returns;
+    final grossProfit = netSales - cogs;
+    final netProfit = grossProfit - operating - wages - disposalLoss;
+    add('1. قائمة الدخل السنوية', 'إجمالي المبيعات قبل الخصم', gross);
+    add('1. قائمة الدخل السنوية', 'الخصومات', discounts);
+    add('1. قائمة الدخل السنوية', 'المرتجعات', returns);
+    add('1. قائمة الدخل السنوية', 'صافي المبيعات', netSales);
+    add('1. قائمة الدخل السنوية', 'تكلفة البضاعة المباعة', cogs);
+    add('1. قائمة الدخل السنوية', 'مجمل الربح', grossProfit);
+    add('1. قائمة الدخل السنوية', 'المصروفات التشغيلية', operating);
+    add('1. قائمة الدخل السنوية', 'الرواتب واليوميات', wages);
+    add('1. قائمة الدخل السنوية', 'خسائر الإعدام والتلف', disposalLoss);
+    add('1. قائمة الدخل السنوية', 'صافي الربح النهائي', netProfit);
+
+    // 2) المركز المالي الختامي: الأصول والالتزامات وحقوق الملاك.
+    final cash = await scalar(
+      'SELECT COALESCE(SUM(current_balance),0) FROM cash_accounts WHERE branch_id=?',
+      [p.branchId],
+    );
+    final customerBalance = await scalar('''
+      SELECT COALESCE(SUM(pa.opening_alayh-pa.opening_lah),0)+
+        COALESCE((SELECT SUM(l.alayh_amount-l.lah_amount)
+          FROM lah_alayh_ledger l JOIN parties p2 ON p2.id=l.party_id
+          WHERE l.branch_id=? AND p2.branch_id=? AND p2.party_type='CUSTOMER'),0)
+      FROM parties pa WHERE pa.branch_id=? AND pa.party_type='CUSTOMER' AND pa.is_deleted=0
+    ''', [p.branchId, p.branchId, p.branchId]);
+    final inventory = await scalar(
+      'SELECT COALESCE(SUM(b.total_units*b.unit_cost),0) FROM batches_fefo b JOIN drugs d ON d.id=b.drug_id WHERE d.branch_id=? AND b.total_units>0',
+      [p.branchId],
+    );
+    final supplierBalance = await scalar('''
+      SELECT COALESCE(SUM(pi.remaining_lah),0)
+      FROM purchase_invoices pi JOIN parties s ON s.id=pi.supplier_party_id
+      WHERE s.branch_id=? AND s.party_type='SUPPLIER'
+    ''', [p.branchId]);
+    final employeeBalance = await scalar('''
+      SELECT COALESCE(SUM(l.alayh_amount-l.lah_amount),0)
+      FROM lah_alayh_ledger l JOIN parties pa ON pa.id=l.party_id
+      WHERE l.branch_id=? AND pa.branch_id=? AND pa.party_type='EMPLOYEE'
+    ''', [p.branchId, p.branchId]);
+    final capital = await scalar(
+      'SELECT COALESCE(SUM(capital_amount),0) FROM partners WHERE branch_id=? AND is_active=1',
+      [p.branchId],
+    );
+    final withdrawals = await scalar('''
+      SELECT COALESCE(SUM(l.withdrawals_alayh),0)
+      FROM partner_distribution_lines l JOIN partner_distributions d ON d.id=l.distribution_id
+      WHERE d.branch_id=? AND substr(d.period_code,1,4)=?
+    ''', [p.branchId, yearText]);
+    add('2. المركز المالي الختامي — الأصول', 'النقد والمحافظ', cash);
+    add('2. المركز المالي الختامي — الأصول', 'المتبقي على العملاء', customerBalance);
+    add('2. المركز المالي الختامي — الأصول', 'المخزون بالتكلفة', inventory);
+    add('2. المركز المالي الختامي — الالتزامات', 'المتبقي للموردين', supplierBalance);
+    add('2. المركز المالي الختامي — الالتزامات', 'صافي حسابات الموظفين', employeeBalance);
+    add('2. المركز المالي الختامي — حقوق الملاك', 'رأس المال', capital);
+    add('2. المركز المالي الختامي — حقوق الملاك', 'مسحوبات الشركاء', withdrawals);
+    add('2. المركز المالي الختامي — حقوق الملاك', 'صافي ربح السنة', netProfit);
+
+    // 3) ملخص الجرد السنوي وفروقاته.
+    final stocktakeDiff = await scalar('''
+      SELECT COALESCE(SUM(l.diff_value),0)
+      FROM stocktaking_lines l JOIN stocktaking_sessions s ON s.id=l.session_id
+      JOIN batches_fefo b ON b.id=l.batch_id JOIN drugs d ON d.id=b.drug_id
+      WHERE d.branch_id=? AND s.status='APPROVED'
+        AND substr(COALESCE(s.approved_at,s.created_at),1,4)=?
+    ''', [p.branchId, yearText]);
+    final stocktakeSessions = await scalar('''
+      SELECT COUNT(DISTINCT s.id)
+      FROM stocktaking_sessions s JOIN stocktaking_lines l ON l.session_id=s.id
+      JOIN batches_fefo b ON b.id=l.batch_id JOIN drugs d ON d.id=b.drug_id
+      WHERE d.branch_id=? AND substr(COALESCE(s.approved_at,s.created_at),1,4)=?
+    ''', [p.branchId, yearText]);
+    add('3. الجرد السنوي', 'قيمة المخزون الختامي بالتكلفة', inventory);
+    add('3. الجرد السنوي', 'عدد جلسات الجرد', stocktakeSessions);
+    add('3. الجرد السنوي', 'صافي فروق الجرد', stocktakeDiff);
+
+    // 4) ملخص الأرصدة للأطراف بنظام له وعليه.
+    for (final type in ['CUSTOMER', 'SUPPLIER', 'EMPLOYEE']) {
+      final label = switch (type) {
+        'CUSTOMER' => 'العملاء',
+        'SUPPLIER' => 'الموردون',
+        _ => 'الموظفون',
+      };
+      final balance = await scalar('''
+        SELECT COALESCE(SUM(pa.opening_alayh-pa.opening_lah),0)+
+          COALESCE(SUM(COALESCE(x.net_movement,0)),0)
+        FROM parties pa LEFT JOIN (
+          SELECT party_id,SUM(alayh_amount-lah_amount) AS net_movement
+          FROM lah_alayh_ledger WHERE branch_id=? GROUP BY party_id
+        ) x ON x.party_id=pa.id
+        WHERE pa.branch_id=? AND pa.party_type=? AND pa.is_deleted=0
+      ''', [p.branchId, p.branchId, type]);
+      add('4. أرصدة الأطراف — $label', 'الصافي', balance);
+    }
+
+    // 5) التوالف والمنتهي.
+    final expiredLoss = await scalar(
+      "SELECT COALESCE(SUM(b.total_units*b.unit_cost),0) FROM batches_fefo b JOIN drugs d ON d.id=b.drug_id WHERE d.branch_id=? AND b.total_units>0 AND date(b.expiry_date)<date('$yearText-12-31')",
+      [p.branchId],
+    );
+    add('5. التوالف والمنتهي', 'قيمة التوالف المعتمدة خلال السنة', disposalLoss);
+    add('5. التوالف والمنتهي', 'قيمة أرصدة التشغيلات المنتهية حتى نهاية السنة', expiredLoss);
+
+    // 6) ملخص توزيعات أرباح الشركاء.
+    final distributions = await scalar('''
+      SELECT COALESCE(SUM(distributable_profit),0)
+      FROM partner_distributions WHERE branch_id=? AND status IN('APPROVED','POSTED')
+        AND substr(period_code,1,4)=?
+    ''', [p.branchId, yearText]);
+    add('6. توزيعات أرباح الشركاء', 'صافي الأرباح الموزعة', distributions);
+    add('6. توزيعات أرباح الشركاء', 'إجمالي المسحوبات الشخصية', withdrawals);
+    return rows;
+  }
+
 }
