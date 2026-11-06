@@ -54,9 +54,10 @@ class SalesAndInventoryQueries {
     ), return_by_invoice AS (
       SELECT original_invoice_id,SUM(total_refund) AS returns
       FROM sales_returns WHERE status IN('APPROVED','POSTED') GROUP BY original_invoice_id
-    ), shift_by_user_day AS (
-      SELECT user_id,date(opened_at) AS shift_day,SUM(COALESCE(diff_amount,0)) AS shift_difference
-      FROM cashier_shifts GROUP BY user_id,date(opened_at)
+    ), shift_by_user AS (
+      SELECT user_id,SUM(COALESCE(diff_amount,0)) AS shift_difference
+      FROM cashier_shifts cs WHERE 1=1 ${_range('cs.opened_at', p)}
+      GROUP BY user_id
     )
     SELECT u.full_name AS cashier,COUNT(i.id) AS invoice_count,
       COALESCE(SUM(i.subtotal),0) AS gross_sales,
@@ -65,16 +66,16 @@ class SalesAndInventoryQueries {
       COALESCE(SUM(i.remaining_alayh),0) AS credit_total,
       COALESCE(SUM(i.discount_amount),0) AS discounts,
       COALESCE(SUM(ret.returns),0) AS returns,
-      COALESCE(SUM(sh.shift_difference),0) AS shift_difference,
+      COALESCE(MAX(sh.shift_difference),0) AS shift_difference,
       AVG(i.net_total) AS average_invoice
     FROM sales_invoices i JOIN users u ON u.id=i.cashier_user_id
     LEFT JOIN payment_by_invoice pay ON pay.invoice_id=i.id
     LEFT JOIN return_by_invoice ret ON ret.original_invoice_id=i.id
-    LEFT JOIN shift_by_user_day sh ON sh.user_id=u.id AND sh.shift_day=date(i.invoice_date)
+    LEFT JOIN shift_by_user sh ON sh.user_id=u.id
     WHERE i.branch_id=? AND i.is_deleted=0 AND i.status='COMPLETED'
       ${_range('i.invoice_date', p)}
     GROUP BY u.id,u.full_name ORDER BY gross_sales DESC
-  ''', [p.branchId, ..._rangeArgs(p)]);
+  ''', [..._rangeArgs(p), p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r04(ReportParams p) => _q('''
     WITH filtered AS (
