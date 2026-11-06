@@ -586,7 +586,7 @@ class FooterBuilder {
         padding: const pw.EdgeInsets.only(top: 6),
         decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5))),
         child: pw.Text(
-          'تاريخ ووقت الطباعة: ${printedAt.toIso8601String().substring(0, 16).replaceFirst('T', ' ')}   •   طُبع بواسطة: ${printedBy.isEmpty ? 'النظام' : printedBy}   •   صفحة $pageNumber من $pagesCount',
+          'تاريخ ووقت الطباعة: ${printedAt.year.toString().padLeft(4, '0')}/${printedAt.month.toString().padLeft(2, '0')}/${printedAt.day.toString().padLeft(2, '0')} ${printedAt.hour.toString().padLeft(2, '0')}:${printedAt.minute.toString().padLeft(2, '0')}   •   طُبع بواسطة: ${printedBy.isEmpty ? 'النظام' : printedBy}   •   صفحة $pageNumber من $pagesCount',
           style: const pw.TextStyle(fontSize: 7),
         ),
       );
