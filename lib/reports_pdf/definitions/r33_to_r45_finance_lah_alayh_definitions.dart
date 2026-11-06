@@ -54,8 +54,8 @@ List<ReportDefinition> buildR33ToR45FinanceDefinitions(PurchaseAndFinanceQueries
     _c('date','التاريخ',type:ColType.dateTime),_c('statement','البيان'),_c('document','المستند'),_c('alayh','عليه',type:ColType.currency,sum:true),_c('lah','له',type:ColType.currency,sum:true),_c('remaining','المتبقي',type:ColType.currency),
   ],totals:const TotalsSpec(sumKeys:['alayh','lah'])),
   ConfiguredReportDefinition(number:34,title:'أرصدة جميع العملاء',category:ReportCategory.financeAndParties,query:q.r34,signatures:SignatureSpec.finance,columns:[
-    _c('customer','العميل'),_c('phone','الجوال'),_c('total_alayh','إجمالي عليه',type:ColType.currency,sum:true),_c('total_lah','إجمالي له',type:ColType.currency,sum:true),_c('remaining','المتبقي عليه/له',type:ColType.currency,sum:true),_c('credit_limit','الحد الائتماني',type:ColType.currency),_c('credit_usage_pct','نسبة استهلاك الحد',type:ColType.percent),_c('last_movement','آخر حركة',type:ColType.dateTime),
-  ],totals:const TotalsSpec(sumKeys:['total_alayh','total_lah','remaining'])),
+    _c('customer','العميل'),_c('phone','الجوال'),_c('total_alayh','إجمالي عليه',type:ColType.currency,sum:true),_c('total_lah','إجمالي له',type:ColType.currency,sum:true),_c('remaining','المتبقي عليه/له',type:ColType.currency,sum:true),_c('credit_limit','الحد الائتماني',type:ColType.currency,sum:true),_c('credit_usage_pct','نسبة استهلاك الحد',type:ColType.percent),_c('last_movement','آخر حركة',type:ColType.dateTime),
+  ],totals:TotalsSpec(sumKeys:['total_alayh','total_lah','remaining','credit_limit'],derivedValues:{'credit_usage_pct':(v)=>v['credit_limit']!>0?v['remaining']!*100/v['credit_limit']!:0})),
   ConfiguredReportDefinition(number:35,title:'أعمار الديون للعملاء المتأخرين',category:ReportCategory.financeAndParties,query:q.r35,signatures:SignatureSpec.finance,columns:[
     _c('customer','العميل'),_c('days_0_30','0–30 يوماً',type:ColType.currency,sum:true),_c('days_31_60','31–60 يوماً',type:ColType.currency,sum:true),_c('days_61_90','61–90 يوماً',type:ColType.currency,sum:true),_c('days_91_180','91–180 يوماً',type:ColType.currency,sum:true),_c('days_over_180','أكثر من 180 يوماً',type:ColType.currency,sum:true),_c('total_remaining_alayh','إجمالي المتبقي عليه',type:ColType.currency,sum:true),_c('last_payment','آخر سداد',type:ColType.date),
   ],totals:const TotalsSpec(sumKeys:['days_0_30','days_31_60','days_61_90','days_91_180','days_over_180','total_remaining_alayh'])),
@@ -73,7 +73,7 @@ List<ReportDefinition> buildR33ToR45FinanceDefinitions(PurchaseAndFinanceQueries
   ],totals:const TotalsSpec(sumKeys:['opening_cash','cash_sales','expected_cash','counted_cash','difference'])),
   ConfiguredReportDefinition(number:40,title:'المصروفات التشغيلية مفصلة حسب البند',category:ReportCategory.financeAndParties,query:q.r40,params:_dates,signatures:SignatureSpec.finance,columns:[
     _c('date','التاريخ',type:ColType.dateTime),_c('voucher','رقم السند'),_c('category','البند'),_c('statement','البيان'),_c('beneficiary','المستفيد'),_c('payment_account','حساب الدفع'),_c('amount','المبلغ',type:ColType.currency,sum:true),_c('expense_pct','النسبة من إجمالي المصروفات',type:ColType.percent),
-  ],totals:const TotalsSpec(sumKeys:['amount'])),
+  ],totals:TotalsSpec(sumKeys:['amount'],derivedValues:{'expense_pct':(v)=>v['amount']!>0?100:0})),
   ConfiguredReportDefinition(number:41,title:'سندات القبض والصرف والتسويات',category:ReportCategory.financeAndParties,query:q.r41,params:_dates,signatures:SignatureSpec.finance,columns:[
     _c('voucher_no','رقم السند'),_c('voucher_type','النوع قبض/صرف/تسوية'),_c('date','التاريخ',type:ColType.dateTime),_c('party','الطرف'),_c('method','الطريقة'),_c('notification_no','رقم الإشعار'),_c('statement','البيان'),_c('amount','المبلغ',type:ColType.currency,sum:true),
   ],totals:const TotalsSpec(sumKeys:['amount'])),
