@@ -142,7 +142,7 @@ class PdfReportEngine {
             title: definition.title,
             params: params,
           ).build(),
-          if (data.summary.isNotEmpty)
+          if (data.summary.isNotEmpty && costMasker.canShow(params))
             SummaryBlock(data.summary).build(),
           if (definition.description.isNotEmpty)
             pw.Padding(
