@@ -56,7 +56,7 @@ class SalesAndInventoryQueries {
       FROM sales_returns WHERE status IN('APPROVED','POSTED') GROUP BY original_invoice_id
     ), shift_by_user AS (
       SELECT user_id,SUM(COALESCE(diff_amount,0)) AS shift_difference
-      FROM cashier_shifts cs WHERE 1=1 ${_range('cs.opened_at', p)}
+      FROM cashier_shifts cs WHERE cs.branch_id=? ${_range('cs.opened_at', p)}
       GROUP BY user_id
     )
     SELECT u.full_name AS cashier,COUNT(i.id) AS invoice_count,
@@ -75,7 +75,7 @@ class SalesAndInventoryQueries {
     WHERE i.branch_id=? AND i.is_deleted=0 AND i.status='COMPLETED'
       ${_range('i.invoice_date', p)}
     GROUP BY u.id,u.full_name ORDER BY gross_sales DESC
-  ''', [..._rangeArgs(p), p.branchId, ..._rangeArgs(p)]);
+  ''', [p.branchId, ..._rangeArgs(p), p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r04(ReportParams p) => _q('''
     WITH filtered AS (
