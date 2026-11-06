@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:csv/csv.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
@@ -154,13 +155,14 @@ class PdfReportEngine {
   }
 
   Future<void> printDirect({
+    required BuildContext context,
     required ReportDefinition definition,
     required ReportDataSet data,
     required ReportParams params,
   }) async {
     final bytes = await build(definition: definition, data: data, params: params);
     await Printing.directPrintPdf(
-      printer: await Printing.pickPrinter(context: null),
+      printer: await Printing.pickPrinter(context: context),
       onLayout: (_) async => bytes,
     );
   }
