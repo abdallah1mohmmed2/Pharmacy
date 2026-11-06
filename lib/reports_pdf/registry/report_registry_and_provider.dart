@@ -88,6 +88,7 @@ class ReportsCenterProvider extends ChangeNotifier {
   ReportDataSet? _data;
   ReportParams _params = ReportParams();
   final Set<int> _favorites = {};
+  final Map<ReportParamKind, Future<List<Map<String, Object?>>>> _optionCache = {};
 
   bool get isLoading => _loading;
   String? get error => _error;
@@ -134,6 +135,51 @@ class ReportsCenterProvider extends ChangeNotifier {
         (setting.first['value_text'] == '1' ||
             setting.first['value_text'] == 'true');
     notifyListeners();
+  }
+
+  Future<List<Map<String, Object?>>> parameterOptions(ReportParamKind kind) {
+    return _optionCache.putIfAbsent(kind, () async {
+      final db = await _helper.database;
+      switch (kind) {
+        case ReportParamKind.customer:
+          return db.query('parties',
+              columns: ['id', 'name_ar'],
+              where: "branch_id=? AND party_type='CUSTOMER' AND is_deleted=0",
+              whereArgs: [_branchId], orderBy: 'name_ar');
+        case ReportParamKind.supplier:
+          return db.query('parties',
+              columns: ['id', 'name_ar'],
+              where: "branch_id=? AND party_type='SUPPLIER' AND is_deleted=0",
+              whereArgs: [_branchId], orderBy: 'name_ar');
+        case ReportParamKind.employee:
+          return db.rawQuery('''
+            SELECT p.id,p.name_ar FROM employees e
+            JOIN parties p ON p.id=e.party_id
+            WHERE e.branch_id=? AND p.is_deleted=0 ORDER BY p.name_ar
+          ''', [_branchId]);
+        case ReportParamKind.drug:
+          return db.query('drugs',
+              columns: ['id', 'trade_name_ar AS name_ar'],
+              where: 'branch_id=? AND is_deleted=0',
+              whereArgs: [_branchId], orderBy: 'trade_name_ar');
+        case ReportParamKind.warehouse:
+          return db.query('warehouses',
+              columns: ['id', 'name_ar'],
+              where: 'branch_id=?', whereArgs: [_branchId], orderBy: 'name_ar');
+        case ReportParamKind.cashier:
+          return db.query('users',
+              columns: ['id', 'full_name AS name_ar'],
+              where: 'branch_id=? AND is_deleted=0 AND is_active=1',
+              whereArgs: [_branchId], orderBy: 'full_name');
+        case ReportParamKind.category:
+          return db.query('drug_categories',
+              columns: ['id', 'name_ar'],
+              where: 'branch_id=? AND is_deleted=0',
+              whereArgs: [_branchId], orderBy: 'name_ar');
+        default:
+          return <Map<String, Object?>>[];
+      }
+    });
   }
 
   Future<void> loadFavorites() async {
