@@ -5,6 +5,7 @@ import '../../data/database/database_helper.dart';
 import '../../providers/treasury_hr_partner_provider.dart';
 import '../../providers/session_and_erp_provider.dart';
 import '../../core/widgets/shared_widgets.dart';
+import '../../reports_pdf/registry/report_registry_and_provider.dart';
 
 class S25EmployeesShiftsPayrollScreen extends StatefulWidget {
   const S25EmployeesShiftsPayrollScreen({super.key});
@@ -59,8 +60,26 @@ class _S25EmployeesShiftsPayrollScreenState extends State<S25EmployeesShiftsPayr
     final entries=await DatabaseHelper.instance.rawQuery('SELECT entry_date,entry_type,alayh_amount,lah_amount,statement_ar,doc_type,doc_id FROM lah_alayh_ledger WHERE party_id=? ORDER BY entry_date,id',[employee['party_id']]);
     if(!mounted)return;
     final rows=entries.map((r)=>LahAlayhRow(date:r['entry_date'].toString().split('T').first,statement:r['statement_ar'].toString(),document:'${r['doc_type']} #${r['doc_id']??''}',alayh:(r['alayh_amount'] as num).toDouble(),lah:(r['lah_amount'] as num).toDouble())).toList();
-    await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(title:Text('كشف حساب • ${employee['name_ar']}'),content:SizedBox(width:850,height:480,child:LahAlayhTable(rows:rows)),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إغلاق'))]));
+    await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(title:Text('كشف حساب • ${employee['name_ar']}'),content:SizedBox(width:850,height:480,child:LahAlayhTable(rows:rows)),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إغلاق')),OutlinedButton.icon(onPressed:()=>_printEmployeeStatement(employee),icon:const Icon(Icons.picture_as_pdf),label:const Text('طباعة PDF'))]));
   }
+
+  Future<void> _printEmployeeStatement(Map<String,Object?> employee) async {
+    final session=context.read<SessionAndErpProvider>();
+    final user=session.currentUser;
+    if(user==null)return;
+    final reports=context.read<ReportsCenterProvider>();
+    try {
+      await reports.initialize(userId:user['id'] as int,userName:user['full_name'] as String? ?? '',branchId:session.branchId);
+      reports.selectReport(44);
+      reports.updateParams({'party_id':employee['party_id']});
+      final data=await reports.runSelected();
+      final definition=reports.selected;
+      if(data!=null&&definition!=null)await reports.engine.preview(definition:definition,data:data,params:reports.params);
+    } catch(e) {
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر طباعة كشف الموظف: $e')));
+    }
+  }
+
   Future<void> _advance(TreasuryHrPartnerProvider p,Map<String,Object?> employee)async{
     final amount=TextEditingController();final session=context.read<SessionAndErpProvider>();
     await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(title:const Text('صرف سلفة موظف'),content:TextField(controller:amount,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'مبلغ السلفة')),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{try{final cash=p.cashAccounts.firstWhere((a)=>a['account_kind']=='CASHIER_DRAWER',orElse:()=>p.cashAccounts.first);await p.advance(employeeId:employee['id'] as int,cashAccountId:cash['id'] as int,amount:double.parse(amount.text),managerUserId:null);if(ctx.mounted)Navigator.pop(ctx);}catch(e){if(e.toString().contains('سقف المسموح')&&ctx.mounted){final pin=TextEditingController();final ok=await showDialog<bool>(context:ctx,builder:(d)=>AlertDialog(title:const Text('اعتماد المدير'),content:TextField(controller:pin,obscureText:true,decoration:const InputDecoration(labelText:'رمز المدير')),actions:[TextButton(onPressed:()=>Navigator.pop(d,false),child:const Text('إلغاء')),FilledButton(onPressed:()async{final valid=await session.verifyManagerPin(pin.text);if(d.mounted)Navigator.pop(d,valid);},child:const Text('تحقق'))]));pin.dispose();if(ok==true){final managerId=session.consumeVerifiedManagerUserId();if(managerId==null)throw StateError('تعذر تحديد هوية المدير المعتمد');try{final cash=p.cashAccounts.firstWhere((a)=>a['account_kind']=='CASHIER_DRAWER',orElse:()=>p.cashAccounts.first);await p.advance(employeeId:employee['id'] as int,cashAccountId:cash['id'] as int,amount:double.parse(amount.text),managerUserId:managerId);if(ctx.mounted)Navigator.pop(ctx);}catch(err){if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content:Text(err.toString())));}}}else if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content:Text(e.toString())));}},child:const Text('صرف'))]));
