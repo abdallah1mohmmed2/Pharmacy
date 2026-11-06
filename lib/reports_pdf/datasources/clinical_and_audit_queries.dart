@@ -160,7 +160,7 @@ class ClinicalAndAuditQueries {
       u.full_name AS pharmacist
     FROM sales_invoice_items si JOIN sales_invoices i ON i.id=si.invoice_id
     JOIN drugs sub ON sub.id=si.drug_id
-    JOIN drugs original ON original.id=si.substituted_for_drug_id
+    JOIN drugs original ON original.id=si.substitute_for_drug_id
     LEFT JOIN users u ON u.id=i.cashier_user_id
     WHERE i.branch_id=? AND si.is_substitute=1
       ${_range('i.invoice_date')} ORDER BY i.invoice_date DESC
