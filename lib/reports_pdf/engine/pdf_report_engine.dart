@@ -27,13 +27,22 @@ class FontCache {
       _cairo = pw.Font.ttf(await rootBundle.load('assets/fonts/Cairo-Regular.ttf'));
       _cairoBold = pw.Font.ttf(await rootBundle.load('assets/fonts/Cairo-Bold.ttf'));
     } catch (_) {
-      _cairo = pw.Font.helvetica();
-      _cairoBold = pw.Font.helveticaBold();
+      try {
+        _cairo = await PdfGoogleFonts.cairoRegular();
+        _cairoBold = await PdfGoogleFonts.cairoBold();
+      } catch (_) {
+        _cairo = pw.Font.helvetica();
+        _cairoBold = pw.Font.helveticaBold();
+      }
     }
     try {
       _mono = pw.Font.ttf(await rootBundle.load('assets/fonts/RobotoMono-Regular.ttf'));
     } catch (_) {
-      _mono = pw.Font.courier();
+      try {
+        _mono = await PdfGoogleFonts.robotoMonoRegular();
+      } catch (_) {
+        _mono = pw.Font.courier();
+      }
     }
     _loaded = true;
   }
@@ -106,14 +115,19 @@ class PdfReportEngine {
         theme: FontCache.instance.theme,
         textDirection: pw.TextDirection.rtl,
         margin: const pw.EdgeInsets.fromLTRB(28, 28, 28, 34),
-        header: (_) => HeaderBuilder(
-          pharmacyName: pharmacyName,
-          licenseNumber: licenseNumber,
-          address: address,
-          phone: phone,
-          branchName: branchName,
-          logoBytes: logoBytes,
-        ).build(),
+        header: (context) => pw.Column(
+          children: [
+            HeaderBuilder(
+              pharmacyName: pharmacyName,
+              licenseNumber: licenseNumber,
+              address: address,
+              phone: phone,
+              branchName: branchName,
+              logoBytes: logoBytes,
+            ).build(),
+            if (context.pageNumber > 1) TableBuilder(columns: columns, rows: const []).buildHeader(),
+          ],
+        ),
         footer: (context) => FooterBuilder(
           printedAt: params.generatedAt,
           printedBy: params.userName,
@@ -309,30 +323,66 @@ class TableBuilder {
   final List<ReportColumn> columns;
   final List<Map<String, Object?>> rows;
 
-  pw.Widget build() {
-    if (columns.isEmpty) return pw.Text('لا توجد أعمدة معرفة لهذا التقرير');
-    final headers = columns.map((c) => c.label).toList();
-    final data = <List<String>>[
-      headers,
-      ...rows.map((row) => columns.map((c) => c.display(row[c.key])).toList()),
-    ];
-    return pw.TableHelper.fromTextArray(
-      data: data,
-      headerCount: 1,
-      cellAlignment: pw.Alignment.centerRight,
-      headerAlignment: pw.Alignment.centerRight,
-      headerStyle: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
-      headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
-      cellStyle: const pw.TextStyle(fontSize: 7),
-      cellPadding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-      oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
-      border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.35),
-      columnWidths: {
-        for (var i = 0; i < columns.length; i++)
-          i: pw.FlexColumnWidth(columns[i].widthWeight),
-      },
+  pw.Widget _cell(ReportColumn column, Object? value, {bool header = false}) {
+    final numeric = column.type != ColType.text && column.type != ColType.boolean;
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      child: pw.Text(
+        header ? column.label : column.display(value),
+        textAlign: column.align == ColAlign.center
+            ? pw.TextAlign.center
+            : column.align == ColAlign.end
+                ? pw.TextAlign.left
+                : pw.TextAlign.right,
+        style: pw.TextStyle(
+          font: header ? FontCache.instance.bold : numeric ? FontCache.instance.mono : FontCache.instance.regular,
+          fontSize: header ? 7.5 : 7,
+          fontWeight: header ? pw.FontWeight.bold : pw.FontWeight.normal,
+          color: header ? PdfColors.white : PdfColors.black,
+        ),
+      ),
     );
   }
+
+  pw.TableRow _headerRow() => pw.TableRow(
+        decoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
+        children: columns.map((c) => _cell(c, null, header: true)).toList(),
+      );
+
+  pw.Widget buildHeader() => pw.Table(
+        columnWidths: {
+          for (var i = 0; i < columns.length; i++) i: pw.FlexColumnWidth(columns[i].widthWeight),
+        },
+        border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.35),
+        children: [_headerRow()],
+      );
+
+  pw.Widget build() {
+    if (columns.isEmpty) return pw.Text('لا توجد أعمدة معرفة لهذا التقرير');
+    if (rows.isEmpty) {
+      return pw.Column(children: [_headerRowWidget(), pw.Padding(
+        padding: const pw.EdgeInsets.all(8),
+        child: pw.Text('لا توجد بيانات ضمن المعاملات المحددة', style: const pw.TextStyle(fontSize: 8)),
+      )]);
+    }
+    return pw.Table(
+      defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
+      columnWidths: {
+        for (var i = 0; i < columns.length; i++) i: pw.FlexColumnWidth(columns[i].widthWeight),
+      },
+      border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.35),
+      children: [
+        _headerRow(),
+        for (var rowIndex = 0; rowIndex < rows.length; rowIndex++)
+          pw.TableRow(
+            decoration: rowIndex.isOdd ? const pw.BoxDecoration(color: PdfColors.grey100) : null,
+            children: columns.map((column) => _cell(column, rows[rowIndex][column.key])).toList(),
+          ),
+      ],
+    );
+  }
+
+  pw.Widget _headerRowWidget() => buildHeader();
 }
 
 class TotalsRow {
@@ -361,7 +411,7 @@ class TotalsRow {
                       : column.align == ColAlign.end
                           ? pw.TextAlign.left
                           : pw.TextAlign.right,
-                  style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold),
+                  style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, font: column.type == ColType.text ? FontCache.instance.bold : FontCache.instance.mono),
                 ),
               ),
           ],
