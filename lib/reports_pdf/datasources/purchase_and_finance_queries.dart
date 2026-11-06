@@ -242,9 +242,13 @@ class PurchaseAndFinanceQueries {
         COALESCE((SELECT SUM(wage_earned) FROM employee_attendance WHERE substr(work_date,1,10) BETWEEN COALESCE(?,date('now','start of month')) AND COALESCE(?,date('now'))),0) AS daily_wages,
         COALESCE((SELECT SUM(di.qty_units*di.unit_cost) FROM disposals dp JOIN disposal_items di ON di.disposal_id=dp.id JOIN batches_fefo b ON b.id=di.batch_id JOIN drugs d ON d.id=b.drug_id WHERE dp.status IN('APPROVED','POSTED') AND d.branch_id=? ${_range('dp.disposal_date')}),0) AS disposal_losses
     ''',[
-      p.branchId,..._rangeArgs(p),p.branchId,..._rangeArgs(p),
-      p.branchId,..._rangeArgs(p),..._rangeArgs(p),p.branchId,..._rangeArgs(p),p.branchId,..._rangeArgs(p),
-      p.stringValue('date_from'),p.stringValue('date_to'),p.branchId,..._rangeArgs(p),
+      p.branchId,..._rangeArgs(p),
+      p.branchId,..._rangeArgs(p),
+      p.branchId,..._rangeArgs(p),
+      p.branchId,..._rangeArgs(p),
+      p.branchId,..._rangeArgs(p),
+      p.stringValue('date_from'),p.stringValue('date_to'),
+      p.branchId,..._rangeArgs(p),
     ]);
     final r=rows.first;
     final gross=_n(r['gross_sales']),discount=_n(r['discounts']),returns=_n(r['returns']);
