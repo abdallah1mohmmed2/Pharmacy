@@ -1,8 +1,8 @@
 // test/reports_registry_test.dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pharmacy/reports_pdf/models_and_contracts.dart';
-import 'package:pharmacy/reports_pdf/registry/report_registry_and_provider.dart';
-import 'package:pharmacy/reports_pdf/engine/pdf_report_engine.dart';
+import 'package:global_enterprise_pharmacy_erp/reports_pdf/models_and_contracts.dart';
+import 'package:global_enterprise_pharmacy_erp/reports_pdf/registry/report_registry_and_provider.dart';
+import 'package:global_enterprise_pharmacy_erp/reports_pdf/engine/pdf_report_engine.dart';
 
 void main() {
   group('Reports registry', () {
