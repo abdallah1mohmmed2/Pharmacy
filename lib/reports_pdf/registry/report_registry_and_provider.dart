@@ -231,8 +231,15 @@ class ReportsCenterProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateCostVisibility(bool show) {
+  Future<void> updateCostVisibility(bool show) async {
     if (!_canViewCost) return;
+    final db = await _helper.database;
+    await db.rawInsert('''
+      INSERT INTO app_settings(setting_key,value_text,updated_at)
+      VALUES(?,?,CURRENT_TIMESTAMP)
+      ON CONFLICT(setting_key) DO UPDATE SET
+        value_text=excluded.value_text,updated_at=CURRENT_TIMESTAMP
+    ''', ['reports.show_cost_to_pharmacist', show ? '1' : '0']);
     _showCostSetting = show;
     _params = _params.copyWith(showCostSetting: show);
     notifyListeners();
