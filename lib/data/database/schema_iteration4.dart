@@ -64,7 +64,7 @@ abstract final class SchemaIteration4 {
     final safe=cash.firstWhere((r)=>r['code']=='CASH-MAIN',orElse:()=>cash.first);
     final now=DateTime.now().toIso8601String();
     final shifts=<List<String>>[['صباحية','08:00','16:00'],['مسائية','16:00','00:00'],['ليلية','00:00','08:00']];
-    for(final s in shifts){await db.insert('work_shifts',{'name_ar':s[0],'start_time':s[1],'end_time':s[2],'crosses_midnight':s[0]!='صباحية'},conflictAlgorithm:ConflictAlgorithm.ignore);}
+    for(final s in shifts){await db.insert('work_shifts',{'name_ar':s[0],'start_time':s[1],'end_time':s[2],'crosses_midnight':s[0]=='صباحية'?0:1},conflictAlgorithm:ConflictAlgorithm.ignore);}
     final categories=<List<Object>>[
       ['إيجار',50000.0,'5203'],['كهرباء',15000.0,'5204'],['ماء',5000.0,'5204'],['أكياس وتغليف',10000.0,'5201'],['ضيافة',5000.0,'5201'],['صيانة',12000.0,'5201'],['مواصلات',8000.0,'5201'],['أخرى',10000.0,'5201']
     ];
