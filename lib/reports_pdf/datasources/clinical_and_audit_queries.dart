@@ -51,7 +51,7 @@ class ClinicalAndAuditQueries {
       d.trade_name_ar || ' / ' || COALESCE(d.controlled_schedule,'') AS drug_schedule,
       b.batch_no AS batch_no,cdl.qty_units AS quantity,cdl.patient_name AS patient,
       cdl.patient_national_id AS patient_national_id,cdl.receiver_name AS receiver,
-      cdl.receiver_national_id AS receiver_national_id,cdl.prescription_id AS prescription_no,
+      cdl.receiver_national_id AS receiver_national_id,pr.rx_no AS prescription_no,
       cdl.doctor_name AS doctor,u.full_name AS dispensing_pharmacist,
       cdl.running_balance_units AS balance_after
     FROM controlled_drug_log cdl
@@ -59,6 +59,7 @@ class ClinicalAndAuditQueries {
     LEFT JOIN batches_fefo b ON b.id=cdl.batch_id
     LEFT JOIN sales_invoice_items si ON si.id=cdl.invoice_item_id
     LEFT JOIN sales_invoices i ON i.id=si.invoice_id
+    LEFT JOIN prescriptions pr ON pr.id=cdl.prescription_id
     LEFT JOIN users u ON u.id=cdl.pharmacist_user_id
     WHERE d.branch_id=? ${_range('cdl.recorded_at')}
     ORDER BY cdl.recorded_at DESC
@@ -157,8 +158,8 @@ class ClinicalAndAuditQueries {
       u.full_name AS pharmacist
     FROM sales_invoice_items si JOIN sales_invoices i ON i.id=si.invoice_id
     JOIN drugs sub ON sub.id=si.drug_id
-    JOIN drugs original ON original.id=si.substitute_for_drug_id
-    LEFT JOIN users u ON u.id=si.substituted_by_user_id
+    JOIN drugs original ON original.id=si.substituted_for_drug_id
+    LEFT JOIN users u ON u.id=i.cashier_user_id
     WHERE i.branch_id=? AND si.is_substitute=1
       ${_range('i.invoice_date')} ORDER BY i.invoice_date DESC
   ''',[p.branchId,..._rangeArgs(p)]);
