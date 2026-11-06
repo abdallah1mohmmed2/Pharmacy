@@ -135,14 +135,14 @@ class PurchaseAndFinanceQueries {
     return _q('''
       WITH party AS (
         SELECT
-          p.opening_alayh + COALESCE((SELECT SUM(before.alayh_amount)
-            FROM lah_alayh_ledger before
-            WHERE before.party_id=p.id AND before.branch_id=p.branch_id
-              AND before.is_deleted=0 AND ? IS NOT NULL AND before.entry_date<?),0) AS opening_alayh,
-          p.opening_lah + COALESCE((SELECT SUM(before.lah_amount)
-            FROM lah_alayh_ledger before
-            WHERE before.party_id=p.id AND before.branch_id=p.branch_id
-              AND before.is_deleted=0 AND ? IS NOT NULL AND before.entry_date<?),0) AS opening_lah
+          p.opening_alayh + COALESCE((SELECT SUM(prior_entry.alayh_amount)
+            FROM lah_alayh_ledger prior_entry
+            WHERE prior_entry.party_id=p.id AND prior_entry.branch_id=p.branch_id
+              AND prior_entry.is_deleted=0 AND ? IS NOT NULL AND prior_entry.entry_date<?),0) AS opening_alayh,
+          p.opening_lah + COALESCE((SELECT SUM(prior_entry.lah_amount)
+            FROM lah_alayh_ledger prior_entry
+            WHERE prior_entry.party_id=p.id AND prior_entry.branch_id=p.branch_id
+              AND prior_entry.is_deleted=0 AND ? IS NOT NULL AND prior_entry.entry_date<?),0) AS opening_lah
         FROM parties p WHERE p.id=? AND p.branch_id=?
       ), ledger AS (
         SELECT l.entry_date,l.statement_ar,l.doc_type,l.doc_id,l.alayh_amount,l.lah_amount,
