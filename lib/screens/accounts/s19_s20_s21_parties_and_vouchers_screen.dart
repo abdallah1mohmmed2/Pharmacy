@@ -4,6 +4,7 @@ import '../../providers/session_and_erp_provider.dart';
 import '../../data/models/erp_models.dart';
 import '../../core/widgets/shared_widgets.dart';
 import 'party_extensions_screen.dart';
+import '../../reports_pdf/registry/report_registry_and_provider.dart';
 
 class S19S20S21PartiesAndVouchersScreen extends StatefulWidget{const S19S20S21PartiesAndVouchersScreen({super.key});@override State<S19S20S21PartiesAndVouchersScreen> createState()=>_S19S20S21PartiesAndVouchersScreenState();}
 class _S19S20S21PartiesAndVouchersScreenState extends State<S19S20S21PartiesAndVouchersScreen> with SingleTickerProviderStateMixin{
@@ -17,8 +18,26 @@ class _S19S20S21PartiesAndVouchersScreenState extends State<S19S20S21PartiesAndV
  Future<void> _statement(SessionAndErpProvider p,PartyModel party)async{
   final entries=await p.ledger(party.id!);if(!mounted)return;
   final rows=<LahAlayhRow>[];if(party.openingAlayh>0||party.openingLah>0){rows.add(LahAlayhRow(date:'—',statement:'رصيد افتتاحي',document:'OPENING',alayh:party.openingAlayh,lah:party.openingLah));}for(final e in entries){final a=(e['alayh_amount'] as num).toDouble();final l=(e['lah_amount'] as num).toDouble();rows.add(LahAlayhRow(date:(e['entry_date'] as String).split('T').first,statement:e['statement_ar'] as String,document:(e['doc_type'] as String)+' #'+(e['doc_id']?.toString()??''),alayh:a,lah:l));}
-  await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(title:Text('كشف حساب • '+party.nameAr),content:SizedBox(width:850,height:500,child:Column(children:[PartyBalanceChip(totalAlayh:party.totalAlayh,totalLah:party.totalLah),const SizedBox(height:12),Expanded(child:LahAlayhTable(rows:rows))])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إغلاق')),FilledButton.icon(onPressed:()=>_voucher(p,party),icon:const Icon(Icons.receipt_long),label:const Text('سند قبض / صرف'))]));
+  await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(title:Text('كشف حساب • '+party.nameAr),content:SizedBox(width:850,height:500,child:Column(children:[PartyBalanceChip(totalAlayh:party.totalAlayh,totalLah:party.totalLah),const SizedBox(height:12),Expanded(child:LahAlayhTable(rows:rows))])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إغلاق')),OutlinedButton.icon(onPressed:()=>_printPartyStatement(p,party),icon:const Icon(Icons.picture_as_pdf),label:const Text('طباعة كشف PDF')),FilledButton.icon(onPressed:()=>_voucher(p,party),icon:const Icon(Icons.receipt_long),label:const Text('سند قبض / صرف'))]));
  }
+
+ Future<void> _printPartyStatement(SessionAndErpProvider session,PartyModel party) async {
+  final user=session.currentUser;
+  if(user==null||party.id==null)return;
+  final reports=context.read<ReportsCenterProvider>();
+  final reportNumber=party.partyType=='CUSTOMER'?33:36;
+  try {
+   await reports.initialize(userId:user['id'] as int,userName:user['full_name'] as String? ?? '',branchId:session.branchId);
+   reports.selectReport(reportNumber);
+   reports.updateParams({'party_id':party.id});
+   final data=await reports.runSelected();
+   final definition=reports.selected;
+   if(data!=null&&definition!=null)await reports.engine.preview(definition:definition,data:data,params:reports.params);
+  } catch(e) {
+   if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر إنشاء كشف الحساب: $e')));
+  }
+ }
+
  Future<void> _voucher(SessionAndErpProvider p,PartyModel party)async{
   final amount=TextEditingController();final note=TextEditingController();final ref=TextEditingController();String type=party.partyType=='CUSTOMER'?'RECEIPT':'PAYMENT';String method='CASH';int? cashId=p.cashAccounts.isEmpty?null:p.cashAccounts.first.id;
   await showDialog<void>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,set)=>AlertDialog(title:const Text('إصدار سند'),content:SizedBox(width:430,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
