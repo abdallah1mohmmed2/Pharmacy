@@ -53,7 +53,7 @@ class PurchaseAndFinanceQueries {
         THEN SUM(ii.qty_packs_paid*ii.pack_price)/SUM(ii.qty_packs_paid+ii.bonus_packs) ELSE 0 END AS pack_cost_reduction
     FROM purchase_invoice_items ii JOIN purchase_invoices pi ON pi.id=ii.invoice_id
     JOIN parties s ON s.id=pi.supplier_party_id JOIN drugs d ON d.id=ii.drug_id
-    WHERE pi.branch_id=? ${_range('pi.invoice_date')}
+    WHERE d.branch_id=? ${_range('pi.invoice_date')}
     GROUP BY s.id,d.id ORDER BY bonus_cost_value DESC
   ''',[p.branchId,..._rangeArgs(p)]);
 
