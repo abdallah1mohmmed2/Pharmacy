@@ -290,7 +290,7 @@ class PurchaseAndFinanceQueries {
     UNION ALL
     SELECT 'المتبقي للموردين',COALESCE(SUM(pi.remaining_lah),0) FROM purchase_invoices pi WHERE EXISTS(SELECT 1 FROM purchase_invoice_items pii JOIN drugs d ON d.id=pii.drug_id WHERE pii.invoice_id=pi.id AND d.branch_id=?)
     UNION ALL
-    SELECT 'المتبقي للموظفين',COALESCE(SUM(alayh_amount-lah_amount),0) FROM lah_alayh_ledger WHERE branch_id=? AND party_id IN(SELECT party_id FROM employees)
+    SELECT 'المتبقي للموظفين',COALESCE(SUM(lah_amount-alayh_amount),0) FROM lah_alayh_ledger WHERE branch_id=? AND party_id IN(SELECT party_id FROM employees)
     UNION ALL
     SELECT 'رأس المال',COALESCE(SUM(capital_amount),0) FROM partners WHERE branch_id=?
     UNION ALL
