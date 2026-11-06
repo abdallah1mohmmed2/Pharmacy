@@ -71,6 +71,27 @@ class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScr
     ]))),
    ]);
   });
+
+ Future<void> _printClinicalCard(DrugModel drug) async {
+  if(drug.id==null)return;
+  final session=context.read<SessionAndErpProvider>();
+  final user=session.currentUser;
+  if(user==null)return;
+  final reports=context.read<ReportsCenterProvider>();
+  try {
+   await reports.initialize(userId:user['id'] as int,userName:user['full_name'] as String? ?? '',branchId:session.branchId);
+   reports.selectReport(46);
+   reports.updateParams({'drug_id':drug.id});
+   final data=await reports.runSelected();
+   final definition=reports.selected;
+   if(data!=null&&definition!=null) {
+    await reports.engine.preview(definition:definition,data:data,params:reports.params);
+   }
+  } catch(e) {
+   if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));
+  }
+ }
+
  Future<void> _addClinicalRule(DrugModel drug,String kind)async{
   final fields=switch(kind){
    'interaction'=>['interactant_type','interactant_name','severity','management'],
