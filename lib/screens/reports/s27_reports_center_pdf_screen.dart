@@ -290,6 +290,48 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
         ),
       );
     }
+    const optionKinds = {
+      ReportParamKind.customer,
+      ReportParamKind.supplier,
+      ReportParamKind.employee,
+      ReportParamKind.drug,
+      ReportParamKind.warehouse,
+      ReportParamKind.cashier,
+    };
+    if (optionKinds.contains(param.kind)) {
+      return SizedBox(
+        width: 250,
+        child: FutureBuilder<List<Map<String, Object?>>>(
+          future: provider.parameterOptions(param.kind),
+          builder: (context, snapshot) {
+            final options = snapshot.data ?? const <Map<String, Object?>>[];
+            final selected = value == null ? null : int.tryParse(value.toString());
+            return DropdownButtonFormField<int>(
+              value: options.any((row) => row['id'] == selected) ? selected : null,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: param.label,
+                helperText: snapshot.connectionState == ConnectionState.waiting
+                    ? 'جارٍ تحميل الخيارات…'
+                    : options.isEmpty ? 'لا توجد عناصر متاحة' : null,
+              ),
+              items: options.map((row) => DropdownMenuItem<int>(
+                value: row['id'] as int,
+                child: Text(row['name_ar']?.toString() ?? ''),
+              )).toList(),
+              onChanged: snapshot.connectionState == ConnectionState.waiting ||
+                      options.isEmpty
+                  ? null
+                  : (selectedId) {
+                      if (selectedId != null) {
+                        provider.updateParams({param.key: selectedId});
+                      }
+                    },
+            );
+          },
+        ),
+      );
+    }
     if (param.kind == ReportParamKind.category || param.kind == ReportParamKind.orientation) {
       return SizedBox(
         width: 220,
