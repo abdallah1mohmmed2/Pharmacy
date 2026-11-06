@@ -49,8 +49,9 @@ class PurchaseAndFinanceQueries {
       CASE WHEN SUM(ii.qty_packs_paid)>0 THEN SUM(ii.bonus_packs)*100.0/SUM(ii.qty_packs_paid) ELSE 0 END AS bonus_pct,
       SUM(ii.bonus_packs*ii.effective_pack_cost) AS bonus_cost_value,
       SUM(ii.bonus_packs*d.sell_price_pack) AS bonus_sale_value,
-      CASE WHEN SUM(ii.qty_packs_paid+ii.bonus_packs)>0
-        THEN SUM(ii.qty_packs_paid*ii.pack_price)/SUM(ii.qty_packs_paid+ii.bonus_packs) ELSE 0 END AS pack_cost_reduction
+      CASE WHEN SUM(ii.qty_packs_paid)>0 THEN
+        SUM(ii.qty_packs_paid*ii.pack_price)/SUM(ii.qty_packs_paid)-
+        SUM(ii.qty_packs_paid*ii.pack_price)/SUM(ii.qty_packs_paid+ii.bonus_packs) ELSE 0 END AS pack_cost_reduction
     FROM purchase_invoice_items ii JOIN purchase_invoices pi ON pi.id=ii.invoice_id
     JOIN parties s ON s.id=pi.supplier_party_id JOIN drugs d ON d.id=ii.drug_id
     WHERE d.branch_id=? ${_range('pi.invoice_date')}
