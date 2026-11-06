@@ -133,11 +133,20 @@ class PurchaseAndFinanceQueries {
     final partyId=p.intValue('party_id')??-1;
     return _q('''
       WITH party AS (
-        SELECT opening_alayh,opening_lah FROM parties WHERE id=? AND branch_id=?
+        SELECT
+          p.opening_alayh + COALESCE((SELECT SUM(before.alayh_amount)
+            FROM lah_alayh_ledger before
+            WHERE before.party_id=p.id AND before.branch_id=p.branch_id
+              AND before.is_deleted=0 AND ? IS NOT NULL AND before.entry_date<?),0) AS opening_alayh,
+          p.opening_lah + COALESCE((SELECT SUM(before.lah_amount)
+            FROM lah_alayh_ledger before
+            WHERE before.party_id=p.id AND before.branch_id=p.branch_id
+              AND before.is_deleted=0 AND ? IS NOT NULL AND before.entry_date<?),0) AS opening_lah
+        FROM parties p WHERE p.id=? AND p.branch_id=?
       ), ledger AS (
         SELECT l.entry_date,l.statement_ar,l.doc_type,l.doc_id,l.alayh_amount,l.lah_amount,
           SUM(l.alayh_amount-l.lah_amount) OVER(ORDER BY l.entry_date,l.id ROWS UNBOUNDED PRECEDING) AS movement_balance
-        FROM lah_alayh_ledger l WHERE l.party_id=? AND l.branch_id=?
+        FROM lah_alayh_ledger l WHERE l.party_id=? AND l.branch_id=? AND l.is_deleted=0
           ${_range('l.entry_date')}
       )
       SELECT '—' AS date,'رصيد افتتاحي' AS statement,'OPENING' AS document,
@@ -151,7 +160,9 @@ class PurchaseAndFinanceQueries {
         (SELECT opening_alayh-opening_lah FROM party)+movement_balance AS remaining
       FROM ledger
       ORDER BY date
-    ''',[partyId,p.branchId,partyId,p.branchId,..._rangeArgs(p)]);
+    ''',[p.stringValue('date_from'),p.stringValue('date_from'),
+         p.stringValue('date_from'),p.stringValue('date_from'),
+         partyId,p.branchId,partyId,p.branchId,..._rangeArgs(p)]);
   }
 
   Future<List<Map<String, Object?>>> r34(ReportParams p) => _q('''
@@ -273,7 +284,7 @@ class PurchaseAndFinanceQueries {
   Future<List<Map<String, Object?>>> r43(ReportParams p) => _q('''
     SELECT 'النقد والمحافظ' AS section,COALESCE(SUM(current_balance),0) AS amount FROM cash_accounts WHERE branch_id=?
     UNION ALL
-    SELECT 'المتبقي على العملاء وشركات التأمين',COALESCE(SUM(opening_alayh-opening_lah),0)+COALESCE((SELECT SUM(alayh_amount-lah_amount) FROM lah_alayh_ledger WHERE branch_id=? AND party_id IN(SELECT id FROM parties WHERE party_type IN('CUSTOMER','INSURANCE'))),0) FROM parties WHERE branch_id=? AND party_type IN('CUSTOMER','INSURANCE')
+    SELECT 'المتبقي على العملاء وشركات التأمين',COALESCE(SUM(opening_alayh-opening_lah),0)+COALESCE((SELECT SUM(alayh_amount-lah_amount) FROM lah_alayh_ledger WHERE branch_id=? AND party_id IN(SELECT id FROM parties WHERE party_type='CUSTOMER')),0) FROM parties WHERE branch_id=? AND party_type='CUSTOMER'
     UNION ALL
     SELECT 'المخزون بالتكلفة',COALESCE(SUM(total_units*unit_cost),0) FROM batches_fefo b JOIN drugs d ON d.id=b.drug_id WHERE d.branch_id=?
     UNION ALL
