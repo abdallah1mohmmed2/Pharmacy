@@ -142,6 +142,8 @@ class PdfReportEngine {
             title: definition.title,
             params: params,
           ).build(),
+          if (data.summary.isNotEmpty)
+            SummaryBlock(data.summary).build(),
           if (definition.description.isNotEmpty)
             pw.Padding(
               padding: const pw.EdgeInsets.only(bottom: 8),
@@ -408,6 +410,41 @@ class TitleBlock {
       ),
     );
   }
+}
+
+class SummaryBlock {
+  const SummaryBlock(this.values);
+  final Map<String, Object?> values;
+
+  String _display(Object? value) {
+    if (value == null) return '—';
+    if (value is num) return value.toStringAsFixed(2);
+    return value.toString();
+  }
+
+  pw.Widget build() => pw.Container(
+        width: double.infinity,
+        margin: const pw.EdgeInsets.only(bottom: 9),
+        padding: const pw.EdgeInsets.all(7),
+        decoration: pw.BoxDecoration(
+          color: PdfColors.grey100,
+          border: pw.Border.all(color: PdfColors.grey500, width: .5),
+          borderRadius: pw.BorderRadius.circular(3),
+        ),
+        child: pw.Wrap(
+          spacing: 16,
+          runSpacing: 7,
+          children: values.entries.map((entry) => pw.Row(
+            mainAxisSize: pw.MainAxisSize.min,
+            children: [
+              pw.Text('${entry.key}: ',
+                style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+              pw.Text(_display(entry.value),
+                style: pw.TextStyle(fontSize: 8, font: FontCache.instance.mono)),
+            ],
+          )).toList(),
+        ),
+      );
 }
 
 class TableBuilder {
