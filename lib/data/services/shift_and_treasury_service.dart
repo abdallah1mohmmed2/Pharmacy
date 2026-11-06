@@ -108,6 +108,7 @@ class ShiftAndTreasuryService {
       final account=await tx.query('cash_accounts',columns:['current_balance','gl_account_id'],where:'id=? AND branch_id=?',whereArgs:[drawerAccountId,branchId],limit:1);
       if(account.isEmpty)throw StateError('درج الكاشير غير موجود');
       final current=_n(account.first['current_balance']);
+      if(openingCash+0.005<current)throw StateError('العهدة المدخلة أقل من الرصيد الدفتري للدرج؛ سوِّ فرق العهدة أولاً');
       if(openingCash>current){
         final difference=openingCash-current;final cashGl=account.first['gl_account_id'] as int?;if(cashGl==null)throw StateError('اربط درج الكاشير بدليل الحسابات');
         final equity=await _glId(tx,'3101');final je=await _journal(tx,branchId:branchId,source:'SHIFT_OPENING',sourceId:shiftId,description:'عهدة افتتاحية لوردية الكاشير');
@@ -139,6 +140,14 @@ class ShiftAndTreasuryService {
       final movement=await tx.rawQuery("SELECT COALESCE(SUM(CASE WHEN direction='IN' THEN amount ELSE -amount END),0) movement FROM cash_transactions WHERE cashier_shift_id=? AND cash_account_id=?",[shiftId,shift['drawer_account_id']]);
       final expected=_n(shift['opening_cash'])+_n(movement.first['movement']);
       difference=((actual-expected)*100).roundToDouble()/100;
+      if(handoverToUserId!=null&&difference.abs()>=0.005){
+        if(difference>0&&(diffHandling!='POST_TO_CASHIER'||shift['cashier_party_id']==null)){
+          throw StateError('اعتمد الزيادة على طرف الكاشير قبل تسليم العهدة');
+        }
+        if(difference<0&&diffHandling=='NONE'){
+          throw StateError('عالج عجز الوردية قبل تسليم العهدة');
+        }
+      }
       final walletRows=await tx.query('cash_accounts',columns:['id','current_balance'],where:"branch_id=? AND account_kind='WALLET'",whereArgs:[shift['branch_id']]);
       final expectedWallets={for(final wallet in walletRows)(wallet['id'] as int).toString():_n(wallet['current_balance'])};
       for(final entry in countedWallets.entries){
@@ -154,7 +163,7 @@ class ShiftAndTreasuryService {
       }
       await tx.update('cashier_shifts',{'expected_cash':expected,'counted_cash':actual,'diff_amount':difference,'expected_wallets_json':jsonEncode(expectedWallets),'counted_wallets_json':jsonEncode(countedWallets),'counted_denominations_json':jsonEncode(denominations),'diff_handling':diffHandling,'closed_at':_now(),'status':handoverToUserId==null?'CLOSED':'HANDED_OVER','handover_to_user_id':handoverToUserId},where:'id=?',whereArgs:[shiftId]);
       if(difference.abs()>=0.005){await _postShiftDiff(tx,shift:shift,shiftId:shiftId,difference:difference,handling:diffHandling);}
-      if(handoverToUserId!=null){final drawerId=shift['drawer_account_id'] as int;await tx.insert('cashier_shifts',{'shift_no':'SH-${DateTime.now().millisecondsSinceEpoch}','user_id':handoverToUserId,'cashier_party_id':shift['cashier_party_id'],'drawer_account_id':drawerId,'work_shift_id':shift['work_shift_id'],'opened_at':_now(),'opening_cash':actual,'status':'OPEN','branch_id':shift['branch_id']});final current=await tx.query('cash_accounts',columns:['current_balance'],where:'id=?',whereArgs:[drawerId],limit:1);await tx.insert('cash_transactions',{'cash_account_id':drawerId,'tx_date':_now(),'direction':'IN','amount':actual,'tx_type':'SHIFT_HANDOVER','doc_type':'CASHIER_SHIFT','doc_id':shiftId,'balance_after':_n(current.first['current_balance']),'note':'تسليم عهدة الوردية إلى كاشير الوردية التالية','branch_id':shift['branch_id']});}
+      if(handoverToUserId!=null){final drawerId=shift['drawer_account_id'] as int;await tx.insert('cashier_shifts',{'shift_no':'SH-${DateTime.now().millisecondsSinceEpoch}','user_id':handoverToUserId,'cashier_party_id':shift['cashier_party_id'],'drawer_account_id':drawerId,'work_shift_id':shift['work_shift_id'],'opened_at':_now(),'opening_cash':actual,'status':'OPEN','branch_id':shift['branch_id']});}
     });
     return difference;
   }
