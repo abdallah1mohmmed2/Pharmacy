@@ -286,8 +286,9 @@ class PurchaseAndFinanceQueries {
     FROM partner_distributions d JOIN partner_distribution_lines l ON l.distribution_id=d.id
     JOIN partners pt ON pt.id=l.partner_id JOIN parties pa ON pa.id=pt.party_id
     WHERE d.branch_id=? AND d.id=COALESCE(?,(SELECT MAX(id) FROM partner_distributions WHERE branch_id=?))
+      AND (? IS NULL OR pt.id=?)
     ORDER BY pa.name_ar
-  ''',[p.branchId,p.intValue('distribution_id'),p.branchId]);
+  ''',[p.branchId,p.intValue('distribution_id'),p.branchId,p.intValue('partner_id'),p.intValue('partner_id')]);
 
   double _n(Object? v)=>v is num?v.toDouble():double.tryParse('$v')??0;
 }
