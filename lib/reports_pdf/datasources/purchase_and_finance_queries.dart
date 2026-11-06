@@ -26,7 +26,7 @@ class PurchaseAndFinanceQueries {
       pii.line_total AS line_total,pii.effective_pack_cost AS effective_pack_cost
     FROM purchase_invoice_items pii JOIN purchase_invoices pi ON pi.id=pii.invoice_id
     JOIN parties s ON s.id=pi.supplier_party_id JOIN drugs d ON d.id=pii.drug_id
-    WHERE pi.branch_id=? ${_range('pi.invoice_date')}
+    WHERE d.branch_id=? ${_range('pi.invoice_date')}
     ORDER BY pi.invoice_date DESC,pi.id DESC
   ''',[p.branchId,..._rangeArgs(p)]);
 
@@ -121,7 +121,7 @@ class PurchaseAndFinanceQueries {
       (pi.qty_packs-pi.received_packs)*pi.expected_cost_pack AS expected_cost,po.status AS status
     FROM purchase_orders po JOIN purchase_order_items pi ON pi.po_id=po.id
     JOIN parties s ON s.id=po.supplier_party_id JOIN drugs d ON d.id=pi.drug_id
-    WHERE po.branch_id=? ${_range('po.po_date')} AND po.status NOT IN('CLOSED','CANCELLED')
+    WHERE d.branch_id=? ${_range('po.po_date')} AND po.status NOT IN('CLOSED','CANCELLED')
     ORDER BY po.po_date DESC
   ''',[p.branchId,..._rangeArgs(p)]);
 
@@ -189,7 +189,7 @@ class PurchaseAndFinanceQueries {
       MIN(CASE WHEN pi.remaining_lah>0 THEN pi.due_date END) AS oldest_due_date,
       CAST(julianday('now')-julianday(MIN(CASE WHEN pi.remaining_lah>0 THEN pi.due_date END)) AS INTEGER) AS overdue_days
     FROM purchase_invoices pi JOIN parties s ON s.id=pi.supplier_party_id
-    WHERE pi.branch_id=? GROUP BY s.id ORDER BY remaining DESC
+    WHERE EXISTS(SELECT 1 FROM purchase_invoice_items pii JOIN drugs d ON d.id=pii.drug_id WHERE pii.invoice_id=pi.id AND d.branch_id=?) GROUP BY s.id ORDER BY remaining DESC
   ''',[p.branchId]);
 
   Future<List<Map<String, Object?>>> r38(ReportParams p) => _q('''
@@ -236,15 +236,15 @@ class PurchaseAndFinanceQueries {
       SELECT
         COALESCE((SELECT SUM(subtotal) FROM sales_invoices WHERE branch_id=? AND status='COMPLETED' ${_range('invoice_date')}),0) AS gross_sales,
         COALESCE((SELECT SUM(discount_amount) FROM sales_invoices WHERE branch_id=? AND status='COMPLETED' ${_range('invoice_date')}),0) AS discounts,
-        COALESCE((SELECT SUM(total_refund) FROM sales_returns WHERE status IN('APPROVED','POSTED') ${_range('return_date')}),0) AS returns,
+        COALESCE((SELECT SUM(sr.total_refund) FROM sales_returns sr WHERE sr.status IN('APPROVED','POSTED') AND sr.original_invoice_id IN(SELECT id FROM sales_invoices WHERE branch_id=?) ${_range('sr.return_date')}),0) AS returns,
         COALESCE((SELECT SUM(total_cost) FROM sales_invoices WHERE branch_id=? AND status='COMPLETED' ${_range('invoice_date')}),0) AS cogs,
         COALESCE((SELECT SUM(amount) FROM expenses WHERE branch_id=? ${_range('expense_date')}),0) AS operating_expenses,
         COALESCE((SELECT SUM(wage_earned) FROM employee_attendance WHERE substr(work_date,1,10) BETWEEN COALESCE(?,date('now','start of month')) AND COALESCE(?,date('now'))),0) AS daily_wages,
-        COALESCE((SELECT SUM(total_cost_value) FROM disposals WHERE status IN('APPROVED','POSTED') ${_range('disposal_date')}),0) AS disposal_losses
+        COALESCE((SELECT SUM(di.qty_units*di.unit_cost) FROM disposals dp JOIN disposal_items di ON di.disposal_id=dp.id JOIN batches_fefo b ON b.id=di.batch_id JOIN drugs d ON d.id=b.drug_id WHERE dp.status IN('APPROVED','POSTED') AND d.branch_id=? ${_range('dp.disposal_date')}),0) AS disposal_losses
     ''',[
       p.branchId,..._rangeArgs(p),p.branchId,..._rangeArgs(p),
-      ..._rangeArgs(p),p.branchId,..._rangeArgs(p),p.branchId,..._rangeArgs(p),
-      p.stringValue('date_from'),p.stringValue('date_to'),..._rangeArgs(p),
+      p.branchId,..._rangeArgs(p),..._rangeArgs(p),p.branchId,..._rangeArgs(p),p.branchId,..._rangeArgs(p),
+      p.stringValue('date_from'),p.stringValue('date_to'),p.branchId,..._rangeArgs(p),
     ]);
     final r=rows.first;
     final gross=_n(r['gross_sales']),discount=_n(r['discounts']),returns=_n(r['returns']);
@@ -273,7 +273,7 @@ class PurchaseAndFinanceQueries {
     UNION ALL
     SELECT 'المخزون بالتكلفة',COALESCE(SUM(total_units*unit_cost),0) FROM batches_fefo b JOIN drugs d ON d.id=b.drug_id WHERE d.branch_id=?
     UNION ALL
-    SELECT 'المتبقي للموردين',COALESCE(SUM(remaining_lah),0) FROM purchase_invoices WHERE branch_id=?
+    SELECT 'المتبقي للموردين',COALESCE(SUM(pi.remaining_lah),0) FROM purchase_invoices pi WHERE EXISTS(SELECT 1 FROM purchase_invoice_items pii JOIN drugs d ON d.id=pii.drug_id WHERE pii.invoice_id=pi.id AND d.branch_id=?)
     UNION ALL
     SELECT 'المتبقي للموظفين',COALESCE(SUM(alayh_amount-lah_amount),0) FROM lah_alayh_ledger WHERE branch_id=? AND party_id IN(SELECT party_id FROM employees)
     UNION ALL
