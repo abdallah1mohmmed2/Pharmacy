@@ -11,7 +11,7 @@ class S25EmployeesShiftsPayrollScreen extends StatefulWidget {
   @override State<S25EmployeesShiftsPayrollScreen> createState()=>_S25EmployeesShiftsPayrollScreenState();
 }
 class _S25EmployeesShiftsPayrollScreenState extends State<S25EmployeesShiftsPayrollScreen> with SingleTickerProviderStateMixin{
-  late final tabs=TabController(length:3,vsync:this);String period=DateTime.now().toIso8601String().substring(0,7);int? selectedEmployee;
+  late final tabs=TabController(length:3,vsync:this);late final TextEditingController periodController=TextEditingController(text:DateTime.now().toIso8601String().substring(0,7));int? selectedEmployee;
   @override void dispose(){tabs.dispose();periodController.dispose();super.dispose();}
   @override Widget build(BuildContext context){final p=context.watch<TreasuryHrPartnerProvider>();return Scaffold(backgroundColor:Colors.transparent,body:Column(children:[
     const Padding(padding:EdgeInsets.all(16),child:Align(alignment:Alignment.centerRight,child:Text('شؤون الموظفين والرواتب',style:TextStyle(fontSize:20,fontWeight:FontWeight.bold)))),
