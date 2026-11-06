@@ -31,17 +31,24 @@ class PurchaseAndFinanceQueries {
   ''',[p.branchId,..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r26(ReportParams p) => _q('''
+    WITH returns_by_supplier AS (
+      SELECT supplier_party_id,SUM(total_value) AS total_returns
+      FROM purchase_returns
+      WHERE status IN('APPROVED','POSTED') ${_range('return_date')}
+      GROUP BY supplier_party_id
+    )
     SELECT s.name_ar AS supplier,COUNT(DISTINCT pi.id) AS invoice_count,
       COALESCE(SUM(pi.subtotal),0) AS purchases_total,
       COALESCE(SUM(pi.discount_amount),0) AS discounts,
-      COALESCE((SELECT SUM(pr.total_value) FROM purchase_returns pr WHERE pr.supplier_party_id=s.id AND pr.status IN('APPROVED','POSTED')),0) AS returns,
-      COALESCE(SUM(pi.net_total),0)-COALESCE((SELECT SUM(pr.total_value) FROM purchase_returns pr WHERE pr.supplier_party_id=s.id AND pr.status IN('APPROVED','POSTED')),0) AS net_purchases,
+      COALESCE(r.total_returns,0) AS returns,
+      COALESCE(SUM(pi.net_total),0)-COALESCE(r.total_returns,0) AS net_purchases,
       COALESCE(SUM(pi.paid_total),0) AS paid_alayh,
       COALESCE(SUM(pi.remaining_lah),0) AS remaining_lah
     FROM purchase_invoices pi JOIN parties s ON s.id=pi.supplier_party_id
+    LEFT JOIN returns_by_supplier r ON r.supplier_party_id=s.id
     WHERE EXISTS(SELECT 1 FROM purchase_invoice_items pii JOIN drugs d ON d.id=pii.drug_id WHERE pii.invoice_id=pi.id AND d.branch_id=?) ${_range('pi.invoice_date')}
     GROUP BY s.id ORDER BY remaining_lah DESC
-  ''',[p.branchId,..._rangeArgs(p)]);
+  ''',[..._rangeArgs(p),p.branchId,..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r27(ReportParams p) => _q('''
     SELECT s.name_ar AS supplier,d.trade_name_ar AS drug,
