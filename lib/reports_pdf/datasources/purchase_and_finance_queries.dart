@@ -65,14 +65,14 @@ class PurchaseAndFinanceQueries {
         ROW_NUMBER() OVER(PARTITION BY d.id,s.id ORDER BY pi.invoice_date DESC,pi.id DESC) AS supplier_rank
       FROM purchase_invoice_items pii JOIN purchase_invoices pi ON pi.id=pii.invoice_id
       JOIN parties s ON s.id=pi.supplier_party_id JOIN drugs d ON d.id=pii.drug_id
-      WHERE pi.branch_id=?
+      WHERE pi.branch_id=? AND (? IS NULL OR d.id=?)
     )
     SELECT drug,supplier,latest_price,
       MIN(net_pack_cost) OVER(PARTITION BY drug_id) AS lowest_price,
       bonus_pct,net_pack_cost,
       ROW_NUMBER() OVER(PARTITION BY drug_id ORDER BY net_pack_cost) AS best_supplier_rank
     FROM supplier_prices WHERE supplier_rank=1 ORDER BY drug,best_supplier_rank
-  ''',[p.branchId]);
+  ''',[p.branchId,p.intValue('drug_id'),p.intValue('drug_id')]);
 
   Future<List<Map<String, Object?>>> r29(ReportParams p) => _q('''
     SELECT pr.return_no AS return_no,pr.return_date AS return_date,s.name_ar AS supplier,
