@@ -39,7 +39,7 @@ class PurchaseAndFinanceQueries {
       COALESCE(SUM(pi.paid_total),0) AS paid_alayh,
       COALESCE(SUM(pi.remaining_lah),0) AS remaining_lah
     FROM purchase_invoices pi JOIN parties s ON s.id=pi.supplier_party_id
-    WHERE pi.branch_id=? ${_range('pi.invoice_date')}
+    WHERE EXISTS(SELECT 1 FROM purchase_invoice_items pii JOIN drugs d ON d.id=pii.drug_id WHERE pii.invoice_id=pi.id AND d.branch_id=?) ${_range('pi.invoice_date')}
     GROUP BY s.id ORDER BY remaining_lah DESC
   ''',[p.branchId,..._rangeArgs(p)]);
 
@@ -65,7 +65,7 @@ class PurchaseAndFinanceQueries {
         ROW_NUMBER() OVER(PARTITION BY d.id,s.id ORDER BY pi.invoice_date DESC,pi.id DESC) AS supplier_rank
       FROM purchase_invoice_items pii JOIN purchase_invoices pi ON pi.id=pii.invoice_id
       JOIN parties s ON s.id=pi.supplier_party_id JOIN drugs d ON d.id=pii.drug_id
-      WHERE pi.branch_id=? AND (? IS NULL OR d.id=?)
+      WHERE d.branch_id=? AND (? IS NULL OR d.id=?)
     )
     SELECT drug,supplier,latest_price,
       MIN(net_pack_cost) OVER(PARTITION BY drug_id) AS lowest_price,
