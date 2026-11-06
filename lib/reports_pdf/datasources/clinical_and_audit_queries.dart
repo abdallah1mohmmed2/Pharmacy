@@ -40,7 +40,9 @@ class ClinicalAndAuditQueries {
       (SELECT GROUP_CONCAT(note_ar,'؛ ') FROM drug_hepatic_rules WHERE drug_id=d.id) AS hepatic_rules,
       (SELECT GROUP_CONCAT(note_ar,'؛ ') FROM drug_pediatric_rules WHERE drug_id=d.id) AS pediatric_rules,
       (SELECT GROUP_CONCAT(interactant_name || ': ' || clinical_effect,'؛ ') FROM drug_interactions
-        WHERE drug_a_id=d.id OR drug_b_id=d.id) AS interaction_rules,
+        WHERE drug_a_id=d.id OR drug_b_id=d.id
+          OR drug_a_ingredient_id=d.active_ingredient_id
+          OR drug_b_ingredient_id=d.active_ingredient_id) AS interaction_rules,
       (SELECT name_ar FROM manufacturers WHERE id=d.manufacturer_id) AS manufacturer,
       (SELECT name_ar FROM drug_categories WHERE id=d.category_id) AS category
     FROM drugs d WHERE d.branch_id=? AND d.id=?
