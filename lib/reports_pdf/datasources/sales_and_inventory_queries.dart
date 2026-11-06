@@ -166,7 +166,7 @@ class SalesAndInventoryQueries {
     SELECT i.invoice_date AS date,i.invoice_no AS invoice_no,COALESCE(c.name_ar,'عميل نقدي') AS customer,
       u.full_name AS cashier,i.subtotal AS gross,
       CASE WHEN i.subtotal>0 THEN i.discount_amount*100.0/i.subtotal ELSE 0 END AS discount_pct,
-      i.discount_amount AS discount,u.full_name AS approving_manager
+      i.discount_amount AS discount,NULL AS approving_manager
     FROM sales_invoices i LEFT JOIN parties c ON c.id=i.customer_party_id
     LEFT JOIN users u ON u.id=i.cashier_user_id
     WHERE i.branch_id=? AND i.discount_amount>0 ${_range('i.invoice_date', p)}
@@ -260,20 +260,19 @@ class SalesAndInventoryQueries {
       COALESCE((SELECT SUM(si.qty_units)*1.0/30 FROM sales_invoice_items si JOIN sales_invoices i ON i.id=si.invoice_id
         WHERE si.drug_id=d.id AND i.status='COMPLETED' AND i.invoice_date>=date('now','-30 days')),0) AS average_daily_sales,
       MAX(d.reorder_qty_packs,0) AS suggested_order_packs,
-      (SELECT p.name_ar FROM purchase_invoices pi JOIN parties p ON p.id=pi.supplier_party_id
-        JOIN purchase_invoice_items pii ON pii.invoice_id=pi.id WHERE pii.drug_id=d.id ORDER BY pi.invoice_date DESC LIMIT 1) AS preferred_supplier,
+      (SELECT p.name_ar FROM purchase_invoice_items pii JOIN purchase_invoices pi ON pi.id=pii.invoice_id JOIN parties p ON p.id=pi.supplier_party_id WHERE pii.drug_id=d.id GROUP BY p.id ORDER BY AVG(pii.effective_pack_cost) LIMIT 1) AS preferred_supplier,
       MAX(d.reorder_qty_packs,0)*d.last_purchase_cost_pack AS expected_cost
     FROM drugs d WHERE d.branch_id=? AND d.is_active=1 AND d.stock_total_units<=d.min_stock_units
     ORDER BY shortage DESC
   ''', [p.branchId]);
 
   Future<List<Map<String, Object?>>> r18(ReportParams p) => _q('''
-    SELECT w.name_ar AS location,d.trade_name_ar AS drug,b.batch_no AS batch_no,
+    SELECT w.name_ar || ' / ' || COALESCE(sl.code,'') AS location,d.trade_name_ar AS drug,b.batch_no AS batch_no,
       b.expiry_date AS expiry_date,b.total_units AS balance,b.total_units*b.unit_cost AS cost_value
     FROM batches_fefo b JOIN drugs d ON d.id=b.drug_id
-    JOIN warehouses w ON w.id=b.warehouse_id
+    JOIN warehouses w ON w.id=b.warehouse_id LEFT JOIN shelf_locations sl ON sl.id=b.location_id
     WHERE d.branch_id=? AND b.total_units>0
-    ORDER BY w.name_ar,d.trade_name_ar,b.expiry_date
+    ORDER BY w.name_ar,sl.code,d.trade_name_ar,b.expiry_date
   ''', [p.branchId]);
 
   Future<List<Map<String, Object?>>> r19(ReportParams p) => _q('''
