@@ -17,11 +17,14 @@ import '../../reports_pdf/engine/receipt_and_label_builder.dart';
 
 class S03SmartPosScreen extends StatefulWidget{const S03SmartPosScreen({super.key});@override State<S03SmartPosScreen> createState()=>_S03SmartPosScreenState();}
 class _S03SmartPosScreenState extends State<S03SmartPosScreen>{
- final search=TextEditingController();final walletRef=TextEditingController();final paidAmount=TextEditingController();String method='CASH';String mixedChannel='CASH';int? customerId;int? cashId;double discount=0;\n ReceiptData? _lastReceipt;\n final _receiptBuilder=const ReceiptAndLabelBuilder();
+ final search=TextEditingController();final walletRef=TextEditingController();final paidAmount=TextEditingController();String method='CASH';String mixedChannel='CASH';int? customerId;int? cashId;double discount=0;
+ ReceiptData? _lastReceipt;
+ final _receiptBuilder=const ReceiptAndLabelBuilder();
  @override void dispose(){search.dispose();walletRef.dispose();paidAmount.dispose();super.dispose();}
  @override Widget build(BuildContext context){final p=context.watch<PosAndDrugsProvider>();final s=context.watch<SessionAndErpProvider>();final inventory=context.watch<InventoryAndPurchaseProvider>();final clinical=context.watch<ClinicalAndRxProvider>();final wide=MediaQuery.sizeOf(context).width>850;
   return Focus(onKeyEvent:(node,event){
-    if(event is KeyDownEvent&&event.logicalKey==LogicalKeyboardKey.f9){if(_lastReceipt!=null){_receiptBuilder.printReceiptNow(context,_lastReceipt!);}else{_message('لا توجد فاتورة محفوظة للطباعة بعد.');}return KeyEventResult.handled;}\n    if(event is KeyDownEvent&&event.logicalKey==LogicalKeyboardKey.f8&&p.cart.isNotEmpty){_finish(p,s,inventory,clinical);return KeyEventResult.handled;}
+    if(event is KeyDownEvent&&event.logicalKey==LogicalKeyboardKey.f9){if(_lastReceipt!=null){_receiptBuilder.printReceiptNow(context,_lastReceipt!);}else{_message('لا توجد فاتورة محفوظة للطباعة بعد.');}return KeyEventResult.handled;}
+    if(event is KeyDownEvent&&event.logicalKey==LogicalKeyboardKey.f8&&p.cart.isNotEmpty){_finish(p,s,inventory,clinical);return KeyEventResult.handled;}
     if(event is KeyDownEvent&&event.logicalKey==LogicalKeyboardKey.f12&&p.cart.isNotEmpty){
       final item=p.cart.last;
       S05DrugAlternativesSheet.show(context,item.drug,(replacement)=>p.replaceCartItem(item,replacement));
