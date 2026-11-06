@@ -1,6 +1,4 @@
 // lib/reports_pdf/datasources/sales_and_inventory_queries.dart
-import 'package:sqflite/sqflite.dart';
-
 import '../../data/database/database_helper.dart';
 import '../models_and_contracts.dart';
 
