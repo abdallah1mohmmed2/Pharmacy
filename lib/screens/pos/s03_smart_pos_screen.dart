@@ -92,8 +92,10 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen>{
   Future<void> _loadReceipt(int invoiceId) async {
     final db=DatabaseHelper.instance;
     final invoiceRows=await db.rawQuery('''
-      SELECT i.*,COALESCE(p.name_ar,'عميل نقدي') AS customer_name
+      SELECT i.*,COALESCE(p.name_ar,'عميل نقدي') AS customer_name,
+        b.name_ar AS branch_name,b.phone AS branch_phone
       FROM sales_invoices i LEFT JOIN parties p ON p.id=i.customer_party_id
+      LEFT JOIN branches b ON b.id=i.branch_id
       WHERE i.id=? LIMIT 1
     ''',[invoiceId]);
     if(invoiceRows.isEmpty)return;
@@ -104,7 +106,9 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen>{
       WHERE si.invoice_id=? ORDER BY si.id
     ''',[invoiceId]);
     final payments=await db.rawQuery('SELECT method,wallet_ref_no FROM sales_payments WHERE invoice_id=? ORDER BY id',[invoiceId]);
-    final paymentLabel=payments.map((e)=>e['method']?.toString()??'').where((e)=>e.isNotEmpty).toSet().join(' + ');
+    var paymentLabel=payments.map((e)=>e['method']?.toString()??'').where((e)=>e.isNotEmpty).toSet().join(' + ');
+    if(row['sale_type']=='CREDIT'&&paymentLabel.isEmpty){paymentLabel='آجل';}
+    else if(row['sale_type']=='MIXED'){paymentLabel=paymentLabel.isEmpty?'آجل':'$paymentLabel + آجل';}
     final wallet=payments.map((e)=>e['wallet_ref_no']?.toString()??'').firstWhere((e)=>e.isNotEmpty,orElse:()=> '');
     final date=DateTime.tryParse(row['invoice_date']?.toString()??'')??DateTime.now();
     _lastReceipt=ReceiptData(
@@ -126,6 +130,8 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen>{
       paymentMethod:paymentLabel.isEmpty?'غير محدد':paymentLabel,
       walletNotificationNumber:wallet.isEmpty?null:wallet,
       remainingAfterInvoice:(row['remaining_alayh'] as num?)??0,
+      branchName:row['branch_name']?.toString()??'الفرع الرئيسي',
+      phone:row['branch_phone']?.toString()??'',
     );
   }
 }
