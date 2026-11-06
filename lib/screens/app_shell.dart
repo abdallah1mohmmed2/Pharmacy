@@ -23,6 +23,7 @@ import 'finance/s23_shift_close_handover_screen.dart';
 import 'finance/s24_operating_expenses_screen.dart';
 import 'hr_partners/s25_employees_shifts_payroll_screen.dart';
 import 'hr_partners/s26_owner_partners_profit_screen.dart';
+import 'reports/s27_reports_center_pdf_screen.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -30,8 +31,8 @@ class AppShell extends StatefulWidget {
 }
 class _AppShellState extends State<AppShell>{
   int index=0;
-  final pages=const [S02ExecutiveDashboardScreen(),S03SmartPosScreen(),S08S09DrugEncyclopediaScreen(),S19S20S21PartiesAndVouchersScreen(),S11InventoryBatchesShelvesScreen(),S12FefoExpiryRadarScreen(),S13StocktakingScreen(),S14DisposalsScreen(),S15StockTransfersScreen(),S16PurchaseInvoiceBonusScreen(),S17S18ReturnsAndShortagesScreen(),S06PrescriptionInsuranceScreen(),S07SalesReturnsScreen(),S08ClinicalAuditScreen(),S22TreasuryWalletsScreen(),S23ShiftCloseHandoverScreen(),S24OperatingExpensesScreen(),S25EmployeesShiftsPayrollScreen(),S26OwnerPartnersProfitScreen()];
-  final titles=const ['لوحة التحكم التنفيذية','الكاشير الذكي','الموسوعة الدوائية','حسابات الأطراف والسندات','المخزون والتشغيلات','رادار الصلاحية','الجرد المخزني','الإعدام والإتلاف','التحويلات المخزنية','فواتير المشتريات والبونص','المرتجعات والنواقص','الوصفات والتأمين','مرتجع المبيعات','سجل الرقابة السريرية','الخزينة والمحافظ','إغلاق وتسليم الوردية','المصروفات التشغيلية','الموظفون والرواتب','المالك والشركاء'];
+  final pages=const [S02ExecutiveDashboardScreen(),S03SmartPosScreen(),S08S09DrugEncyclopediaScreen(),S19S20S21PartiesAndVouchersScreen(),S11InventoryBatchesShelvesScreen(),S12FefoExpiryRadarScreen(),S13StocktakingScreen(),S14DisposalsScreen(),S15StockTransfersScreen(),S16PurchaseInvoiceBonusScreen(),S17S18ReturnsAndShortagesScreen(),S06PrescriptionInsuranceScreen(),S07SalesReturnsScreen(),S08ClinicalAuditScreen(),S22TreasuryWalletsScreen(),S23ShiftCloseHandoverScreen(),S24OperatingExpensesScreen(),S25EmployeesShiftsPayrollScreen(),S26OwnerPartnersProfitScreen(),S27ReportsCenterPdfScreen()];
+  final titles=const ['لوحة التحكم التنفيذية','الكاشير الذكي','الموسوعة الدوائية','حسابات الأطراف والسندات','المخزون والتشغيلات','رادار الصلاحية','الجرد المخزني','الإعدام والإتلاف','التحويلات المخزنية','فواتير المشتريات والبونص','المرتجعات والنواقص','الوصفات والتأمين','مرتجع المبيعات','سجل الرقابة السريرية','الخزينة والمحافظ','إغلاق وتسليم الوردية','المصروفات التشغيلية','الموظفون والرواتب','المالك والشركاء','مركز التقارير (55 تقريراً)'];
   @override Widget build(BuildContext context){
     final wide=MediaQuery.sizeOf(context).width>=900;
     final session=context.watch<SessionAndErpProvider>();
@@ -65,6 +66,7 @@ class _AppShellState extends State<AppShell>{
             NavigationRailDestination(icon:Icon(Icons.receipt_long),label:Text('المصروفات')),
             NavigationRailDestination(icon:Icon(Icons.groups),label:Text('الموظفون والرواتب')),
             NavigationRailDestination(icon:Icon(Icons.pie_chart),label:Text('المالك والشركاء')),
+            NavigationRailDestination(icon:Icon(Icons.assessment_outlined),selectedIcon:Icon(Icons.assessment),label:Text('مركز التقارير')),
           ])),
         Expanded(child:IndexedStack(index:index,children:pages)),
       ]),
