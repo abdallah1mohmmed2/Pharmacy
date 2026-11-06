@@ -265,8 +265,10 @@ class PdfReportEngine {
     required ReportParams params,
   }) async {
     final bytes = await build(definition: definition, data: data, params: params);
+    final printer = await Printing.pickPrinter(context: context);
+    if (printer == null) return;
     await Printing.directPrintPdf(
-      printer: await Printing.pickPrinter(context: context),
+      printer: printer,
       onLayout: (_) async => bytes,
     );
   }
