@@ -6,6 +6,8 @@ import '../../core/theme/enterprise_dark_theme.dart';
 import '../../core/widgets/shared_widgets.dart';
 import '../../data/database/database_helper.dart';
 import '../pos/s05_drug_alternatives_sheet.dart';
+import '../../providers/session_and_erp_provider.dart';
+import '../../reports_pdf/registry/report_registry_and_provider.dart';
 
 class S08S09DrugEncyclopediaScreen extends StatefulWidget{const S08S09DrugEncyclopediaScreen({super.key});@override State<S08S09DrugEncyclopediaScreen> createState()=>_S08S09DrugEncyclopediaScreenState();}
 class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScreen>{
