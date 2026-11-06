@@ -7,6 +7,7 @@ import 'providers/pos_and_drugs_provider.dart';
 import 'providers/inventory_and_purchase_provider.dart';
 import 'providers/clinical_and_rx_provider.dart';
 import 'providers/treasury_hr_partner_provider.dart';
+import 'reports_pdf/registry/report_registry_and_provider.dart';
 import 'screens/app_shell.dart';
 
 Future<void> main() async {
@@ -23,6 +24,7 @@ class PharmacyErpApplication extends StatelessWidget {
    ChangeNotifierProvider(create:(_)=>InventoryAndPurchaseProvider()..loadAll()),
    ChangeNotifierProvider(create:(_)=>ClinicalAndRxProvider()..loadAll()),
    ChangeNotifierProvider(create:(_)=>TreasuryHrPartnerProvider()),
+   ChangeNotifierProvider(create:(_)=>ReportsCenterProvider()),
   ],
   child:MaterialApp(
    title:'Global Enterprise Pharmacy ERP',
