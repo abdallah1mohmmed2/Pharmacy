@@ -1,5 +1,6 @@
 // lib/reports_pdf/registry/report_registry_and_provider.dart
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 
@@ -95,6 +96,8 @@ class ReportsCenterProvider extends ChangeNotifier {
   ReportParams get params => _params;
   Set<int> get favorites => Set.unmodifiable(_favorites);
   bool get canViewCost => _canViewCost && _showCostSetting;
+  bool get hasCostPermission => _canViewCost;
+  bool get showCostSetting => _showCostSetting;
 
   Future<void> initialize({
     required int userId,
@@ -179,6 +182,13 @@ class ReportsCenterProvider extends ChangeNotifier {
       canViewCost: _canViewCost,
       showCostSetting: _showCostSetting,
     );
+    notifyListeners();
+  }
+
+  void updateCostVisibility(bool show) {
+    if (!_canViewCost) return;
+    _showCostSetting = show;
+    _params = _params.copyWith(showCostSetting: show);
     notifyListeners();
   }
 
