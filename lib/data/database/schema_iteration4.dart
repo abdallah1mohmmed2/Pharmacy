@@ -1,5 +1,4 @@
 // lib/data/database/schema_iteration4.dart
-import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 
 /// Additive migration: keeps the Iteration 3 pregnancy flag and installs
