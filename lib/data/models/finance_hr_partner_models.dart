@@ -30,7 +30,7 @@ class WorkShiftModel {
 }
 
 class CashierShiftModel {
-  const CashierShiftModel({this.id,required this.shiftNo,required this.userId,this.cashierPartyId,this.drawerAccountId,this.workShiftId,required this.openedAt,required this.openingCash,this.closedAt,this.expectedCash,this.countedCash,this.diffAmount,this.expectedWallets=<String,double>{},this.countedWallets=<String,double>{},this.diffHandling='NONE',this.countedDenominations=<String,int>{},this.handoverToUserId,this.status='OPEN'});
+  const CashierShiftModel({this.id,required this.shiftNo,required this.userId,this.cashierPartyId,this.drawerAccountId,this.workShiftId,required this.openedAt,required this.openingCash,this.closedAt,this.expectedCash,this.countedCash,this.diffAmount,this.expectedWallets=const <String,double>{},this.countedWallets=const <String,double>{},this.diffHandling='NONE',this.countedDenominations=const <String,int>{},this.handoverToUserId,this.status='OPEN'});
   final int? id, userId, cashierPartyId, drawerAccountId, workShiftId, handoverToUserId;
   final String shiftNo, openedAt, diffHandling, status;
   final double openingCash; final String? closedAt; final double? expectedCash,countedCash,diffAmount;
