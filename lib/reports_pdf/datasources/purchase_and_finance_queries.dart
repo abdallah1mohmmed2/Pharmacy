@@ -125,31 +125,39 @@ class PurchaseAndFinanceQueries {
     ORDER BY po.po_date DESC
   ''',[p.branchId,..._rangeArgs(p)]);
 
-  Future<List<Map<String, Object?>>> r33(ReportParams p) => _partyStatement(p, 'CUSTOMER');
-  Future<List<Map<String, Object?>>> r36(ReportParams p) => _partyStatement(p, 'SUPPLIER');
-  Future<List<Map<String, Object?>>> r44(ReportParams p) => _partyStatement(p, 'EMPLOYEE');
+  Future<List<Map<String, Object?>>> r33(ReportParams p) => _partyStatement(p);
+  Future<List<Map<String, Object?>>> r36(ReportParams p) => _partyStatement(p);
+  Future<List<Map<String, Object?>>> r44(ReportParams p) => _partyStatement(p);
 
-  Future<List<Map<String, Object?>>> _partyStatement(ReportParams p, String type) async {
+  Future<List<Map<String, Object?>>> _partyStatement(ReportParams p) {
     final partyId=p.intValue('party_id')??-1;
-    final rows=await _q('''
-      WITH ledger AS (
+    return _q('''
+      WITH party AS (
+        SELECT opening_alayh,opening_lah FROM parties WHERE id=? AND branch_id=?
+      ), ledger AS (
         SELECT l.entry_date,l.statement_ar,l.doc_type,l.doc_id,l.alayh_amount,l.lah_amount,
           SUM(l.alayh_amount-l.lah_amount) OVER(ORDER BY l.entry_date,l.id ROWS UNBOUNDED PRECEDING) AS movement_balance
         FROM lah_alayh_ledger l WHERE l.party_id=? AND l.branch_id=?
           ${_range('l.entry_date')}
       )
+      SELECT '—' AS date,'رصيد افتتاحي' AS statement,'OPENING' AS document,
+        party.opening_alayh AS alayh,party.opening_lah AS lah,
+        party.opening_alayh-party.opening_lah AS remaining
+      FROM party
+      UNION ALL
       SELECT entry_date AS date,statement_ar AS statement,
         COALESCE(doc_type,'') || CASE WHEN doc_id IS NULL THEN '' ELSE ':' || doc_id END AS document,
-        alayh_amount AS alayh,lah_amount AS lah,movement_balance AS remaining
-      FROM ledger ORDER BY entry_date
-    ''',[partyId,p.branchId,..._rangeArgs(p)]);
-    return rows;
+        alayh_amount AS alayh,lah_amount AS lah,
+        (SELECT opening_alayh-opening_lah FROM party)+movement_balance AS remaining
+      FROM ledger
+      ORDER BY date
+    ''',[partyId,p.branchId,partyId,p.branchId,..._rangeArgs(p)]);
   }
 
   Future<List<Map<String, Object?>>> r34(ReportParams p) => _q('''
     SELECT p.name_ar AS customer,p.phone AS phone,
-      COALESCE(SUM(l.alayh_amount),p.opening_alayh) AS total_alayh,
-      COALESCE(SUM(l.lah_amount),p.opening_lah) AS total_lah,
+      p.opening_alayh+COALESCE(SUM(l.alayh_amount),0) AS total_alayh,
+      p.opening_lah+COALESCE(SUM(l.lah_amount),0) AS total_lah,
       p.opening_alayh-p.opening_lah+COALESCE(SUM(l.alayh_amount-l.lah_amount),0) AS remaining,
       p.credit_limit AS credit_limit,
       CASE WHEN p.credit_limit>0 THEN (p.opening_alayh-p.opening_lah+COALESCE(SUM(l.alayh_amount-l.lah_amount),0))*100.0/p.credit_limit ELSE 0 END AS credit_usage_pct,
@@ -167,16 +175,15 @@ class PurchaseAndFinanceQueries {
       SUM(CASE WHEN julianday('now')-julianday(i.invoice_date)>90 AND julianday('now')-julianday(i.invoice_date)<=180 THEN i.remaining_alayh ELSE 0 END) AS days_91_180,
       SUM(CASE WHEN julianday('now')-julianday(i.invoice_date)>180 THEN i.remaining_alayh ELSE 0 END) AS days_over_180,
       SUM(i.remaining_alayh) AS total_remaining_alayh,
-      MAX(CASE WHEN l.lah_amount>0 THEN l.entry_date END) AS last_payment
+      (SELECT MAX(l.entry_date) FROM lah_alayh_ledger l WHERE l.party_id=c.id AND l.lah_amount>0) AS last_payment
     FROM sales_invoices i JOIN parties c ON c.id=i.customer_party_id
-    LEFT JOIN lah_alayh_ledger l ON l.party_id=c.id
     WHERE i.branch_id=? AND i.status='COMPLETED' AND i.remaining_alayh>0
     GROUP BY c.id ORDER BY total_remaining_alayh DESC
   ''',[p.branchId]);
 
   Future<List<Map<String, Object?>>> r37(ReportParams p) => _q('''
     SELECT s.name_ar AS supplier,s.phone AS phone,
-      COALESCE(SUM(pi.paid_total),0) AS total_alayh,
+      COALESCE(SUM(pi.net_total),0) AS total_alayh,
       COALESCE(SUM(pi.net_total-pi.remaining_lah),0) AS total_lah,
       COALESCE(SUM(pi.remaining_lah),0) AS remaining,
       MIN(CASE WHEN pi.remaining_lah>0 THEN pi.due_date END) AS oldest_due_date,
