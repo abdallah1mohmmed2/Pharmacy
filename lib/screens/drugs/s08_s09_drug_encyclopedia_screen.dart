@@ -46,7 +46,7 @@ class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScr
   ])));
  }
  Widget _details(DrugModel d)=>DefaultTabController(length:5,child:Column(children:[
-  Row(children:[Expanded(child:Text(d.tradeNameAr,style:const TextStyle(fontSize:20,fontWeight:FontWeight.bold))),IconButton(tooltip:'البدائل',onPressed:()=>S05DrugAlternativesSheet.show(context,d,(_){ }),icon:const Icon(Icons.swap_horiz)),IconButton(onPressed:()=>_edit(context,d),icon:const Icon(Icons.edit))]),
+  Row(children:[Expanded(child:Text(d.tradeNameAr,style:const TextStyle(fontSize:20,fontWeight:FontWeight.bold))),IconButton(tooltip:'البدائل',onPressed:()=>S05DrugAlternativesSheet.show(context,d,(_){ }),icon:const Icon(Icons.swap_horiz)),IconButton(tooltip:'طباعة البطاقة السريرية PDF - تقرير 46',onPressed:()=>_printClinicalCard(d),icon:const Icon(Icons.picture_as_pdf)),IconButton(onPressed:()=>_edit(context,d),icon:const Icon(Icons.edit))]),
   const TabBar(isScrollable:true,tabs:[Tab(text:'الهوية والتسعير'),Tab(text:'الاستعمال والسلامة'),Tab(text:'الفئات الخاصة'),Tab(text:'التخزين والرقابة'),Tab(text:'القواعد السريرية')]),
   Expanded(child:TabBarView(children:[
    _group([('الاسم التجاري',d.tradeNameAr),('الاسم العلمي',d.scientificName),('الشركة',d.manufacturerId?.toString()??'غير محدد'),('التصنيف ATC',d.atcCode),('الشكل والتركيز',d.dosageForm+' • '+d.strengthText),('طريقة الإعطاء',d.route),('التعبئة',d.stripsPerPack.toString()+' × '+d.unitsPerStrip.toString()),('التكلفة',MoneyFormatter.format(d.costPricePack)),('سعر الباكت',MoneyFormatter.format(d.sellPricePack)),('سعر الشريط',MoneyFormatter.format(d.sellPriceStrip)),('سعر الحبة',MoneyFormatter.format(d.sellPriceUnit)),('المخزون بالحبة',d.stockTotalUnits.toString())]),
