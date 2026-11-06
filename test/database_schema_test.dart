@@ -163,6 +163,7 @@ void main() {
         'trg_partner_lock_pct_ins','trg_partner_lock_pct_upd',
         'trg_partner_lock_shares_ins','trg_partner_lock_shares_upd',
         'trg_partner_mode_switch_requires_clear','trg_partner_mode_switch_requires_clear_pct',
+        'trg_partner_mode_switch_requires_clear_ins','trg_partner_mode_switch_requires_clear_pct_ins',
         'trg_partner_mode_setting_delete','trg_partner_mode_setting_value',
         'trg_partner_mode_setting_value_upd',
       ];
@@ -194,6 +195,14 @@ void main() {
         db.update('app_settings', {'value_text':'percentage'}, where: "setting_key='accounting.partner_distribution_mode'"),
         throwsA(anything),
       );
+      await expectLater(
+        db.insert(
+          'app_settings',
+          {'setting_key':'accounting.partner_distribution_mode','value_text':'percentage'},
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        ),
+        throwsA(anything),
+      );
       await db.update('partners', {'shares_count':null}, where:'1=1');
       await db.update(
         'app_settings',
@@ -202,6 +211,15 @@ void main() {
       );
       await expectLater(
         db.update('partners', {'shares_count': 99}, where: 'id=?', whereArgs: [partnerId]),
+        throwsA(anything),
+      );
+      await db.update('partners', {'percentage': 100.0}, where: 'id=?', whereArgs: [partnerId]);
+      await expectLater(
+        db.insert(
+          'app_settings',
+          {'setting_key':'accounting.partner_distribution_mode','value_text':'shares'},
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        ),
         throwsA(anything),
       );
 
