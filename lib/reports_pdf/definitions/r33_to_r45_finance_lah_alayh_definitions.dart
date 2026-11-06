@@ -38,6 +38,12 @@ class R45PartnerDistributionDefinition extends ReportDefinition {
       reportNumber:45,title:title,columns:columns,rows:rows,
       totals:const TotalsSpec(sumKeys:['profit_share','withdrawals_alayh','net_payable'])
           .calculate(rows,columns),
+      summary: rows.isEmpty ? const <String,Object?>{} : {
+        'صافي الربح': rows.first['net_profit'],
+        'الاحتياطي %': rows.first['reserve_pct'],
+        'نمط التوزيع': mode=='percentage'?'النسبة%':'عدد الحصص',
+        'الربح القابل للتوزيع': rows.first['distributable_profit'],
+      },
       generatedAt:params.generatedAt,
     );
   }
