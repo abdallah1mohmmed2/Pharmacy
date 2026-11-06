@@ -94,6 +94,8 @@ class PdfReportEngine {
     required ReportParams params,
   }) async {
     await FontCache.instance.load();
+    if (data.reportNumber == 46) return _buildClinicalMonograph(data, params);
+    if (data.reportNumber == 55) return _buildYearEndDocument(data, params);
     final columns = costMasker.filter(data.columns, params);
     final rows = data.rows.map((r) => costMasker.filterRow(r, columns)).toList();
     final totals = costMasker.canShow(params)
@@ -154,6 +156,93 @@ class PdfReportEngine {
       ),
     );
     return document.save();
+  }
+
+
+  Future<Uint8List> _buildClinicalMonograph(ReportDataSet data, ReportParams params) async {
+    final row = data.rows.isEmpty ? <String,Object?>{} : data.rows.first;
+    String value(String key) {
+      final v=row[key];
+      return v==null || v.toString().trim().isEmpty ? 'غير مسجل' : v.toString();
+    }
+    final showCost=costMasker.canShow(params);
+    final points=<({String title,String body})>[
+      (title:'01 — الهوية الدوائية',body:'الاسم التجاري: ${value('trade_name')}\nالاسم العلمي: ${value('scientific_name')}\nالتركيز: ${value('strength')}\nالشكل الصيدلاني: ${value('dosage_form')}\nطريق الإعطاء: ${value('route')}'),
+      (title:'02 — الشركة والتصنيف',body:'الشركة المصنعة: ${value('manufacturer')}\nالتصنيف العلاجي: ${value('category')}'),
+      (title:'03 — التسعير',body:'سعر البيع: ${value('selling_price')}\nسعر التكلفة: ${showCost ? value('cost_price') : 'محجوب حسب الصلاحية'}'),
+      (title:'04 — دواعي الاستعمال',body:value('indications')),
+      (title:'05 — الجرعات وطريقة الإعطاء',body:value('dosage')),
+      (title:'06 — موانع الاستعمال',body:value('contraindications')),
+      (title:'07 — التحذيرات والاحتياطات',body:value('warnings')),
+      (title:'08 — تحذير الصندوق الأسود',body:value('black_box_warning')),
+      (title:'09 — التفاعلات الدوائية',body:value('interaction_rules')),
+      (title:'10 — الآثار الجانبية',body:'الشائعة: ${value('common_adverse_effects')}\nالخطيرة: ${value('serious_adverse_effects')}'),
+      (title:'11 — وظائف الكلى',body:'الحالة: ${value('renal_status')}\nالملاحظات: ${value('renal_notes')}\nالقواعد: ${value('renal_rules')}'),
+      (title:'12 — وظائف الكبد',body:'الحالة: ${value('hepatic_status')}\nالملاحظات: ${value('hepatic_notes')}\nالقواعد: ${value('hepatic_rules')}'),
+      (title:'13 — جرعات الأطفال',body:'الحالة: ${value('pediatric_status')}\nالملاحظات: ${value('pediatric_notes')}\nالقواعد: ${value('pediatric_rules')}'),
+      (title:'14 — كبار السن',body:value('geriatric_notes')),
+      (title:'15 — الحمل',body:'التصنيف: ${value('pregnancy_category')}\nالملاحظات: ${value('pregnancy_notes')}'),
+      (title:'16 — الرضاعة',body:'درجة الخطورة: ${value('lactation_risk')}\nالملاحظات: ${value('lactation_notes')}'),
+      (title:'17 — التخزين',body:value('storage_conditions')),
+      (title:'18 — سلسلة التبريد',body:'يتطلب التبريد: ${value('requires_refrigeration')}\nدرجة الحرارة: ${value('storage_min')} إلى ${value('storage_max')} °م'),
+      (title:'19 — الرقابة والوصفة',body:'دواء مراقب: ${value('is_controlled')}\nجدول الرقابة: ${value('controlled_schedule')}\nيتطلب وصفة: ${value('requires_prescription')}'),
+    ];
+    final doc=pw.Document(title:'البطاقة السريرية — ${value('trade_name')}',author:params.userName);
+    doc.addPage(pw.MultiPage(
+      pageFormat:PdfPageFormat.a4,
+      theme:FontCache.instance.theme,
+      textDirection:pw.TextDirection.rtl,
+      margin:const pw.EdgeInsets.fromLTRB(28,28,28,34),
+      header:(_)=>HeaderBuilder(pharmacyName:pharmacyName,licenseNumber:licenseNumber,address:address,phone:phone,branchName:branchName,logoBytes:logoBytes).build(),
+      footer:(ctx)=>FooterBuilder(printedAt:params.generatedAt,printedBy:params.userName,pageNumber:ctx.pageNumber,pagesCount:ctx.pagesCount).build(),
+      build:(_)=>[
+        pw.Padding(padding:const pw.EdgeInsets.symmetric(vertical:12),child:pw.Text('تقرير رقم 46: البطاقة السريرية الكاملة للدواء',style:pw.TextStyle(fontSize:15,fontWeight:pw.FontWeight.bold))),
+        for(final point in points)
+          pw.Container(
+            width:double.infinity,
+            margin:const pw.EdgeInsets.only(bottom:7),
+            decoration:pw.BoxDecoration(border:pw.Border.all(color:PdfColors.grey400,width:.5),borderRadius:pw.BorderRadius.circular(3)),
+            child:pw.Column(crossAxisAlignment:pw.CrossAxisAlignment.start,children:[
+              pw.Container(width:double.infinity,padding:const pw.EdgeInsets.all(6),color:PdfColors.blueGrey100,child:pw.Text(point.title,style:pw.TextStyle(fontSize:10,fontWeight:pw.FontWeight.bold))),
+              pw.Padding(padding:const pw.EdgeInsets.all(7),child:pw.Text(point.body,style:const pw.TextStyle(fontSize:9))),
+            ]),
+          ),
+        pw.SizedBox(height:12),
+        SignatureBlock(spec:SignatureSpec.clinical).build(),
+      ],
+    ));
+    return doc.save();
+  }
+
+  Future<Uint8List> _buildYearEndDocument(ReportDataSet data, ReportParams params) async {
+    await FontCache.instance.load();
+    final year=params.stringValue('year')??DateTime.now().year.toString();
+    final doc=pw.Document(title:'إغلاق العام المالي $year',author:params.userName);
+    final sections=data.rows;
+    doc.addPage(pw.MultiPage(
+      pageFormat:PdfPageFormat.a4.landscape,
+      theme:FontCache.instance.theme,
+      textDirection:pw.TextDirection.rtl,
+      margin:const pw.EdgeInsets.fromLTRB(28,28,28,34),
+      header:(_)=>HeaderBuilder(pharmacyName:pharmacyName,licenseNumber:licenseNumber,address:address,phone:phone,branchName:branchName,logoBytes:logoBytes).build(),
+      footer:(ctx)=>FooterBuilder(printedAt:params.generatedAt,printedBy:params.userName,pageNumber:ctx.pageNumber,pagesCount:ctx.pagesCount).build(),
+      build:(_)=>[
+        pw.Padding(padding:const pw.EdgeInsets.symmetric(vertical:12),child:pw.Text('التقرير رقم 55: الإغلاق المالي والجرد السنوي — $year',style:pw.TextStyle(fontSize:16,fontWeight:pw.FontWeight.bold))),
+        for(final section in sections)
+          pw.Container(
+            margin:const pw.EdgeInsets.only(bottom:7),
+            padding:const pw.EdgeInsets.all(9),
+            decoration:pw.BoxDecoration(border:pw.Border.all(color:PdfColors.grey400,width:.5)),
+            child:pw.Row(children:[
+              pw.Expanded(child:pw.Text(section['section']?.toString()??'قسم مالي',style:pw.TextStyle(fontSize:10,fontWeight:pw.FontWeight.bold))),
+              pw.Text((section['amount'] as num? ?? 0).toStringAsFixed(2),style:pw.TextStyle(fontSize:10,font:FontCache.instance.mono,fontWeight:pw.FontWeight.bold)),
+            ]),
+          ),
+        pw.SizedBox(height:18),
+        SignatureBlock(spec:SignatureSpec.yearEnd).build(),
+      ],
+    ));
+    return doc.save();
   }
 
   Future<void> preview({
