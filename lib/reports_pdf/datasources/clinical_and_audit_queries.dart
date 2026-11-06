@@ -1,0 +1,214 @@
+// lib/reports_pdf/datasources/clinical_and_audit_queries.dart
+import '../../data/database/database_helper.dart';
+import '../models_and_contracts.dart';
+
+/// استعلامات التقارير السريرية والرقابية وإغلاق العام R46–R55.
+class ClinicalAndAuditQueries {
+  ClinicalAndAuditQueries({DatabaseHelper? helper}) : _helper = helper ?? DatabaseHelper.instance;
+  final DatabaseHelper _helper;
+
+  Future<List<Map<String, Object?>>> _q(String sql, [List<Object?> args = const []]) async =>
+      (await _helper.database).rawQuery(sql, args);
+
+  String _range(String column) =>
+      " AND (? IS NULL OR $column>=?) AND (? IS NULL OR $column<date(?,'+1 day'))";
+  List<Object?> _rangeArgs(ReportParams p) {
+    final from=p.stringValue('date_from'),to=p.stringValue('date_to');
+    return [from,from,to,to];
+  }
+
+  Future<List<Map<String, Object?>>> r46(ReportParams p) => _q('''
+    SELECT d.id AS drug_id,d.trade_name_ar AS trade_name,d.trade_name_en AS trade_name_en,
+      d.scientific_name AS scientific_name,d.strength_text AS strength,d.dosage_form AS dosage_form,
+      d.route AS route,d.manufacturer_id AS manufacturer_id,d.category_id AS category_id,
+      d.cost_price_pack AS cost_price,d.sell_price_pack AS selling_price,
+      d.indications AS indications,d.dosage_administration AS dosage,
+      d.contraindications AS contraindications,d.warnings_precautions AS warnings,
+      d.black_box_warning AS black_box_warning,d.interactions_summary AS interactions,
+      d.side_effects_common AS common_adverse_effects,d.side_effects_serious AS serious_adverse_effects,
+      d.renal_status AS renal_status,d.renal_notes AS renal_notes,
+      d.hepatic_status AS hepatic_status,d.hepatic_notes AS hepatic_notes,
+      d.pediatric_status AS pediatric_status,d.pediatric_notes AS pediatric_notes,
+      d.geriatric_status AS geriatric_status,d.geriatric_notes AS geriatric_notes,
+      d.pregnancy_category AS pregnancy_category,d.pregnancy_notes AS pregnancy_notes,
+      d.lactation_risk AS lactation_risk,d.lactation_notes AS lactation_notes,
+      d.storage_conditions AS storage_conditions,d.storage_temp_min_c AS storage_min,
+      d.storage_temp_max_c AS storage_max,d.requires_refrigeration AS requires_refrigeration,
+      d.is_controlled AS is_controlled,d.controlled_schedule AS controlled_schedule,
+      d.requires_prescription AS requires_prescription,d.pregnancy_trimester_json AS pregnancy_trimester,
+      (SELECT GROUP_CONCAT(note_ar,'؛ ') FROM drug_renal_rules WHERE drug_id=d.id) AS renal_rules,
+      (SELECT GROUP_CONCAT(note_ar,'؛ ') FROM drug_hepatic_rules WHERE drug_id=d.id) AS hepatic_rules,
+      (SELECT GROUP_CONCAT(note_ar,'؛ ') FROM drug_pediatric_rules WHERE drug_id=d.id) AS pediatric_rules,
+      (SELECT GROUP_CONCAT(interactant_name || ': ' || clinical_effect,'؛ ') FROM drug_interactions
+        WHERE drug_a_id=d.id OR drug_b_id=d.id) AS interaction_rules,
+      (SELECT name_ar FROM manufacturers WHERE id=d.manufacturer_id) AS manufacturer,
+      (SELECT name_ar FROM drug_categories WHERE id=d.category_id) AS category
+    FROM drugs d WHERE d.branch_id=? AND d.id=?
+  ''',[p.branchId,p.intValue('drug_id')??-1]);
+
+  Future<List<Map<String, Object?>>> r47(ReportParams p) => _q('''
+    SELECT cdl.recorded_at AS date,i.invoice_no AS invoice_no,
+      d.trade_name_ar || ' / ' || COALESCE(d.controlled_schedule,'') AS drug_schedule,
+      b.batch_no AS batch_no,cdl.qty_units AS quantity,cdl.patient_name AS patient,
+      cdl.patient_national_id AS patient_national_id,cdl.receiver_name AS receiver,
+      cdl.receiver_national_id AS receiver_national_id,cdl.prescription_id AS prescription_no,
+      cdl.doctor_name AS doctor,u.full_name AS dispensing_pharmacist,
+      cdl.running_balance_units AS balance_after
+    FROM controlled_drug_log cdl
+    JOIN drugs d ON d.id=cdl.drug_id
+    LEFT JOIN batches_fefo b ON b.id=cdl.batch_id
+    LEFT JOIN sales_invoice_items si ON si.id=cdl.invoice_item_id
+    LEFT JOIN sales_invoices i ON i.id=si.invoice_id
+    LEFT JOIN users u ON u.id=cdl.pharmacist_user_id
+    WHERE d.branch_id=? ${_range('cdl.recorded_at')}
+    ORDER BY cdl.recorded_at DESC
+  ''',[p.branchId,..._rangeArgs(p)]);
+
+  Future<List<Map<String, Object?>>> r48(ReportParams p) => _q('''
+    SELECT a.alert_at AS date,i.invoice_no AS invoice_no,
+      d.trade_name_ar AS drug_one,COALESCE(d2.trade_name_ar,'—') AS drug_two,
+      a.level AS severity,a.message_ar AS clinical_effect,
+      a.user_decision AS pharmacist_decision,mu.full_name AS approving_manager,
+      a.override_reason AS reason
+    FROM clinical_alert_logs a JOIN drugs d ON d.id=a.drug_id
+    LEFT JOIN drugs d2 ON d2.id=a.other_drug_id
+    LEFT JOIN sales_invoices i ON i.id=a.invoice_id
+    LEFT JOIN users mu ON mu.id=a.manager_user_id
+    WHERE d.branch_id=? AND a.alert_category='INTERACTION'
+      ${_range('a.alert_at')} ORDER BY a.alert_at DESC
+  ''',[p.branchId,..._rangeArgs(p)]);
+
+  Future<List<Map<String, Object?>>> r49(ReportParams p) => _q('''
+    SELECT a.alert_at AS date,i.invoice_no AS invoice_no,pt.full_name AS patient,
+      a.alert_category AS patient_category,d.trade_name_ar AS drug,a.level AS level,
+      a.message_ar AS message,a.user_decision AS user_decision,a.override_reason AS reason
+    FROM clinical_alert_logs a JOIN drugs d ON d.id=a.drug_id
+    LEFT JOIN patients pt ON pt.id=a.patient_id
+    LEFT JOIN sales_invoices i ON i.id=a.invoice_id
+    WHERE d.branch_id=? AND a.alert_category<>'INTERACTION'
+      ${_range('a.alert_at')} ORDER BY a.alert_at DESC
+  ''',[p.branchId,..._rangeArgs(p)]);
+
+  Future<List<Map<String, Object?>>> r50(ReportParams p) => _q('''
+    SELECT i.invoice_date AS date,i.invoice_no AS invoice_no,
+      COALESCE(pt.full_name,c.name_ar,'غير محدد') AS patient,
+      d.trade_name_ar || ' ' || d.strength_text AS antibiotic,
+      SUM(si.qty_units) AS quantity,
+      CASE WHEN EXISTS(
+        SELECT 1 FROM prescriptions rx JOIN prescription_items ri ON ri.prescription_id=rx.id
+        WHERE rx.customer_party_id=i.customer_party_id AND ri.drug_id=d.id
+          AND date(rx.rx_date)=date(i.invoice_date)
+      ) THEN 1 ELSE 0 END AS has_prescription,
+      (SELECT rx.doctor_name FROM prescriptions rx JOIN prescription_items ri ON ri.prescription_id=rx.id
+        WHERE rx.customer_party_id=i.customer_party_id AND ri.drug_id=d.id
+          AND date(rx.rx_date)=date(i.invoice_date) ORDER BY rx.id DESC LIMIT 1) AS doctor
+    FROM sales_invoice_items si JOIN sales_invoices i ON i.id=si.invoice_id
+    JOIN drugs d ON d.id=si.drug_id
+    LEFT JOIN parties c ON c.id=i.customer_party_id
+    LEFT JOIN patients pt ON pt.party_id=i.customer_party_id
+    WHERE i.branch_id=? AND d.is_antibiotic=1 AND i.status='COMPLETED'
+      ${_range('i.invoice_date')}
+    GROUP BY i.id,d.id ORDER BY i.invoice_date DESC
+  ''',[p.branchId,..._rangeArgs(p)]);
+
+  Future<List<Map<String, Object?>>> r51(ReportParams p) => _q('''
+    SELECT 'FRIDGE_STOCK' AS record_type,w.name_ar AS location,
+      d.trade_name_ar AS drug,b.batch_no AS batch_no,b.expiry_date AS expiry_date,
+      b.total_units AS balance,b.total_units*b.unit_cost AS cost_value,
+      NULL AS reading_at,NULL AS temperature,NULL AS humidity,NULL AS corrective_action,
+      NULL AS recorded_by
+    FROM batches_fefo b JOIN drugs d ON d.id=b.drug_id
+    JOIN warehouses w ON w.id=b.warehouse_id
+    WHERE d.branch_id=? AND d.requires_refrigeration=1 AND b.total_units>0
+    UNION ALL
+    SELECT 'TEMP_READING' AS record_type,w.name_ar AS location,
+      NULL AS drug,NULL AS batch_no,NULL AS expiry_date,NULL AS balance,NULL AS cost_value,
+      c.reading_at AS reading_at,c.temp_c AS temperature,c.humidity_pct AS humidity,
+      c.corrective_action AS corrective_action,u.full_name AS recorded_by
+    FROM cold_chain_log c JOIN warehouses w ON w.id=c.warehouse_id
+    LEFT JOIN users u ON u.id=c.recorded_by
+    WHERE w.branch_id=? ${_range('c.reading_at')}
+    ORDER BY record_type,expiry_date,reading_at DESC
+  ''',[p.branchId,p.branchId,..._rangeArgs(p)]);
+
+  Future<List<Map<String, Object?>>> r52(ReportParams p) => _q('''
+    SELECT ic.name_ar AS insurance_company,rx.rx_no AS prescription_no,
+      rx.rx_date AS date,pt.full_name AS patient,pol.policy_no AS policy_no,
+      SUM(ri.dispensed_qty_units*d.sell_price_unit) AS prescription_total,
+      pol.coverage_pct AS coverage_pct,
+      SUM(ri.dispensed_qty_units*d.sell_price_unit)*pol.coverage_pct/100.0 AS insurer_share,
+      SUM(ri.dispensed_qty_units*d.sell_price_unit)*pol.copay_pct/100.0 AS patient_share
+    FROM prescriptions rx JOIN insurance_policies pol ON pol.id=rx.insurance_policy_id
+    JOIN insurance_companies ic ON ic.id=pol.insurance_company_id
+    JOIN prescription_items ri ON ri.prescription_id=rx.id
+    JOIN drugs d ON d.id=ri.drug_id
+    LEFT JOIN patients pt ON pt.id=rx.patient_id
+    WHERE d.branch_id=? ${_range('rx.rx_date')}
+    GROUP BY rx.id ORDER BY rx.rx_date DESC
+  ''',[p.branchId,..._rangeArgs(p)]);
+
+  Future<List<Map<String, Object?>>> r53(ReportParams p) => _q('''
+    SELECT i.invoice_date AS date,i.invoice_no AS invoice_no,
+      original.trade_name_ar AS requested_drug,sub.trade_name_ar AS dispensed_alternative,
+      si.qty_units AS quantity,si.line_total-
+        (si.qty_units*COALESCE(original.sell_price_unit,0)) AS customer_price_difference,
+      (si.line_total-si.line_cost)-
+        (si.qty_units*(COALESCE(original.sell_price_unit,0)-COALESCE(original.last_purchase_cost_pack,0))) AS pharmacy_profit_difference,
+      u.full_name AS pharmacist
+    FROM sales_invoice_items si JOIN sales_invoices i ON i.id=si.invoice_id
+    JOIN drugs sub ON sub.id=si.drug_id
+    JOIN drugs original ON original.id=si.substitute_for_drug_id
+    LEFT JOIN users u ON u.id=si.substituted_by_user_id
+    WHERE i.branch_id=? AND si.is_substitute=1
+      ${_range('i.invoice_date')} ORDER BY i.invoice_date DESC
+  ''',[p.branchId,..._rangeArgs(p)]);
+
+  Future<List<Map<String, Object?>>> r54(ReportParams p) => _q('''
+    SELECT a.occurred_at AS time,u.full_name AS user,a.action_code AS action,
+      a.entity_type AS entity,a.reference_no AS reference,
+      a.old_value AS old_value,a.new_value AS new_value,a.reason AS reason,
+      a.severity AS severity
+    FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id
+    WHERE a.branch_id=? ${_range('a.occurred_at')}
+    ORDER BY a.occurred_at DESC,a.id DESC
+  ''',[p.branchId,..._rangeArgs(p)]);
+
+  Future<List<Map<String, Object?>>> r55(ReportParams p) => _q('''
+    SELECT 'قائمة الدخل: إجمالي المبيعات' AS section,
+      COALESCE((SELECT SUM(net_total) FROM sales_invoices WHERE branch_id=? AND status='COMPLETED'
+        AND substr(invoice_date,1,4)=?),0) AS amount
+    UNION ALL
+    SELECT 'قائمة الدخل: تكلفة البضاعة المباعة',
+      COALESCE((SELECT SUM(total_cost) FROM sales_invoices WHERE branch_id=? AND status='COMPLETED'
+        AND substr(invoice_date,1,4)=?),0)
+    UNION ALL
+    SELECT 'المركز المالي: النقد والمحافظ',COALESCE(SUM(current_balance),0) FROM cash_accounts WHERE branch_id=?
+    UNION ALL
+    SELECT 'المركز المالي: المتبقي على العملاء',COALESCE(SUM(alayh_amount-lah_amount),0)
+      FROM lah_alayh_ledger WHERE branch_id=? AND party_id IN(SELECT id FROM parties WHERE party_type='CUSTOMER')
+    UNION ALL
+    SELECT 'المركز المالي: المتبقي للموردين',COALESCE(SUM(remaining_lah),0) FROM purchase_invoices WHERE branch_id=?
+    UNION ALL
+    SELECT 'الجرد السنوي: قيمة المخزون بالتكلفة',COALESCE(SUM(b.total_units*b.unit_cost),0)
+      FROM batches_fefo b JOIN drugs d ON d.id=b.drug_id WHERE d.branch_id=? AND b.total_units>0
+    UNION ALL
+    SELECT 'الجرد السنوي: فروق الجرد',COALESCE(SUM(diff_value),0)
+      FROM stocktaking_lines l JOIN stocktaking_sessions s ON s.id=l.session_id
+      WHERE s.status='APPROVED' AND substr(COALESCE(s.approved_at,s.created_at),1,4)=?
+    UNION ALL
+    SELECT 'التوالف والمنتهي: قيمة الخسائر',COALESCE(SUM(total_cost_value),0)
+      FROM disposals WHERE status IN('APPROVED','POSTED') AND substr(disposal_date,1,4)=?
+    UNION ALL
+    SELECT 'أرصدة الموظفين: صافي الحركات',COALESCE(SUM(alayh_amount-lah_amount),0)
+      FROM lah_alayh_ledger WHERE branch_id=? AND party_id IN(SELECT party_id FROM employees)
+    UNION ALL
+    SELECT 'توزيعات الشركاء: صافي الأرباح الموزعة',COALESCE(SUM(distributable_profit),0)
+      FROM partner_distributions WHERE branch_id=? AND status IN('APPROVED','POSTED') AND substr(period_code,1,4)=?
+    ORDER BY section
+  ''',[p.branchId,p.stringValue('year')??DateTime.now().year.toString(),
+       p.branchId,p.stringValue('year')??DateTime.now().year.toString(),
+       p.branchId,p.branchId,p.branchId,p.branchId,
+       p.stringValue('year')??DateTime.now().year.toString(),
+       p.stringValue('year')??DateTime.now().year.toString(),
+       p.branchId,p.branchId,p.stringValue('year')??DateTime.now().year.toString()]);
+}
