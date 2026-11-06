@@ -5,7 +5,6 @@ import '../../data/database/database_helper.dart';
 import '../../data/models/erp_models.dart';
 import '../../providers/session_and_erp_provider.dart';
 import '../../data/models/drug_model.dart';
-import '../../data/models/erp_models.dart';
 import '../../data/models/clinical_and_rx_models.dart';
 import '../../data/services/clinical_guard_service.dart';
 import '../../data/services/posting_and_sales_service.dart';
@@ -62,7 +61,7 @@ class _PartyExtensionsScreenState extends State<PartyExtensionsScreen> with Sing
       final verdict=await ClinicalGuardService(helper:DatabaseHelper.instance).evaluate(cart:[drug],patient:patient);
       if(verdict.hasUnresolvedCritical){final messages=verdict.alerts.where((a)=>a.level==ClinicalLevel.warning||a.level==ClinicalLevel.block).map((a)=>a.messageAr).join('\n');throw StateError('تعذر الصرف بسبب تحذير سريري غير محسوم:\n$messages');}
       if(verdict.alerts.isNotEmpty){
-        final proceed=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('مراجعة التنبيهات السريرية'),content:SizedBox(width:420,child:SingleChildScrollView(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:verdict.alerts.map((a)=>Padding(padding:const EdgeInsets.symmetric(vertical:4),child:Text('• ${a.messageAr}')).toList())))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('متابعة بعد المراجعة'))]));
+        final proceed=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('مراجعة التنبيهات السريرية'),content:SizedBox(width:420,child:SingleChildScrollView(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:verdict.alerts.map((a)=>Padding(padding:const EdgeInsets.symmetric(vertical:4),child:Text('• ${a.messageAr}'))).toList())))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('متابعة بعد المراجعة'))]));
         if(proceed!=true)return;
       }
       final currentUser=p.currentUser;if(currentUser==null)throw StateError('يجب تسجيل الدخول أولاً.');
