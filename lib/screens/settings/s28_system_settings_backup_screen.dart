@@ -28,7 +28,7 @@ class _S28SystemSettingsBackupScreenState extends State<S28SystemSettingsBackupS
  }
  Future<void> _change(SettingSpec spec,Object value) async {
   final p=context.read<SettingsAndSystemProvider>();final session=context.read<SessionAndErpProvider>();
-  String? pin;if(spec.requiresManager){pin=await _managerPin(title:key==SettingKey.partnerDistributionMode?'تأكيد صلاحية المالك':'تأكيد صلاحية المدير');if(pin==null||pin.isEmpty)return;}
+  String? pin;if(spec.requiresManager){pin=await _managerPin(title:spec.key==SettingKey.partnerDistributionMode?'تأكيد صلاحية المالك':'تأكيد صلاحية المدير');if(pin==null||pin.isEmpty)return;}
   try{await p.changeSetting(spec.key,value,managerPin:pin,userId:session.currentUser?['id'] as int?,branchId:session.branchId);if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم حفظ الإعداد وتسجيله في سجل الرقابة')));}
   catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
  }
