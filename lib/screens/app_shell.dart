@@ -81,7 +81,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver{
       bottomNavigationBar:wide?null:NavigationBar(selectedIndex:mobileIndexes.indexOf(index).clamp(0,mobileIndexes.length-1).toInt(),onDestinationSelected:(v)=>setState(()=>index=mobileIndexes[v]),destinations:mobileIndexes.map((i)=>NavigationDestination(icon:Icon(_pageIcons[i]),label:titles[i])).toList()),
     ));
   }
-  Future<void> _showQuickSearch() async {
+  Future<void> _showQuickSearch(List<int> visibleIndexes,List<String> titles) async {
     final controller=TextEditingController();
     final selected=await showDialog<int>(context:context,builder:(ctx)=>AlertDialog(title:const Text('البحث السريع'),content:SizedBox(width:360,child:TextField(controller:controller,autofocus:true,decoration:const InputDecoration(hintText:'اكتب اسم الشاشة'))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:(){final q=controller.text.trim();final matches=visibleIndexes.where((index)=>titles[index].contains(q)).toList();Navigator.pop(ctx,matches.isEmpty?null:matches.first);},child:const Text('فتح'))]));
     if(selected!=null&&mounted)setState(()=>index=selected);
