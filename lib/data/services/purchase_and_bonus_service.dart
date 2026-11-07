@@ -72,7 +72,6 @@ class PurchaseAndBonusService {
         final aggregate=aggregateByDrug[item.drugId]!;
         final oldPacks=aggregate['currentPacks']!;
         final incomingPacks=aggregate['packs']!;
-        final denominator=oldPacks+incomingPacks;
         entry['newAverage']=calculateWeightedAverage(currentPacks:oldPacks,currentAverage:aggregate['oldAverage']!,incomingPacks:incomingPacks,incomingTotalCost:aggregate['cost']!);
       }
       if(discountAmount<0||discountAmount>subtotal||taxAmount<0)throw ArgumentError('خصم وضريبة الفاتورة غير صحيحين');
