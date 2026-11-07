@@ -21,7 +21,7 @@ abstract final class SchemaIteration6 {
     'requires_manager':spec.requiresManager?1:0,'allowed_values_json':_allowedJson(spec.allowedValues),
    },conflictAlgorithm:ConflictAlgorithm.ignore);
   }
-  final legacySettings=await db.rawQuery(\"SELECT name FROM sqlite_master WHERE type='table' AND name='system_settings_legacy_i5'\");
+  final legacySettings=await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='system_settings_legacy_i5'");
   if(legacySettings.isNotEmpty){
    final oldRows=await db.query('system_settings_legacy_i5');
    for(final row in oldRows){
@@ -95,7 +95,7 @@ abstract final class SchemaIteration6 {
  }
  static String _allowedJson(List<String> values)=>values.isEmpty?'[]':'["'+values.join('","')+'"]';
  static Future<void> _migrateLegacySettings(DatabaseExecutor db) async {
-  final tables=await db.rawQuery(\"SELECT name FROM sqlite_master WHERE type='table' AND name='system_settings'\");
+  final tables=await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='system_settings'");
   if(tables.isEmpty)return;
   final cols=await db.rawQuery('PRAGMA table_info(system_settings)');
   if(cols.any((r)=>r['name']=='group_name'))return;
