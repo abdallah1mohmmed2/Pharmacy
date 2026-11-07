@@ -137,3 +137,23 @@
 | التاريخ | المرحلة | التغيير | التحقق | الحالة |
 |---|---|---|---|---|
 | 2026-11-08 | 4 / Batch 1 | Dynamic + Firebase static shards، ETag/version sync، مولد Python واختبارات الانحدار | ينتظر CI بعد آخر commit؛ ملف merged_19points_drugs.json غير موجود في الفرع | قيد التحقق |
+
+
+## المرحلة 5 — Firebase Spark: قواعد الأمان وفصل مسارات البيانات (Batch 2)
+
+**الحالة: أضيفت ملفات التهيئة والقواعد والتوثيق؛ محرك المزامنة الحية لم ينفذ في هذه الدفعة.**
+
+- إضافة `firebase/firestore.rules`:
+  - يتطلب المستخدم Firebase Authentication وcustom claim موثوقاً باسم `branch_id`.
+  - يحصر قراءة/كتابة وثائق الفرع واللوحة واللقطة ضمن الفرع المطابق للـclaim.
+  - يمنع حذف وثائق الفرع واللوحات واللقطات.
+  - يسمح بإنشاء حزم المزامنة فقط، مع حد 100 حدث واشتراط تطابق `batch_uuid`، ويمنع تعديلها أو حذفها.
+  - يقبل `partner_mode` بقيمتي `shares` و`percentage` فقط ويمنع تغييره بعد إنشاء اللقطة.
+  - يغلق `catalog_meta` في Firestore لأن الكتالوج يقرأ من Hosting ولا يحتاج Firestore.
+- إضافة `firebase/firebase.json`: Hosting من `firebase_public`، وترويسات Cache-Control وCORS لـ`/v1/catalog/**`. يعتمد ETag HTTP الذي يصدره Firebase Hosting، بينما يحمل JSON قيمة ETag المحتوى.
+- توسيع وثيقة المعمارية بمخطط Mermaid، وشرح تجميع حتى 100 حدث في كتابة واحدة، واللوحة اليومية واللقطة المحاسبية، والفصل بين بيانات الكتالوج وبيانات الفرع.
+
+**حدود التنفيذ بدقة:** لم تتم إضافة عامل رفع `sync_queue` أو inbox أو ربط فعلي بالإعداد 35 `sync.cloud` في هذه الدفعة. كما لم يتم إنشاء Firebase project أو نشر Hosting/Firestore rules أو إصدار custom claims. القواعد وحدها لا تنشئ مزامنة تلقائية ولا تضمن سقف الاستخدام؛ هذه الخطوات تحتاج تنفيذ واختبار Emulator وبيئة Firebase فعلية.
+
+**شرط الإطلاق:** قبل تمكين المزامنة، يجب إعداد Authentication وcustom claims من جهة موثوقة، وتنفيذ idempotent batch processor، واختبار قواعد Firestore عبر Emulator، والتحقق من أن التطبيق لا يضع بيانات مرضى أو سجلات حساسة في حزم غير محمية.
+
