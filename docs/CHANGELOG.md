@@ -429,7 +429,7 @@
 ## Central Medicine Catalog — Firebase Spark security foundation (2026-11-08)
 
 - Added branch-scoped Firestore rules for `pharmacy_branches`, `pharmacy_daily_dashboards`, `pharmacy_parties_snapshot`, and append-only `pharmacy_sync_batches`.
-- Firestore access requires Firebase Authentication and a trusted `branch_id` custom claim. Sync batch creation is limited to 100 events; client updates/deletes are denied.
+- Firestore access requires Firebase Authentication and trusted `branch_id` plus `branch_role` custom claims; manager-only operations protect branch metadata, dashboards, and party snapshots, while heartbeat updates are field-limited. Sync batch creation is limited to 100 events; client updates/deletes are denied.
 - Locked `partner_mode` to `shares` or `percentage` and disallowed changing the selected mode after snapshot creation.
 - Denied Firestore access to `catalog_meta`; the central drug catalogue remains static JSON on Firebase Hosting and therefore uses zero Firestore reads.
 - Added `firebase/firebase.json` for Hosting from `firebase_public`, with cache and CORS headers for `/v1/catalog/**`. Firebase Hosting supplies HTTP ETag; the content ETag is also embedded in generated JSON.
