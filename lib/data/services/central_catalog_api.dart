@@ -91,7 +91,7 @@ class CentralCatalogApi implements CentralCatalogDataSource {
     final response = await _get(endpoint);
     if (response.statusCode != 200) {
       throw CatalogApiException(
-        'Catalog API returned HTTP @@response.statusCode}',
+        'Catalog API returned HTTP ${response.statusCode}',
         statusCode: response.statusCode,
       );
     }
@@ -107,7 +107,7 @@ class CentralCatalogApi implements CentralCatalogDataSource {
     late Uri endpoint;
     if (barcode != null) {
       endpoint = _baseUri.resolve(
-        '/v1/catalog/barcodes/@@Uri.encodeComponent(barcode)}.json',
+        '/v1/catalog/barcodes/${Uri.encodeComponent(barcode)}.json',
       );
     } else {
       if (query.runes.length < 2) {
@@ -120,14 +120,14 @@ class CentralCatalogApi implements CentralCatalogDataSource {
           ? _safeShardName(cursor)
           : _prefixFor(query);
       endpoint = _baseUri.resolve(
-        '/v1/catalog/search/@@Uri.encodeComponent(shard)}.json',
+        '/v1/catalog/search/${Uri.encodeComponent(shard)}.json',
       );
     }
 
     final response = await _get(endpoint);
     if (response.statusCode != 200) {
       throw CatalogApiException(
-        'Firebase catalogue shard returned HTTP @@response.statusCode}',
+        'Firebase catalogue shard returned HTTP ${response.statusCode}',
         statusCode: response.statusCode,
       );
     }
