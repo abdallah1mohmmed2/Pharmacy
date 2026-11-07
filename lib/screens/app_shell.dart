@@ -56,6 +56,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver{
     final role=session.currentUser?['role_code'] as String? ?? '';
     final visibleIndexes=List.generate(pages.length,(i)=>i).where((i)=>role=='OWNER'||system.roleRows.any((r)=>r['role_code']==role&&r['permission_code']==permissions[i]&&(r['is_allowed'] as num)==1)).toList();
     if(visibleIndexes.isEmpty)visibleIndexes.add(0);
+    final mobileIndexes=visibleIndexes.where((i)=>i<4).toList();
+    if(mobileIndexes.isEmpty)mobileIndexes.add(visibleIndexes.first);
     if(session.currentUser==null)return const _LoginScreen();
     return Focus(autofocus:true,onKeyEvent:(node,event){
       if(event is! KeyDownEvent)return KeyEventResult.ignored;
@@ -76,15 +78,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver{
           destinations:visibleIndexes.map((i)=>NavigationRailDestination(icon:Icon(_pageIcons[i]),selectedIcon:Icon(_pageIcons[i]),label:Text(titles[i]))).toList())),
         Expanded(child:IndexedStack(index:index,children:pages)),
       ]),
-      bottomNavigationBar:wide?null:NavigationBar(selectedIndex:index.clamp(0,3).toInt(),onDestinationSelected:(v)=>setState(()=>index=v),destinations:const [
-        NavigationDestination(icon:Icon(Icons.dashboard_outlined),label:'الرئيسية'),NavigationDestination(icon:Icon(Icons.point_of_sale_outlined),label:'الكاشير'),
-        NavigationDestination(icon:Icon(Icons.medication_outlined),label:'الأدوية'),NavigationDestination(icon:Icon(Icons.account_balance_wallet_outlined),label:'الحسابات'),
-      ]),
+      bottomNavigationBar:wide?null:NavigationBar(selectedIndex:mobileIndexes.indexOf(index).clamp(0,mobileIndexes.length-1).toInt(),onDestinationSelected:(v)=>setState(()=>index=mobileIndexes[v]),destinations:mobileIndexes.map((i)=>NavigationDestination(icon:Icon(_pageIcons[i]),label:titles[i])).toList()),
     ));
   }
   Future<void> _showQuickSearch() async {
     final controller=TextEditingController();
-    final selected=await showDialog<int>(context:context,builder:(ctx)=>AlertDialog(title:const Text('البحث السريع'),content:SizedBox(width:360,child:TextField(controller:controller,autofocus:true,decoration:const InputDecoration(hintText:'اكتب اسم الشاشة'))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:(){final q=controller.text.trim();final i=titles.indexWhere((t)=>t.contains(q));Navigator.pop(ctx,i<0?null:i);},child:const Text('فتح'))]));
+    final selected=await showDialog<int>(context:context,builder:(ctx)=>AlertDialog(title:const Text('البحث السريع'),content:SizedBox(width:360,child:TextField(controller:controller,autofocus:true,decoration:const InputDecoration(hintText:'اكتب اسم الشاشة'))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:(){final q=controller.text.trim();final i=visibleIndexes.where((index)=>titles[index].contains(q)).firstOrNull;Navigator.pop(ctx,i);},child:const Text('فتح'))]));
     if(selected!=null&&mounted)setState(()=>index=selected);
   }
 }
