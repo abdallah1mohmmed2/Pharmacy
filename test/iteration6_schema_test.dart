@@ -1,4 +1,6 @@
 // test/iteration6_schema_test.dart
+import 'dart:io';
+import 'package:path/path.dart' as p;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -32,6 +34,25 @@ void main(){
    await expectLater(db.update('audit_logs',{'reason':'tampered'},where:'id=1'),throwsA(isA<DatabaseException>()));
    await expectLater(db.delete('audit_logs',where:'id=1'),throwsA(isA<DatabaseException>()));
   }finally{await db.close();}
+ });
+ test('version 8 database upgrades in place to the complete iteration 6 schema',() async {
+  final directory=await Directory.systemTemp.createTemp('pharmacy-i6-upgrade-');
+  final path=p.join(directory.path,'upgrade.db');
+  Database? oldDb;
+  Database? migratedDb;
+  try{
+   oldDb=await databaseFactoryFfi.openDatabase(path,options:OpenDatabaseOptions(version:8,onConfigure:(d)async{await d.execute('PRAGMA foreign_keys=ON');},onCreate:(d,_)async{
+    await SchemaBuilder.build(d);await SeedData.run(d);await SchemaIteration2.upgrade(d);await SchemaIteration3.upgrade(d);await SchemaIteration4.upgrade(d);await SchemaIteration5.upgrade(d);
+   }));
+   await oldDb.close();oldDb=null;
+   migratedDb=await databaseFactoryFfi.openDatabase(path,options:OpenDatabaseOptions(version:9,onConfigure:(d)async{await d.execute('PRAGMA foreign_keys=ON');},onUpgrade:(d,oldVersion,newVersion)async{if(oldVersion<9)await SchemaIteration6.upgrade(d);}));
+   final settings=await migratedDb.query('system_settings');expect(settings,hasLength(35));
+   final auditTables=await migratedDb.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='audit_logs_legacy_i5_migrated'");
+   expect(auditTables,isNotEmpty);
+   final roles=await migratedDb.query('roles');expect(roles,hasLength(7));
+  }finally{
+   await migratedDb?.close();await oldDb?.close();await directory.delete(recursive:true);
+  }
  });
  test('SHA-256 audit chain verifies records and detects altered data',() async {
   final db=await databaseFactoryFfi.openDatabase(inMemoryDatabasePath,options:OpenDatabaseOptions(version:9,onConfigure:(d)async{await d.execute('PRAGMA foreign_keys=ON');},onCreate:(d,_)async{
