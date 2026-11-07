@@ -144,7 +144,8 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
-      builder: (sheetContext) => SizedBox(
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => SizedBox(
         height: MediaQuery.sizeOf(sheetContext).height * .88,
         child: Column(
           children: [
@@ -173,15 +174,17 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
                 provider,
                 _filteredReports(provider),
                 onReportSelected: () => Navigator.pop(sheetContext),
+                onRefresh: () => setSheetState(() {}),
               ),
             ),
           ],
         ),
       ),
+      ),
     );
   }
 
-  Widget _buildSidebar(ReportsCenterProvider provider, List<ReportDefinition> reports, {VoidCallback? onReportSelected}) {
+  Widget _buildSidebar(ReportsCenterProvider provider, List<ReportDefinition> reports, {VoidCallback? onReportSelected, VoidCallback? onRefresh}) {
     return Container(
       color: Theme.of(context).colorScheme.surface,
       child: Column(
@@ -194,11 +197,17 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
                 prefixIcon: const Icon(Icons.search),
                 hintText: 'ابحث بالاسم أو رقم التقرير 1–55',
                 suffixIcon: IconButton(
-                  onPressed: () => setState(() { _search.clear(); _category = null; }),
+                  onPressed: () {
+                    setState(() { _search.clear(); _category = null; });
+                    onRefresh?.call();
+                  },
                   icon: const Icon(Icons.close),
                 ),
               ),
-              onChanged: (_) => setState(() {}),
+              onChanged: (_) {
+                setState(() {});
+                onRefresh?.call();
+              },
             ),
           ),
           SwitchListTile(
@@ -212,7 +221,10 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
               dense: true,
               leading: const Icon(Icons.filter_alt_off),
               title: Text('إلغاء تصفية ${_category!.title}'),
-              onTap: () => setState(() => _category = null),
+              onTap: () {
+                setState(() => _category = null);
+                onRefresh?.call();
+              },
             ),
           Expanded(
             child: ListView(
@@ -224,7 +236,10 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
                     title: Text(category.title, style: const TextStyle(fontWeight: FontWeight.w600)),
                     subtitle: Text('${category.reportCount} تقريراً'),
                     onExpansionChanged: (open) {
-                      if (open) setState(() => _category = category);
+                      if (open) {
+                        setState(() => _category = category);
+                        onRefresh?.call();
+                      }
                     },
                     children: [
                       for (final report in reports.where((r) => r.category == category))
@@ -245,7 +260,10 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
                               color: provider.favorites.contains(report.number)
                                   ? Colors.amber : null,
                             ),
-                            onPressed: () => provider.toggleFavorite(report.number),
+                            onPressed: () {
+                              provider.toggleFavorite(report.number);
+                              onRefresh?.call();
+                            },
                           ),
                           onTap: () {
                             provider.selectReport(report.number);
