@@ -12,6 +12,10 @@ class PurchaseAndBonusService {
   PurchaseAndBonusService({DatabaseHelper? helper,PostingAndSalesService? posting}):_db=helper??DatabaseHelper.instance,_posting=posting??PostingAndSalesService(helper:helper);
   final DatabaseHelper _db; final PostingAndSalesService _posting;
   String _number(String prefix)=>prefix+'-'+DateTime.now().microsecondsSinceEpoch.toString();
+  static double calculateWeightedAverage({required double currentPacks,required double currentAverage,required double incomingPacks,required double incomingTotalCost}){
+    final total=currentPacks+incomingPacks;
+    return total<=0?0:((currentPacks*currentAverage)+incomingTotalCost)/total;
+  }
 
   Future<int> postInvoice({required int branchId,required int supplierPartyId,required int warehouseId,required String invoiceNo,required String paymentType,required double paidTotal,required List<PurchaseLineInput> items,int? cashAccountId,bool includeBonusInCost=true,double discountAmount=0,double taxAmount=0,String? supplierInvoiceNo,int? purchaseOrderId}) async {
     if(items.isEmpty)throw ArgumentError('أضف صنفاً واحداً على الأقل');
@@ -47,7 +51,7 @@ class PurchaseAndBonusService {
         final packs=item.qtyPacksPaid+item.bonusPacks;final lineTotal=item.qtyPacksPaid*item.packPrice*(1-item.lineDiscountPct/100);
         final effective=includeBonusInCost?lineTotal/packs:item.packPrice*(1-item.lineDiscountPct/100);
         final currentPacks=(drug['stock_total_units'] as int)/units;final oldAverage=(drug['cost_price_pack'] as num).toDouble();
-        final newAverage=currentPacks+packs==0?effective:((currentPacks*oldAverage)+lineTotal)/(currentPacks+packs);
+        final newAverage=calculateWeightedAverage(currentPacks:currentPacks,currentAverage:oldAverage,incomingPacks:packs.toDouble(),incomingTotalCost:lineTotal);
         subtotal+=lineTotal;totalBonus+=item.bonusPacks;
         prepared.add({'item':item,'units':units,'packs':packs,'lineTotal':lineTotal,'effective':effective,'unitCost':effective/units,'currentPacks':currentPacks,'oldAverage':oldAverage,'newAverage':newAverage,'oldSell':(drug['sell_price_pack'] as num).toDouble()});
       }
@@ -64,7 +68,7 @@ class PurchaseAndBonusService {
         final oldPacks=aggregate['currentPacks']!;
         final incomingPacks=aggregate['packs']!;
         final denominator=oldPacks+incomingPacks;
-        entry['newAverage']=denominator<=0?0:((oldPacks*aggregate['oldAverage']!)+aggregate['cost']!)/denominator;
+        entry['newAverage']=calculateWeightedAverage(currentPacks:oldPacks,currentAverage:aggregate['oldAverage']!,incomingPacks:incomingPacks,incomingTotalCost:aggregate['cost']!);
       }
       if(discountAmount<0||discountAmount>subtotal||taxAmount<0)throw ArgumentError('خصم وضريبة الفاتورة غير صحيحين');
       final net=(subtotal-discountAmount+taxAmount).clamp(0,double.infinity).toDouble();
