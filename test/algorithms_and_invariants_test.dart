@@ -6,6 +6,7 @@ import 'package:global_enterprise_pharmacy_erp/data/services/clinical_guard_serv
 import 'package:global_enterprise_pharmacy_erp/data/services/fefo_allocator_service.dart';
 import 'package:global_enterprise_pharmacy_erp/data/services/partner_distribution_service.dart';
 import 'package:global_enterprise_pharmacy_erp/data/services/purchase_and_bonus_service.dart';
+import 'package:global_enterprise_pharmacy_erp/data/services/posting_and_sales_service.dart';
 
 void main(){
  group('FEFO and pack-unit invariants',(){
@@ -36,6 +37,8 @@ void main(){
    expect(rule.childPughClass,'B');
    expect(rule.action,'REDUCE_DOSE');
    expect(rule.doseFactor,0.5);
+   expect(ClinicalGuardService.hepaticRuleMatches('B',rule),isTrue);
+   expect(ClinicalGuardService.hepaticRuleMatches('A',rule),isFalse);
   });
   test('pregnancy category X is blocked only for a confirmed pregnant patient',(){
    const drug=DrugModel(tradeNameAr:'دواء اختباري',pregnancyCategory:'X');
@@ -49,6 +52,8 @@ void main(){
   test('weighted average cost incorporates old stock and incoming total cost',(){
    final value=PurchaseAndBonusService.calculateWeightedAverage(currentPacks:10,currentAverage:100,incomingPacks:5,incomingTotalCost:600);
    expect(value,closeTo(106.6666667,0.0001));
+   expect(PurchaseAndBonusService.calculateEffectivePackCost(paidPacks:10,bonusPacks:2,packPrice:120,discountPct:0,includeBonus:true),100);
+   expect(PurchaseAndBonusService.calculateEffectivePackCost(paidPacks:10,bonusPacks:2,packPrice:120,discountPct:0,includeBonus:false),120);
    expect(PurchaseAndBonusService.calculateWeightedAverage(currentPacks:0,currentAverage:0,incomingPacks:0,incomingTotalCost:0),0);
   });
   test('rounded partner shares sum to distributable profit exactly',(){
@@ -57,10 +62,9 @@ void main(){
    expect(amounts, [33.34,33.33,33.33]);
   });
   test('hidden journal entries must balance before posting',(){
-   const lines=[(debit:1250.0,credit:0.0),(debit:0.0,credit:1250.0)];
-   final debit=lines.fold<double>(0,(s,l)=>s+l.debit);
-   final credit=lines.fold<double>(0,(s,l)=>s+l.credit);
-   expect((debit-credit).abs(),lessThanOrEqualTo(0.005));
+   expect(PostingAndSalesService.isBalancedAmounts(1250,1250),isTrue);
+   expect(PostingAndSalesService.isBalancedAmounts(1250,1240),isFalse);
+   expect(PostingAndSalesService.isBalancedAmounts(0,0),isFalse);
   });
   test('partner distribution mode enforces mutually exclusive inputs',(){
    const shares=PartnerPolicy('shares');
