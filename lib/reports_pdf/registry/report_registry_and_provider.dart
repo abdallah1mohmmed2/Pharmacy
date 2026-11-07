@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 
 import '../../data/database/database_helper.dart';
+import '../../core/utils/label_guard.dart';
 import '../datasources/clinical_and_audit_queries.dart';
 import '../datasources/purchase_and_finance_queries.dart';
 import '../datasources/sales_and_inventory_queries.dart';
@@ -262,9 +263,10 @@ class ReportsCenterProvider extends ChangeNotifier {
     try {
       final raw = await definition.run(_params);
       final visibleColumns = engine.costMasker.filter(raw.columns, _params);
-      final visibleRows = raw.rows
-          .map((row) => engine.costMasker.filterRow(row, visibleColumns))
-          .toList(growable: false);
+      final visibleRows = raw.rows.map((row) {
+        final filtered=engine.costMasker.filterRow(row,visibleColumns);
+        return Map<String,Object?>.fromEntries(filtered.entries.map((entry)=>MapEntry(entry.key,entry.value is String?LabelGuard.sanitize(entry.value as String):entry.value)));
+      }).toList(growable:false);
       final visibleTotals = Map<String, double>.fromEntries(
         raw.totals.entries.where((entry) =>
             visibleColumns.any((column) => column.key == entry.key)),
