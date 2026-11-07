@@ -27,8 +27,25 @@ abstract final class SchemaIteration6 {
   if(legacySettings.isNotEmpty){
    final oldRows=await db.query('system_settings_legacy_i5');
    for(final row in oldRows){
-    final key=row['setting_key']; final value=row['value_text']??row['setting_value'];
-    if(key is String && value!=null) await db.update('system_settings',{'setting_value':value.toString()},where:'setting_key=?',whereArgs:[key]);
+    final key=row['setting_key'];final value=row['value_text']??row['setting_value'];
+    if(key is! String||value==null)continue;
+    final matchingSpecs=SettingKeys.all.where((item)=>item.name==key).toList();
+    if(matchingSpecs.isEmpty)continue;
+    final spec=matchingSpecs.first;final raw=value.toString();String? normalized;
+    switch(spec.type){
+     case SettingValueType.boolean:
+      if({'1','true','TRUE'}.contains(raw))normalized='1';
+      if({'0','false','FALSE'}.contains(raw))normalized='0';
+     case SettingValueType.integer:
+      if(int.tryParse(raw)!=null)normalized=raw;
+     case SettingValueType.real:
+      if(double.tryParse(raw)!=null)normalized=raw;
+     case SettingValueType.string:
+      if(spec.allowedValues.isEmpty||spec.allowedValues.contains(raw))normalized=raw;
+     case SettingValueType.json:
+      try{jsonDecode(raw);normalized=raw;}catch(_){}
+    }
+    if(normalized!=null)await db.update('system_settings',{'setting_value':normalized},where:'setting_key=?',whereArgs:[key]);
    }
   }
   await db.execute('''CREATE TABLE IF NOT EXISTS import_jobs(
