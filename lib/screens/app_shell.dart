@@ -62,7 +62,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver{
     return Focus(autofocus:true,onKeyEvent:(node,event){
       if(event is! KeyDownEvent)return KeyEventResult.ignored;
       final key=event.logicalKey;
-      if(HardwareKeyboard.instance.isControlPressed&&key==LogicalKeyboardKey.keyK){_showQuickSearch();return KeyEventResult.handled;}
+      if(HardwareKeyboard.instance.isControlPressed&&key==LogicalKeyboardKey.keyK){_showQuickSearch(visibleIndexes,titles);return KeyEventResult.handled;}
       final functionKeys=[LogicalKeyboardKey.f1,LogicalKeyboardKey.f2,LogicalKeyboardKey.f3,LogicalKeyboardKey.f4,LogicalKeyboardKey.f5,LogicalKeyboardKey.f6,LogicalKeyboardKey.f7,LogicalKeyboardKey.f8,LogicalKeyboardKey.f9,LogicalKeyboardKey.f10,LogicalKeyboardKey.f11,LogicalKeyboardKey.f12];
       final target=functionKeys.indexOf(key);if(target>=0){if(target<visibleIndexes.length)setState(()=>index=visibleIndexes[target]);return KeyEventResult.handled;}
       return KeyEventResult.ignored;
