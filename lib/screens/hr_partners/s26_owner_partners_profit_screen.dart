@@ -261,10 +261,7 @@ class _S26OwnerPartnersProfitScreenState extends State<S26OwnerPartnersProfitScr
               Expanded(
                 child:ResponsiveLayout(
                   mobile:LahAlayhTable(rows:ledgerRows),
-                  desktop:SingleChildScrollView(
-                    scrollDirection:Axis.horizontal,
-                    child:LahAlayhTable(rows:ledgerRows,forceTable:true),
-                  ),
+                  desktop:LahAlayhTable(rows:ledgerRows,forceTable:true),
                 ),
               ),
             ],
