@@ -139,7 +139,7 @@ class AuditService {
   for(final row in rows){
    final expected=_hash(_canonical(prevHash:previous,eventAt:row['event_at'] as String,userId:row['user_id'] as int?,action:row['action'] as String,entityType:row['entity_type'] as String?,entityId:row['entity_id'] as int?,oldValues:row['old_values_json'] as String?,newValues:row['new_values_json'] as String?));
    final actual=row['row_hash'] as String?;
-   if(row['prev_hash']!=previous||actual!=expected)return ChainVerificationResult(isValid:false,checkedRows:checked,firstInvalidId:row['id'] as int,expectedHash:expected,actualHash:actual);
+   if(actual==null||row['prev_hash']!=previous||actual!=expected)return ChainVerificationResult(isValid:false,checkedRows:checked,firstInvalidId:row['id'] as int,expectedHash:expected,actualHash:actual);
    previous=actual;checked++;
   }
   return ChainVerificationResult(isValid:true,checkedRows:checked);
