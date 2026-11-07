@@ -64,9 +64,7 @@ void main() {
         'insurance_companies', 'employees', 'partners', 'expenses',
         'cashier_shifts', 'journal_entries', 'lah_alayh_ledger',
       ]) {
-        counts[table] = Sqflite.firstIntValue(
-          await db.rawQuery('SELECT COUNT(*) FROM $table'),
-        ) ?? 0;
+        counts[table] = (await db.rawQuery('SELECT COUNT(*) AS count FROM $table').then((rows) => rows.first['count'] as int));
       }
       for (final entry in counts.entries) {
         expect(entry.value, 0, reason: 'Unexpected demo/business rows in ${entry.key}');
