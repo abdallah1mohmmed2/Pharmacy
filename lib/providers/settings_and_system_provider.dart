@@ -25,7 +25,7 @@ class SettingsAndSystemProvider extends ChangeNotifier {
  final PeriodGuard periods;
  bool loading=false,busy=false;
  String? error;
- List<Map<String,Object?>> userRows=[];
+ List<Map<String,Object?>> userRows=[],drugCategories=[];
  List<ImportJobModel> importJobs=[];
  List<AuditLogModel> auditLogs=[];
  List<Map<String,Object?>> backupLogs=[],syncSummary=[],roleRows=[],periodRows=[];
@@ -47,6 +47,7 @@ class SettingsAndSystemProvider extends ChangeNotifier {
   syncSummary=await backup.queueSummary();
   roleRows=await _helper.rawQuery('SELECT rp.role_code,r.role_name_ar,rp.permission_code,rp.is_allowed FROM role_permissions rp JOIN roles r ON r.role_code=rp.role_code ORDER BY rp.role_code,rp.permission_code');
   userRows=await _helper.rawQuery('SELECT id,username,full_name,COALESCE(system_role_code,role_code) AS role_code,is_active FROM users WHERE is_deleted=0 ORDER BY full_name');
+  drugCategories=await _helper.rawQuery('SELECT id,name_ar,name_en FROM drug_categories WHERE is_deleted=0 ORDER BY name_ar');
   periodRows=await _helper.query('fiscal_periods',orderBy:'start_date DESC');
  }
  Future<void> changeSetting(SettingKey key,Object value,{String? managerPin,required int? userId,int branchId=1,String? reason}) async {
