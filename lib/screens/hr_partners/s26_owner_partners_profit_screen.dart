@@ -191,46 +191,334 @@ class _S26OwnerPartnersProfitScreenState extends State<S26OwnerPartnersProfitScr
     final approved=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('تغيير نظام توزيع الأرباح'),content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[Text(mode=='shares'?'سيتم مسح النسب المئوية لجميع الشركاء وإلزامهم بإدخال الحصص.':'سيتم مسح عدد الحصص لجميع الشركاء وإلزامهم بإدخال النسب.'),TextField(controller:pin,obscureText:true,decoration:const InputDecoration(labelText:'رمز اعتماد المالك / المدير'))])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()async{final ok=await session.verifyManagerPin(pin.text);if(ctx.mounted)Navigator.pop(ctx,ok);},child:const Text('اعتماد التغيير'))]));pin.dispose();
     if(approved==true){try{final managerId=session.consumeVerifiedManagerUserId();if(managerId==null)throw StateError('تعذر تحديد هوية المدير المعتمد');await p.switchDistributionMode(mode,managerUserId:managerId);if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم تغيير نمط التوزيع وقفل الحقول المقابلة')));}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}}
   }
-  Future<void> _addPartner(BuildContext context,TreasuryHrPartnerProvider p)async{
-    final mode=p.partnerPolicy.mode;final name=TextEditingController(),code=TextEditingController(text:'PART-${DateTime.now().millisecondsSinceEpoch}'),capital=TextEditingController(text:'0'),shares=TextEditingController(text:mode=='percentage'?'—':''),percentage=TextEditingController(text:mode=='shares'?'—':'');
-    await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(title:const Text('إضافة شريك'),content:SizedBox(width:430,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-      TextField(controller:name,decoration:const InputDecoration(labelText:'اسم الشريك')),TextField(controller:code,decoration:const InputDecoration(labelText:'كود الشريك')),TextField(controller:capital,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'رأس المال')),
-      TextField(controller:shares,enabled:mode=='shares',keyboardType:TextInputType.number,decoration:InputDecoration(labelText:'عدد الحصص',suffixIcon:mode=='shares'?null:const Icon(Icons.lock),helperText:mode=='shares'?'مفتوح في نظام الحصص':'مقفل لأن النظام مضبوط على النسب')),
-      TextField(controller:percentage,enabled:mode=='percentage',keyboardType:TextInputType.number,decoration:InputDecoration(labelText:'النسبة المئوية (%)',suffixIcon:mode=='percentage'?null:const Icon(Icons.lock),helperText:mode=='shares'?'معطّل إجبارياً لأن النظام مضبوط على توزيع الحصص':'مفتوح في نظام النسب'))
-    ]))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{try{final sh=mode=='shares'?int.parse(shares.text):null;final pc=mode=='percentage'?double.parse(percentage.text):null;await p.validatePartnerFields(shares:sh,percentage:pc);final db=await DatabaseHelper.instance.database;final now=DateTime.now().toIso8601String();final partyId=await db.insert('parties',{'uuid':'partner-${DateTime.now().microsecondsSinceEpoch}','branch_id':p.branchId,'created_at':now,'updated_at':now,'party_type':'PARTNER','code':code.text.trim(),'name_ar':name.text.trim(),'opening_alayh':0,'opening_lah':0});await db.insert('partners',{'party_id':partyId,'capital_amount':double.tryParse(capital.text)??0,'shares_count':sh,'percentage':pc,'needs_input':0,'join_date':now.substring(0,10),'is_active':1,'branch_id':p.branchId});if(ctx.mounted)Navigator.pop(ctx);await p.refresh();}catch(e){if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content:Text(e.toString())));}},child:const Text('حفظ الشريك'))]));
-    name.dispose();code.dispose();capital.dispose();shares.dispose();percentage.dispose();
+  Future<void> _addPartner(BuildContext context, TreasuryHrPartnerProvider p) async {
+    final mode = p.partnerPolicy.mode;
+    final name = TextEditingController();
+    final code = TextEditingController(
+      text: 'PART-${DateTime.now().millisecondsSinceEpoch}',
+    );
+    final capital = TextEditingController(text: '0');
+    final shares = TextEditingController(text: mode == 'percentage' ? '—' : '');
+    final percentage = TextEditingController(text: mode == 'shares' ? '—' : '');
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('إضافة شريك'),
+        content: SizedBox(
+          width: 430,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: name, decoration: const InputDecoration(labelText: 'اسم الشريك')),
+                TextField(controller: code, decoration: const InputDecoration(labelText: 'كود الشريك')),
+                TextField(controller: capital, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'رأس المال')),
+                TextField(controller: shares, enabled: mode == 'shares', keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'عدد الحصص', suffixIcon: mode == 'shares' ? null : const Icon(Icons.lock))),
+                TextField(controller: percentage, enabled: mode == 'percentage', keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'النسبة المئوية (%)', suffixIcon: mode == 'percentage' ? null : const Icon(Icons.lock))),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          FilledButton(
+            onPressed: () async {
+              try {
+                final partnerName = name.text.trim();
+                final partnerCode = code.text.trim();
+                final capitalValue = double.tryParse(capital.text);
+                if (partnerName.isEmpty || partnerCode.isEmpty) {
+                  throw ArgumentError('اسم الشريك والكود مطلوبان');
+                }
+                if (capitalValue == null || capitalValue < 0) {
+                  throw ArgumentError('رأس المال يجب أن يكون صفراً أو أكبر');
+                }
+                final sh = mode == 'shares' ? int.parse(shares.text) : null;
+                final pc = mode == 'percentage' ? double.parse(percentage.text) : null;
+                await p.validatePartnerFields(shares: sh, percentage: pc);
+                final db = await DatabaseHelper.instance.database;
+                final now = DateTime.now().toIso8601String();
+                await db.transaction((txn) async {
+                  final partyId = await txn.insert('parties', {
+                    'uuid': 'partner-${DateTime.now().microsecondsSinceEpoch}',
+                    'branch_id': p.branchId,
+                    'created_at': now,
+                    'updated_at': now,
+                    'party_type': 'PARTNER',
+                    'code': partnerCode,
+                    'name_ar': partnerName,
+                    'opening_alayh': 0,
+                    'opening_lah': 0,
+                  });
+                  await txn.insert('partners', {
+                    'party_id': partyId,
+                    'capital_amount': capitalValue,
+                    'shares_count': sh,
+                    'percentage': pc,
+                    'needs_input': 0,
+                    'join_date': now.substring(0, 10),
+                    'is_active': 1,
+                    'branch_id': p.branchId,
+                  });
+                });
+                if (ctx.mounted) Navigator.pop(ctx);
+                await p.refresh();
+              } catch (e) {
+                if (ctx.mounted) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(e.toString())));
+                }
+              }
+            },
+            child: const Text('حفظ الشريك'),
+          ),
+        ],
+      ),
+    );
+    name.dispose();
+    code.dispose();
+    capital.dispose();
+    shares.dispose();
+    percentage.dispose();
   }
 
-  Future<void> _editPartner(BuildContext context,TreasuryHrPartnerProvider p,Map<String,Object?> partner)async{
-    final mode=p.partnerPolicy.mode;
-    final name=TextEditingController(text:partner['name_ar']?.toString()??'');
-    final capital=TextEditingController(text:((partner['capital_amount'] as num?)??0).toString());
-    final shares=TextEditingController(text:mode=='shares'?(partner['shares_count']?.toString()??'0'):'—');
-    final percentage=TextEditingController(text:mode=='percentage'?(partner['percentage']?.toString()??'0'):'—');
-    await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(title:const Text('تعديل بيانات الشريك'),content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-      TextField(controller:name,decoration:const InputDecoration(labelText:'اسم الشريك')),
-      TextField(controller:capital,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'رأس المال')),
-      TextField(controller:shares,enabled:mode=='shares',keyboardType:TextInputType.number,decoration:InputDecoration(labelText:'عدد الحصص',suffixIcon:mode=='shares'?null:const Icon(Icons.lock))),
-      TextField(controller:percentage,enabled:mode=='percentage',keyboardType:TextInputType.number,decoration:InputDecoration(labelText:'النسبة المئوية (%)',suffixIcon:mode=='percentage'?null:const Icon(Icons.lock))),
-    ])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{try{
-      final sh=mode=='shares'?int.parse(shares.text):null;final pc=mode=='percentage'?double.parse(percentage.text):null;
-      await p.validatePartnerFields(shares:sh,percentage:pc);
-      final db=await DatabaseHelper.instance.database;
-      await db.update('parties',{'name_ar':name.text.trim(),'updated_at':DateTime.now().toIso8601String()},where:'id=?',whereArgs:[partner['party_id']]);
-      await db.update('partners',{'capital_amount':double.parse(capital.text),'shares_count':sh,'percentage':pc,'needs_input':0},where:'id=?',whereArgs:[partner['id']]);
-      if(ctx.mounted)Navigator.pop(ctx);await p.refresh();
-    }catch(e){if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content:Text(e.toString())));}},child:const Text('حفظ التعديلات'))]));
-    name.dispose();capital.dispose();shares.dispose();percentage.dispose();
+  Future<void> _editPartner(BuildContext context, TreasuryHrPartnerProvider p, Map<String, Object?> partner) async {
+    final mode = p.partnerPolicy.mode;
+    final name = TextEditingController(text: partner['name_ar']?.toString() ?? '');
+    final capital = TextEditingController(text: ((partner['capital_amount'] as num?) ?? 0).toString());
+    final shares = TextEditingController(text: mode == 'shares' ? (partner['shares_count']?.toString() ?? '0') : '—');
+    final percentage = TextEditingController(text: mode == 'percentage' ? (partner['percentage']?.toString() ?? '0') : '—');
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تعديل بيانات الشريك'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: name, decoration: const InputDecoration(labelText: 'اسم الشريك')),
+              TextField(controller: capital, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'رأس المال')),
+              TextField(controller: shares, enabled: mode == 'shares', keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'عدد الحصص', suffixIcon: mode == 'shares' ? null : const Icon(Icons.lock))),
+              TextField(controller: percentage, enabled: mode == 'percentage', keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'النسبة المئوية (%)', suffixIcon: mode == 'percentage' ? null : const Icon(Icons.lock))),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          FilledButton(
+            onPressed: () async {
+              try {
+                final partnerName = name.text.trim();
+                final capitalValue = double.parse(capital.text);
+                if (partnerName.isEmpty || capitalValue < 0) {
+                  throw ArgumentError('تحقق من اسم الشريك ورأس المال');
+                }
+                final sh = mode == 'shares' ? int.parse(shares.text) : null;
+                final pc = mode == 'percentage' ? double.parse(percentage.text) : null;
+                await p.validatePartnerFields(shares: sh, percentage: pc);
+                final db = await DatabaseHelper.instance.database;
+                final now = DateTime.now().toIso8601String();
+                await db.transaction((txn) async {
+                  final partyChanged = await txn.update(
+                    'parties',
+                    {'name_ar': partnerName, 'updated_at': now},
+                    where: 'id=? AND branch_id=?',
+                    whereArgs: [partner['party_id'], p.branchId],
+                  );
+                  final partnerChanged = await txn.update(
+                    'partners',
+                    {
+                      'capital_amount': capitalValue,
+                      'shares_count': sh,
+                      'percentage': pc,
+                      'needs_input': 0,
+                    },
+                    where: 'id=? AND branch_id=?',
+                    whereArgs: [partner['id'], p.branchId],
+                  );
+                  if (partyChanged != 1 || partnerChanged != 1) {
+                    throw StateError('الشريك غير موجود في الفرع الحالي');
+                  }
+                });
+                if (ctx.mounted) Navigator.pop(ctx);
+                await p.refresh();
+              } catch (e) {
+                if (ctx.mounted) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(e.toString())));
+                }
+              }
+            },
+            child: const Text('حفظ التعديلات'),
+          ),
+        ],
+      ),
+    );
+    name.dispose();
+    capital.dispose();
+    shares.dispose();
+    percentage.dispose();
   }
 
-  Future<void> _withdraw(BuildContext context,TreasuryHrPartnerProvider p,Map<String,Object?> partner)async{
-    if(p.cashAccounts.isEmpty)return;int account=p.cashAccounts.first['id'] as int;final amount=TextEditingController(),note=TextEditingController(text:'سحب شخصي للشريك');
-    await showDialog<void>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,set)=>AlertDialog(title:Text('سحب شخصي • ${partner['name_ar']}'),content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-      DropdownButtonFormField<int>(value:account,items:p.cashAccounts.map((a)=>DropdownMenuItem(value:a['id'] as int,child:Text(a['name_ar'].toString()))).toList(),onChanged:(v)=>set(()=>account=v??account)),
-      TextField(controller:amount,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'المبلغ')),TextField(controller:note,decoration:const InputDecoration(labelText:'البيان'))
-    ])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{try{final db=await DatabaseHelper.instance.database;final value=double.parse(amount.text);final cash=(await db.query('cash_accounts',where:'id=?',whereArgs:[account],limit:1)).first;if((cash['current_balance'] as num)<value)throw StateError('رصيد الحساب لا يكفي');final partyId=partner['party_id'] as int;final now=DateTime.now().toIso8601String();final gl=(await db.query('chart_of_accounts',columns:['id'],where:"code='2301'",limit:1)).first['id'] as int;final cashGl=cash['gl_account_id'] as int;final je=await db.insert('journal_entries',{'uuid':'partner-withdraw-je-${DateTime.now().microsecondsSinceEpoch}','branch_id':p.branchId,'created_at':now,'updated_at':now,'entry_no':'PW-${DateTime.now().millisecondsSinceEpoch}','entry_date':now,'description':note.text,'source_type':'PARTNER_WITHDRAWAL','is_posted':1});await db.insert('journal_lines',{'uuid':'pwl1-${DateTime.now().microsecondsSinceEpoch}','branch_id':p.branchId,'created_at':now,'updated_at':now,'journal_entry_id':je,'account_id':gl,'party_id':partyId,'dr_amount':value,'cr_amount':0,'memo':note.text});await db.insert('journal_lines',{'uuid':'pwl2-${DateTime.now().microsecondsSinceEpoch}','branch_id':p.branchId,'created_at':now,'updated_at':now,'journal_entry_id':je,'account_id':cashGl,'dr_amount':0,'cr_amount':value,'memo':note.text});final bal=(cash['current_balance'] as num).toDouble()-value;await db.update('cash_accounts',{'current_balance':bal,'updated_at':now},where:'id=?',whereArgs:[account]);final shiftRows=await db.query('cashier_shifts',columns:['id'],where:"branch_id=? AND drawer_account_id=? AND status='OPEN'",whereArgs:[p.branchId,account],orderBy:'id DESC',limit:1);final txId=await db.insert('cash_transactions',{'cash_account_id':account,'tx_date':now,'direction':'OUT','amount':value,'tx_type':'PARTNER_WITHDRAWAL','doc_type':'JOURNAL','doc_id':je,'cashier_shift_id':shiftRows.isEmpty?null:shiftRows.first['id'],'balance_after':bal,'note':note.text,'branch_id':p.branchId});await db.insert('lah_alayh_ledger',{'uuid':'partner-withdraw-ledger-${DateTime.now().microsecondsSinceEpoch}','branch_id':p.branchId,'created_at':now,'updated_at':now,'party_id':partyId,'entry_date':now,'entry_type':'PARTNER_WITHDRAWAL','alayh_amount':value,'lah_amount':0,'doc_type':'CASH_TRANSACTION','doc_id':txId,'journal_entry_id':je,'statement_ar':note.text});if(ctx.mounted)Navigator.pop(ctx);await p.refresh();}catch(e){if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content:Text(e.toString())));}},child:const Text('تسجيل السحب'))])));
-    amount.dispose();note.dispose();
+  Future<void> _withdraw(BuildContext context, TreasuryHrPartnerProvider p, Map<String, Object?> partner) async {
+    if (p.cashAccounts.isEmpty) return;
+    int account = p.cashAccounts.first['id'] as int;
+    final amount = TextEditingController();
+    final note = TextEditingController(text: 'سحب شخصي للشريك');
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, set) => AlertDialog(
+          title: Text('سحب شخصي • ${partner['name_ar']}'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<int>(
+                  value: account,
+                  items: p.cashAccounts.map((a) => DropdownMenuItem(value: a['id'] as int, child: Text(a['name_ar'].toString()))).toList(),
+                  onChanged: (v) => set(() => account = v ?? account),
+                ),
+                TextField(controller: amount, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'المبلغ')),
+                TextField(controller: note, decoration: const InputDecoration(labelText: 'البيان')),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+            FilledButton(
+              onPressed: () async {
+                try {
+                  final value = double.parse(amount.text);
+                  if (value <= 0) throw ArgumentError('المبلغ يجب أن يكون أكبر من صفر');
+                  final db = await DatabaseHelper.instance.database;
+                  final now = DateTime.now().toIso8601String();
+                  final partyId = partner['party_id'] as int;
+                  await db.transaction((txn) async {
+                    final partnerRows = await txn.query(
+                      'partners',
+                      columns: ['id'],
+                      where: 'id=? AND party_id=? AND branch_id=? AND is_active=1',
+                      whereArgs: [partner['id'], partyId, p.branchId],
+                      limit: 1,
+                    );
+                    if (partnerRows.isEmpty) throw StateError('الشريك غير موجود في الفرع الحالي');
+                    final cashRows = await txn.query(
+                      'cash_accounts',
+                      where: 'id=? AND branch_id=? AND is_deleted=0',
+                      whereArgs: [account, p.branchId],
+                      limit: 1,
+                    );
+                    if (cashRows.isEmpty) throw StateError('حساب النقد غير موجود في الفرع الحالي');
+                    final cash = cashRows.first;
+                    final currentBalance = (cash['current_balance'] as num).toDouble();
+                    if (currentBalance < value) throw StateError('رصيد الحساب لا يكفي');
+                    final glRows = await txn.query(
+                      'chart_of_accounts',
+                      columns: ['id'],
+                      where: "code='2301'",
+                      limit: 1,
+                    );
+                    if (glRows.isEmpty) throw StateError('حساب سحوبات الشركاء غير موجود في دليل الحسابات');
+                    final cashGl = cash['gl_account_id'] as int?;
+                    if (cashGl == null) throw StateError('اربط حساب النقد بدليل الحسابات');
+                    final token = DateTime.now().microsecondsSinceEpoch;
+                    final je = await txn.insert('journal_entries', {
+                      'uuid': 'partner-withdraw-je-$token',
+                      'branch_id': p.branchId,
+                      'created_at': now,
+                      'updated_at': now,
+                      'entry_no': 'PW-$token',
+                      'entry_date': now,
+                      'description': note.text.trim(),
+                      'source_type': 'PARTNER_WITHDRAWAL',
+                      'source_id': partner['id'],
+                      'is_posted': 1,
+                    });
+                    await txn.insert('journal_lines', {
+                      'uuid': 'pwl1-$token',
+                      'branch_id': p.branchId,
+                      'created_at': now,
+                      'updated_at': now,
+                      'journal_entry_id': je,
+                      'account_id': glRows.first['id'],
+                      'party_id': partyId,
+                      'dr_amount': value,
+                      'cr_amount': 0,
+                      'memo': note.text.trim(),
+                    });
+                    await txn.insert('journal_lines', {
+                      'uuid': 'pwl2-$token',
+                      'branch_id': p.branchId,
+                      'created_at': now,
+                      'updated_at': now,
+                      'journal_entry_id': je,
+                      'account_id': cashGl,
+                      'party_id': null,
+                      'dr_amount': 0,
+                      'cr_amount': value,
+                      'memo': note.text.trim(),
+                    });
+                    final balanceAfter = currentBalance - value;
+                    await txn.update(
+                      'cash_accounts',
+                      {'current_balance': balanceAfter, 'updated_at': now},
+                      where: 'id=? AND branch_id=?',
+                      whereArgs: [account, p.branchId],
+                    );
+                    final shiftRows = await txn.query(
+                      'cashier_shifts',
+                      columns: ['id'],
+                      where: "branch_id=? AND drawer_account_id=? AND status='OPEN'",
+                      whereArgs: [p.branchId, account],
+                      orderBy: 'id DESC',
+                      limit: 1,
+                    );
+                    final txId = await txn.insert('cash_transactions', {
+                      'cash_account_id': account,
+                      'tx_date': now,
+                      'direction': 'OUT',
+                      'amount': value,
+                      'tx_type': 'PARTNER_WITHDRAWAL',
+                      'doc_type': 'JOURNAL',
+                      'doc_id': je,
+                      'cashier_shift_id': shiftRows.isEmpty ? null : shiftRows.first['id'],
+                      'balance_after': balanceAfter,
+                      'note': note.text.trim(),
+                      'branch_id': p.branchId,
+                    });
+                    await txn.insert('lah_alayh_ledger', {
+                      'uuid': 'partner-withdraw-ledger-$token',
+                      'branch_id': p.branchId,
+                      'created_at': now,
+                      'updated_at': now,
+                      'party_id': partyId,
+                      'entry_date': now,
+                      'entry_type': 'PARTNER_WITHDRAWAL',
+                      'alayh_amount': value,
+                      'lah_amount': 0,
+                      'doc_type': 'CASH_TRANSACTION',
+                      'doc_id': txId,
+                      'journal_entry_id': je,
+                      'statement_ar': note.text.trim(),
+                    });
+                  });
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  await p.refresh();
+                } catch (e) {
+                  if (ctx.mounted) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(e.toString())));
+                  }
+                }
+              },
+              child: const Text('تسجيل السحب'),
+            ),
+          ],
+        ),
+      ),
+    );
+    amount.dispose();
+    note.dispose();
   }
+
   Future<void> _statement(BuildContext context,Map<String,Object?> partner)async{
     final rows=await DatabaseHelper.instance.rawQuery(
       'SELECT * FROM lah_alayh_ledger WHERE party_id=? ORDER BY entry_date,id',
