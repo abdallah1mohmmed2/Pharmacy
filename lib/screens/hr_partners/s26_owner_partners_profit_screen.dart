@@ -105,7 +105,7 @@ class _S26OwnerPartnersProfitScreenState extends State<S26OwnerPartnersProfitScr
   }
   Widget _profit(TreasuryHrPartnerProvider p){
     final summary=p.profitSummary;final net=summary['net_profit']??0;
-    return ListView(padding:const EdgeInsets.all(12),children:[
+    return ListView(padding:const EdgeInsets.all(12),keyboardDismissBehavior:ScrollViewKeyboardDismissBehavior.onDrag,children:[
       TextField(controller:period,decoration:const InputDecoration(labelText:'الفترة (YYYY-MM)')),
       TextField(controller:reserve,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'نسبة الاحتياطي المحتجز %')),
       FilledButton.icon(onPressed:calculating?null:()async{setState(()=>calculating=true);try{await p.calculateProfit(period.text.trim());}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}if(mounted)setState(()=>calculating=false);},icon:const Icon(Icons.calculate),label:const Text('حساب قائمة الدخل وصافي الربح')),
