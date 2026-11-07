@@ -26,6 +26,15 @@ class PartnerDistributionService {
   PartnerDistributionService({DatabaseHelper? helper}):_helper=helper??DatabaseHelper.instance;
   final DatabaseHelper _helper;
   String _now()=>DateTime.now().toIso8601String();
+  static List<double> allocateProfitExactly({required double profit,required List<double> basis}){
+    final total=basis.fold<double>(0,(a,b)=>a+b);
+    if(profit<0||basis.isEmpty||basis.any((v)=>v<0)||total<=0)throw ArgumentError('أساس توزيع الأرباح غير صالح');
+    final amounts=basis.map((v)=>((profit*v/total)*100).roundToDouble()/100).toList();
+    var largest=0;for(var i=1;i<basis.length;i++){if(basis[i]>basis[largest])largest=i;}
+    final allocated=amounts.fold<double>(0,(a,b)=>a+b);
+    amounts[largest]=((amounts[largest]+profit-allocated)*100).roundToDouble()/100;
+    return amounts;
+  }
   String _uuid(String p)=>'$p-${DateTime.now().microsecondsSinceEpoch}';
   double _n(Object? v)=>v is num?v.toDouble():double.tryParse('$v')??0;
 
@@ -74,17 +83,17 @@ class PartnerDistributionService {
       basisTotal=partners.fold<double>(0,(s,r)=>s+_n(r['percentage']));
       if((basisTotal-100).abs()>0.000001)throw StateError('مجموع نسب الشركاء النشطين يجب أن يساوي 100%');
     }
-    final result=<Map<String,Object?>>[];double allocated=0;int largestIndex=0;double largestBasis=-1;
-    for(final partner in partners){
-      final basis=p.mode=='shares'?_n(partner['shares_count']):_n(partner['percentage']);
-      if(basis>largestBasis){largestBasis=basis;largestIndex=result.length;}
-      final amount=((distributableProfit*(basis/basisTotal))*100).roundToDouble()/100;allocated+=amount;
+    final result=<Map<String,Object?>>[];
+    final basisValues=partners.map((partner)=>p.mode=='shares'?_n(partner['shares_count']):_n(partner['percentage'])).toList();
+    final allocatedAmounts=allocateProfitExactly(profit:distributableProfit,basis:basisValues);
+    for(var partnerIndex=0;partnerIndex<partners.length;partnerIndex++){
+      final partner=partners[partnerIndex];
+      final basis=basisValues[partnerIndex];
+      final amount=allocatedAmounts[partnerIndex];
       final withdrawals=await db.rawQuery("SELECT COALESCE(SUM(alayh_amount),0) total FROM lah_alayh_ledger WHERE party_id=? AND substr(entry_date,1,7)=? AND entry_type IN('PARTNER_WITHDRAWAL','PARTNER_PERSONAL_WITHDRAWAL')",[partner['party_id'],periodCode]);
       final withdrawn=_n(withdrawals.first['total']);
       result.add({'partner_id':partner['id'],'party_id':partner['party_id'],'name_ar':partner['name_ar'],'basis_value':basis,'share_amount_lah':amount,'withdrawals_alayh':withdrawn,'net_payable':amount-withdrawn});
     }
-    final remainder=((distributableProfit-allocated)*100).roundToDouble()/100;
-    if(remainder.abs()>=0.005&&result.isNotEmpty){final row=result[largestIndex];final corrected=_n(row['share_amount_lah'])+remainder;row['share_amount_lah']=corrected;row['net_payable']=corrected-_n(row['withdrawals_alayh']);}
     return result;
   }
 
