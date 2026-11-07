@@ -91,6 +91,7 @@ abstract final class SchemaIteration6 {
   )''');
   await _installPeriodTriggers(db);
   await _installRelatedPeriodTriggers(db);
+  await _installDistributionPeriodTriggers(db);
   await db.execute('''CREATE TABLE IF NOT EXISTS roles(
    role_code TEXT PRIMARY KEY,role_name_ar TEXT NOT NULL,is_system INTEGER NOT NULL DEFAULT 1
   )''');
@@ -145,6 +146,17 @@ abstract final class SchemaIteration6 {
    previous=hash;
   }
   await db.execute('ALTER TABLE audit_logs_legacy_i5 RENAME TO audit_logs_legacy_i5_migrated');
+ }
+
+ static Future<void> _installDistributionPeriodTriggers(DatabaseExecutor db) async {
+  final tables=await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='partner_distributions'");
+  if(tables.isEmpty)return;
+  for(final event in ['INSERT','UPDATE']){
+   final trigger='trg_period_partner_distributions_'+event.toLowerCase();
+   await db.execute('DROP TRIGGER IF EXISTS '+trigger);
+   final sql="CREATE TRIGGER "+trigger+" BEFORE "+event+" ON partner_distributions WHEN EXISTS(SELECT 1 FROM fiscal_periods p WHERE p.status='CLOSED' AND p.period_code=NEW.period_code) OR (json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'$.locked_through') IS NOT NULL AND NEW.period_code<=substr(json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'$.locked_through'),1,7)) BEGIN SELECT RAISE(ABORT,'FISCAL_PERIOD_CLOSED'); END";
+   await db.execute(sql);
+  }
  }
 
  static Future<void> _installRelatedPeriodTriggers(DatabaseExecutor db) async {
