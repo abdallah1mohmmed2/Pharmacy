@@ -160,15 +160,25 @@ def main() -> int:
         grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
         barcode_index: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for item in records:
-            name = first_value(item, "trade_name_ar", "tradeNameAr")
-            prefix = "".join(list(normalize_text(name))[:2])
-            if not prefix:
-                raise ValueError(f"Cannot derive a search prefix for {item['catalog_uuid']}.")
-            grouped[prefix].append(item)
+            # Index every distinct two-character token prefix so Arabic trade
+            # names and English/scientific synonyms are both discoverable.
+            tokens = searchable_text(item).split()
+            prefixes = {token[:2] for token in tokens if len(token) >= 2}
+            if not prefixes:
+                raise ValueError(f"Cannot derive a searchable prefix for {item['catalog_uuid']}.")
+            for prefix in prefixes:
+                grouped[prefix].append(item)
             for key in ("barcode_international", "barcode_local", "barcode"):
                 barcode = first_value(item, key)
                 if BARCODE_RE.fullmatch(barcode):
                     barcode_index[barcode].append(item)
+
+        # A stable content ETag is embedded in every static response as well
+        # as the manifest, because Firebase Hosting does not synthesize JSON
+        # response headers from payload fields.
+        canonical = json.dumps(records, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        etag = f'W/"cat-v{version}-{digest[:16]}"'
 
         search_dir = output / "search"
         for prefix, entries in sorted(grouped.items()):
@@ -180,6 +190,7 @@ def main() -> int:
                 write_json(search_dir / f"{shard_name}.json", {
                     "ok": True,
                     "catalog_version": version,
+                    "etag": etag,
                     "count": len(page_items),
                     "next_cursor": next_cursor,
                     "items": page_items,
@@ -191,16 +202,12 @@ def main() -> int:
             write_json(output / "barcodes" / f"{barcode}.json", {
                 "ok": True,
                 "catalog_version": version,
+                "etag": etag,
                 "count": 1,
                 "next_cursor": None,
                 "items": matches,
             })
 
-        digest = hashlib.sha256()
-        for path in sorted(output.rglob("*.json")):
-            digest.update(path.relative_to(output).as_posix().encode("utf-8"))
-            digest.update(path.read_bytes())
-        etag = f'W/"cat-v{version}-{digest.hexdigest()[:16]}"'
         write_json(output / "manifest.json", {
             "ok": True,
             "catalog_version": version,
