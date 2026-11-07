@@ -1,3 +1,8 @@
+## استكمال إصلاح compileSdk لوحدات Android — 2026-11-07
+- كشف سجل البناء أن رفع compileSdk لتطبيق Android وحده لا يكفي؛ وحدة `file_picker` التابعة لـPub ما زالت تُبنى على API 34 وتفشل عند فحص اعتماد `flutter_plugin_android_lifecycle` الذي يتطلب API 36.
+- توسيع CI ليضبط compileSdk إلى 36 داخل ملفات Gradle لوحدات Android الخاصة بالحزم بعد `flutter pub get`، مع فحص صريح للتأكد من معالجة `file_picker` و`flutter_plugin_android_lifecycle`.
+- بناء Windows وتحليل Dart واختبارات Flutter نجحت في التشغيل السابق، لكن APK لم يُبنَ بعد؛ التحقق النهائي ينتظر CI جديداً.
+
 ## إصلاح بناء Android — 2026-11-07
 - أظهر بناء APK أن `flutter_plugin_android_lifecycle` يتطلب Android compileSdk 36 بينما مشروع Android الذي يولّده قالب Flutter في CI كان يستخدم API 34.
 - تحديث سير CI لضبط compileSdk إلى 36 مباشرة بعد توليد مشروع Android، مع الإبقاء على targetSdk وminSdk دون تغيير.
