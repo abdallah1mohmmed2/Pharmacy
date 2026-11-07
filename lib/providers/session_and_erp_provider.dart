@@ -23,7 +23,7 @@ class SessionAndErpProvider extends ChangeNotifier {
   Future<bool> login(String username,String password) async {
     final rows=await _db.rawQuery('SELECT * FROM users WHERE username=? AND is_active=1 AND is_deleted=0',[username.trim()]);
     if(rows.isEmpty || !SecurityHashService.verify(password,rows.first['password_hash'] as String))return false;
-    currentUser=rows.first;branchId=rows.first['branch_id'] as int;notifyListeners();await refresh();return true;
+    currentUser=Map<String,Object?>.from(rows.first)..['role_code']=rows.first['system_role_code']??rows.first['role_code'];branchId=rows.first['branch_id'] as int;notifyListeners();await refresh();return true;
   }
   int? _verifiedManagerUserId;
   int? consumeVerifiedManagerUserId(){final id=_verifiedManagerUserId;_verifiedManagerUserId=null;return id;}
