@@ -273,19 +273,18 @@ class _S16PurchaseInvoiceBonusScreenState
     PosAndDrugsProvider pos,
     InventoryAndPurchaseProvider inventory,
   ) async {
-    final selectedDrug = pos.drugs.where((item) => item.id == drug).toList();
-    final coldRequired =
-        selectedDrug.isNotEmpty && selectedDrug.first.requiresRefrigeration;
-    final shelves = inventory.shelves
-        .where((shelf) => shelf.warehouseId == warehouse)
-        .where((shelf) => !coldRequired || shelf.isFridge)
-        .toList();
-
     await KeyboardSafeModalSheet.show<void>(
       context: context,
       heightFactor: .94,
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, refreshSheet) {
+          final selectedDrug = pos.drugs.where((item) => item.id == drug).toList();
+          final coldRequired =
+              selectedDrug.isNotEmpty && selectedDrug.first.requiresRefrigeration;
+          final shelves = inventory.shelves
+              .where((shelf) => shelf.warehouseId == warehouse)
+              .where((shelf) => !coldRequired || shelf.isFridge)
+              .toList();
           final paidQuantity = int.tryParse(paidPacks.text) ?? 0;
           final bonusQuantity = int.tryParse(bonus.text) ?? 0;
           final unitCost = double.tryParse(price.text) ?? 0;
