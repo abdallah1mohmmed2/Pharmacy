@@ -103,7 +103,7 @@ abstract final class SchemaIteration6 {
   await _ensureColumn(db,'users','system_role_code','TEXT');
   await db.execute('UPDATE users SET system_role_code=role_code WHERE system_role_code IS NULL');
   const roles=<String,String>{'OWNER':'المالك','MANAGER':'مدير','PHARMACIST':'صيدلي','CASHIER':'كاشير','STOREKEEPER':'أمين مخزن','ACCOUNTANT':'محاسب','AUDITOR':'مراجع'};
-  const permissions=<String>['dashboard.view','pos.sell','pos.discount.override','drugs.view','drugs.create','drugs.update','drugs.import','drugs.export','inventory.view','inventory.adjust','inventory.stocktake','purchases.manage','sales.returns','clinical.override','finance.view','finance.manage','partners.manage','reports.view','reports.export','settings.view','settings.manage','settings.manager_pin','audit.view','audit.verify','backup.create','backup.restore','sync.manage','period.close','users.manage','roles.manage'];
+  const permissions=<String>['dashboard.view','pos.sell','pos.discount.override','drugs.view','drugs.create','drugs.update','drugs.import','drugs.export','inventory.view','inventory.adjust','inventory.stocktake','purchases.manage','sales.returns','clinical.override','finance.view','finance.manage','partners.manage','reports.view','reports.export','settings.view','settings.manage','settings.manager_pin','audit.view','audit.verify','backup.create','backup.restore','sync.manage','period.close','users.manage','roles.manage','reports.cost.view'];
   for(final role in roles.entries){
    await db.insert('roles',{'role_code':role.key,'role_name_ar':role.value},conflictAlgorithm:ConflictAlgorithm.ignore);
    for(final permission in permissions){
@@ -111,7 +111,7 @@ abstract final class SchemaIteration6 {
      (role.key=='PHARMACIST'&&{'dashboard.view','pos.sell','drugs.view','drugs.create','drugs.update','inventory.view','clinical.override','reports.view'}.contains(permission))||
      (role.key=='CASHIER'&&{'dashboard.view','pos.sell','drugs.view','reports.view'}.contains(permission))||
      (role.key=='STOREKEEPER'&&{'dashboard.view','drugs.view','inventory.view','inventory.adjust','inventory.stocktake','reports.view'}.contains(permission))||
-     (role.key=='ACCOUNTANT'&&{'dashboard.view','finance.view','finance.manage','partners.manage','reports.view','reports.export','audit.view'}.contains(permission))||
+     (role.key=='ACCOUNTANT'&&{'dashboard.view','finance.view','finance.manage','partners.manage','reports.view','reports.export','audit.view','reports.cost.view'}.contains(permission))||
      (role.key=='AUDITOR'&&{'dashboard.view','reports.view','reports.export','audit.view','audit.verify'}.contains(permission));
     await db.insert('role_permissions',{'role_code':role.key,'permission_code':permission,'is_allowed':allowed?1:0},conflictAlgorithm:ConflictAlgorithm.ignore);
    }

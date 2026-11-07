@@ -4,6 +4,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 
+import '../../data/services/settings_and_audit_service.dart';
+
 import '../../data/database/database_helper.dart';
 import '../../core/utils/label_guard.dart';
 import '../datasources/clinical_and_audit_queries.dart';
@@ -117,24 +119,34 @@ class ReportsCenterProvider extends ChangeNotifier {
     final id = _userId;
     if (id == null) return;
     final db = await _helper.database;
-    final permissions = await db.query(
-      'user_permissions',
-      columns: ['is_allowed'],
-      where: 'user_id=? AND permission_code=?',
-      whereArgs: [id, 'reports.cost.view'],
-      limit: 1,
+    // Iteration 6 uses role_permissions and system_settings as the
+    // authoritative sources. The former user_permissions/app_settings tables
+    // are legacy and are not part of a fresh database.
+    final permissions = await db.rawQuery(
+      '''
+      SELECT rp.is_allowed
+      FROM users u
+      JOIN role_permissions rp
+        ON rp.role_code=COALESCE(u.system_role_code,u.role_code)
+      WHERE u.id=? AND u.is_active=1 AND u.is_deleted=0
+        AND rp.permission_code=?
+      LIMIT 1
+      ''',
+      [id, 'reports.cost.view'],
     );
-    _canViewCost = permissions.isNotEmpty && permissions.first['is_allowed'] == 1;
+    _canViewCost =
+        permissions.isNotEmpty && (permissions.first['is_allowed'] as num) == 1;
     final setting = await db.query(
-      'app_settings',
-      columns: ['value_text'],
+      'system_settings',
+      columns: ['setting_value'],
       where: 'setting_key=?',
-      whereArgs: ['reports.show_cost_to_pharmacist'],
+      whereArgs: ['sales.show_cost_to_pharmacist'],
       limit: 1,
     );
-    _showCostSetting = setting.isNotEmpty &&
-        (setting.first['value_text'] == '1' ||
-            setting.first['value_text'] == 'true');
+    final rawSetting = setting.isEmpty
+        ? null
+        : setting.first['setting_value']?.toString().trim();
+    _showCostSetting = rawSetting == 'true' || rawSetting == '1';
     notifyListeners();
   }
 
@@ -235,12 +247,30 @@ class ReportsCenterProvider extends ChangeNotifier {
   Future<void> updateCostVisibility(bool show) async {
     if (!_canViewCost) return;
     final db = await _helper.database;
-    await db.rawInsert('''
-      INSERT INTO app_settings(setting_key,value_text,updated_at)
-      VALUES(?,?,CURRENT_TIMESTAMP)
-      ON CONFLICT(setting_key) DO UPDATE SET
-        value_text=excluded.value_text,updated_at=CURRENT_TIMESTAMP
-    ''', ['reports.show_cost_to_pharmacist', show ? '1' : '0']);
+    final oldValue = _showCostSetting;
+    final updated = await db.update(
+      'system_settings',
+      {
+        'setting_value': show ? 'true' : 'false',
+        'updated_at': DateTime.now().toIso8601String(),
+        'updated_by': _userId,
+      },
+      where: 'setting_key=?',
+      whereArgs: ['sales.show_cost_to_pharmacist'],
+    );
+    if (updated != 1) {
+      throw StateError('تعذر حفظ إعداد إظهار التكلفة في قاعدة البيانات');
+    }
+    await AuditService(helper: _helper).record(
+      action: 'SETTING_CHANGE',
+      userId: _userId,
+      branchId: _branchId,
+      entityType: 'system_settings',
+      entityLabel: 'sales.show_cost_to_pharmacist',
+      oldValues: {'value': oldValue},
+      newValues: {'value': show},
+      severity: 'WARNING',
+    );
     _showCostSetting = show;
     _params = _params.copyWith(showCostSetting: show);
     notifyListeners();

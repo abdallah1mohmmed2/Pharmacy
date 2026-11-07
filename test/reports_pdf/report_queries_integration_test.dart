@@ -62,4 +62,35 @@ void main() {
       expect(result.reportNumber, definition.number);
     }
   });
+
+  test('reports provider initializes from Iteration 6 permissions and settings', () async {
+    final provider = ReportsCenterProvider();
+    await provider.initialize(
+      userId: 1,
+      userName: 'مدير النظام',
+      branchId: 1,
+    );
+
+    expect(provider.hasCostPermission, isTrue);
+    expect(provider.showCostSetting, isFalse);
+
+    await provider.updateCostVisibility(true);
+    expect(provider.showCostSetting, isTrue);
+    expect(provider.canViewCost, isTrue);
+
+    final db = await DatabaseHelper.instance.database;
+    final setting = await db.query(
+      'system_settings',
+      columns: ['setting_value'],
+      where: 'setting_key=?',
+      whereArgs: ['sales.show_cost_to_pharmacist'],
+      limit: 1,
+    );
+    expect(setting.single['setting_value'], 'true');
+
+    await provider.updateCostVisibility(false);
+    expect(provider.showCostSetting, isFalse);
+    expect(provider.canViewCost, isFalse);
+  });
+
 }
