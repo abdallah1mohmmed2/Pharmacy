@@ -214,7 +214,10 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
             dense: true,
             title: const Text('المفضلة فقط ⭐'),
             value: _favoritesOnly,
-            onChanged: (v) => setState(() => _favoritesOnly = v),
+            onChanged: (v) {
+              setState(() => _favoritesOnly = v);
+              onRefresh?.call();
+            },
           ),
           if (_category != null)
             ListTile(
