@@ -58,7 +58,25 @@ class PosAndDrugsProvider extends ChangeNotifier {
         : drug.sellPricePack / stripsPerPack;
     map['sell_price_unit'] =
         drug.sellPricePack / (stripsPerPack * unitsPerStrip);
-    final db=await _db.database;if(drug.id==null){await db.insert('drugs',map);}else{await db.update('drugs',map,where:'id=?',whereArgs:[drug.id]);}await loadDrugs();
+    final db=await _db.database;
+    if(drug.id==null){
+      // Stock is derived from FEFO batches and stock movements. A catalogue
+      // form must never create stock without a traceable inventory batch.
+      map['stock_total_units']=0;
+      await db.insert('drugs',map);
+    }else{
+      final existing=await db.query(
+        'drugs',
+        columns:['stock_total_units'],
+        where:'id=? AND branch_id=? AND is_deleted=0',
+        whereArgs:[drug.id,branchId],
+        limit:1,
+      );
+      if(existing.isEmpty)throw StateError('الدواء غير موجود في الفرع الحالي');
+      map['stock_total_units']=existing.first['stock_total_units'];
+      await db.update('drugs',map,where:'id=? AND branch_id=?',whereArgs:[drug.id,branchId]);
+    }
+    await loadDrugs();
   }
   Future<int> checkout({required int cashierId,required String saleType,required List<({int cashAccountId,double amount,String method,String? walletRef})> payments,int? customerId,double discount=0,bool managerApproved=false,int branchId=1,required ClinicalVerdict clinicalVerdict}) async {
     if(currentTab.held)throw StateError('استرجع الفاتورة قبل إتمامها');

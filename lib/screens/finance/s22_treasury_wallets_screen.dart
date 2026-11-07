@@ -45,14 +45,138 @@ class S22TreasuryWalletsScreen extends StatelessWidget {
     await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(title:Text('مطابقة ${account['name_ar']}'),content:Column(mainAxisSize:MainAxisSize.min,children:[Text('الرصيد الدفتري: ${((account['current_balance'] as num?)??0).toStringAsFixed(2)}'),TextField(controller:actual,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'الرصيد الفعلي')),TextField(controller:ref,decoration:const InputDecoration(labelText:'رقم الإشعار'))]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{try{final d=await p.reconcileWallet(accountId:account['id'] as int,actual:double.parse(actual.text),reference:ref.text);if(ctx.mounted){Navigator.pop(ctx);ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('فرق المطابقة: ${d.toStringAsFixed(2)}')));}}catch(e){if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content:Text(e.toString())));}},child:const Text('اعتماد المطابقة'))]));
     actual.dispose();ref.dispose();
   }
-  Future<void> _addAccount(BuildContext context)async{
-    final name=TextEditingController();final phone=TextEditingController();String kind='WALLET';String provider='JAWALI';final p=context.read<TreasuryHrPartnerProvider>();
-    await showDialog<void>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,set)=>AlertDialog(title:const Text('إضافة محفظة أو حساب'),content:Column(mainAxisSize:MainAxisSize.min,children:[
-      TextField(controller:name,decoration:const InputDecoration(labelText:'اسم الحساب')),
-      DropdownButtonFormField<String>(value:kind,items:const [DropdownMenuItem(value:'WALLET',child:Text('محفظة إلكترونية')),DropdownMenuItem(value:'BANK',child:Text('حساب بنكي')),DropdownMenuItem(value:'MAIN_SAFE',child:Text('خزينة')),DropdownMenuItem(value:'CASHIER_DRAWER',child:Text('درج كاشير'))],onChanged:(v)=>set(()=>kind=v??kind)),
-      if(kind=='WALLET')DropdownButtonFormField<String>(value:provider,items:const [DropdownMenuItem(value:'JAWALI',child:Text('جوالي')),DropdownMenuItem(value:'JAIB',child:Text('جيب')),DropdownMenuItem(value:'FLOUSK',child:Text('فلوسك')),DropdownMenuItem(value:'KURAIMI',child:Text('كريمي')),DropdownMenuItem(value:'OTHER',child:Text('أخرى'))],onChanged:(v)=>set(()=>provider=v??provider)),
-      TextField(controller:phone,decoration:const InputDecoration(labelText:'رقم الهاتف / الحساب'))
-    ]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{if(name.text.trim().isEmpty)return;final db=await DatabaseHelper.instance.database;final glRows=await db.query('chart_of_accounts',columns:['id'],where:'code=?',whereArgs:[kind=='BANK'?'1107':kind=='WALLET'?'1103':kind=='MAIN_SAFE'?'1101':'1102'],limit:1);await db.insert('cash_accounts',{'uuid':'cash-${DateTime.now().microsecondsSinceEpoch}','branch_id':p.branchId,'created_at':DateTime.now().toIso8601String(),'updated_at':DateTime.now().toIso8601String(),'code':'CASH-${DateTime.now().millisecondsSinceEpoch}','name_ar':name.text.trim(),'account_kind':kind,'wallet_provider':kind=='WALLET'?provider:null,'wallet_phone':phone.text.trim(),'gl_account_id':glRows.isEmpty?null:glRows.first['id'],'current_balance':0});if(ctx.mounted)Navigator.pop(ctx);await p.refresh();},child:const Text('حفظ'))])));
-    name.dispose();phone.dispose();
+  Future<void> _addAccount(BuildContext context) async {
+    final name = TextEditingController();
+    final phone = TextEditingController();
+    String kind = 'WALLET';
+    String provider = 'JAWALI';
+    final p = context.read<TreasuryHrPartnerProvider>();
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, set) => AlertDialog(
+          title: const Text('إضافة محفظة أو حساب'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: name,
+                decoration: const InputDecoration(labelText: 'اسم الحساب'),
+              ),
+              DropdownButtonFormField<String>(
+                value: kind,
+                items: const [
+                  DropdownMenuItem(value: 'WALLET', child: Text('محفظة إلكترونية')),
+                  DropdownMenuItem(value: 'BANK', child: Text('حساب بنكي')),
+                  DropdownMenuItem(value: 'MAIN_SAFE', child: Text('خزينة')),
+                  DropdownMenuItem(value: 'CASHIER_DRAWER', child: Text('درج كاشير')),
+                ],
+                onChanged: (v) => set(() => kind = v ?? kind),
+              ),
+              if (kind == 'WALLET')
+                DropdownButtonFormField<String>(
+                  value: provider,
+                  items: const [
+                    DropdownMenuItem(value: 'JAWALI', child: Text('جوالي')),
+                    DropdownMenuItem(value: 'JAIB', child: Text('جيب')),
+                    DropdownMenuItem(value: 'FLOUSK', child: Text('فلوسك')),
+                    DropdownMenuItem(value: 'KURAIMI', child: Text('كريمي')),
+                    DropdownMenuItem(value: 'OTHER', child: Text('أخرى')),
+                  ],
+                  onChanged: (v) => set(() => provider = v ?? provider),
+                ),
+              TextField(
+                controller: phone,
+                decoration: const InputDecoration(labelText: 'رقم الهاتف / الحساب'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                if (name.text.trim().isEmpty) return;
+                try {
+                  final db = await DatabaseHelper.instance.database;
+                  final now = DateTime.now().toIso8601String();
+                  final glCode = switch (kind) {
+                    'BANK' => '1107',
+                    'MAIN_SAFE' => '1101',
+                    'CASHIER_DRAWER' => '1102',
+                    _ => switch (provider) {
+                        'JAWALI' => '1103',
+                        'JAIB' => '1104',
+                        'FLOUSK' => '1105',
+                        'KURAIMI' => '1106',
+                        _ => '1108',
+                      },
+                  };
+                  await db.transaction((txn) async {
+                    var glRows = await txn.query(
+                      'chart_of_accounts',
+                      columns: ['id'],
+                      where: 'code=?',
+                      whereArgs: [glCode],
+                      limit: 1,
+                    );
+                    if (glRows.isEmpty && glCode == '1108') {
+                      await txn.insert('chart_of_accounts', {
+                        'uuid': 'acc-1108',
+                        'branch_id': p.branchId,
+                        'created_at': now,
+                        'updated_at': now,
+                        'is_deleted': 0,
+                        'sync_status': 'LOCAL',
+                        'sync_version': 1,
+                        'code': '1108',
+                        'name_ar': 'محافظ إلكترونية أخرى',
+                        'acc_type': 'ASSET',
+                      });
+                      glRows = await txn.query(
+                        'chart_of_accounts',
+                        columns: ['id'],
+                        where: 'code=?',
+                        whereArgs: [glCode],
+                        limit: 1,
+                      );
+                    }
+                    if (glRows.isEmpty) {
+                      throw StateError('الحساب المحاسبي $glCode غير موجود');
+                    }
+                    await txn.insert('cash_accounts', {
+                      'uuid': 'cash-${DateTime.now().microsecondsSinceEpoch}',
+                      'branch_id': p.branchId,
+                      'created_at': now,
+                      'updated_at': now,
+                      'code': 'CASH-${DateTime.now().millisecondsSinceEpoch}',
+                      'name_ar': name.text.trim(),
+                      'account_kind': kind,
+                      'wallet_provider': kind == 'WALLET' ? provider : null,
+                      'wallet_phone': phone.text.trim(),
+                      'gl_account_id': glRows.first['id'],
+                      'current_balance': 0,
+                    });
+                  });
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  await p.refresh();
+                } catch (e) {
+                  if (ctx.mounted) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      SnackBar(content: Text(e.toString())),
+                    );
+                  }
+                }
+              },
+              child: const Text('حفظ'),
+            ),
+          ],
+        ),
+      ),
+    );
+    name.dispose();
+    phone.dispose();
   }
 }

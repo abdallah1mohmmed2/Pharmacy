@@ -50,33 +50,141 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ReportsCenterProvider>();
-    final reports = provider.registry.search(_search.text, category: _category)
-        .where((r) => !_favoritesOnly || provider.favorites.contains(r.number))
-        .toList();
+    final reports = _filteredReports(provider);
     return LayoutBuilder(builder: (context, constraints) {
       final wide = constraints.maxWidth >= 1000;
-      final sidebar = _buildSidebar(provider, reports);
-      final workspace = _buildWorkspace(provider);
       if (!wide) {
         return Column(
           children: [
-            SizedBox(height: 250, child: sidebar),
-            const Divider(height: 1),
-            Expanded(child: workspace),
+            _buildMobileReportHeader(provider, reports),
+            Expanded(child: _buildWorkspace(provider)),
           ],
         );
       }
       return Row(
         children: [
-          SizedBox(width: 290, child: sidebar),
+          SizedBox(width: 310, child: _buildSidebar(provider, reports)),
           const VerticalDivider(width: 1),
-          Expanded(child: workspace),
+          Expanded(child: _buildWorkspace(provider)),
         ],
       );
     });
   }
 
-  Widget _buildSidebar(ReportsCenterProvider provider, List<ReportDefinition> reports) {
+  List<ReportDefinition> _filteredReports(ReportsCenterProvider provider) {
+    return provider.registry.search(_search.text, category: _category)
+        .where((r) => !_favoritesOnly || provider.favorites.contains(r.number))
+        .toList();
+  }
+
+  Widget _buildMobileReportHeader(
+    ReportsCenterProvider provider,
+    List<ReportDefinition> reports,
+  ) {
+    final selected = provider.selected;
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(bottom: BorderSide(color: colors.outlineVariant)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: colors.primary.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(Icons.assessment_outlined, color: colors.primary),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  selected == null ? 'مركز التقارير' : 'التقرير رقم ${selected.number}',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: colors.primary, fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  selected?.title ?? 'اختر تقريراً لعرض بياناته',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton.icon(
+            onPressed: () => _openMobileReportBrowser(provider),
+            icon: const Icon(Icons.grid_view_rounded, size: 18),
+            label: const Text('التقارير'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openMobileReportBrowser(ReportsCenterProvider provider) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => SizedBox(
+        height: MediaQuery.sizeOf(sheetContext).height * .88,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 12, 10, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text('استعراض التقارير',
+                      style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'إغلاق',
+                    onPressed: () => Navigator.pop(sheetContext),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: _buildSidebar(
+                provider,
+                _filteredReports(provider),
+                onReportSelected: () => Navigator.pop(sheetContext),
+                onRefresh: () => setSheetState(() {}),
+              ),
+            ),
+          ],
+        ),
+      ),
+      ),
+    );
+  }
+
+  Widget _buildSidebar(ReportsCenterProvider provider, List<ReportDefinition> reports, {VoidCallback? onReportSelected, VoidCallback? onRefresh}) {
     return Container(
       color: Theme.of(context).colorScheme.surface,
       child: Column(
@@ -89,25 +197,37 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
                 prefixIcon: const Icon(Icons.search),
                 hintText: 'ابحث بالاسم أو رقم التقرير 1–55',
                 suffixIcon: IconButton(
-                  onPressed: () => setState(() { _search.clear(); _category = null; }),
+                  onPressed: () {
+                    setState(() { _search.clear(); _category = null; });
+                    onRefresh?.call();
+                  },
                   icon: const Icon(Icons.close),
                 ),
               ),
-              onChanged: (_) => setState(() {}),
+              onChanged: (_) {
+                setState(() {});
+                onRefresh?.call();
+              },
             ),
           ),
           SwitchListTile(
             dense: true,
             title: const Text('المفضلة فقط ⭐'),
             value: _favoritesOnly,
-            onChanged: (v) => setState(() => _favoritesOnly = v),
+            onChanged: (v) {
+              setState(() => _favoritesOnly = v);
+              onRefresh?.call();
+            },
           ),
           if (_category != null)
             ListTile(
               dense: true,
               leading: const Icon(Icons.filter_alt_off),
               title: Text('إلغاء تصفية ${_category!.title}'),
-              onTap: () => setState(() => _category = null),
+              onTap: () {
+                setState(() => _category = null);
+                onRefresh?.call();
+              },
             ),
           Expanded(
             child: ListView(
@@ -119,7 +239,10 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
                     title: Text(category.title, style: const TextStyle(fontWeight: FontWeight.w600)),
                     subtitle: Text('${category.reportCount} تقريراً'),
                     onExpansionChanged: (open) {
-                      if (open) setState(() => _category = category);
+                      if (open) {
+                        setState(() => _category = category);
+                        onRefresh?.call();
+                      }
                     },
                     children: [
                       for (final report in reports.where((r) => r.category == category))
@@ -140,11 +263,15 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
                               color: provider.favorites.contains(report.number)
                                   ? Colors.amber : null,
                             ),
-                            onPressed: () => provider.toggleFavorite(report.number),
+                            onPressed: () {
+                              provider.toggleFavorite(report.number);
+                              onRefresh?.call();
+                            },
                           ),
                           onTap: () {
                             provider.selectReport(report.number);
                             setState(() => _showPdf = false);
+                            onReportSelected?.call();
                           },
                         ),
                     ],
@@ -215,61 +342,129 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
   }
 
   Widget _buildParameterPanel(ReportsCenterProvider provider, ReportDefinition report) {
+    final compact = MediaQuery.sizeOf(context).width < 700;
+    final colors = Theme.of(context).colorScheme;
+    final controls = Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: report.params.map((param) => _parameterControl(provider, param)).toList(),
+    );
+    final quickActions = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        ActionChip(label: const Text('اليوم'), onPressed: () => _quickRange(provider, 'today')),
+        ActionChip(label: const Text('هذا الشهر'), onPressed: () => _quickRange(provider, 'month')),
+        ActionChip(label: const Text('هذه السنة'), onPressed: () => _quickRange(provider, 'year')),
+        FilterChip(
+          label: const Text('ورقة عرضية'),
+          selected: provider.params.paperLandscape ?? report.isLandscape,
+          onSelected: (v) => provider.updateParams(const {}, paperLandscape: v),
+        ),
+      ],
+    );
     return Card(
-      margin: const EdgeInsets.all(10),
+      margin: EdgeInsets.fromLTRB(compact ? 10 : 14, 12, compact ? 10 : 14, 8),
+      clipBehavior: Clip.antiAlias,
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.all(compact ? 12 : 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               children: [
-                Expanded(
-                  child: Text('تقرير رقم ${report.number}: ${report.title}',
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: colors.primary.withValues(alpha: .12),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Icon(Icons.description_outlined, color: colors.primary),
                 ),
-                if (provider.hasCostPermission)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('إظهار التكلفة'),
-                      Switch(
-                        value: provider.showCostSetting,
-                        onChanged: provider.updateCostVisibility,
+                      Text('التقرير رقم ${report.number}',
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: colors.primary, fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(report.title, maxLines: 2, overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ],
                   ),
+                ),
+                if (provider.hasCostPermission)
+                  Tooltip(
+                    message: 'إظهار أعمدة التكلفة',
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.lock_outline, size: 16),
+                        Switch.adaptive(
+                          value: provider.showCostSetting,
+                          onChanged: provider.updateCostVisibility,
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
-            if (report.params.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 10,
-                runSpacing: 8,
-                children: report.params.map((param) => _parameterControl(provider, param)).toList(),
+            if (compact) ...[
+              const SizedBox(height: 6),
+              Theme(
+                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  childrenPadding: const EdgeInsets.only(top: 10, bottom: 4),
+                  leading: Icon(Icons.tune_rounded, color: colors.primary),
+                  title: const Text('الفلاتر ومعايير التقرير',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(report.params.isEmpty
+                    ? 'لا توجد معاملات إضافية'
+                    : '${report.params.length} معياراً متاحاً',
+                  ),
+                  children: [
+                    if (report.params.isNotEmpty) controls,
+                    if (report.params.isNotEmpty) const SizedBox(height: 12),
+                    quickActions,
+                  ],
+                ),
               ),
-            ],
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                ActionChip(label: const Text('اليوم'), onPressed: () => _quickRange(provider, 'today')),
-                ActionChip(label: const Text('هذا الشهر'), onPressed: () => _quickRange(provider, 'month')),
-                ActionChip(label: const Text('هذه السنة'), onPressed: () => _quickRange(provider, 'year')),
-                FilterChip(
-                  label: const Text('ورقة عرضية'),
-                  selected: provider.params.paperLandscape ?? report.isLandscape,
-                  onSelected: (v) => provider.updateParams(const {}, paperLandscape: v),
+            ] else ...[
+              if (report.params.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text('معايير التقرير',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-                FilledButton.icon(
-                  onPressed: provider.isLoading ? null : () => _run(provider),
-                  icon: provider.isLoading
-                      ? const SizedBox(width: 16,height: 16,child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.play_arrow),
-                  label: const Text('تشغيل التقرير'),
-                ),
+                const SizedBox(height: 12),
+                controls,
               ],
+              const SizedBox(height: 12),
+              quickActions,
+            ],
+            const SizedBox(height: 10),
+            SizedBox(
+              width: compact ? double.infinity : null,
+              child: FilledButton.icon(
+                onPressed: provider.isLoading ? null : () => _run(provider),
+                icon: provider.isLoading
+                  ? const SizedBox(width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.play_arrow_rounded),
+                label: const Text('تشغيل التقرير'),
+              ),
             ),
           ],
         ),
@@ -522,7 +717,7 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
     try {
       final file = await provider.savePdf();
       if (!mounted || file == null) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم حفظ PDF: ${file.path}')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم حفظ PDF في: $file')));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر حفظ PDF: $e')));
     }

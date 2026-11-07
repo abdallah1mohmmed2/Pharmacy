@@ -27,7 +27,9 @@ void main(){
    expect(settings.map((r)=>r['setting_no']).toList(),List.generate(35,(i)=>i+1));
    expect(SettingKeys.all,hasLength(35));
    final roles=await db.query('roles');expect(roles,hasLength(7));
-   final permissions=await db.rawQuery('SELECT COUNT(*) AS n FROM role_permissions');expect(permissions.first['n'],210);
+   final permissions=await db.rawQuery('SELECT COUNT(*) AS n FROM role_permissions');expect(permissions.first['n'],217);
+   final costPermissions=await db.query('role_permissions',where:'permission_code=? AND is_allowed=1',whereArgs:['reports.cost.view']);
+   expect(costPermissions.map((r)=>r['role_code']),containsAll(['OWNER','MANAGER','ACCOUNTANT']));
    final userColumns=await db.rawQuery('PRAGMA table_info(users)');
    expect(userColumns.any((r)=>r['name']=='system_role_code'),isTrue);
    await db.insert('audit_logs',{'event_at':'2026-11-07T00:00:00Z','action':'CREATE','entity_type':'test','prev_hash':'GENESIS','row_hash':'test-hash'});

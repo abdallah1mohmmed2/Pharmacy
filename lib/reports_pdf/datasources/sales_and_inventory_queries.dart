@@ -85,7 +85,7 @@ class SalesAndInventoryQueries {
     )
     SELECT COALESCE(method,'غير محدد') AS payment_method,COUNT(*) AS operation_count,
       SUM(amount) AS amount,
-      CASE WHEN SUM(SUM(amount)) OVER()>0 THEN SUM(amount)*100.0/SUM(SUM(amount)) OVER() ELSE 0 END AS percentage
+      CASE WHEN (SELECT COALESCE(SUM(amount),0) FROM filtered)>0 THEN SUM(amount)*100.0/(SELECT COALESCE(SUM(amount),0) FROM filtered) ELSE 0 END AS percentage
     FROM filtered GROUP BY method ORDER BY amount DESC
   ''', [p.branchId, ..._rangeArgs(p)]);
 
@@ -123,7 +123,7 @@ class SalesAndInventoryQueries {
       WHERE i.branch_id=? AND i.status='COMPLETED' ${_range('i.invoice_date', p)}
       GROUP BY d.id
     ), totals AS (SELECT SUM(sales_value) total_sales,SUM(sales_value-cost_value) total_profit FROM sold)
-    SELECT ROW_NUMBER() OVER(ORDER BY s.units_sold DESC) AS rank,s.drug,
+    SELECT (SELECT COUNT(*)+1 FROM sold ranked WHERE ranked.units_sold>s.units_sold OR (ranked.units_sold=s.units_sold AND ranked.id<s.id)) AS rank,s.drug,
       dc.name_ar AS category,s.units_sold,s.sales_value,s.cost_value,
       s.sales_value-s.cost_value AS profit,
       CASE WHEN s.sales_value>0 THEN (s.sales_value-s.cost_value)*100.0/s.sales_value ELSE 0 END AS margin_pct,
@@ -192,7 +192,7 @@ class SalesAndInventoryQueries {
     )
     SELECT hour,COUNT(*) AS invoice_count,SUM(net_total) AS sales_total,
       AVG(net_total) AS average_invoice,
-      CASE WHEN SUM(SUM(net_total)) OVER()>0 THEN SUM(net_total)*100.0/SUM(SUM(net_total)) OVER() ELSE 0 END AS day_percentage
+      CASE WHEN (SELECT COALESCE(SUM(net_total),0) FROM filtered)>0 THEN SUM(net_total)*100.0/(SELECT COALESCE(SUM(net_total),0) FROM filtered) ELSE 0 END AS day_percentage
     FROM filtered GROUP BY hour ORDER BY hour
   ''', [p.branchId, ..._rangeArgs(p)]);
 
