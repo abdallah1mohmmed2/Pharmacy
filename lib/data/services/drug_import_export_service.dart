@@ -8,6 +8,7 @@ import 'package:sqflite/sqflite.dart';
 import '../database/database_helper.dart';
 import '../models/drug_model.dart';
 import '../models/settings_audit_sync_models.dart';
+import 'settings_and_audit_service.dart';
 
 class ImportRowIssue {
  const ImportRowIssue(this.rowNumber,this.message);
@@ -125,6 +126,7 @@ class DrugImportExportService {
    }
    await db.update('import_jobs',{'inserted_rows':inserted,'updated_rows':updated,'skipped_rows':skipped,'error_rows':errors,'status':errors==0?'COMPLETED':'COMPLETED_WITH_ERRORS','finished_at':DateTime.now().toIso8601String()},where:'id=?',whereArgs:[jobId]);
    await _refreshFts(db);
+   await AuditService(helper:_helper).record(action:'CREATE',entityType:'drugs',entityId:jobId,entityLabel:'Import job #'+jobId.toString(),newValues:{'source_type':format.toUpperCase(),'inserted':inserted,'updated':updated,'skipped':skipped,'errors':errors},severity:errors==0?'INFO':'WARNING');
    return ImportExecutionResult(jobId:jobId,inserted:inserted,updated:updated,skipped:skipped,errors:errors);
   }catch(e){
    await db.update('import_jobs',{'inserted_rows':inserted,'updated_rows':updated,'skipped_rows':skipped,'error_rows':errors+1,'status':'FAILED','finished_at':DateTime.now().toIso8601String()},where:'id=?',whereArgs:[jobId]);
@@ -166,6 +168,7 @@ class DrugImportExportService {
   final directory=await getTemporaryDirectory();final file=File('${directory.path}/drug_export_${DateTime.now().millisecondsSinceEpoch}.$extension');
   await file.writeAsString(data,encoding:utf8,flush:true);
   await db.insert('import_jobs',{'source_type':sourceType,'file_name':file.path,'total_rows':fields.length,'status':'COMPLETED','started_at':DateTime.now().toIso8601String(),'finished_at':DateTime.now().toIso8601String()});
+  await AuditService(helper:_helper).record(action:'EXPORT',entityType:'drugs',entityLabel:file.path,newValues:{'format':normalized,'rows':fields.length,'hide_cost_prices':hideCostPrices});
   return file;
  }
  Future<List<ImportJobModel>> listJobs() async=>(await _helper.query('import_jobs',orderBy:'id DESC')).map(ImportJobModel.fromMap).toList();
