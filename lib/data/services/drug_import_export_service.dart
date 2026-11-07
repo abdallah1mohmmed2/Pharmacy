@@ -92,6 +92,18 @@ class DrugImportExportService {
        final drug=DrugModel.fromMap(row).toMap();
        drug.remove('id');
        drug['uuid']=row['uuid']??'drug-import-'+DateTime.now().microsecondsSinceEpoch.toString()+'-'+done.toString();
+       if((drug['internal_code'] as String? ?? '').trim().isEmpty)drug['internal_code']='IMP-'+DateTime.now().microsecondsSinceEpoch.toString()+'-'+done.toString();
+       if((drug['trade_name_ar'] as String? ?? '').trim().isEmpty)drug['trade_name_ar']=(drug['trade_name_en']??drug['scientific_name']??'دواء مستورد').toString();
+       final dosage=drug['dosage_form']?.toString().toUpperCase();
+       const dosageForms={'TABLET','CAPSULE','SYRUP','SUSPENSION','DROPS','INJECTION','CREAM','OINTMENT','INHALER','SUPPOSITORY','SACHET','OTHER'};
+       if(dosage!=null)drug['dosage_form']=dosageForms.contains(dosage)?dosage:'OTHER';
+       final route=drug['route']?.toString().toUpperCase();
+       const routes={'ORAL','IV','IM','SC','TOPICAL','OPHTHALMIC','INHALATION','RECTAL','OTHER'};
+       if(route!=null)drug['route']=routes.contains(route)?route:'OTHER';
+       final pregnancy=drug['pregnancy_category']?.toString().toUpperCase();
+       if(pregnancy!=null&&!{'A','B','C','D','X','N','UNKNOWN'}.contains(pregnancy))drug['pregnancy_category']='UNKNOWN';
+       final lactation=drug['lactation_risk']?.toString().toUpperCase();
+       if(lactation!=null&&!{'L1','L2','L3','L4','L5','UNKNOWN'}.contains(lactation))drug['lactation_risk']='UNKNOWN';
        drug['created_at']=now;drug['updated_at']=now;
        final code=(row['internal_code']??'').toString();
        final name=(row['trade_name_ar']??'').toString();
