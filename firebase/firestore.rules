@@ -1,0 +1,79 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // The backend must issue a verified custom claim named branch_id.
+    // Never trust a branch identifier supplied only by the client payload.
+    function ownsBranch(branchId) {
+      return signedIn()
+        && request.auth.token.branch_id is string
+        && request.auth.token.branch_id == branchId;
+    }
+
+    function validPartnerMode(mode) {
+      return mode in ['shares', 'percentage'];
+    }
+
+    match /pharmacy_branches/{branchId} {
+      allow get: if ownsBranch(branchId);
+      allow list: if signedIn()
+        && resource.data.branch_id == request.auth.token.branch_id;
+      allow create: if ownsBranch(branchId)
+        && request.resource.data.branch_id == branchId;
+      allow update: if ownsBranch(branchId)
+        && resource.data.branch_id == branchId
+        && request.resource.data.branch_id == branchId;
+      allow delete: if false;
+    }
+
+    match /pharmacy_daily_dashboards/{dashboardId} {
+      allow get, list: if signedIn()
+        && resource.data.branch_id == request.auth.token.branch_id;
+      allow create, update: if signedIn()
+        && request.resource.data.branch_id == request.auth.token.branch_id;
+      allow delete: if false;
+    }
+
+    match /pharmacy_parties_snapshot/{branchId} {
+      allow get: if ownsBranch(branchId);
+      allow list: if signedIn()
+        && resource.data.branch_id == request.auth.token.branch_id;
+      allow create: if ownsBranch(branchId)
+        && request.resource.data.branch_id == branchId
+        && validPartnerMode(request.resource.data.partner_mode);
+      allow update: if ownsBranch(branchId)
+        && resource.data.branch_id == branchId
+        && request.resource.data.branch_id == branchId
+        && validPartnerMode(request.resource.data.partner_mode)
+        // The selected distribution mode is a permanent state lock.
+        && request.resource.data.partner_mode == resource.data.partner_mode;
+      allow delete: if false;
+    }
+
+    match /pharmacy_sync_batches/{branchId}/batches/{batchUuid} {
+      allow get, list: if ownsBranch(branchId)
+        && resource.data.branch_id == branchId;
+      allow create: if ownsBranch(branchId)
+        && request.resource.data.branch_id == branchId
+        && request.resource.data.events is list
+        && request.resource.data.events.size() <= 100
+        && request.resource.data.batch_uuid == batchUuid;
+      // Sync batches are an append-only audit/delta stream.
+      allow update, delete: if false;
+    }
+
+    // The central catalogue is hosted as static JSON. It must not consume
+    // Firestore reads or become a write path for operational pharmacy data.
+    match /catalog_meta/{documentId} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
