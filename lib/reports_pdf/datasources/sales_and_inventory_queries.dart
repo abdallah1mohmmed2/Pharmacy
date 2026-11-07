@@ -115,7 +115,7 @@ class SalesAndInventoryQueries {
 
   Future<List<Map<String, Object?>>> r07(ReportParams p) => _q('''
     WITH sold AS (
-      SELECT d.id,d.trade_name_ar AS drug,d.category_id AS category,
+      SELECT d.id,d.trade_name_ar AS drug,d.category_id AS category_id,
         SUM(si.qty_units) AS units_sold,SUM(si.line_total) AS sales_value,
         SUM(si.line_cost) AS cost_value
       FROM sales_invoice_items si JOIN sales_invoices i ON i.id=si.invoice_id
