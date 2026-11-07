@@ -532,6 +532,7 @@ class _LoginScreenState extends State<_LoginScreen> {
     final session = context.read<SessionAndErpProvider>();
     final pos = context.read<PosAndDrugsProvider>();
     final inventory = context.read<InventoryAndPurchaseProvider>();
+    final clinical = context.read<ClinicalAndRxProvider>();
     final finance = context.read<TreasuryHrPartnerProvider>();
     setState(() => busy = true);
     final ok = await session.login(user.text, pass.text);
@@ -545,6 +546,8 @@ class _LoginScreenState extends State<_LoginScreen> {
       await pos.setBranchId(activeBranch);
       if (!mounted) return;
       await inventory.setBranch(activeBranch);
+      if (!mounted) return;
+      await clinical.setBranch(activeBranch);
       if (!mounted) return;
       await finance.loadAll(
         branchId: activeBranch,

@@ -21,9 +21,19 @@ class _S06PrescriptionInsuranceScreenState extends State<S06PrescriptionInsuranc
   @override void dispose(){for(final x in [rxNo,doctor,license,facility,validDays,refillsAllowed,qty,dose,duration,paid,walletRef]){x.dispose();}super.dispose();}
   Future<void> _load()async{
     final db=await DatabaseHelper.instance.database;
-    final rows=await db.rawQuery('SELECT r.*,p.full_name FROM prescriptions r JOIN patients p ON p.id=r.patient_id ORDER BY r.id DESC LIMIT 100');
-    final alerts=await db.rawQuery('SELECT l.*,d.trade_name_ar,p.full_name FROM clinical_alert_logs l LEFT JOIN drugs d ON d.id=l.drug_id LEFT JOIN patients p ON p.id=l.patient_id ORDER BY l.id DESC LIMIT 100');
-    final controlled=await db.rawQuery('SELECT c.*,d.trade_name_ar FROM controlled_drug_log c JOIN drugs d ON d.id=c.drug_id ORDER BY c.id DESC LIMIT 100');
+    final branchId=context.read<SessionAndErpProvider>().branchId;
+    final rows=await db.rawQuery(
+      'SELECT r.*,p.full_name FROM prescriptions r JOIN patients p ON p.id=r.patient_id LEFT JOIN parties party ON party.id=COALESCE(r.customer_party_id,p.party_id) WHERE party.branch_id=? ORDER BY r.id DESC LIMIT 100',
+      [branchId],
+    );
+    final alerts=await db.rawQuery(
+      'SELECT l.*,d.trade_name_ar,p.full_name FROM clinical_alert_logs l LEFT JOIN drugs d ON d.id=l.drug_id LEFT JOIN patients p ON p.id=l.patient_id LEFT JOIN sales_invoices si ON si.id=l.invoice_id LEFT JOIN parties party ON party.id=COALESCE(p.party_id,si.customer_party_id) WHERE COALESCE(si.branch_id,party.branch_id,d.branch_id)=? ORDER BY l.id DESC LIMIT 100',
+      [branchId],
+    );
+    final controlled=await db.rawQuery(
+      'SELECT c.*,d.trade_name_ar FROM controlled_drug_log c JOIN drugs d ON d.id=c.drug_id LEFT JOIN sales_invoice_items sii ON sii.id=c.invoice_item_id LEFT JOIN sales_invoices si ON si.id=sii.invoice_id LEFT JOIN prescriptions r ON r.id=c.prescription_id LEFT JOIN patients p ON p.id=r.patient_id LEFT JOIN parties party ON party.id=COALESCE(r.customer_party_id,p.party_id) WHERE COALESCE(si.branch_id,party.branch_id,d.branch_id)=? ORDER BY c.id DESC LIMIT 100',
+      [branchId],
+    );
     if(mounted)setState((){rxRows=rows;alertRows=alerts;controlledRows=controlled;});
   }
   Future<void> _selectRx(int id)async{

@@ -17,9 +17,9 @@ class RxAndReturnsService {
   final DatabaseHelper _helper;
   String _number(String prefix)=>'$prefix-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(999).toString().padLeft(3,'0')}';
 
-  Future<List<AlternativeDrugModel>> findAlternatives(int drugId,{bool inStockOnly=false,bool cheapestFirst=false}) async {
+  Future<List<AlternativeDrugModel>> findAlternatives(int drugId,{int branchId=1,bool inStockOnly=false,bool cheapestFirst=false}) async {
     final db=await _helper.database;
-    final rows=await db.query('v_drug_alternatives',where:'source_drug_id=?'+(inStockOnly?' AND available_units>0':''),whereArgs:[drugId],orderBy:cheapestFirst?'sell_price_pack ASC,match_type ASC':'CASE match_type WHEN \'EXACT\' THEN 0 ELSE 1 END,available_units DESC,sell_price_pack ASC');
+    final rows=await db.query('v_drug_alternatives',where:'source_drug_id=? AND drug_id IN (SELECT id FROM drugs WHERE branch_id=?)'+(inStockOnly?' AND available_units>0':''),whereArgs:[drugId,branchId],orderBy:cheapestFirst?'sell_price_pack ASC,match_type ASC':'CASE match_type WHEN \'EXACT\' THEN 0 ELSE 1 END,available_units DESC,sell_price_pack ASC');
     return rows.map(AlternativeDrugModel.fromMap).toList();
   }
   Future<({double coveragePct,double copayPct,double remainingLimit})> policySummary(int policyId) async {
@@ -156,7 +156,7 @@ class RxAndReturnsService {
     if(!['RESTOCK','QUARANTINE','DISPOSE'].contains(disposition))throw ArgumentError('قرار فحص التشغيلة غير صحيح');
     final db=await _helper.database;
     return db.transaction((txn) async {
-      final invoiceRows=await txn.query('sales_invoices',where:'id=?',whereArgs:[invoiceId],limit:1);if(invoiceRows.isEmpty)throw StateError('الفاتورة الأصلية غير موجودة');
+      final invoiceRows=await txn.query('sales_invoices',where:'id=?',whereArgs:[invoiceId],limit:1);if(invoiceRows.isEmpty)throw StateError('الفاتورة الأصلية غير موجودة');final invoiceBranch=(invoiceRows.first['branch_id'] as num?)?.toInt()??1;
       final itemRows=await txn.query('sales_invoice_items',where:'id=? AND invoice_id=?',whereArgs:[invoiceItemId,invoiceId],limit:1);if(itemRows.isEmpty)throw StateError('بند الفاتورة غير موجود');
       final item=itemRows.first;final drugRows=await txn.query('drugs',where:'id=?',whereArgs:[item['drug_id']],limit:1);if(drugRows.isEmpty)throw StateError('الدواء غير موجود');
       final drug=DrugModel.fromMap(drugRows.first);
@@ -186,7 +186,7 @@ class RxAndReturnsService {
         await txn.insert('stock_movements',{'drug_id':drug.id,'batch_id':actualBatchId,'warehouse_id':batch['warehouse_id'],'movement_type':'SALE_RETURN_IN','qty_units':qtyUnits,'unit_cost':batch['unit_cost'],'unit_price':refundAmount/qtyUnits,'balance_after_units':newTotal,'doc_type':'SALES_RETURN','doc_id':returnId,'doc_line_id':invoiceItemId,'movement_at':DateTime.now().toIso8601String(),'note':'إرجاع صالح من فاتورة $invoiceId'});
         await txn.rawUpdate('UPDATE drugs SET stock_total_units=stock_total_units+? WHERE id=?',[qtyUnits,drug.id]);
       }else if(disposition=='QUARANTINE'){
-        final wh=await txn.query('warehouses',where:"wh_type='QUARANTINE'",limit:1);if(wh.isEmpty)throw StateError('مستودع الحجر غير موجود');
+        final wh=await txn.query('warehouses',where:"wh_type='QUARANTINE' AND branch_id=?",whereArgs:[invoiceBranch],limit:1);if(wh.isEmpty)throw StateError('مستودع الحجر غير موجود');
         final remainingUnits=oldTotal;final unitsPerPack=drug.unitsPerPack??drug.effectiveUnitsPerPack;
         await txn.insert('stock_movements',{'drug_id':drug.id,'batch_id':actualBatchId,'warehouse_id':batch['warehouse_id'],'movement_type':'SALE_RETURN_IN','qty_units':qtyUnits,'unit_cost':batch['unit_cost'],'unit_price':refundAmount/qtyUnits,'balance_after_units':oldTotal+qtyUnits,'doc_type':'SALES_RETURN','doc_id':returnId,'doc_line_id':invoiceItemId,'movement_at':DateTime.now().toIso8601String(),'note':'إثبات استلام المرتجع قبل الحجر'});
         final quarantineBatch=Map<String,Object?>.from(batch)..remove('id');
@@ -207,11 +207,11 @@ class RxAndReturnsService {
       int? refundGlAccountId;
       if(refundMethod=='CREDIT_TO_ACCOUNT'){
         creditAccountId=await _accountId(txn,'1201');
-        await txn.insert('lah_alayh_ledger',{'uuid':_number('LEDGER'),'branch_id':1,'created_at':DateTime.now().toIso8601String(),'updated_at':DateTime.now().toIso8601String(),'is_deleted':0,'sync_status':'LOCAL','sync_version':1,'party_id':customerId,'entry_date':DateTime.now().toIso8601String(),'entry_type':'SALES_RETURN','alayh_amount':0,'lah_amount':refundAmount,'doc_type':'SALES_RETURN','doc_id':returnId,'journal_entry_id':null,'statement_ar':'إضافة مبلغ لصالح العميل عن مرتجع $returnNo'});
+        await txn.insert('lah_alayh_ledger',{'uuid':_number('LEDGER'),'branch_id':invoiceBranch,'created_at':DateTime.now().toIso8601String(),'updated_at':DateTime.now().toIso8601String(),'is_deleted':0,'sync_status':'LOCAL','sync_version':1,'party_id':customerId,'entry_date':DateTime.now().toIso8601String(),'entry_type':'SALES_RETURN','alayh_amount':0,'lah_amount':refundAmount,'doc_type':'SALES_RETURN','doc_id':returnId,'journal_entry_id':null,'statement_ar':'إضافة مبلغ لصالح العميل عن مرتجع $returnNo'});
       }else{
         if(cashAccountId==null)throw StateError('اختر الصندوق أو المحفظة لرد المبلغ');
         if(refundMethod=='WALLET'&&(walletRef??'').trim().length<6)throw StateError('رقم إشعار المحفظة مطلوب');
-        final cash=await txn.query('cash_accounts',where:'id=?',whereArgs:[cashAccountId],limit:1);if(cash.isEmpty)throw StateError('حساب رد المبلغ غير موجود');
+        final cash=await txn.query('cash_accounts',where:'id=? AND branch_id=?',whereArgs:[cashAccountId,invoiceBranch],limit:1);if(cash.isEmpty)throw StateError('حساب رد المبلغ غير موجود');
         final kind=cash.first['account_kind'] as String;
         if(refundMethod=='WALLET'&&kind!='WALLET')throw StateError('اختر محفظة إلكترونية لرد المبلغ');
         if(refundMethod=='CASH'&&kind=='WALLET')throw StateError('اختر صندوقاً نقدياً لرد المبلغ');
@@ -219,11 +219,10 @@ class RxAndReturnsService {
         if(refundGlAccountId==null)throw StateError('اربط حساب الصندوق بدليل الحسابات');
         await txn.rawUpdate('UPDATE cash_accounts SET current_balance=current_balance-? WHERE id=?',[refundAmount,cashAccountId]);
         final balanceRows=await txn.query('cash_accounts',columns:['current_balance'],where:'id=?',whereArgs:[cashAccountId],limit:1);
-        final invoiceBranch=(invoiceRows.first['branch_id'] as num?)?.toInt()??1;
         final openShifts=await txn.query('cashier_shifts',columns:['id'],where:"branch_id=? AND status='OPEN'",whereArgs:[invoiceBranch],orderBy:'id DESC',limit:1);
         await txn.insert('cash_transactions',{'cash_account_id':cashAccountId,'tx_date':DateTime.now().toIso8601String(),'direction':'OUT','amount':refundAmount,'tx_type':'SALE_RETURN','doc_type':'SALES_RETURN','doc_id':returnId,'wallet_ref_no':walletRef,'cashier_shift_id':openShifts.isEmpty?null:openShifts.first['id'],'balance_after':(balanceRows.first['current_balance'] as num).toDouble(),'note':'رد قيمة مرتجع مبيعات','branch_id':invoiceBranch});
       }
-      final jeId=await _postReturnJournal(txn,returnId:returnId,returnNo:returnNo,refundAmount:refundAmount,refundAccountId:creditAccountId??refundGlAccountId!,refundPartyId:creditAccountId==null?null:customerId,inventoryCost:(disposition=='DISPOSE'?0:(batch['unit_cost'] as num).toDouble()*qtyUnits));
+      final jeId=await _postReturnJournal(txn,branchId:invoiceBranch,returnId:returnId,returnNo:returnNo,refundAmount:refundAmount,refundAccountId:creditAccountId??refundGlAccountId!,refundPartyId:creditAccountId==null?null:customerId,inventoryCost:(disposition=='DISPOSE'?0:(batch['unit_cost'] as num).toDouble()*qtyUnits));
       await txn.update('sales_returns',{'journal_entry_id':jeId},where:'id=?',whereArgs:[returnId]);
       if(disposalId!=null)await txn.update('disposals',{'journal_entry_id':jeId},where:'id=?',whereArgs:[disposalId]);
       await txn.update('lah_alayh_ledger',{'journal_entry_id':jeId},where:"doc_type='SALES_RETURN' AND doc_id=?",whereArgs:[returnId]);
@@ -236,16 +235,16 @@ class RxAndReturnsService {
     if(rows.isEmpty)throw StateError('الحساب المحاسبي $code غير موجود');
     return rows.first['id'] as int;
   }
-  Future<int> _postReturnJournal(Transaction txn,{required int returnId,required String returnNo,required double refundAmount,required int refundAccountId,int? refundPartyId,required double inventoryCost}) async {
+  Future<int> _postReturnJournal(Transaction txn,{required int branchId,required int returnId,required String returnNo,required double refundAmount,required int refundAccountId,int? refundPartyId,required double inventoryCost}) async {
     final now=DateTime.now().toIso8601String();
-    final je=await txn.insert('journal_entries',{'uuid':_number('JE'),'branch_id':1,'created_at':now,'updated_at':now,'is_deleted':0,'sync_status':'LOCAL','sync_version':1,'entry_no':_number('RET-JE'),'entry_date':now,'description':'قيد مرتجع المبيعات $returnNo','source_type':'SALES_RETURN','source_id':returnId,'is_posted':1});
+    final je=await txn.insert('journal_entries',{'uuid':_number('JE'),'branch_id':branchId,'created_at':now,'updated_at':now,'is_deleted':0,'sync_status':'LOCAL','sync_version':1,'entry_no':_number('RET-JE'),'entry_date':now,'description':'قيد مرتجع المبيعات $returnNo','source_type':'SALES_RETURN','source_id':returnId,'is_posted':1});
     final salesReturns=await _accountId(txn,'4101');
     final lines=<({int account,int? party,double dr,double cr,String memo})>[
       (account:salesReturns,party:null,dr:refundAmount,cr:0,memo:'عكس إيراد البيع'),
       (account:refundAccountId,party:refundPartyId,dr:0,cr:refundAmount,memo:'رد قيمة المرتجع'),
     ];
     if(inventoryCost>0){lines.add((account:await _accountId(txn,'1301'),party:null,dr:inventoryCost,cr:0,memo:'إعادة تكلفة البضاعة للمخزون'));lines.add((account:await _accountId(txn,'5101'),party:null,dr:0,cr:inventoryCost,memo:'عكس تكلفة البضاعة المباعة'));}
-    for(final line in lines){await txn.insert('journal_lines',{'uuid':_number('JL'),'branch_id':1,'created_at':now,'updated_at':now,'is_deleted':0,'sync_status':'LOCAL','sync_version':1,'journal_entry_id':je,'account_id':line.account,'party_id':line.party,'dr_amount':line.dr,'cr_amount':line.cr,'memo':line.memo});}
+    for(final line in lines){await txn.insert('journal_lines',{'uuid':_number('JL'),'branch_id':branchId,'created_at':now,'updated_at':now,'is_deleted':0,'sync_status':'LOCAL','sync_version':1,'journal_entry_id':je,'account_id':line.account,'party_id':line.party,'dr_amount':line.dr,'cr_amount':line.cr,'memo':line.memo});}
     return je;
   }
   List<String> jsonDecodeSafe(String raw){try{return (jsonDecode(raw) as List).map((e)=>e.toString()).toList();}catch(_){return [];}}

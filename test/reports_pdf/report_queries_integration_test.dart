@@ -5,6 +5,7 @@ import '../../lib/reports_pdf/models_and_contracts.dart';
 import '../../lib/reports_pdf/registry/report_registry_and_provider.dart';
 import '../../lib/providers/pos_and_drugs_provider.dart';
 import '../../lib/providers/inventory_and_purchase_provider.dart';
+import '../../lib/providers/clinical_and_rx_provider.dart';
 import '../../lib/data/models/drug_model.dart';
 
 void main() {
@@ -162,6 +163,30 @@ void main() {
     expect(provider.radar, isEmpty);
     expect(provider.movements, isEmpty);
     expect(provider.coldChain, isEmpty);
+  });
+
+
+  test('clinical and prescription data are isolated to the active branch', () async {
+    final provider = ClinicalAndRxProvider();
+    await provider.setBranch(999999);
+
+    expect(provider.error, isNull);
+    expect(provider.patients, isEmpty);
+    expect(provider.companies, isEmpty);
+    expect(provider.policies, isEmpty);
+
+    final db = await DatabaseHelper.instance.database;
+    final drugs = await db.query(
+      'drugs',
+      columns: ['id'],
+      where: 'branch_id=?',
+      whereArgs: [1],
+      limit: 1,
+    );
+    if (drugs.isNotEmpty) {
+      final alternatives = await provider.loadAlternatives(drugs.first['id'] as int);
+      expect(alternatives, isEmpty);
+    }
   });
 
 }

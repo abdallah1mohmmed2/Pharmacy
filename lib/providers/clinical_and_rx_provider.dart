@@ -11,6 +11,7 @@ class ClinicalAndRxProvider extends ChangeNotifier {
   final DatabaseHelper _helper;
   final ClinicalGuardService _guard;
   final RxAndReturnsService _rx;
+  int branchId=1;
   List<PatientClinicalModel> patients=[];
   List<InsuranceCompanyModel> companies=[];
   List<InsurancePolicyModel> policies=[];
@@ -22,13 +23,24 @@ class ClinicalAndRxProvider extends ChangeNotifier {
   List<String> currentFoods=[];
   final Set<String> quickFlags={};
 
+  Future<void> setBranch(int id) async { branchId=id; await loadAll(); }
+
   Future<void> loadAll() async {
     loading=true;error=null;notifyListeners();
     try{
       final db=await _helper.database;
-      patients=(await db.query('patients',orderBy:'full_name COLLATE NOCASE')).map(PatientClinicalModel.fromMap).toList();
-      companies=(await db.query('insurance_companies',orderBy:'name_ar')).map((r)=>InsuranceCompanyModel(id:r['id'] as int,partyId:r['party_id'] as int,nameAr:r['name_ar'] as String,defaultCoveragePct:(r['default_coverage_pct'] as num).toDouble(),claimCycleDays:(r['claim_cycle_days'] as num).toInt())).toList();
-      policies=(await db.query('insurance_policies',orderBy:'policy_no')).map((r)=>InsurancePolicyModel(id:r['id'] as int,insuranceCompanyId:r['insurance_company_id'] as int,customerPartyId:r['customer_party_id'] as int,policyNo:r['policy_no'] as String,coveragePct:(r['coverage_pct'] as num).toDouble(),copayPct:(r['copay_pct'] as num).toDouble(),annualLimit:(r['annual_limit'] as num).toDouble(),usedLimit:(r['used_limit'] as num).toDouble(),validFrom:r['valid_from'] as String?,validTo:r['valid_to'] as String?,excludedCategoriesJson:r['excluded_categories_json'] as String? ?? '[]')).toList();
+      patients=(await db.rawQuery(
+        'SELECT p.* FROM patients p JOIN parties party ON party.id=p.party_id WHERE party.branch_id=? AND party.is_deleted=0 ORDER BY p.full_name COLLATE NOCASE',
+        [branchId],
+      )).map(PatientClinicalModel.fromMap).toList();
+      companies=(await db.rawQuery(
+        'SELECT c.* FROM insurance_companies c JOIN parties party ON party.id=c.party_id WHERE party.branch_id=? AND party.is_deleted=0 ORDER BY c.name_ar',
+        [branchId],
+      )).map((r)=>InsuranceCompanyModel(id:r['id'] as int,partyId:r['party_id'] as int,nameAr:r['name_ar'] as String,defaultCoveragePct:(r['default_coverage_pct'] as num).toDouble(),claimCycleDays:(r['claim_cycle_days'] as num).toInt())).toList();
+      policies=(await db.rawQuery(
+        'SELECT ip.* FROM insurance_policies ip JOIN parties customer ON customer.id=ip.customer_party_id WHERE customer.branch_id=? AND customer.is_deleted=0 ORDER BY ip.policy_no',
+        [branchId],
+      )).map((r)=>InsurancePolicyModel(id:r['id'] as int,insuranceCompanyId:r['insurance_company_id'] as int,customerPartyId:r['customer_party_id'] as int,policyNo:r['policy_no'] as String,coveragePct:(r['coverage_pct'] as num).toDouble(),copayPct:(r['copay_pct'] as num).toDouble(),annualLimit:(r['annual_limit'] as num).toDouble(),usedLimit:(r['used_limit'] as num).toDouble(),validFrom:r['valid_from'] as String?,validTo:r['valid_to'] as String?,excludedCategoriesJson:r['excluded_categories_json'] as String? ?? '[]')).toList();
     }catch(e){error=e.toString();}
     loading=false;notifyListeners();
   }
@@ -60,7 +72,7 @@ class ClinicalAndRxProvider extends ChangeNotifier {
   }
   Future<ClinicalVerdict> evaluateCandidate(DrugModel drug) => _guard.evaluate(cart:[drug],patient:currentPatient,foodIntake:currentFoods,quickFlags:quickFlags);
   Future<List<AlternativeDrugModel>> loadAlternatives(int drugId,{bool inStockOnly=false,bool cheapestFirst=false}) async {
-    alternatives=await _rx.findAlternatives(drugId,inStockOnly:inStockOnly,cheapestFirst:cheapestFirst);notifyListeners();return alternatives;
+    alternatives=await _rx.findAlternatives(drugId,branchId:branchId,inStockOnly:inStockOnly,cheapestFirst:cheapestFirst);notifyListeners();return alternatives;
   }
   Future<int> dispensePrescription({required int prescriptionId,required Map<int,int> quantitiesByItemId,required int patientPartyId,required int? policyId,required List<({double amount,int? cashAccountId,String method,String? walletRef})> patientPayments,required int pharmacistUserId,Map<int,({String patientName,String patientNationalId,String receiverName,String receiverNationalId,String doctorName,int? batchId})> controlledDetails=const {},required Map<int,double> lineTotalsByItemId,int branchId=1,required ClinicalVerdict clinicalVerdict}) =>
     _rx.dispensePrescription(prescriptionId:prescriptionId,quantitiesByItemId:quantitiesByItemId,patientPartyId:patientPartyId,policyId:policyId,patientPayments:patientPayments,pharmacistUserId:pharmacistUserId,controlledDetails:controlledDetails,lineTotalsByItemId:lineTotalsByItemId,branchId:branchId,clinicalVerdict:clinicalVerdict);
