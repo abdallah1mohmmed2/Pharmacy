@@ -6,6 +6,7 @@ import '../providers/pos_and_drugs_provider.dart';
 import '../providers/inventory_and_purchase_provider.dart';
 import '../providers/treasury_hr_partner_provider.dart';
 import '../providers/settings_and_system_provider.dart';
+import '../core/constants/setting_keys.dart';
 import 'dashboard/s02_executive_dashboard_screen.dart';
 import 'pos/s03_smart_pos_screen.dart';
 import 'drugs/s08_s09_drug_encyclopedia_screen.dart';
@@ -33,8 +34,17 @@ class AppShell extends StatefulWidget {
   const AppShell({super.key});
   @override State<AppShell> createState()=>_AppShellState();
 }
-class _AppShellState extends State<AppShell>{
-  int index=0;
+class _AppShellState extends State<AppShell> with WidgetsBindingObserver{
+  int index=0; bool _closingBackupStarted=false;
+  @override void initState(){super.initState();WidgetsBinding.instance.addObserver(this);}
+  @override void dispose(){WidgetsBinding.instance.removeObserver(this);super.dispose();}
+  @override void didChangeAppLifecycleState(AppLifecycleState state){
+    if((state==AppLifecycleState.paused||state==AppLifecycleState.detached)&&!_closingBackupStarted){
+      _closingBackupStarted=true;
+      final provider=context.read<SettingsAndSystemProvider>();
+      if(!provider.loading){try{final config=provider.settings.getJson(SettingKey.autoLocalOnClose);if(config['enabled']==true){provider.createBackup(triggerType:'ON_APP_CLOSE',userId:context.read<SessionAndErpProvider>().currentUser?['id'] as int?);}}catch(_){}}
+    }
+  }
   static const _pageIcons=[Icons.dashboard,Icons.point_of_sale,Icons.medication,Icons.account_balance_wallet,Icons.inventory_2,Icons.radar,Icons.fact_check,Icons.delete,Icons.swap_horiz,Icons.shopping_cart,Icons.assignment_return,Icons.receipt_long,Icons.assignment_returned,Icons.health_and_safety,Icons.account_balance,Icons.lock_clock,Icons.receipt,Icons.groups,Icons.pie_chart,Icons.assessment,Icons.import_export,Icons.settings];
   final pages=const [S02ExecutiveDashboardScreen(),S03SmartPosScreen(),S08S09DrugEncyclopediaScreen(),S19S20S21PartiesAndVouchersScreen(),S11InventoryBatchesShelvesScreen(),S12FefoExpiryRadarScreen(),S13StocktakingScreen(),S14DisposalsScreen(),S15StockTransfersScreen(),S16PurchaseInvoiceBonusScreen(),S17S18ReturnsAndShortagesScreen(),S06PrescriptionInsuranceScreen(),S07SalesReturnsScreen(),S08ClinicalAuditScreen(),S22TreasuryWalletsScreen(),S23ShiftCloseHandoverScreen(),S24OperatingExpensesScreen(),S25EmployeesShiftsPayrollScreen(),S26OwnerPartnersProfitScreen(),S27ReportsCenterPdfScreen(),S10DrugImportExportScreen(),S28SystemSettingsBackupScreen()];
   final titles=const ['لوحة التحكم التنفيذية','الكاشير الذكي','الموسوعة الدوائية','حسابات الأطراف والسندات','المخزون والتشغيلات','رادار الصلاحية','الجرد المخزني','الإعدام والإتلاف','التحويلات المخزنية','فواتير المشتريات والبونص','المرتجعات والنواقص','الوصفات والتأمين','مرتجع المبيعات','سجل الرقابة السريرية','الخزينة والمحافظ','إغلاق وتسليم الوردية','المصروفات التشغيلية','الموظفون والرواتب','المالك والشركاء','مركز التقارير (55 تقريراً)','استيراد وتصدير الأدوية','إعدادات النظام والنسخ الاحتياطي'];
@@ -62,7 +72,7 @@ class _AppShellState extends State<AppShell>{
         IconButton(tooltip:'تسجيل الخروج',onPressed:session.logout,icon:const Icon(Icons.logout)),
       ]),
       body:Row(children:[
-        if(wide)SingleChildScrollView(child:NavigationRail(selectedIndex:visibleIndexes.indexOf(index).clamp(0,visibleIndexes.length-1),onDestinationSelected:(v)=>setState(()=>index=visibleIndexes[v]),labelType:NavigationRailLabelType.all,
+        if(wide)SingleChildScrollView(child:NavigationRail(selectedIndex:visibleIndexes.indexOf(index).clamp(0,visibleIndexes.length-1).toInt(),onDestinationSelected:(v)=>setState(()=>index=visibleIndexes[v]),labelType:NavigationRailLabelType.all,
           destinations:visibleIndexes.map((i)=>NavigationRailDestination(icon:Icon(_pageIcons[i]),selectedIcon:Icon(_pageIcons[i]),label:Text(titles[i]))).toList())),
         Expanded(child:IndexedStack(index:index,children:pages)),
       ]),
