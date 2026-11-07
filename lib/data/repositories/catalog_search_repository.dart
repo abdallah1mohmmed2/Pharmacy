@@ -186,7 +186,7 @@ class CatalogSearchRepository {
     }
     args.add(limit);
     return _database.rawQuery(
-      'SELECT * FROM catalog_cache WHERE ${clauses.join(' AND ')} '
+      'SELECT * FROM catalog_cache WHERE ${clauses.join(' AND ') '
       'ORDER BY cached_at DESC LIMIT ?',
       args,
     );
@@ -277,7 +277,5 @@ class CatalogSearchRepository {
   }
 
   bool _looksLikeBarcode(String value) =>
-      RegExp(r'^\d{8,14}).hasMatch(value);
-}
-).hasMatch(value);
+      RegExp(r'^\d{8,14}$').hasMatch(value);
 }
