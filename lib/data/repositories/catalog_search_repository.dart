@@ -151,7 +151,7 @@ class CatalogSearchRepository {
     List<Map<String, Object?>> rows;
     if (_ftsReady) {
       final expression = normalized
-          .split(RegExp(r'\\s+'))
+          .split(RegExp(r'\s+'))
           .where((part) => part.isNotEmpty)
           .map((part) => '"${part.replaceAll('"', '""')}"')
           .join(' AND ');
@@ -177,7 +177,7 @@ class CatalogSearchRepository {
     String query,
     int limit,
   ) async {
-    final terms = query.split(RegExp(r'\\s+')).where((e) => e.isNotEmpty);
+    final terms = query.split(RegExp(r'\s+')).where((e) => e.isNotEmpty);
     final clauses = <String>[];
     final args = <Object?>[];
     for (final term in terms) {
@@ -277,5 +277,7 @@ class CatalogSearchRepository {
   }
 
   bool _looksLikeBarcode(String value) =>
-      RegExp(r'^\\d{8,14}$').hasMatch(value);
+      RegExp(r'^\d{8,14}).hasMatch(value);
+}
+).hasMatch(value);
 }
