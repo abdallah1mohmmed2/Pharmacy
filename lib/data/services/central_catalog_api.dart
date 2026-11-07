@@ -196,7 +196,7 @@ class CentralCatalogApi implements CentralCatalogDataSource {
     List<CatalogDrugSummary> items,
     String query,
   ) {
-    final terms = query.split(RegExp(r'\\s+')).where((term) => term.isNotEmpty);
+    final terms = query.split(RegExp(r'\s+')).where((term) => term.isNotEmpty);
     if (query.runes.length <= 2) return items;
     return items.where((item) {
       final searchable = _normalizeQuery([
@@ -214,26 +214,86 @@ class CentralCatalogApi implements CentralCatalogDataSource {
     return value
         .trim()
         .toLowerCase()
-        .replaceAll(RegExp(r'[\\u064B-\\u065F\\u0670]'), '')
+        .replaceAll(RegExp(r'[\u064B-\u065F\u0670]'), '')
         .replaceAll('أ', 'ا')
         .replaceAll('إ', 'ا')
         .replaceAll('آ', 'ا')
         .replaceAll('ى', 'ي')
         .replaceAll('ة', 'ه')
-        .replaceAll(RegExp(r'\\s+'), ' ');
+        .replaceAll(RegExp(r'\s+'), ' ');
   }
 
   static String _prefixFor(String query) =>
       String.fromCharCodes(_normalizeQuery(query).runes.take(2));
 
   static String _safeShardName(String cursor) {
-    if (!RegExp(r'^[\\p{L}\\p{N}_-]{1,80}$', unicode: true).hasMatch(cursor)) {
+    if (!RegExp(r'^[a-zA-Z0-9_\-\u0600-\u06FF]{1,80}
+      throw const FormatException('Invalid catalogue shard cursor');
+    }
+    return cursor;
+  }
+
+  static bool _isBarcode(String value) => RegExp(r'^\d{8,14}).hasMatch(value);
+}
+
+class CatalogApiException implements Exception {
+  const CatalogApiException(this.message, {this.statusCode});
+
+  final String message;
+  final int? statusCode;
+
+  @override
+  String toString() => message;
+}
+).hasMatch(cursor)) {
       throw const FormatException('Invalid catalogue shard cursor');
     }
     return cursor;
   }
 
   static bool _isBarcode(String value) => RegExp(r'^\\d{8,14}$').hasMatch(value);
+}
+
+class CatalogApiException implements Exception {
+  const CatalogApiException(this.message, {this.statusCode});
+
+  final String message;
+  final int? statusCode;
+
+  @override
+  String toString() => message;
+}
+).hasMatch(value);
+}
+
+class CatalogApiException implements Exception {
+  const CatalogApiException(this.message, {this.statusCode});
+
+  final String message;
+  final int? statusCode;
+
+  @override
+  String toString() => message;
+}
+).hasMatch(cursor)) {
+      throw const FormatException('Invalid catalogue shard cursor');
+    }
+    return cursor;
+  }
+
+  static bool _isBarcode(String value) => RegExp(r'^\d{8,14}).hasMatch(value);
+}
+
+class CatalogApiException implements Exception {
+  const CatalogApiException(this.message, {this.statusCode});
+
+  final String message;
+  final int? statusCode;
+
+  @override
+  String toString() => message;
+}
+).hasMatch(value);
 }
 
 class CatalogApiException implements Exception {
