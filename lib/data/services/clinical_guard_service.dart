@@ -82,7 +82,7 @@ class ClinicalGuardService {
     final category=d.pregnancyCategory.toUpperCase();
     final reproductive=(p.sex=='F'&&(p.ageYears??0)>=12&&(p.ageYears??0)<=50);
     if(p.isPregnant){
-      if(category=='X')out.add(ClinicalAlertModel(category:'PREGNANCY',level:ClinicalLevel.block,drugId:d.id,messageAr:'الدواء مصنف ضمن فئة الحمل X ويُمنع استخدامه أثناء الحمل.',recommendation:'لا تصرفه دون تقييم اختصاصي وإجراء تجاوز إداري موثق.'));
+      if(blocksPregnancyX(d,p))out.add(ClinicalAlertModel(category:'PREGNANCY',level:ClinicalLevel.block,drugId:d.id,messageAr:'الدواء مصنف ضمن فئة الحمل X ويُمنع استخدامه أثناء الحمل.',recommendation:'لا تصرفه دون تقييم اختصاصي وإجراء تجاوز إداري موثق.'));
       if(category=='D')out.add(ClinicalAlertModel(category:'PREGNANCY',level:ClinicalLevel.warning,drugId:d.id,messageAr:'توجد مخاطر جنينية مثبتة؛ يلزم تقييم المنفعة والمخاطر.'));
       if(category=='C')out.add(ClinicalAlertModel(category:'PREGNANCY',level:ClinicalLevel.caution,drugId:d.id,messageAr:'بيانات الحمل تستلزم موازنة المنفعة والمخاطر.'));
     }else if(reproductive&&!p.pregnancyStatusKnown&&(category=='X'||category=='D'))out.add(ClinicalAlertModel(category:'PREGNANCY',level:ClinicalLevel.warning,drugId:d.id,messageAr:'حالة الحمل غير محددة؛ اسأل المريضة قبل صرف هذا الدواء.',ruleRef:'PREG_ASK'));
@@ -91,6 +91,7 @@ class ClinicalGuardService {
   }
 
   double? crcl(PatientClinicalModel p)=>p.crcl;
+  static bool blocksPregnancyX(DrugModel drug,PatientClinicalModel? patient)=>patient?.isPregnant==true&&drug.pregnancyCategory.toUpperCase()=='X';
   Future<List<ClinicalAlertModel>> _renal(DrugModel d,PatientClinicalModel? p) async {
     final value=p?.crcl;if(value==null||d.id==null)return [];
     final rows=await (await _helper.database).query('drug_renal_rules',where:'drug_id=? AND crcl_min<=? AND crcl_max>=?',whereArgs:[d.id,value,value],limit:1);
