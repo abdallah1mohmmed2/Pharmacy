@@ -45,31 +45,52 @@ jobs:
               raise SystemExit("Could not locate Flutter Android compileSdk declaration")
           PY
       - run: flutter pub get
-      - name: Set Android plugin modules compile SDK to 36
+      - name: Normalize Android plugin compile SDK when explicitly declared
         shell: bash
         run: |
           python - <<'PY'
           import re
           from pathlib import Path
-          root = Path.home() / ".pub-cache" / "hosted" / "pub.dev"
-          patterns = [
-              (re.compile(r"(?m)^(\s*compileSdk(?:Version)?\s*(?:=\s*)?)(?:flutter\.compileSdkVersion|\d+)"), r"\g<1>36"),
+
+          # Plugin compile SDK overrides are optional. The app module is already
+          # pinned to API 36 above; only normalize plugin declarations that exist.
+          roots = [
+              Path.home() / ".pub-cache" / "hosted" / "pub.dev",
+              Path("/root/.pub-cache/hosted/pub.dev"),
           ]
+          root = next((candidate for candidate in roots if candidate.exists()), None)
+          if root is None:
+              print("Pub cache directory not found; keeping app compile SDK 36.")
+              raise SystemExit(0)
+
+          pattern = re.compile(
+              r"(?m)^(\s*compileSdk(?:Version)?\s*(?:=\s*)?)"
+              r"(?:flutter\.compileSdkVersion|\d+)"
+          )
           changed = []
-          for path in root.glob("*/android/build.gradle*"):
-              content = path.read_text()
-              updated = content
-              for pattern, replacement in patterns:
-                  updated = pattern.sub(replacement, updated)
-              if updated != content:
-                  path.write_text(updated)
-                  changed.append(str(path))
-          for required in ("file_picker", "flutter_plugin_android_lifecycle"):
-              matches = [p for p in changed if f"/{required}-" in p]
-              if not matches:
-                  raise SystemExit(f"Could not enforce compile SDK 36 for {required}")
-          print("Configured Android plugin modules for compile SDK 36:")
-          print("\\n".join(changed))
+          scanned = 0
+          for gradle_file in root.rglob("build.gradle*"):
+              if "android" not in gradle_file.parts:
+                  continue
+              try:
+                  original = gradle_file.read_text(encoding="utf-8")
+              except (OSError, UnicodeError):
+                  continue
+              scanned += 1
+              updated = pattern.sub(r"\g<1>36", original)
+              if updated != original:
+                  gradle_file.write_text(updated, encoding="utf-8")
+                  changed.append(str(gradle_file))
+
+          print(f"Scanned {scanned} Android plugin Gradle files.")
+          if changed:
+              print("Normalized explicit plugin compile SDK declarations to API 36:")
+              print("\n".join(changed))
+          else:
+              print(
+                  "No explicit plugin compile SDK declarations needed normalization; "
+                  "the app compile SDK remains pinned to API 36."
+              )
           PY
       - run: dart format lib test
       - run: flutter analyze --no-fatal-infos

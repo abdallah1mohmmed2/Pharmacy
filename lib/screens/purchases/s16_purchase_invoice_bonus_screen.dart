@@ -89,20 +89,33 @@ class _S16PurchaseInvoiceBonusScreenState
       0,
       (sum, item) => sum + item.bonusPacks * item.packPrice,
     );
-    final shelves = inventory.shelves
-        .where((shelf) => shelf.warehouseId == warehouse)
-        .where((shelf) {
-      final selectedDrugs = pos.drugs.where((item) => item.id == drug);
-      if (selectedDrugs.isEmpty || !selectedDrugs.first.requiresRefrigeration) {
-        return true;
-      }
-      return shelf.isFridge;
-    }).toList();
+
 
     return Padding(
       padding: const EdgeInsets.all(12),
       child: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         children: [
+          const Card(
+            color: Color(0x2239A9A0),
+            child: Padding(
+              padding: EdgeInsets.all(12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'تنبيه: قبل ترحيل الشراء اختر المورد والمستودع وأضف بنداً واحداً على الأقل. '
+                      'ولكل بند أدخل الدواء ورقم التشغيلة وتاريخ صلاحية مستقبلي والكمية المدفوعة وسعر التكلفة. '
+                      'الرف مطلوب للأدوية المبردة، أما رقم فاتورة المورد وسعر البيع المقترح فاختياريان.',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           const Text(
             'فواتير المشتريات والبونص',
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
@@ -117,7 +130,7 @@ class _S16PurchaseInvoiceBonusScreenState
           ),
           DropdownButtonFormField<int>(
             value: supplier,
-            decoration: const InputDecoration(labelText: 'المورد'),
+            decoration: const InputDecoration(labelText: 'المورد *'),
             items: suppliers
                 .map((party) => DropdownMenuItem(
                       value: party.id,
@@ -133,7 +146,7 @@ class _S16PurchaseInvoiceBonusScreenState
             ),
           DropdownButtonFormField<int>(
             value: warehouse,
-            decoration: const InputDecoration(labelText: 'المستودع'),
+            decoration: const InputDecoration(labelText: 'المستودع *'),
             items: inventory.warehouses
                 .map((item) => DropdownMenuItem(
                       value: item.id,
@@ -171,106 +184,28 @@ class _S16PurchaseInvoiceBonusScreenState
                   .toList(),
               onChanged: saving ? null : (value) => setState(() => cash = value),
             ),
-          const Divider(),
-          const Text(
-            'إضافة بند شراء',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          DropdownButtonFormField<int>(
-            value: drug,
-            decoration: const InputDecoration(labelText: 'الدواء'),
-            items: pos.drugs
-                .map((item) => DropdownMenuItem(
-                      value: item.id,
-                      child: Text(item.tradeNameAr),
-                    ))
-                .toList(),
-            onChanged: saving
-                ? null
-                : (value) => setState(() {
-                      drug = value;
-                      location = null;
-                    }),
-          ),
-          TextField(
-            controller: batchNo,
-            decoration: const InputDecoration(labelText: 'رقم التشغيلة'),
-          ),
-          TextField(
-            controller: expiry,
-            decoration: const InputDecoration(
-              labelText: 'الصلاحية YYYY-MM-DD',
-              hintText: '2027-12-31',
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text('بنود فاتورة المشتريات',
+                    style: TextStyle(fontSize: 17,fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 5),
+                  Text('عدد البنود: ${lines.length}',
+                    style: const TextStyle(color: Colors.white60)),
+                  const SizedBox(height: 10),
+                  FilledButton.icon(
+                    onPressed: saving
+                      ? null
+                      : () => _showAddPurchaseItemSheet(pos, inventory),
+                    icon: const Icon(Icons.add_shopping_cart),
+                    label: const Text('إضافة بند شراء'),
+                  ),
+                ],
+              ),
             ),
-          ),
-          DropdownButtonFormField<int>(
-            value: location,
-            decoration: const InputDecoration(labelText: 'موقع الرف'),
-            items: shelves
-                .map((item) => DropdownMenuItem(
-                      value: item.id,
-                      child: Text(item.code + (item.isFridge ? ' • مبرد' : '')),
-                    ))
-                .toList(),
-            onChanged: saving
-                ? null
-                : (value) => setState(() => location = value),
-          ),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: paidPacks,
-                  keyboardType: TextInputType.number,
-                  decoration:
-                      const InputDecoration(labelText: 'باكتات مدفوعة'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextField(
-                  controller: bonus,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'باكتات بونص'),
-                ),
-              ),
-            ],
-          ),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: price,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'سعر الباكت'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextField(
-                  controller: lineDiscount,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'خصم البند %'),
-                ),
-              ),
-            ],
-          ),
-          TextField(
-            controller: sellPrice,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration:
-                const InputDecoration(labelText: 'سعر البيع المقترح للباكت'),
-          ),
-          SwitchListTile(
-            value: bonusCost,
-            onChanged: saving ? null : (value) => setState(() => bonusCost = value),
-            title: const Text('احتساب البونص ضمن تخفيض التكلفة'),
-          ),
-          FilledButton(
-            onPressed: saving ? null : () => _addLine(pos, inventory),
-            child: const Text('إضافة البند إلى الفاتورة'),
           ),
           if (lines.isNotEmpty) ...[
             const Divider(),
@@ -342,6 +277,167 @@ class _S16PurchaseInvoiceBonusScreenState
             label: const Text('ترحيل فاتورة المشتريات'),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _showAddPurchaseItemSheet(
+    PosAndDrugsProvider pos,
+    InventoryAndPurchaseProvider inventory,
+  ) async {
+    await KeyboardSafeModalSheet.show<void>(
+      context: context,
+      heightFactor: .94,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, refreshSheet) {
+          final selectedDrug = pos.drugs.where((item) => item.id == drug).toList();
+          final coldRequired =
+              selectedDrug.isNotEmpty && selectedDrug.first.requiresRefrigeration;
+          final shelves = inventory.shelves
+              .where((shelf) => shelf.warehouseId == warehouse)
+              .where((shelf) => !coldRequired || shelf.isFridge)
+              .toList();
+          final paidQuantity = int.tryParse(paidPacks.text) ?? 0;
+          final bonusQuantity = int.tryParse(bonus.text) ?? 0;
+          final unitCost = double.tryParse(price.text) ?? 0;
+          final discountPct = double.tryParse(lineDiscount.text) ?? 0;
+          final gross = paidQuantity * unitCost * (1 - discountPct / 100);
+          final effectiveUnits = bonusCost
+              ? paidQuantity + bonusQuantity
+              : paidQuantity;
+          final effectiveCost =
+              effectiveUnits > 0 ? gross / effectiveUnits : 0.0;
+
+          return AddPurchaseItemSheet(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('إضافة بند إلى فاتورة الشراء',
+                  style: TextStyle(fontSize: 18,fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  value: drug,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'الدواء *'),
+                  items: pos.drugs.map((item) => DropdownMenuItem(
+                    value: item.id, child: Text(item.tradeNameAr),
+                  )).toList(),
+                  onChanged: saving ? null : (value) {
+                    setState(() { drug = value; location = null; });
+                    refreshSheet(() {});
+                  },
+                ),
+                const SizedBox(height: 8),
+                TextField(controller: batchNo,
+                  decoration: const InputDecoration(labelText: 'رقم التشغيلة *')),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: expiry,
+                  keyboardType: TextInputType.datetime,
+                  decoration: const InputDecoration(
+                    labelText: 'الصلاحية * YYYY-MM-DD',
+                    hintText: '2027-12-31',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<int>(
+                  value: location,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'موقع الرف'),
+                  items: shelves.map((item) => DropdownMenuItem(
+                    value: item.id,
+                    child: Text(item.code + (item.isFridge ? ' • مبرد' : '')),
+                  )).toList(),
+                  onChanged: saving ? null : (value) {
+                    setState(() => location = value);
+                    refreshSheet(() {});
+                  },
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(child: TextField(
+                      controller: paidPacks,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'باكتات مدفوعة *'),
+                      onChanged: (_) => refreshSheet(() {}),
+                    )),
+                    const SizedBox(width: 8),
+                    Expanded(child: TextField(
+                      controller: bonus,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'باكتات بونص'),
+                      onChanged: (_) => refreshSheet(() {}),
+                    )),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(child: TextField(
+                      controller: price,
+                      keyboardType: const TextInputType.numberWithOptions(decimal:true),
+                      decoration: const InputDecoration(labelText: 'سعر الباكت *'),
+                      onChanged: (_) => refreshSheet(() {}),
+                    )),
+                    const SizedBox(width: 8),
+                    Expanded(child: TextField(
+                      controller: lineDiscount,
+                      keyboardType: const TextInputType.numberWithOptions(decimal:true),
+                      decoration: const InputDecoration(labelText: 'خصم البند %'),
+                      onChanged: (_) => refreshSheet(() {}),
+                    )),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: sellPrice,
+                  keyboardType: const TextInputType.numberWithOptions(decimal:true),
+                  decoration: const InputDecoration(labelText: 'سعر البيع المقترح للباكت'),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: bonusCost,
+                  onChanged: saving ? null : (value) {
+                    setState(() => bonusCost = value);
+                    refreshSheet(() {});
+                  },
+                  title: const Text('احتساب البونص ضمن تخفيض التكلفة'),
+                ),
+                Card(
+                  color: const Color(0x224DB6AC),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text('التكلفة الفعلية بعد البونص',
+                          style: TextStyle(fontWeight: FontWeight.w700)),
+                        Text(effectiveCost.toStringAsFixed(2),
+                          style: const TextStyle(fontSize: 23,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF4DB6AC))),
+                        Text('الكمية المدفوعة: $paidQuantity • البونص: $bonusQuantity باكت'),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                FilledButton.icon(
+                  onPressed: saving ? null : () async {
+                    final previousCount = lines.length;
+                    await _addLine(pos, inventory);
+                    if (lines.length > previousCount && sheetContext.mounted) {
+                      Navigator.pop(sheetContext);
+                    }
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('إضافة البند إلى الفاتورة'),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -482,4 +578,14 @@ class _S16PurchaseInvoiceBonusScreenState
       SnackBar(content: Text(value)),
     );
   }
+}
+
+
+class AddPurchaseItemSheet extends StatelessWidget {
+  const AddPurchaseItemSheet({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => child;
 }

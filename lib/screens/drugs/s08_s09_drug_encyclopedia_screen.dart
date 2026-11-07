@@ -11,40 +11,155 @@ import '../../reports_pdf/registry/report_registry_and_provider.dart';
 
 class S08S09DrugEncyclopediaScreen extends StatefulWidget{const S08S09DrugEncyclopediaScreen({super.key});@override State<S08S09DrugEncyclopediaScreen> createState()=>_S08S09DrugEncyclopediaScreenState();}
 class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScreen>{
- String filter='ALL';DrugModel? selected;
- @override Widget build(BuildContext context){final p=context.watch<PosAndDrugsProvider>();final list=p.drugs.where((d)=>switch(filter){'ANTIBIOTIC'=>d.isAntibiotic,'CONTROLLED'=>d.isControlled,'COLD'=>d.requiresRefrigeration,'PREG_X'=>d.pregnancyCategory=='X',_=>true}).toList();
-  return Scaffold(backgroundColor:Colors.transparent,floatingActionButton:FloatingActionButton.extended(onPressed:()=>_edit(context),icon:const Icon(Icons.add),label:const Text('إضافة دواء')),body:Padding(padding:const EdgeInsets.all(12),child:Column(children:[
-   TextField(decoration:const InputDecoration(prefixIcon:Icon(Icons.search),hintText:'ابحث بالاسم التجاري أو العلمي أو الباركود'),onChanged:p.searchDrugs),
-   const SizedBox(height:8),
-   Wrap(spacing:6,children:[for(final f in const [('ALL','الكل'),('ANTIBIOTIC','مضادات حيوية'),('CONTROLLED','مراقبة'),('COLD','ثلاجة'),('PREG_X','حمل X')])ChoiceChip(label:Text(f.$2),selected:filter==f.$1,onSelected:(_)=>setState(()=>filter=f.$1))]),
-   Expanded(child:LayoutBuilder(builder:(context,c)=>Row(children:[
-     SizedBox(
-      width: c.maxWidth > 800 ? 330 : c.maxWidth * .42,
-      child: ListView(
-       children: list.map((d) => Card(
-        child: ListTile(
-         selected: selected?.id == d.id,
-         title: Text(d.tradeNameAr),
-         subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-           Text(d.scientificName),
-           LinearProgressIndicator(
-            value: d.calculateCompletenessPct() / 100,
-            color: AppColors.primary,
+ String filter='ALL';
+ DrugModel? selected;
+ final searchController=TextEditingController();
+
+ @override
+ void dispose(){
+  searchController.dispose();
+  super.dispose();
+ }
+
+ @override
+ Widget build(BuildContext context){
+  final p=context.watch<PosAndDrugsProvider>();
+  final list=p.drugs.where((d)=>switch(filter){
+   'ANTIBIOTIC'=>d.isAntibiotic,
+   'CONTROLLED'=>d.isControlled,
+   'COLD'=>d.requiresRefrigeration,
+   'PREG_X'=>d.pregnancyCategory=='X',
+   _=>true,
+  }).toList();
+
+  final filters=const [
+   ('ALL','الكل'),
+   ('ANTIBIOTIC','مضادات حيوية'),
+   ('CONTROLLED','مراقبة'),
+   ('COLD','ثلاجة'),
+   ('PREG_X','حمل X'),
+  ];
+
+  return Scaffold(
+   backgroundColor:Colors.transparent,
+   floatingActionButton:FloatingActionButton.extended(
+    onPressed:()=>_edit(context),
+    icon:const Icon(Icons.add),
+    label:const Text('إضافة دواء'),
+   ),
+   body:Padding(
+    padding:const EdgeInsets.all(12),
+    child:Column(
+     children:[
+      CompactSearchAndFilterBar(
+       controller:searchController,
+       hintText:'ابحث بالاسم التجاري أو العلمي أو الباركود',
+       onChanged:p.searchDrugs,
+       activeFilterCount:filter=='ALL'?0:1,
+       onFilter:()=>_showFilters(filters),
+      ),
+      const SizedBox(height:8),
+      Expanded(
+       child:ResponsiveLayout(
+        mobile:selected==null
+         ?_drugList(list)
+         :Column(
+          children:[
+           Align(
+            alignment:AlignmentDirectional.centerStart,
+            child:TextButton.icon(
+             onPressed:()=>setState(()=>selected=null),
+             icon:const Icon(Icons.arrow_back),
+             label:const Text('العودة إلى قائمة الأدوية'),
+            ),
            ),
-           Text('اكتمال البيانات: ${d.calculateCompletenessPct().toStringAsFixed(0)}%'),
+           Expanded(child:_details(selected!)),
           ],
          ),
-         onTap: () => setState(() => selected = d),
+        desktop:Row(
+         children:[
+          SizedBox(width:330,child:_drugList(list)),
+          const VerticalDivider(width:12),
+          Expanded(
+           child:selected==null
+            ?const Center(child:Text('اختر دواء لعرض التفاصيل'))
+            :_details(selected!),
+          ),
+         ],
         ),
-       )).toList(),
+       ),
       ),
-     ),
-    const VerticalDivider(width:12),Expanded(child:selected==null?const Center(child:Text('اختر دواء لعرض التفاصيل')):_details(selected!)),
-   ]))),
-  ])));
+     ],
+    ),
+   ),
+  );
  }
+
+ Widget _drugList(List<DrugModel> list)=>ListView.builder(
+  keyboardDismissBehavior:ScrollViewKeyboardDismissBehavior.onDrag,
+  itemCount:list.length,
+  itemBuilder:(context,index){
+   final drug=list[index];
+   return SmartExpandableCard(
+    title:drug.tradeNameAr,
+    primary:drug.scientificName,
+    secondary:'اكتمال البيانات: ${drug.calculateCompletenessPct().toStringAsFixed(0)}%',
+    leading:const CircleAvatar(
+     backgroundColor:Color(0x224DB6AC),
+     child:Icon(Icons.medication,color:AppColors.primary),
+    ),
+    trailing:IconButton(
+     tooltip:'عرض التفاصيل',
+     onPressed:()=>setState(()=>selected=drug),
+     icon:const Icon(Icons.arrow_forward_ios,size:16),
+    ),
+    details:[
+     LinearProgressIndicator(
+      value:drug.calculateCompletenessPct()/100,
+      color:AppColors.primary,
+     ),
+     const SizedBox(height:8),
+     Text('السعر: ${MoneyFormatter.format(drug.sellPricePack)} • المخزون: ${drug.stockTotalUnits} حبة'),
+    ],
+    actions:[
+     OutlinedButton.icon(
+      onPressed:()=>setState(()=>selected=drug),
+      icon:const Icon(Icons.visibility_outlined),
+      label:const Text('التفاصيل السريرية'),
+     ),
+     OutlinedButton.icon(
+      onPressed:()=>_edit(context,drug),
+      icon:const Icon(Icons.edit_outlined),
+      label:const Text('تعديل'),
+     ),
+    ],
+   );
+  },
+ );
+
+ Future<void> _showFilters(List<(String,String)> filters)async{
+  await KeyboardSafeModalSheet.show<void>(
+   context:context,
+   builder:(sheetContext)=>Column(
+    crossAxisAlignment:CrossAxisAlignment.stretch,
+    children:[
+     const Text('تصفية الموسوعة الدوائية',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
+     const SizedBox(height:12),
+     for(final entry in filters)
+      RadioListTile<String>(
+       value:entry.$1,
+       groupValue:filter,
+       title:Text(entry.$2),
+       onChanged:(value){
+        setState(()=>filter=value??'ALL');
+        Navigator.pop(sheetContext);
+       },
+      ),
+    ],
+   ),
+  );
+ }
+
  Widget _details(DrugModel d)=>DefaultTabController(length:5,child:Column(children:[
   Row(children:[Expanded(child:Text(d.tradeNameAr,style:const TextStyle(fontSize:20,fontWeight:FontWeight.bold))),IconButton(tooltip:'البدائل',onPressed:()=>S05DrugAlternativesSheet.show(context,d,(_){ }),icon:const Icon(Icons.swap_horiz)),IconButton(tooltip:'طباعة البطاقة السريرية PDF - تقرير 46',onPressed:()=>_printClinicalCard(d),icon:const Icon(Icons.picture_as_pdf)),IconButton(onPressed:()=>_edit(context,d),icon:const Icon(Icons.edit))]),
   const TabBar(isScrollable:true,tabs:[Tab(text:'الهوية والتسعير'),Tab(text:'الاستعمال والسلامة'),Tab(text:'الفئات الخاصة'),Tab(text:'التخزين والرقابة'),Tab(text:'القواعد السريرية')]),
@@ -146,7 +261,7 @@ class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScr
    'warnings_precautions':'8. التحذيرات والاحتياطات','black_box_warning':'8. تحذير الصندوق الأسود','warnings_json':'8. تحذيرات إضافية JSON',
    'interactions_summary':'9. التفاعلات الدوائية','has_critical_interactions':'9. تداخلات حرجة (1/0)',
    'side_effects_common':'10. الآثار الجانبية الشائعة','side_effects_serious':'10. الآثار الجانبية الخطيرة',
-   'strips_per_pack':'11. عدد الأشرطة في الباكت','units_per_strip':'11. عدد الحبات في الشريط','cost_price_pack':'11. تكلفة الباكت','last_purchase_cost_pack':'11. آخر تكلفة شراء','sell_price_pack':'11. سعر بيع الباكت','sell_price_strip':'11. سعر بيع الشريط','sell_price_unit':'11. سعر بيع الحبة','strip_price_mode':'11. نمط سعر الشريط AUTO / MANUAL','profit_margin_pct':'11. هامش الربح %','public_price_pack':'11. السعر العام للباكت','tax_rate_pct':'11. الضريبة %','min_stock_units':'11. حد إعادة الطلب بالحبة','reorder_qty_packs':'11. كمية إعادة الطلب بالباكت','stock_total_units':'11. المخزون الحالي بالحبة',
+   'strips_per_pack':'11. عدد الأشرطة في الباكت','units_per_strip':'11. عدد الحبات في الشريط','cost_price_pack':'11. تكلفة الباكت','last_purchase_cost_pack':'11. آخر تكلفة شراء','sell_price_pack':'11. سعر بيع الباكت','sell_price_strip':'11. سعر بيع الشريط','sell_price_unit':'11. سعر بيع الحبة','strip_price_mode':'11. نمط سعر الشريط AUTO / MANUAL','profit_margin_pct':'11. هامش الربح %','public_price_pack':'11. السعر العام للباكت','tax_rate_pct':'11. الضريبة %','min_stock_units':'11. حد إعادة الطلب بالحبة','reorder_qty_packs':'11. كمية إعادة الطلب بالباكت',
    'min_age_months':'12. أقل عمر بالأشهر','max_age_months':'12. أكبر عمر بالأشهر','allowed_populations_json':'12. الفئات السكانية المسموحة JSON',
    'hepatic_status':'13. حالة القصور الكبدي SAFE / ADJUST / AVOID / CONTRAINDICATED / UNKNOWN','hepatic_notes':'13. ملاحظات الكبد',
    'renal_status':'14. حالة القصور الكلوي SAFE / ADJUST / AVOID / CONTRAINDICATED / UNKNOWN','renal_notes':'14. ملاحظات الكلى GFR / CrCl','is_nephrotoxic':'14. سام للكلى (1/0)',
@@ -157,7 +272,7 @@ class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScr
    'storage_conditions':'19. شروط التخزين','storage_temp_min_c':'19. أدنى حرارة مئوية','storage_temp_max_c':'19. أعلى حرارة مئوية','requires_refrigeration':'19. يتطلب تبريداً (1/0)','protect_from_light':'19. يحفظ بعيداً عن الضوء (1/0)','barcode_international':'19. الباركود العالمي','barcode_local':'19. الباركود المحلي','registration_no':'19. رقم التسجيل','is_controlled':'19. دواء مراقب (1/0)','controlled_schedule':'19. جدول الرقابة','requires_prescription':'19. يتطلب وصفة (1/0)','prescription_restricted':'19. وصفة مقيدة (1/0)','is_antibiotic':'19. مضاد حيوي (1/0)'
   };
   const boolKeys={'is_active','is_strip_based','has_critical_interactions','is_nephrotoxic','neonate_allowed','requires_refrigeration','protect_from_light','is_controlled','requires_prescription','prescription_restricted','is_antibiotic'};
-  const intKeys={'manufacturer_id','active_ingredient_id','category_id','strips_per_pack','units_per_strip','min_stock_units','reorder_qty_packs','stock_total_units','min_age_months','max_age_months','geriatric_age_threshold','ped_doses_per_day'};
+  const intKeys={'manufacturer_id','active_ingredient_id','category_id','strips_per_pack','units_per_strip','min_stock_units','reorder_qty_packs','min_age_months','max_age_months','geriatric_age_threshold','ped_doses_per_day'};
   const numberKeys={'strength_value','adult_dose_min_mg','adult_dose_max_mg_per_day','cost_price_pack','last_purchase_cost_pack','sell_price_pack','sell_price_strip','sell_price_unit','profit_margin_pct','public_price_pack','tax_rate_pct','ped_dose_mg_per_kg_min','ped_dose_mg_per_kg_max','ped_max_daily_mg_per_kg','storage_temp_min_c','storage_temp_max_c'};
   final initial=(drug??const DrugModel()).toMap();
   final controllers=<String,TextEditingController>{
@@ -176,7 +291,7 @@ class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScr
    'pregnancy_category':{'A','B','C','D','X','N','UNKNOWN'},
    'lactation_risk':{'L1','L2','L3','L4','L5','UNKNOWN'},
   };
-  List<String> groupFor(List<int> points)=>labels.keys.where((key){final point=int.tryParse(labels[key]!.split('.').first);return point!=null&&points.contains(point);}).toList();
+  List<String> groupFor(List<int> points)=>labels.keys.where((key){if(key=='is_active')return points.contains(1);final point=int.tryParse(labels[key]!.split('.').first);return point!=null&&points.contains(point);}).toList();
   final tabGroups=<List<String>>[groupFor([1,2,3,4]),groupFor([5,6,7,8,9,10]),groupFor([11,12]),groupFor([13,14,15,16,17,18,19])];
   Widget buildField(String key){
    final controller=controllers[key]!;
@@ -196,8 +311,10 @@ class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScr
   ]);
   final provider = context.read<PosAndDrugsProvider>();
   await showDialog<void>(context:context,builder:(dialogContext)=>AlertDialog(
+   insetPadding:const EdgeInsets.all(8),
+   scrollable:true,
    title:Text(drug==null?'إضافة دواء — جميع النقاط الـ19':'تعديل بيانات الدواء — جميع النقاط الـ19'),
-   content:SizedBox(width:720,height:MediaQuery.sizeOf(context).height*.76,child:Form(key:form,child:DefaultTabController(length:4,child:Column(children:[
+   content:SizedBox(width:MediaQuery.sizeOf(context).width<700?double.infinity:900,height:(MediaQuery.sizeOf(context).height-MediaQuery.viewInsetsOf(context).bottom-190).clamp(240.0,720.0).toDouble(),child:Form(key:form,child:DefaultTabController(length:4,child:Column(children:[
     const TabBar(isScrollable:true,tabs:[Tab(text:'1–4 الهوية والتركيب'),Tab(text:'5–10 الاستعمال والسلامة'),Tab(text:'11–12 التسعير والفئات'),Tab(text:'13–19 الحالات الخاصة')]),
     Expanded(child:TabBarView(children:[for(final keys in tabGroups)tabFields(keys)])),
    ])))),

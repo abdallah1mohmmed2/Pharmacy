@@ -103,7 +103,7 @@ abstract final class SchemaIteration6 {
   await _ensureColumn(db,'users','system_role_code','TEXT');
   await db.execute('UPDATE users SET system_role_code=role_code WHERE system_role_code IS NULL');
   const roles=<String,String>{'OWNER':'المالك','MANAGER':'مدير','PHARMACIST':'صيدلي','CASHIER':'كاشير','STOREKEEPER':'أمين مخزن','ACCOUNTANT':'محاسب','AUDITOR':'مراجع'};
-  const permissions=<String>['dashboard.view','pos.sell','pos.discount.override','drugs.view','drugs.create','drugs.update','drugs.import','drugs.export','inventory.view','inventory.adjust','inventory.stocktake','purchases.manage','sales.returns','clinical.override','finance.view','finance.manage','partners.manage','reports.view','reports.export','settings.view','settings.manage','settings.manager_pin','audit.view','audit.verify','backup.create','backup.restore','sync.manage','period.close','users.manage','roles.manage'];
+  const permissions=<String>['dashboard.view','pos.sell','pos.discount.override','drugs.view','drugs.create','drugs.update','drugs.import','drugs.export','inventory.view','inventory.adjust','inventory.stocktake','purchases.manage','sales.returns','clinical.override','finance.view','finance.manage','partners.manage','reports.view','reports.export','settings.view','settings.manage','settings.manager_pin','audit.view','audit.verify','backup.create','backup.restore','sync.manage','period.close','users.manage','roles.manage','reports.cost.view'];
   for(final role in roles.entries){
    await db.insert('roles',{'role_code':role.key,'role_name_ar':role.value},conflictAlgorithm:ConflictAlgorithm.ignore);
    for(final permission in permissions){
@@ -111,12 +111,20 @@ abstract final class SchemaIteration6 {
      (role.key=='PHARMACIST'&&{'dashboard.view','pos.sell','drugs.view','drugs.create','drugs.update','inventory.view','clinical.override','reports.view'}.contains(permission))||
      (role.key=='CASHIER'&&{'dashboard.view','pos.sell','drugs.view','reports.view'}.contains(permission))||
      (role.key=='STOREKEEPER'&&{'dashboard.view','drugs.view','inventory.view','inventory.adjust','inventory.stocktake','reports.view'}.contains(permission))||
-     (role.key=='ACCOUNTANT'&&{'dashboard.view','finance.view','finance.manage','partners.manage','reports.view','reports.export','audit.view'}.contains(permission))||
+     (role.key=='ACCOUNTANT'&&{'dashboard.view','finance.view','finance.manage','partners.manage','reports.view','reports.export','audit.view','reports.cost.view'}.contains(permission))||
      (role.key=='AUDITOR'&&{'dashboard.view','reports.view','reports.export','audit.view','audit.verify'}.contains(permission));
     await db.insert('role_permissions',{'role_code':role.key,'permission_code':permission,'is_allowed':allowed?1:0},conflictAlgorithm:ConflictAlgorithm.ignore);
    }
   }
  }
+ static Future<void> reinstallPeriodTriggers(DatabaseExecutor db) async {
+  await _installPeriodTriggers(db);
+  await _installRelatedPeriodTriggers(db);
+  await _installDistributionPeriodTriggers(db);
+ }
+
+ static String _lockedThroughSql() =>
+  "(SELECT CASE WHEN instr(setting_value, '\"locked_through\"')>0 THEN NULLIF(trim(substr(setting_value,instr(setting_value,'\"locked_through\"')+16),' :\" ,}'),'null') END FROM system_settings WHERE setting_no=29)";
  static Future<void> _ensureColumn(DatabaseExecutor db,String table,String column,String declaration) async {
   final columns=await db.rawQuery('PRAGMA table_info('+table+')');
   if(!columns.any((row)=>row['name']==column))await db.execute('ALTER TABLE '+table+' ADD COLUMN '+column+' '+declaration);
@@ -154,7 +162,8 @@ abstract final class SchemaIteration6 {
   for(final event in ['INSERT','UPDATE']){
    final trigger='trg_period_partner_distributions_'+event.toLowerCase();
    await db.execute('DROP TRIGGER IF EXISTS '+trigger);
-   final sql="CREATE TRIGGER "+trigger+" BEFORE "+event+" ON partner_distributions WHEN EXISTS(SELECT 1 FROM fiscal_periods p WHERE p.status='CLOSED' AND p.period_code=NEW.period_code) OR (json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'\$.locked_through') IS NOT NULL AND NEW.period_code<=substr(json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'\$.locked_through'),1,7)) BEGIN SELECT RAISE(ABORT,'FISCAL_PERIOD_CLOSED'); END";
+   final lockedThrough=_lockedThroughSql();
+   final sql="CREATE TRIGGER "+trigger+" BEFORE "+event+" ON partner_distributions WHEN EXISTS(SELECT 1 FROM fiscal_periods p WHERE p.status='CLOSED' AND p.period_code=NEW.period_code) OR ("+lockedThrough+" IS NOT NULL AND NEW.period_code<=substr("+lockedThrough+",1,7)) BEGIN SELECT RAISE(ABORT,'FISCAL_PERIOD_CLOSED'); END";
    await db.execute(sql);
   }
  }
@@ -178,9 +187,10 @@ abstract final class SchemaIteration6 {
    for(final event in ['INSERT','UPDATE']){
     final trigger='trg_period_related_'+child+'_'+event.toLowerCase();
     await db.execute('DROP TRIGGER IF EXISTS '+trigger);
+    final lockedThrough=_lockedThroughSql();
     final periodCheck=parentDate=='period_code'
-     ?"EXISTS(SELECT 1 FROM fiscal_periods p WHERE p.status='CLOSED' AND p.period_code=parent."+parentDate+") OR (json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'\$.locked_through') IS NOT NULL AND parent."+parentDate+"<=substr(json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'\$.locked_through'),1,7))"
-     :"EXISTS(SELECT 1 FROM fiscal_periods p WHERE p.status='CLOSED' AND substr(parent."+parentDate+",1,10) BETWEEN p.start_date AND p.end_date) OR (json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'\$.locked_through') IS NOT NULL AND substr(parent."+parentDate+",1,10)<=json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'\$.locked_through'))";
+     ?"EXISTS(SELECT 1 FROM fiscal_periods p WHERE p.status='CLOSED' AND p.period_code=parent."+parentDate+") OR ("+lockedThrough+" IS NOT NULL AND parent."+parentDate+"<=substr("+lockedThrough+",1,7))"
+     :"EXISTS(SELECT 1 FROM fiscal_periods p WHERE p.status='CLOSED' AND substr(parent."+parentDate+",1,10) BETWEEN p.start_date AND p.end_date) OR ("+lockedThrough+" IS NOT NULL AND substr(parent."+parentDate+",1,10)<="+lockedThrough+")";
     final sql='CREATE TRIGGER '+trigger+' BEFORE '+event+' ON '+child+' WHEN EXISTS(SELECT 1 FROM '+parent+' parent WHERE parent.'+parentKey+'=NEW.'+foreignKey+' AND ('+periodCheck+')) BEGIN SELECT RAISE(ABORT,\'FISCAL_PERIOD_CLOSED\'); END';
     await db.execute(sql);
    }
@@ -198,7 +208,8 @@ abstract final class SchemaIteration6 {
    for(final event in ['INSERT','UPDATE']){
     final trigger='trg_period_guard_'+table.toLowerCase()+'_'+event.toLowerCase();
     await db.execute('DROP TRIGGER IF EXISTS '+trigger);
-    final sql="CREATE TRIGGER "+trigger+" BEFORE "+event+" ON "+table+" WHEN (json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'\$.locked_through') IS NOT NULL AND substr(NEW."+column+",1,10)<=json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'\$.locked_through')) OR EXISTS(SELECT 1 FROM fiscal_periods p WHERE p.status='CLOSED' AND substr(NEW."+column+",1,10) BETWEEN p.start_date AND p.end_date) BEGIN SELECT RAISE(ABORT,'FISCAL_PERIOD_CLOSED'); END";
+    final lockedThrough=_lockedThroughSql();
+    final sql="CREATE TRIGGER "+trigger+" BEFORE "+event+" ON "+table+" WHEN ("+lockedThrough+" IS NOT NULL AND substr(NEW."+column+",1,10)<="+lockedThrough+") OR EXISTS(SELECT 1 FROM fiscal_periods p WHERE p.status='CLOSED' AND substr(NEW."+column+",1,10) BETWEEN p.start_date AND p.end_date) BEGIN SELECT RAISE(ABORT,'FISCAL_PERIOD_CLOSED'); END";
     await db.execute(sql);
    }
   }

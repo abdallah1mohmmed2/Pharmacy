@@ -23,7 +23,7 @@ class PharmacyErpApplication extends StatelessWidget {
    ChangeNotifierProvider(create:(_)=>SessionAndErpProvider()..refresh()),
    ChangeNotifierProvider(create:(_)=>PosAndDrugsProvider()..loadDrugs()),
    ChangeNotifierProvider(create:(_)=>InventoryAndPurchaseProvider()..loadAll()),
-   ChangeNotifierProvider(create:(_)=>ClinicalAndRxProvider()..loadAll()),
+   ChangeNotifierProvider(create:(_)=>ClinicalAndRxProvider()),
    ChangeNotifierProvider(create:(_)=>TreasuryHrPartnerProvider()),
    ChangeNotifierProvider(create:(_)=>ReportsCenterProvider()),
    ChangeNotifierProvider(create:(context)=>SettingsAndSystemProvider(verifyManagerPin:(pin)=>context.read<SessionAndErpProvider>().verifyManagerPin(pin),verifyOwnerPin:(pin)=>context.read<SessionAndErpProvider>().verifyOwnerPin(pin))..initialize()),
