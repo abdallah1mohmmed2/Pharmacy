@@ -123,12 +123,14 @@ class AuditService {
   if(!actions.contains(action))throw ArgumentError('حدث رقابي غير مدعوم');
   final db=_executor??await _helper.database;final eventAt=DateTime.now().toUtc().toIso8601String();
   final oldJson=oldValues==null?null:jsonEncode(oldValues),newJson=newValues==null?null:jsonEncode(newValues);
-  return db.transaction((txn)async{
+  Future<int> insertRecord(DatabaseExecutor txn) async {
    final previous=await txn.query('audit_logs',columns:['row_hash'],orderBy:'id DESC',limit:1);
    final prev=previous.isEmpty?'GENESIS':previous.first['row_hash'] as String;
    final rowHash=_hash(_canonical(prevHash:prev,eventAt:eventAt,userId:userId,action:action,entityType:entityType,entityId:entityId,oldValues:oldJson,newValues:newJson));
    return txn.insert('audit_logs',{'event_at':eventAt,'user_id':userId,'branch_id':branchId,'device_id':deviceId,'action':action,'entity_type':entityType,'entity_id':entityId,'entity_label':entityLabel,'old_values_json':oldJson,'new_values_json':newJson,'reason':reason,'severity':severity,'prev_hash':prev,'row_hash':rowHash});
-  });
+  }
+  if(_executor!=null)return insertRecord(_executor!);
+  return (db as Database).transaction(insertRecord);
  }
  Future<ChainVerificationResult> verifyChainIntegrity() async {
   final db=_executor??await _helper.database;
