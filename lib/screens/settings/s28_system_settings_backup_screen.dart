@@ -7,6 +7,10 @@ import 'package:sqflite/sqflite.dart';
 import '../../core/constants/setting_keys.dart';
 import '../../providers/settings_and_system_provider.dart';
 import '../../providers/session_and_erp_provider.dart';
+import '../../providers/pos_and_drugs_provider.dart';
+import '../../providers/inventory_and_purchase_provider.dart';
+import '../../providers/clinical_and_rx_provider.dart';
+import '../../providers/treasury_hr_partner_provider.dart';
 import '../../data/database/database_helper.dart';
 
 class S28SystemSettingsBackupScreen extends StatefulWidget {
@@ -118,7 +122,16 @@ class _S28SystemSettingsBackupScreenState extends State<S28SystemSettingsBackupS
  Future<void> _createBackup(SettingsAndSystemProvider p) async {try{final r=await p.createBackup(userId:context.read<SessionAndErpProvider>().currentUser?['id'] as int?);if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تم إنشاء النسخة: ${r.file.path}')));}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}}
  Future<void> _restoreBackup(SettingsAndSystemProvider p,String path) async {
   final yes=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('تأكيد الاستعادة'),content:const Text('سيتم استبدال قاعدة البيانات الحالية. أُنشئت نسخة احتياطية تلقائية قبل الاستعادة.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('استعادة'))]));
-  if(yes!=true)return;try{await p.restoreBackup(File(path),userId:context.read<SessionAndErpProvider>().currentUser?['id'] as int?);if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('اكتملت الاستعادة وإعادة تحميل البيانات')));}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  if(yes!=true)return;try{
+   final session=context.read<SessionAndErpProvider>();
+   await p.restoreBackup(File(path),userId:session.currentUser?['id'] as int?);
+   await session.refresh();
+   await context.read<PosAndDrugsProvider>().loadDrugs();
+   await context.read<InventoryAndPurchaseProvider>().loadAll();
+   await context.read<ClinicalAndRxProvider>().loadAll();
+   await context.read<TreasuryHrPartnerProvider>().refresh();
+   if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('اكتملت الاستعادة وإعادة تحميل بيانات النظام')));
+  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
  }
  Widget _syncTab(SettingsAndSystemProvider p)=>ListView(padding:const EdgeInsets.all(12),children:[
   _settingTile(SettingKeys.byKey(SettingKey.cloudSync),p),
