@@ -83,10 +83,10 @@ class PeriodGuard {
  }
  Future<int> closePeriod({required String periodCode,required int userId,required Future<void> Function() createPreCloseBackup,required Future<bool> Function() hasOpenShiftsOrStocktakes}) async {
   if(await hasOpenShiftsOrStocktakes())throw StateError('توجد ورديات أو جلسات جرد مفتوحة');
-  await createPreCloseBackup();
   final db=await _helper.database;
   final rows=await db.query('fiscal_periods',where:'period_code=? AND status=?',whereArgs:[periodCode,'OPEN'],limit:1);
   if(rows.isEmpty)throw StateError('الفترة غير موجودة أو مغلقة مسبقاً');
+  await createPreCloseBackup();
   final id=rows.first['id'] as int;
   await db.transaction((txn)async{
    await txn.update('fiscal_periods',{'status':'CLOSED','closed_at':DateTime.now().toIso8601String(),'closed_by':userId},where:'id=?',whereArgs:[id]);
