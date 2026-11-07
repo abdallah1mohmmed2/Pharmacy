@@ -43,7 +43,7 @@ void main(){
    await audit.record(action:'UPDATE',userId:1,entityType:'test',entityId:1,oldValues:{'value':1},newValues:{'value':2});
    final valid=await audit.verifyChainIntegrity();expect(valid.isValid,isTrue);expect(valid.checkedRows,2);
    await db.execute('DROP TRIGGER trg_audit_no_update');
-   await db.update('audit_logs',{'reason':'external modification'},where:'id=1');
+   await db.update('audit_logs',{'new_values_json':'{"value":999}'},where:'id=1');
    final invalid=await audit.verifyChainIntegrity();expect(invalid.isValid,isFalse);expect(invalid.firstInvalidId,1);
   }finally{await db.close();}
  });
