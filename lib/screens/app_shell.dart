@@ -264,7 +264,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Center(
                   child: Text(
-                    'الصيدلية • الفرع الرئيسي • '
+                    'نبض الصيدلية • الفرع الرئيسي • '
                     '${session.currentUser?['full_name'] as String? ?? ''}',
                   ),
                 ),
@@ -480,7 +480,7 @@ class _LoginScreenState extends State<_LoginScreen> {
                           size: 58, color: AppColors.primary),
                       const SizedBox(height: 14),
                       const Text(
-                        'Global Pharmacy ERP',
+                        'نبض الصيدلية',
                         style: TextStyle(
                             fontSize: 22, fontWeight: FontWeight.bold),
                       ),

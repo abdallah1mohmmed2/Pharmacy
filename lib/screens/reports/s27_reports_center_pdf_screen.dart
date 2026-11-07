@@ -430,7 +430,7 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
               canChangePageFormat: false,
               allowPrinting: false,
               allowSharing: false,
-              pdfFileName: 'report-${data.reportNumber}.pdf',
+              pdfFileName: 'nabdh-report-${data.reportNumber}.pdf',
               maxPageWidth: 700,
             ),
           )

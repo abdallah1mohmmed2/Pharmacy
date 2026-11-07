@@ -40,7 +40,7 @@ class ReceiptData {
     required this.paymentMethod,
     this.walletNotificationNumber,
     this.remainingAfterInvoice = 0,
-    this.pharmacyName = 'الصيدلية',
+    this.pharmacyName = 'نبض الصيدلية',
     this.branchName = 'الفرع الرئيسي',
     this.phone = '',
     this.currency = 'ر.ي',
@@ -66,7 +66,7 @@ class DoseLabelData {
     required this.mealInstruction,
     required this.expiryDate,
     this.keepRefrigerated = false,
-    this.pharmacyName = 'الصيدلية',
+    this.pharmacyName = 'نبض الصيدلية',
   });
 
   final String patientName, drugName, strength, doseTextAr;
