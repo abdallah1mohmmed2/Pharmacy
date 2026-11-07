@@ -163,8 +163,6 @@ class _S11InventoryBatchesShelvesScreenState extends State<S11InventoryBatchesSh
       ],
     );
   }
-
-  Widget _expiryBadge(BatchFefoModel b){final color=b.daysUntilExpiry<0?Colors.red:b.daysUntilExpiry<=30?Colors.deepOrange:b.daysUntilExpiry<=60?Colors.orange:b.daysUntilExpiry<=90?Colors.amber:Colors.green;return Chip(backgroundColor:color.withOpacity(.18),label:Text(b.daysUntilExpiry<0?'منتهي':b.daysUntilExpiry.toString()+' يوم',style:TextStyle(color:color,fontSize:11)));}
   Future<void> _moveShelf(BatchFefoModel batch)async{
     final p=context.read<InventoryAndPurchaseProvider>();final drugRows=await DatabaseHelper.instance.query('drugs',where:'id=?',whereArgs:[batch.drugId]);final cold=drugRows.isNotEmpty&&(drugRows.first['requires_refrigeration'] as int? ?? 0)==1;
     final options=p.shelves.where((s)=>s.warehouseId==batch.warehouseId&&(!cold||s.isFridge)).toList();if(options.isEmpty){_message('لا يوجد رف متوافق مع شروط تخزين هذا الدواء');return;}
