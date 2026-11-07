@@ -1,3 +1,7 @@
+## تصحيح اكتشاف تعريف compileSdk في إضافات Android — 2026-11-07
+- فشل فحص CI الوقائي لأن بعض إضافات Gradle تستخدم صيغة `compileSdk 34` دون `=` أو `Version`؛ وسّعت المطابقة لتغطي صيغ Kotlin وGroovy المختلفة مع التحقق من تعديل وحدتي `file_picker` و`flutter_plugin_android_lifecycle`.
+- لا يُعد فشل فحص التهيئة هذا فشلاً في تحليل Dart أو الاختبارات؛ لم تُنفذ تلك الخطوات في هذا التشغيل. ننتظر إعادة CI لإثبات بناء APK فعلياً.
+
 ## استكمال إصلاح compileSdk لوحدات Android — 2026-11-07
 - كشف سجل البناء أن رفع compileSdk لتطبيق Android وحده لا يكفي؛ وحدة `file_picker` التابعة لـPub ما زالت تُبنى على API 34 وتفشل عند فحص اعتماد `flutter_plugin_android_lifecycle` الذي يتطلب API 36.
 - توسيع CI ليضبط compileSdk إلى 36 داخل ملفات Gradle لوحدات Android الخاصة بالحزم بعد `flutter pub get`، مع فحص صريح للتأكد من معالجة `file_picker` و`flutter_plugin_android_lifecycle`.
