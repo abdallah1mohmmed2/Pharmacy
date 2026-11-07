@@ -10,23 +10,122 @@ class S11InventoryBatchesShelvesScreen extends StatefulWidget {
 }
 class _S11InventoryBatchesShelvesScreenState extends State<S11InventoryBatchesShelvesScreen> {
   bool byDrug=true;
+  final searchController=TextEditingController();
+  String query='';
+  @override void dispose(){searchController.dispose();super.dispose();}
   @override void initState(){super.initState();WidgetsBinding.instance.addPostFrameCallback((_)=>context.read<InventoryAndPurchaseProvider>().loadAll());}
   @override Widget build(BuildContext context){
     final p=context.watch<InventoryAndPurchaseProvider>();
-    return Scaffold(body:Padding(padding:const EdgeInsets.all(12),child:Column(children:[
-      Row(children:[const Expanded(child:Text('المخزون والتشغيلات والأرفف',style:TextStyle(fontSize:20,fontWeight:FontWeight.bold))),IconButton(onPressed:()=>_manageShelves(p),icon:const Icon(Icons.grid_view),tooltip:'إدارة مواقع الأرفف'),IconButton(onPressed:()=>_temperature(p),icon:const Icon(Icons.thermostat),tooltip:'تسجيل حرارة الثلاجة'),IconButton(onPressed:()=>_movementCard(p),icon:const Icon(Icons.receipt_long),tooltip:'كارت حركة الصنف')]),
-      SegmentedButton<bool>(segments:const [ButtonSegment(value:true,label:Text('حسب الصنف')),ButtonSegment(value:false,label:Text('حسب التشغيلة'))],selected:{byDrug},onSelectionChanged:(v)=>setState(()=>byDrug=v.first)),
-      const SizedBox(height:8),
-      if(p.error!=null)Text(p.error!,style:const TextStyle(color:Colors.redAccent)),
-      Expanded(child:p.loading?const Center(child:CircularProgressIndicator()):byDrug?_drugList(p):_batchList(p)),
-    ])));
+    return Padding(
+      padding:const EdgeInsets.all(12),
+      child:Column(children:[
+        Row(children:[
+          const Expanded(child:Text('المخزون والتشغيلات والأرفف',style:TextStyle(fontSize:20,fontWeight:FontWeight.bold))),
+          IconButton(onPressed:()=>_manageShelves(p),icon:const Icon(Icons.grid_view),tooltip:'إدارة مواقع الأرفف'),
+          IconButton(onPressed:()=>_temperature(p),icon:const Icon(Icons.thermostat),tooltip:'تسجيل حرارة الثلاجة'),
+          IconButton(onPressed:()=>_movementCard(p),icon:const Icon(Icons.receipt_long),tooltip:'كارت حركة الصنف'),
+        ]),
+        CompactSearchAndFilterBar(
+          controller:searchController,
+          hintText:'ابحث باسم الدواء أو رقم التشغيلة أو الرف',
+          onChanged:(value)=>setState(()=>query=value.trim().toLowerCase()),
+          activeFilterCount:byDrug?0:1,
+          onFilter:()=>setState(()=>byDrug=!byDrug),
+        ),
+        const SizedBox(height:8),
+        SegmentedButton<bool>(
+          segments:const [
+            ButtonSegment(value:true,label:Text('حسب الصنف')),
+            ButtonSegment(value:false,label:Text('حسب التشغيلة')),
+          ],
+          selected:{byDrug},
+          onSelectionChanged:(value)=>setState(()=>byDrug=value.first),
+        ),
+        const SizedBox(height:8),
+        if(p.error!=null)Text(p.error!,style:const TextStyle(color:Colors.redAccent)),
+        Expanded(
+          child:p.loading
+            ?const Center(child:CircularProgressIndicator())
+            :byDrug?_drugList(p):_batchList(p),
+        ),
+      ]),
+    );
   }
   Widget _drugList(InventoryAndPurchaseProvider p){
-    final groups=<int,List<BatchFefoModel>>{};for(final b in p.batches){groups.putIfAbsent(b.drugId,()=>[]).add(b);}
-    return ListView(children:groups.entries.map((entry){final first=entry.value.first;final total=entry.value.fold<int>(0,(sum,b)=>sum+b.totalUnits);return Card(child:ExpansionTile(title:Text(first.drugName),subtitle:Text('الرصيد '+total.toString()+' حبة • '+entry.value.length.toString()+' تشغيلات'),children:entry.value.map(_batchTile).toList()));}).toList());
+    final groups=<int,List<BatchFefoModel>>{};
+    for(final batch in p.batches){
+      if(query.isNotEmpty&&
+        !batch.drugName.toLowerCase().contains(query)&&
+        !batch.batchNo.toLowerCase().contains(query)&&
+        !batch.shelfCode.toLowerCase().contains(query))continue;
+      groups.putIfAbsent(batch.drugId,()=>[]).add(batch);
+    }
+    if(groups.isEmpty)return const Center(child:Text('لا توجد تشغيلات مطابقة للبحث.'));
+    return ListView.builder(
+      keyboardDismissBehavior:ScrollViewKeyboardDismissBehavior.onDrag,
+      itemCount:groups.length,
+      itemBuilder:(context,index){
+        final entry=groups.entries.elementAt(index);
+        final batches=entry.value;
+        final first=batches.first;
+        final total=batches.fold<int>(0,(sum,batch)=>sum+batch.totalUnits);
+        return SmartExpandableCard(
+          title:first.drugName,
+          primary:'$total حبة متاحة',
+          secondary:'${batches.length} تشغيلات',
+          leading:const CircleAvatar(
+            backgroundColor:Color(0x224DB6AC),
+            child:Icon(Icons.inventory_2_outlined,color:Color(0xFF4DB6AC)),
+          ),
+          details:batches.map(_batchTile).toList(),
+        );
+      },
+    );
   }
-  Widget _batchList(InventoryAndPurchaseProvider p)=>ListView(children:p.batches.map(_batchTile).toList());
-  Widget _batchTile(BatchFefoModel b)=>Card(child:ListTile(title:Text(b.drugName+' — '+b.batchNo),subtitle:Text('الصلاحية '+b.expiryDate+' • '+b.sealedPacks.toString()+' باكت مغلق • '+b.looseUnits.toString()+' حبة سائبة\nالتكلفة '+b.packCost.toStringAsFixed(2)+' • الرف '+(b.shelfCode.isEmpty?'غير محدد':b.shelfCode)),isThreeLine:true,trailing:Column(mainAxisAlignment:MainAxisAlignment.center,children:[_expiryBadge(b),IconButton(onPressed:()=>_moveShelf(b),icon:const Icon(Icons.move_down))])));
+
+  Widget _batchList(InventoryAndPurchaseProvider p){
+    final batches=p.batches.where((batch)=>query.isEmpty||
+      batch.drugName.toLowerCase().contains(query)||
+      batch.batchNo.toLowerCase().contains(query)||
+      batch.shelfCode.toLowerCase().contains(query)).toList();
+    if(batches.isEmpty)return const Center(child:Text('لا توجد تشغيلات مطابقة للبحث.'));
+    return ListView.builder(
+      keyboardDismissBehavior:ScrollViewKeyboardDismissBehavior.onDrag,
+      itemCount:batches.length,
+      itemBuilder:(context,index)=>_batchTile(batches[index]),
+    );
+  }
+
+  Widget _batchTile(BatchFefoModel batch){
+    final coldColor=batch.daysUntilExpiry<0?Colors.red:
+      batch.daysUntilExpiry<=30?Colors.deepOrange:
+      batch.daysUntilExpiry<=60?Colors.orange:
+      batch.daysUntilExpiry<=90?Colors.amber:Colors.green;
+    return SmartExpandableCard(
+      title:'${batch.drugName} — ${batch.batchNo}',
+      primary:'${batch.totalUnits} حبة',
+      secondary:'الصلاحية ${batch.expiryDate}',
+      leading:const Icon(Icons.qr_code_2,color:Color(0xFF4DB6AC)),
+      trailing:Chip(
+        backgroundColor:coldColor.withOpacity(.16),
+        label:Text(batch.daysUntilExpiry<0?'منتهي':'${batch.daysUntilExpiry} يوم',
+          style:TextStyle(color:coldColor,fontSize:11)),
+      ),
+      details:[
+        Text('باكتات مغلقة: ${batch.sealedPacks} • حبات سائبة: ${batch.looseUnits}'),
+        Text('التكلفة: ${batch.packCost.toStringAsFixed(2)}'),
+        Text('موقع الرف: ${batch.shelfCode.isEmpty?'غير محدد':batch.shelfCode}'),
+      ],
+      actions:[
+        OutlinedButton.icon(
+          onPressed:()=>_moveShelf(batch),
+          icon:const Icon(Icons.move_down),
+          label:const Text('نقل إلى رف'),
+        ),
+      ],
+    );
+  }
+
   Widget _expiryBadge(BatchFefoModel b){final color=b.daysUntilExpiry<0?Colors.red:b.daysUntilExpiry<=30?Colors.deepOrange:b.daysUntilExpiry<=60?Colors.orange:b.daysUntilExpiry<=90?Colors.amber:Colors.green;return Chip(backgroundColor:color.withOpacity(.18),label:Text(b.daysUntilExpiry<0?'منتهي':b.daysUntilExpiry.toString()+' يوم',style:TextStyle(color:color,fontSize:11)));}
   Future<void> _moveShelf(BatchFefoModel batch)async{
     final p=context.read<InventoryAndPurchaseProvider>();final drugRows=await DatabaseHelper.instance.query('drugs',where:'id=?',whereArgs:[batch.drugId]);final cold=drugRows.isNotEmpty&&(drugRows.first['requires_refrigeration'] as int? ?? 0)==1;
