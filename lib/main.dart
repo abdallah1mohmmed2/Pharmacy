@@ -7,6 +7,7 @@ import 'providers/pos_and_drugs_provider.dart';
 import 'providers/inventory_and_purchase_provider.dart';
 import 'providers/clinical_and_rx_provider.dart';
 import 'providers/treasury_hr_partner_provider.dart';
+import 'providers/settings_and_system_provider.dart';
 import 'reports_pdf/registry/report_registry_and_provider.dart';
 import 'screens/app_shell.dart';
 
@@ -25,6 +26,7 @@ class PharmacyErpApplication extends StatelessWidget {
    ChangeNotifierProvider(create:(_)=>ClinicalAndRxProvider()..loadAll()),
    ChangeNotifierProvider(create:(_)=>TreasuryHrPartnerProvider()),
    ChangeNotifierProvider(create:(_)=>ReportsCenterProvider()),
+   ChangeNotifierProvider(create:(context)=>SettingsAndSystemProvider(verifyManagerPin:(pin)=>context.read<SessionAndErpProvider>().verifyManagerPin(pin),verifyOwnerPin:(pin)=>context.read<SessionAndErpProvider>().verifyOwnerPin(pin))..initialize()),
   ],
   child:MaterialApp(
    title:'Global Enterprise Pharmacy ERP',

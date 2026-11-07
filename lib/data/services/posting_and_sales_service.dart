@@ -12,10 +12,12 @@ class PostingAndSalesService {
   String _uuid()=>DateTime.now().microsecondsSinceEpoch.toString()+Random().nextInt(999999).toString().padLeft(6,'0');
   Map<String,Object?> _base(int branchId)=>{'uuid':_uuid(),'branch_id':branchId,'created_at':DateTime.now().toIso8601String(),'updated_at':DateTime.now().toIso8601String(),'is_deleted':0,'sync_status':'LOCAL','sync_version':1};
 
+  static bool isBalancedAmounts(double debit,double credit)=>debit>0&&(debit-credit).abs()<=0.005;
+
   Future<int> postBalancedEntry(Transaction txn,{required int branchId,required String description,required String sourceType,required int sourceId,required List<({int accountId,double debit,double credit,int? partyId,String memo})> lines}) async {
     final debit=lines.fold<double>(0,(s,l)=>s+l.debit);
     final credit=lines.fold<double>(0,(s,l)=>s+l.credit);
-    if((debit-credit).abs()>0.005 || debit<=0) throw StateError('القيد المحاسبي غير متوازن');
+    if(!isBalancedAmounts(debit,credit)) throw StateError('القيد المحاسبي غير متوازن');
     final no='JE-'+DateTime.now().microsecondsSinceEpoch.toString();
     final entryId=await txn.insert('journal_entries',{..._base(branchId),'entry_no':no,'entry_date':DateTime.now().toIso8601String(),'description':description,'source_type':sourceType,'source_id':sourceId,'is_posted':1});
     for(final line in lines){

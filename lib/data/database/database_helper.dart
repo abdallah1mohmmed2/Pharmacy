@@ -9,11 +9,14 @@ import 'schema_iteration2.dart';
 import 'schema_iteration3.dart';
 import 'schema_iteration4.dart';
 import 'schema_iteration5.dart';
+import 'schema_iteration6.dart';
 
 class DatabaseHelper {
   DatabaseHelper._();
   static final DatabaseHelper instance=DatabaseHelper._();
   Database? _db;
+  String? _openedPath;
+  Future<String> get databaseFilePath async { await database; return _openedPath!; }
   Future<Database> get database async => _db ??= await _open();
   Future<Database> _open() async {
     if(Platform.isWindows || Platform.isLinux || Platform.isMacOS){sqfliteFfiInit();databaseFactory=databaseFactoryFfi;}
@@ -21,7 +24,8 @@ class DatabaseHelper {
         ? p.join((await getApplicationSupportDirectory()).path,'databases')
         : await getDatabasesPath();
     await Directory(directory).create(recursive:true);
-    final db=await openDatabase(p.join(directory,'global_pharmacy_erp.db'),version:8,onConfigure:(database)async{
+    _openedPath=p.join(directory,'global_pharmacy_erp.db');
+    final db=await openDatabase(_openedPath!,version:9,onConfigure:(database)async{
       await database.execute('PRAGMA foreign_keys = ON');
       await database.execute('PRAGMA journal_mode = WAL');
       await database.execute('PRAGMA synchronous = NORMAL');
@@ -34,11 +38,13 @@ class DatabaseHelper {
       await SchemaIteration3.upgrade(database);
       await SchemaIteration4.upgrade(database);
       await SchemaIteration5.upgrade(database);
+      await SchemaIteration6.upgrade(database);
     },onUpgrade:(database,oldVersion,newVersion) async {
       if(oldVersion<4) await SchemaIteration2.upgrade(database);
       if(oldVersion<5) await SchemaIteration3.upgrade(database);
       if(oldVersion<7) await SchemaIteration4.upgrade(database);
       if(oldVersion<8) await SchemaIteration5.upgrade(database);
+      if(oldVersion<9) await SchemaIteration6.upgrade(database);
     });
     await db.execute('PRAGMA foreign_keys = ON');
     await db.execute('PRAGMA busy_timeout = 5000');

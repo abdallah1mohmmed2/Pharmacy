@@ -20,7 +20,57 @@ jobs:
           channel: stable
           cache: true
       - run: flutter create --platforms=android,windows --org com.globalpharmacy .
+      - name: Set Android compile SDK to 36 for current plugins
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          candidates = [Path("android/app/build.gradle.kts"), Path("android/app/build.gradle")]
+          replacements = {
+              "compileSdk = flutter.compileSdkVersion": "compileSdk = 36",
+              "compileSdkVersion flutter.compileSdkVersion": "compileSdkVersion 36",
+          }
+          for path in candidates:
+              if not path.exists():
+                  continue
+              content = path.read_text()
+              updated = content
+              for old, new in replacements.items():
+                  updated = updated.replace(old, new)
+              if updated != content:
+                  path.write_text(updated)
+                  print(f"Configured compile SDK 36 in {path}")
+                  break
+          else:
+              raise SystemExit("Could not locate Flutter Android compileSdk declaration")
+          PY
       - run: flutter pub get
+      - name: Set Android plugin modules compile SDK to 36
+        shell: bash
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          root = Path.home() / ".pub-cache" / "hosted" / "pub.dev"
+          patterns = [
+              (re.compile(r"(?m)^(\s*compileSdk(?:Version)?\s*(?:=\s*)?)(?:flutter\.compileSdkVersion|\d+)"), r"\g<1>36"),
+          ]
+          changed = []
+          for path in root.glob("*/android/build.gradle*"):
+              content = path.read_text()
+              updated = content
+              for pattern, replacement in patterns:
+                  updated = pattern.sub(replacement, updated)
+              if updated != content:
+                  path.write_text(updated)
+                  changed.append(str(path))
+          for required in ("file_picker", "flutter_plugin_android_lifecycle"):
+              matches = [p for p in changed if f"/{required}-" in p]
+              if not matches:
+                  raise SystemExit(f"Could not enforce compile SDK 36 for {required}")
+          print("Configured Android plugin modules for compile SDK 36:")
+          print("\\n".join(changed))
+          PY
       - run: dart format lib test
       - run: flutter analyze --no-fatal-infos
       - run: flutter test

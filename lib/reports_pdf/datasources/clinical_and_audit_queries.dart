@@ -1,5 +1,6 @@
 // lib/reports_pdf/datasources/clinical_and_audit_queries.dart
 import '../../data/database/database_helper.dart';
+import '../../data/services/settings_and_audit_service.dart';
 import '../models_and_contracts.dart';
 
 /// استعلامات التقارير السريرية والرقابية وإغلاق العام R46–R55.
@@ -166,15 +167,25 @@ class ClinicalAndAuditQueries {
       ${_range('i.invoice_date')} ORDER BY i.invoice_date DESC
   ''',[p.branchId,..._rangeArgs(p)]);
 
-  Future<List<Map<String, Object?>>> r54(ReportParams p) => _q('''
-    SELECT a.occurred_at AS time,u.full_name AS user,a.action_code AS action,
-      a.entity_type AS entity,a.reference_no AS reference,
-      a.old_value AS old_value,a.new_value AS new_value,a.reason AS reason,
-      a.severity AS severity
-    FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id
-    WHERE a.branch_id=? ${_range('a.occurred_at')}
-    ORDER BY a.occurred_at DESC,a.id DESC
-  ''',[p.branchId,..._rangeArgs(p)]);
+  Future<List<Map<String, Object?>>> r54(ReportParams p) async {
+    final rows=await _q('''
+      SELECT a.event_at AS time,u.full_name AS user,a.action AS action,
+        a.entity_type AS entity,a.entity_label AS reference,
+        a.old_values_json AS old_value,a.new_values_json AS new_value,
+        a.reason AS reason,a.severity AS severity,a.prev_hash AS previous_hash,
+        a.row_hash AS row_hash
+      FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id
+      WHERE a.branch_id=? ${_range('a.event_at')}
+      ORDER BY a.event_at DESC,a.id DESC
+    ''',[p.branchId,..._rangeArgs(p)]);
+    final integrity=await AuditService(helper:_helper).verifyChainIntegrity();
+    for(final row in rows){
+      row['chain_integrity']=integrity.isValid?'سليم':'فشل التحقق';
+      row['chain_checked_rows']=integrity.checkedRows;
+      row['first_invalid_id']=integrity.firstInvalidId;
+    }
+    return rows;
+  }
 
   Future<List<Map<String, Object?>>> r55(ReportParams p) async {
     final year = int.tryParse(p.stringValue('year') ?? '') ?? DateTime.now().year;
