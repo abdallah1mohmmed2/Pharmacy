@@ -336,7 +336,7 @@ class ReportsCenterProvider extends ChangeNotifier {
     return engine.build(definition: definition, data: data, params: _params);
   }
 
-  Future<File?> savePdf() async {
+  Future<String?> savePdf() async {
     final definition = _selected, data = _data;
     if (definition == null || data == null) return null;
     return engine.save(definition: definition, data: data, params: _params);

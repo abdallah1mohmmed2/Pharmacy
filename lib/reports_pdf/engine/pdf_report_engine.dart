@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:csv/csv.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -85,6 +86,24 @@ class CostMasker {
       };
 }
 
+typedef PdfSaveFilePicker = Future<String?> Function({
+  required String fileName,
+  required Uint8List bytes,
+});
+
+Future<String?> _pickPdfSaveLocation({
+  required String fileName,
+  required Uint8List bytes,
+}) {
+  return FilePicker.platform.saveFile(
+    dialogTitle: 'اختر مكان واسم ملف التقرير PDF',
+    fileName: fileName,
+    type: FileType.custom,
+    allowedExtensions: const ['pdf'],
+    bytes: bytes,
+  );
+}
+
 /// The single PDF entry point for all formal reports R01–R55.
 /// This class maps pharmacy data into the original official template and
 /// retains the existing print, direct-print, save, share and CSV workflows.
@@ -97,7 +116,9 @@ class PdfReportEngine {
     this.branchName = 'الفرع الرئيسي',
     this.logoBytes,
     CostMasker? costMasker,
-  }) : costMasker = costMasker ?? const CostMasker();
+    PdfSaveFilePicker? saveFilePicker,
+  })  : costMasker = costMasker ?? const CostMasker(),
+        saveFilePicker = saveFilePicker ?? _pickPdfSaveLocation;
 
   final String pharmacyName;
   final String licenseNumber;
@@ -106,6 +127,7 @@ class PdfReportEngine {
   final String branchName;
   final Uint8List? logoBytes;
   final CostMasker costMasker;
+  final PdfSaveFilePicker saveFilePicker;
 
   Future<Uint8List> build({
     required ReportDefinition definition,
@@ -262,26 +284,22 @@ class PdfReportEngine {
     );
   }
 
-  Future<File> save({
+  /// Opens the operating-system Save As dialog. A null result means the user
+  /// cancelled; no fallback directory is used and no hidden copy is created.
+  Future<String?> save({
     required ReportDefinition definition,
     required ReportDataSet data,
     required ReportParams params,
-    String? directoryPath,
   }) async {
     final bytes = await build(
       definition: definition,
       data: data,
       params: params,
     );
-    final directory = directoryPath == null
-        ? await getApplicationDocumentsDirectory()
-        : Directory(directoryPath);
-    await directory.create(recursive: true);
-    final file = File(
-      '${directory.path}/nabdh_report_${definition.number}_'
-      '${DateTime.now().millisecondsSinceEpoch}.pdf',
-    );
-    return file.writeAsBytes(bytes, flush: true);
+    final reportCode = 'R${definition.number.toString().padLeft(2, '0')}';
+    final fileName = 'nabdh_report_${reportCode}_'
+        '${DateTime.now().millisecondsSinceEpoch}.pdf';
+    return saveFilePicker(fileName: fileName, bytes: bytes);
   }
 
   Future<void> share({

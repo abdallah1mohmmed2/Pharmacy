@@ -717,7 +717,7 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
     try {
       final file = await provider.savePdf();
       if (!mounted || file == null) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم حفظ PDF: ${file.path}')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم حفظ PDF في: $file')));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر حفظ PDF: $e')));
     }
