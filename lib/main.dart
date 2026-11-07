@@ -29,7 +29,7 @@ class PharmacyErpApplication extends StatelessWidget {
    ChangeNotifierProvider(create:(context)=>SettingsAndSystemProvider(verifyManagerPin:(pin)=>context.read<SessionAndErpProvider>().verifyManagerPin(pin),verifyOwnerPin:(pin)=>context.read<SessionAndErpProvider>().verifyOwnerPin(pin))..initialize()),
   ],
   child:MaterialApp(
-   title:'Global Enterprise Pharmacy ERP',
+   title:'نبض الصيدلية – Pharmacy ERP',
    debugShowCheckedModeBanner:false,
    theme:EnterpriseDarkTheme.data,
    builder:(context,child)=>Directionality(textDirection:TextDirection.rtl,child:child??const SizedBox.shrink()),
