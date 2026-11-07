@@ -7,6 +7,7 @@ import '../data/models/settings_audit_sync_models.dart';
 import '../data/services/settings_and_audit_service.dart';
 import '../data/services/drug_import_export_service.dart';
 import '../data/services/backup_and_sync_service.dart';
+import '../data/services/security_hash_service.dart';
 
 class SettingsAndSystemProvider extends ChangeNotifier {
  SettingsAndSystemProvider({required Future<bool> Function(String) verifyManagerPin,DatabaseHelper? helper})
@@ -24,6 +25,7 @@ class SettingsAndSystemProvider extends ChangeNotifier {
  final PeriodGuard periods;
  bool loading=false,busy=false;
  String? error;
+ List<Map<String,Object?>> userRows=[];
  List<ImportJobModel> importJobs=[];
  List<AuditLogModel> auditLogs=[];
  List<Map<String,Object?>> backupLogs=[],syncSummary=[],roleRows=[],periodRows=[];
@@ -44,6 +46,7 @@ class SettingsAndSystemProvider extends ChangeNotifier {
   backupLogs=await backup.backups();
   syncSummary=await backup.queueSummary();
   roleRows=await _helper.rawQuery('SELECT rp.role_code,r.role_name_ar,rp.permission_code,rp.is_allowed FROM role_permissions rp JOIN roles r ON r.role_code=rp.role_code ORDER BY rp.role_code,rp.permission_code');
+  userRows=await _helper.rawQuery('SELECT id,username,full_name,COALESCE(system_role_code,role_code) AS role_code,is_active FROM users WHERE is_deleted=0 ORDER BY full_name');
   periodRows=await _helper.query('fiscal_periods',orderBy:'start_date DESC');
  }
  Future<void> changeSetting(SettingKey key,Object value,{String? managerPin,required int? userId,int branchId=1,String? reason}) async {
@@ -93,6 +96,35 @@ class SettingsAndSystemProvider extends ChangeNotifier {
    if((open.first['n'] as num)>0)return true;
   }
   return false;
+ }
+ Future<int> createUser({required String username,required String fullName,required String password,required String roleCode,required int branchId,required int actorUserId}) async {
+  const roles={'OWNER','MANAGER','PHARMACIST','CASHIER','STOREKEEPER','ACCOUNTANT','AUDITOR'};
+  if(!roles.contains(roleCode))throw ArgumentError('الدور غير معروف');
+  if(username.trim().length<3||fullName.trim().isEmpty||password.length<8)throw ArgumentError('اسم المستخدم والاسم وكلمة مرور من 8 خانات مطلوبة');
+  final db=await _helper.database;final now=DateTime.now().toIso8601String();
+  final legacyRole={'OWNER','MANAGER','PHARMACIST','CASHIER','ACCOUNTANT'}.contains(roleCode)?roleCode:'PHARMACIST';
+  final id=await db.insert('users',{'uuid':'user-'+DateTime.now().microsecondsSinceEpoch.toString(),'branch_id':branchId,'created_at':now,'updated_at':now,'is_deleted':0,'sync_status':'LOCAL','sync_version':1,'username':username.trim(),'full_name':fullName.trim(),'role_code':legacyRole,'system_role_code':roleCode,'password_hash':SecurityHashService.hash(password),'is_active':1});
+  await audit.record(action:'CREATE',userId:actorUserId,branchId:branchId,entityType:'users',entityId:id,entityLabel:username.trim(),newValues:{'full_name':fullName.trim(),'role_code':roleCode});
+  await refreshSystemData();notifyListeners();return id;
+ }
+ Future<void> updateUserSecurity({required int targetUserId,required int actorUserId,String? newPassword,String? newManagerPin}) async {
+  if((newPassword==null||newPassword.isEmpty)&&(newManagerPin==null||newManagerPin.isEmpty))throw ArgumentError('أدخل كلمة مرور أو رمز مدير جديداً');
+  if(newPassword!=null&&newPassword.isNotEmpty&&newPassword.length<8)throw ArgumentError('كلمة المرور لا تقل عن 8 خانات');
+  if(newManagerPin!=null&&newManagerPin.isNotEmpty&&(newManagerPin.length<4||newManagerPin.length>8))throw ArgumentError('رمز المدير من 4 إلى 8 خانات');
+  final values=<String,Object?>{'updated_at':DateTime.now().toIso8601String()};
+  if(newPassword!=null&&newPassword.isNotEmpty)values['password_hash']=SecurityHashService.hash(newPassword);
+  if(newManagerPin!=null&&newManagerPin.isNotEmpty)values['manager_pin_hash']=SecurityHashService.hash(newManagerPin);
+  await _helper.update('users',values,where:'id=?',whereArgs:[targetUserId]);
+  await audit.record(action:'UPDATE',userId:actorUserId,entityType:'users',entityId:targetUserId,newValues:{'password_changed':newPassword!=null&&newPassword.isNotEmpty,'manager_pin_changed':newManagerPin!=null&&newManagerPin.isNotEmpty});
+  await refreshSystemData();notifyListeners();
+ }
+ Future<void> updateUserRole({required int targetUserId,required String roleCode,required int actorUserId}) async {
+  const roles={'OWNER','MANAGER','PHARMACIST','CASHIER','STOREKEEPER','ACCOUNTANT','AUDITOR'};
+  if(!roles.contains(roleCode))throw ArgumentError('الدور غير معروف');
+  final legacy={'OWNER','MANAGER','PHARMACIST','CASHIER','ACCOUNTANT'}.contains(roleCode)?roleCode:'PHARMACIST';
+  await _helper.update('users',{'role_code':legacy,'system_role_code':roleCode,'updated_at':DateTime.now().toIso8601String()},where:'id=?',whereArgs:[targetUserId]);
+  await audit.record(action:'UPDATE',userId:actorUserId,entityType:'users',entityId:targetUserId,newValues:{'role_code':roleCode});
+  await refreshSystemData();notifyListeners();
  }
  Future<void> setRolePermission(String role,String permission,bool allowed) async {
   final db=await _helper.database;
