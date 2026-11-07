@@ -111,14 +111,14 @@ class PeriodGuard {
 }
 
 class AuditService {
- AuditService({DatabaseHelper? helper}):_helper=helper??DatabaseHelper.instance;
- final DatabaseHelper _helper;
+ AuditService({DatabaseHelper? helper,DatabaseExecutor? executor}):_helper=helper??DatabaseHelper.instance,_executor=executor;
+ final DatabaseHelper _helper;final DatabaseExecutor? _executor;
  static String _hash(String value)=>sha256.convert(utf8.encode(value)).toString();
  String _canonical({required String prevHash,required String eventAt,required int? userId,required String action,required String? entityType,required int? entityId,required String? oldValues,required String? newValues})=>[prevHash,eventAt,userId?.toString()??'',action,entityType??'',entityId?.toString()??'',oldValues??'',newValues??''].join('|');
  Future<int> record({required String action,int? userId,int branchId=1,String? deviceId,String? entityType,int? entityId,String? entityLabel,Map<String,Object?>? oldValues,Map<String,Object?>? newValues,String? reason,String severity='INFO'}) async {
   const actions={'LOGIN','LOGOUT','LOGIN_FAILED','CREATE','UPDATE','DELETE','VOID','PRICE_CHANGE','DISCOUNT_OVERRIDE','CLINICAL_OVERRIDE','SETTING_CHANGE','PERIOD_CLOSE','BACKUP','RESTORE','PRINT','EXPORT','MANAGER_PIN_USED'};
   if(!actions.contains(action))throw ArgumentError('حدث رقابي غير مدعوم');
-  final db=await _helper.database;final eventAt=DateTime.now().toUtc().toIso8601String();
+  final db=_executor??await _helper.database;final eventAt=DateTime.now().toUtc().toIso8601String();
   final oldJson=oldValues==null?null:jsonEncode(oldValues),newJson=newValues==null?null:jsonEncode(newValues);
   return db.transaction((txn)async{
    final previous=await txn.query('audit_logs',columns:['row_hash'],orderBy:'id DESC',limit:1);
@@ -128,7 +128,8 @@ class AuditService {
   });
  }
  Future<ChainVerificationResult> verifyChainIntegrity() async {
-  final rows=await _helper.query('audit_logs',orderBy:'id');
+  final db=_executor??await _helper.database;
+  final rows=await db.query('audit_logs',orderBy:'id');
   var previous='GENESIS';var checked=0;
   for(final row in rows){
    final expected=_hash(_canonical(prevHash:previous,eventAt:row['event_at'] as String,userId:row['user_id'] as int?,action:row['action'] as String,entityType:row['entity_type'] as String?,entityId:row['entity_id'] as int?,oldValues:row['old_values_json'] as String?,newValues:row['new_values_json'] as String?));
