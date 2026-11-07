@@ -13,6 +13,7 @@ class _S11InventoryBatchesShelvesScreenState extends State<S11InventoryBatchesSh
   bool byDrug=true;
   final searchController=TextEditingController();
   String query='';
+  String expiryFilter='ALL';
   @override void dispose(){searchController.dispose();super.dispose();}
   @override void initState(){super.initState();WidgetsBinding.instance.addPostFrameCallback((_)=>context.read<InventoryAndPurchaseProvider>().loadAll());}
   @override Widget build(BuildContext context){
@@ -30,8 +31,8 @@ class _S11InventoryBatchesShelvesScreenState extends State<S11InventoryBatchesSh
           controller:searchController,
           hintText:'ابحث باسم الدواء أو رقم التشغيلة أو الرف',
           onChanged:(value)=>setState(()=>query=value.trim().toLowerCase()),
-          activeFilterCount:byDrug?0:1,
-          onFilter:()=>setState(()=>byDrug=!byDrug),
+          activeFilterCount:expiryFilter=='ALL'?0:1,
+          onFilter:_showInventoryFilters,
         ),
         const SizedBox(height:8),
         SegmentedButton<bool>(
@@ -52,9 +53,45 @@ class _S11InventoryBatchesShelvesScreenState extends State<S11InventoryBatchesSh
       ]),
     );
   }
+  bool _matchesExpiry(BatchFefoModel batch)=>switch(expiryFilter){
+    'EXPIRED'=>batch.daysUntilExpiry<0,
+    'SOON'=>batch.daysUntilExpiry>=0&&batch.daysUntilExpiry<=30,
+    'VALID'=>batch.daysUntilExpiry>30,
+    _=>true,
+  };
+
+  Future<void> _showInventoryFilters()async{
+    await KeyboardSafeModalSheet.show<void>(
+      context:context,
+      builder:(sheetContext)=>Column(
+        crossAxisAlignment:CrossAxisAlignment.stretch,
+        children:[
+          const Text('فلترة التشغيلات حسب الصلاحية',
+            style:TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
+          for(final option in const [
+            ('ALL','كل التشغيلات'),
+            ('EXPIRED','منتهية الصلاحية'),
+            ('SOON','تنتهي خلال 30 يوماً'),
+            ('VALID','صالحة لأكثر من 30 يوماً'),
+          ])
+            RadioListTile<String>(
+              value:option.$1,
+              groupValue:expiryFilter,
+              title:Text(option.$2),
+              onChanged:(value){
+                setState(()=>expiryFilter=value??'ALL');
+                Navigator.pop(sheetContext);
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _drugList(InventoryAndPurchaseProvider p){
     final groups=<int,List<BatchFefoModel>>{};
     for(final batch in p.batches){
+      if(!_matchesExpiry(batch))continue;
       if(query.isNotEmpty&&
         !batch.drugName.toLowerCase().contains(query)&&
         !batch.batchNo.toLowerCase().contains(query)&&
@@ -85,7 +122,7 @@ class _S11InventoryBatchesShelvesScreenState extends State<S11InventoryBatchesSh
   }
 
   Widget _batchList(InventoryAndPurchaseProvider p){
-    final batches=p.batches.where((batch)=>query.isEmpty||
+    final batches=p.batches.where((batch)=>_matchesExpiry(batch)&&(query.isEmpty||
       batch.drugName.toLowerCase().contains(query)||
       batch.batchNo.toLowerCase().contains(query)||
       batch.shelfCode.toLowerCase().contains(query)).toList();
