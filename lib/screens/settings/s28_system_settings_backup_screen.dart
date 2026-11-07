@@ -19,7 +19,8 @@ class _S28SystemSettingsBackupScreenState extends State<S28SystemSettingsBackupS
  String? auditUserFilter,auditActionFilter,auditSeverityFilter;
  Future<String?> _managerPin() async {
   final controller=TextEditingController();
-  return showDialog<String>(context:context,builder:(ctx)=>AlertDialog(title:const Text('تأكيد صلاحية المدير'),content:TextField(controller:controller,obscureText:true,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'رمز المدير')),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,controller.text),child:const Text('تأكيد'))]));
+  final result=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(title:const Text('تأكيد صلاحية المدير'),content:TextField(controller:controller,obscureText:true,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'رمز المدير')),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,controller.text),child:const Text('تأكيد'))]));
+  controller.dispose();return result;
  }
  Future<void> _change(SettingSpec spec,Object value) async {
   final p=context.read<SettingsAndSystemProvider>();final session=context.read<SessionAndErpProvider>();
@@ -82,15 +83,17 @@ class _S28SystemSettingsBackupScreenState extends State<S28SystemSettingsBackupS
   if(values==null)return;
   final session=context.read<SessionAndErpProvider>();final pin=await _managerPin();
   if(pin==null||!await session.verifyManagerPin(pin))return;
+  session.consumeVerifiedManagerUserId();
   try{await context.read<SettingsAndSystemProvider>().createUser(username:values['username']!,fullName:values['name']!,password:values['password']!,roleCode:values['role']!,branchId:session.branchId,actorUserId:session.currentUser?['id'] as int? ?? 0);if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم إنشاء المستخدم')));}
   catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   name.dispose();username.dispose();password.dispose();
  }
  Future<void> _editUserRole(Map<String,Object?> user) async {
   String role=user['role_code'] as String;
-  final selected=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(title:const Text('تغيير دور المستخدم'),content:DropdownButtonFormField<String>(value:role,items:const ['OWNER','MANAGER','PHARMACIST','CASHIER','STOREKEEPER','ACCOUNTANT','AUDITOR'].map((v)=>DropdownMenuItem(value:v,child:Text(_roleName(v)))).toList(),onChanged:(v)=>role=v??role),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,role),child:const Text('حفظ'))]));
+  final selected=await showDialog<String>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,setLocal)=>AlertDialog(title:const Text('تغيير دور المستخدم'),content:DropdownButtonFormField<String>(value:role,items:const ['OWNER','MANAGER','PHARMACIST','CASHIER','STOREKEEPER','ACCOUNTANT','AUDITOR'].map((v)=>DropdownMenuItem(value:v,child:Text(_roleName(v)))).toList(),onChanged:(v)=>setLocal(()=>role=v??role)),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,role),child:const Text('حفظ'))])));
   if(selected==null)return;
   final session=context.read<SessionAndErpProvider>();final pin=await _managerPin();if(pin==null||!await session.verifyManagerPin(pin))return;
+  session.consumeVerifiedManagerUserId();
   try{await context.read<SettingsAndSystemProvider>().updateUserRole(targetUserId:user['id'] as int,roleCode:selected,actorUserId:session.currentUser?['id'] as int? ?? 0);}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
  }
  Future<void> _editUserSecurity(Map<String,Object?> user) async {
@@ -101,6 +104,7 @@ class _S28SystemSettingsBackupScreenState extends State<S28SystemSettingsBackupS
   ]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,{'password':password.text,'pin':pinController.text}),child:const Text('حفظ'))]));
   if(values==null)return;
   final session=context.read<SessionAndErpProvider>();final verified=await _managerPin();if(verified==null||!await session.verifyManagerPin(verified))return;
+  session.consumeVerifiedManagerUserId();
   try{await context.read<SettingsAndSystemProvider>().updateUserSecurity(targetUserId:user['id'] as int,actorUserId:session.currentUser?['id'] as int? ?? 0,newPassword:values['password'],newManagerPin:values['pin']);if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم تحديث بيانات الدخول')));}
   catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   password.dispose();pinController.dispose();
@@ -152,6 +156,7 @@ class _S28SystemSettingsBackupScreenState extends State<S28SystemSettingsBackupS
  }
  Future<void> _closePeriod(SettingsAndSystemProvider p,String code) async {
   final session=context.read<SessionAndErpProvider>();final pin=await _managerPin();if(pin==null||!await session.verifyManagerPin(pin)){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('رمز المدير غير صحيح')));return;}
+  session.consumeVerifiedManagerUserId();
   try{await p.closeFiscalPeriod(code,userId:session.currentUser?['id'] as int? ?? 0,createPreCloseBackup:()async{await p.createBackup(triggerType:'BEFORE_PERIOD_CLOSE',userId:session.currentUser?['id'] as int?);});if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم إغلاق الفترة المالية')));}
   catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
  }
