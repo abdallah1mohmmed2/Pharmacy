@@ -53,8 +53,8 @@ jobs:
           from pathlib import Path
           root = Path.home() / ".pub-cache" / "hosted" / "pub.dev"
           patterns = [
-              (re.compile(r"(?m)^(\\s*compileSdkVersion\\s+)(?:flutter\\.compileSdkVersion|\\d+)"), r"\\g<1>36"),
-              (re.compile(r"(?m)^(\\s*compileSdk\\s*=\\s*)(?:flutter\\.compileSdkVersion|\\d+)"), r"\\g<1>36"),
+              (re.compile(r"(?m)^(\s*compileSdkVersion\s+)(?:flutter\.compileSdkVersion|\d+)"), r"\g<1>36"),
+              (re.compile(r"(?m)^(\s*compileSdk\s*=\s*)(?:flutter\.compileSdkVersion|\d+)"), r"\g<1>36"),
           ]
           changed = []
           for path in root.glob("*/android/build.gradle*"):
