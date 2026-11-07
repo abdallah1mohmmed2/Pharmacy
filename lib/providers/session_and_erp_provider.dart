@@ -46,6 +46,19 @@ class SessionAndErpProvider extends ChangeNotifier {
     }
     return false;
   }
+  Future<bool> verifyOwnerPin(String pin) async {
+    _verifiedManagerUserId=null;
+    final rows=await _db.rawQuery("SELECT id,manager_pin_hash FROM users WHERE branch_id=? AND role_code='OWNER' AND is_active=1 AND is_deleted=0",[branchId]);
+    for(final row in rows){
+      final hash=row['manager_pin_hash'];
+      if(hash is String&&SecurityHashService.verify(pin,hash)){
+        _verifiedManagerUserId=row['id'] as int;
+        await AuditService(helper:_db).record(action:'MANAGER_PIN_USED',userId:_verifiedManagerUserId,branchId:branchId,entityType:'users',entityId:_verifiedManagerUserId,reason:'OWNER_PIN',severity:'CRITICAL');
+        return true;
+      }
+    }
+    return false;
+  }
   void logout(){
     final user=currentUser;
     if(user!=null){AuditService(helper:_db).record(action:'LOGOUT',userId:user['id'] as int?,branchId:branchId,entityType:'users',entityId:user['id'] as int?,entityLabel:user['username']?.toString());}
