@@ -281,6 +281,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
           SizedBox(
             height: MediaQuery.sizeOf(sheetContext).height * .58,
             child: ListView.builder(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               itemCount: pos.drugs.length,
               itemBuilder: (context, index) {
                 final drug = pos.drugs[index];
