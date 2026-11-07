@@ -76,6 +76,7 @@ class SettingsAndSystemProvider extends ChangeNotifier {
  }
  Future<int> syncNow() async {
   final cfg=settings.getJson(SettingKey.cloudSync);
+  if(cfg['enabled']!=true)throw StateError('فعّل المزامنة السحابية من إعدادات النظام أولاً');
   final count=await backup.syncNow(baseUrl:(cfg['base_url']??'').toString(),apiKey:cfg['api_key']?.toString(),batchSize:(cfg['batch_size'] as num?)?.toInt()??100);
   await refreshSystemData();return count;
  }
