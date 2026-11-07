@@ -65,18 +65,18 @@ class BackupAndSyncService {
  }
  Future<int> collectLocalChanges({int maxRows=1000}) async {
   final db=await _helper.database;var collected=0;
-  final tableRows=await db.rawQuery(\"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('audit_logs','sync_queue','backup_log')\");
+  final tableRows=await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('audit_logs','sync_queue','backup_log')");
   for(final tableRow in tableRows){
    final table=tableRow['name'] as String;
    final columns=await db.rawQuery('PRAGMA table_info('+table+')');
    final names=columns.map((e)=>e['name'] as String).toSet();
    if(!names.contains('uuid')||!names.contains('sync_status')||!names.contains('sync_version'))continue;
-   final rows=await db.query(table,where:\"CAST(sync_status AS TEXT) IN ('LOCAL','PENDING','0')\",limit:(maxRows-collected).clamp(0,maxRows));
+   final rows=await db.query(table,where:"CAST(sync_status AS TEXT) IN ('LOCAL','PENDING','0')",limit:(maxRows-collected).clamp(0,maxRows).toInt());
    for(final row in rows){
     final uuid=row['uuid'];if(uuid==null)continue;
     final deleted=(row['is_deleted'] as num? ?? 0)==1;
     await db.insert('sync_queue',{'table_name':table,'row_uuid':uuid.toString(),'operation':deleted?'SOFT_DELETE':'INSERT','payload_json':jsonEncode(row),'sync_version':row['sync_version'],'status':'PENDING'},conflictAlgorithm:ConflictAlgorithm.ignore);
-    await db.update(table,{'sync_status':'QUEUED'},where:'uuid=?',[uuid]);
+    await db.update(table,{'sync_status':'QUEUED'},where:'uuid=?',whereArgs:[uuid]);
     collected++;if(collected>=maxRows)return collected;
    }
   }
