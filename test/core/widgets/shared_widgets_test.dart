@@ -4,24 +4,17 @@ import 'package:global_enterprise_pharmacy_erp/core/theme/enterprise_dark_theme.
 import 'package:global_enterprise_pharmacy_erp/core/widgets/shared_widgets.dart';
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
-
-  tearDown(() {
-    testerView.resetPhysicalSize();
-    testerView.resetDevicePixelRatio();
-  });
-
   group('Responsive shared widgets', () {
     testWidgets('ResponsiveLayout selects the phone layout below 700px',
         (tester) async {
-      tester.view.physicalSize = const Size(390, 844);
-      tester.view.devicePixelRatio = 1;
-
       await tester.pumpWidget(
         MaterialApp(
-          home: ResponsiveLayout(
-            mobile: const Text('phone-layout'),
-            desktop: const Text('desktop-layout'),
+          home: MediaQuery(
+            data: const MediaQueryData(size: Size(390, 844)),
+            child: ResponsiveLayout(
+              mobile: const Text('phone-layout'),
+              desktop: const Text('desktop-layout'),
+            ),
           ),
         ),
       );
@@ -32,14 +25,14 @@ void main() {
 
     testWidgets('ResponsiveLayout selects the desktop layout at 700px',
         (tester) async {
-      tester.view.physicalSize = const Size(700, 900);
-      tester.view.devicePixelRatio = 1;
-
       await tester.pumpWidget(
         MaterialApp(
-          home: ResponsiveLayout(
-            mobile: const Text('phone-layout'),
-            desktop: const Text('desktop-layout'),
+          home: MediaQuery(
+            data: const MediaQueryData(size: Size(700, 900)),
+            child: ResponsiveLayout(
+              mobile: const Text('phone-layout'),
+              desktop: const Text('desktop-layout'),
+            ),
           ),
         ),
       );
@@ -87,16 +80,15 @@ void main() {
 
     testWidgets('LahAlayhTable displays mobile movement cards',
         (tester) async {
-      tester.view.physicalSize = const Size(390, 844);
-      tester.view.devicePixelRatio = 1;
-
       await tester.pumpWidget(
         MaterialApp(
           theme: EnterpriseDarkTheme.data,
-          home: Scaffold(
-            body: SizedBox(
-              height: 700,
-              child: LahAlayhTable(
+          home: MediaQuery(
+            data: const MediaQueryData(size: Size(390, 844)),
+            child: Scaffold(
+              body: SizedBox(
+                height: 700,
+                child: LahAlayhTable(
                 rows: const [
                   LahAlayhRow(
                     date: '2026-11-07',
@@ -106,6 +98,7 @@ void main() {
                     lah: 20,
                   ),
                 ],
+                ),
               ),
             ),
           ),
@@ -118,14 +111,3 @@ void main() {
   });
 }
 
-final testerView = TestView();
-
-class TestView {
-  void resetPhysicalSize() {
-    TestWidgetsFlutterBinding.ensureInitialized().platformDispatcher.views.first.resetPhysicalSize();
-  }
-
-  void resetDevicePixelRatio() {
-    TestWidgetsFlutterBinding.ensureInitialized().platformDispatcher.views.first.resetDevicePixelRatio();
-  }
-}
