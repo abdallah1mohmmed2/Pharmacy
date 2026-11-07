@@ -97,9 +97,10 @@ class SettingsAndSystemProvider extends ChangeNotifier {
   }
   return false;
  }
- Future<int> createUser({required String username,required String fullName,required String password,required String roleCode,required int branchId,required int actorUserId}) async {
+ Future<int> createUser({required String username,required String fullName,required String password,required String roleCode,required int branchId,required int actorUserId,required String actorRole}) async {
   const roles={'OWNER','MANAGER','PHARMACIST','CASHIER','STOREKEEPER','ACCOUNTANT','AUDITOR'};
   if(!roles.contains(roleCode))throw ArgumentError('الدور غير معروف');
+  if(roleCode=='OWNER'&&actorRole!='OWNER')throw StateError('إنشاء حساب مالك يتطلب صلاحية المالك الحالي');
   if(username.trim().length<3||fullName.trim().isEmpty||password.length<8)throw ArgumentError('اسم المستخدم والاسم وكلمة مرور من 8 خانات مطلوبة');
   final db=await _helper.database;final now=DateTime.now().toIso8601String();
   final legacyRole={'OWNER','MANAGER','PHARMACIST','CASHIER','ACCOUNTANT'}.contains(roleCode)?roleCode:'PHARMACIST';
@@ -107,10 +108,14 @@ class SettingsAndSystemProvider extends ChangeNotifier {
   await audit.record(action:'CREATE',userId:actorUserId,branchId:branchId,entityType:'users',entityId:id,entityLabel:username.trim(),newValues:{'full_name':fullName.trim(),'role_code':roleCode});
   await refreshSystemData();notifyListeners();return id;
  }
- Future<void> updateUserSecurity({required int targetUserId,required int actorUserId,String? newPassword,String? newManagerPin}) async {
+ Future<void> updateUserSecurity({required int targetUserId,required int actorUserId,required String actorRole,String? newPassword,String? newManagerPin}) async {
   if((newPassword==null||newPassword.isEmpty)&&(newManagerPin==null||newManagerPin.isEmpty))throw ArgumentError('أدخل كلمة مرور أو رمز مدير جديداً');
   if(newPassword!=null&&newPassword.isNotEmpty&&newPassword.length<8)throw ArgumentError('كلمة المرور لا تقل عن 8 خانات');
   if(newManagerPin!=null&&newManagerPin.isNotEmpty&&(newManagerPin.length<4||newManagerPin.length>8))throw ArgumentError('رمز المدير من 4 إلى 8 خانات');
+  final target=await _helper.query('users',where:'id=?',whereArgs:[targetUserId],limit:1);
+  if(target.isEmpty)throw StateError('المستخدم غير موجود');
+  final targetRole=(target.first['system_role_code']??target.first['role_code']).toString();
+  if(targetRole=='OWNER'&&actorRole!='OWNER')throw StateError('تغيير بيانات حساب المالك يتطلب المالك');
   final values=<String,Object?>{'updated_at':DateTime.now().toIso8601String()};
   if(newPassword!=null&&newPassword.isNotEmpty)values['password_hash']=SecurityHashService.hash(newPassword);
   if(newManagerPin!=null&&newManagerPin.isNotEmpty)values['manager_pin_hash']=SecurityHashService.hash(newManagerPin);
@@ -118,15 +123,20 @@ class SettingsAndSystemProvider extends ChangeNotifier {
   await audit.record(action:'UPDATE',userId:actorUserId,entityType:'users',entityId:targetUserId,newValues:{'password_changed':newPassword!=null&&newPassword.isNotEmpty,'manager_pin_changed':newManagerPin!=null&&newManagerPin.isNotEmpty});
   await refreshSystemData();notifyListeners();
  }
- Future<void> updateUserRole({required int targetUserId,required String roleCode,required int actorUserId}) async {
+ Future<void> updateUserRole({required int targetUserId,required String roleCode,required int actorUserId,required String actorRole}) async {
   const roles={'OWNER','MANAGER','PHARMACIST','CASHIER','STOREKEEPER','ACCOUNTANT','AUDITOR'};
   if(!roles.contains(roleCode))throw ArgumentError('الدور غير معروف');
+  final target=await _helper.query('users',where:'id=?',whereArgs:[targetUserId],limit:1);
+  if(target.isEmpty)throw StateError('المستخدم غير موجود');
+  final targetRole=(target.first['system_role_code']??target.first['role_code']).toString();
+  if(actorRole!='OWNER'&&(roleCode=='OWNER'||targetRole=='OWNER'))throw StateError('إدارة حساب المالك تتطلب صلاحية المالك');
   final legacy={'OWNER','MANAGER','PHARMACIST','CASHIER','ACCOUNTANT'}.contains(roleCode)?roleCode:'PHARMACIST';
   await _helper.update('users',{'role_code':legacy,'system_role_code':roleCode,'updated_at':DateTime.now().toIso8601String()},where:'id=?',whereArgs:[targetUserId]);
   await audit.record(action:'UPDATE',userId:actorUserId,entityType:'users',entityId:targetUserId,newValues:{'role_code':roleCode});
   await refreshSystemData();notifyListeners();
  }
- Future<void> setRolePermission(String role,String permission,bool allowed) async {
+ Future<void> setRolePermission(String role,String permission,bool allowed,{required String actorRole}) async {
+  if(actorRole!='OWNER'&&(role=='OWNER'||(allowed&&{'roles.manage','settings.manager_pin'}.contains(permission))))throw StateError('تغيير صلاحية المالك أو الصلاحيات الحساسة يتطلب المالك');
   final db=await _helper.database;
   final before=await db.query('role_permissions',where:'role_code=? AND permission_code=?',whereArgs:[role,permission],limit:1);
   await db.update('role_permissions',{'is_allowed':allowed?1:0},where:'role_code=? AND permission_code=?',whereArgs:[role,permission]);
