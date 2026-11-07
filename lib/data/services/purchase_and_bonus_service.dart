@@ -12,6 +12,11 @@ class PurchaseAndBonusService {
   PurchaseAndBonusService({DatabaseHelper? helper,PostingAndSalesService? posting}):_db=helper??DatabaseHelper.instance,_posting=posting??PostingAndSalesService(helper:helper);
   final DatabaseHelper _db; final PostingAndSalesService _posting;
   String _number(String prefix)=>prefix+'-'+DateTime.now().microsecondsSinceEpoch.toString();
+  static double calculateEffectivePackCost({required int paidPacks,required int bonusPacks,required double packPrice,required double discountPct,required bool includeBonus}){
+    if(paidPacks<0||bonusPacks<0||paidPacks+bonusPacks<=0||discountPct<0||discountPct>100)throw ArgumentError('بيانات البونص والتكلفة غير صالحة');
+    final netPaidCost=paidPacks*packPrice*(1-discountPct/100);
+    return includeBonus?netPaidCost/(paidPacks+bonusPacks):packPrice*(1-discountPct/100);
+  }
   static double calculateWeightedAverage({required double currentPacks,required double currentAverage,required double incomingPacks,required double incomingTotalCost}){
     final total=currentPacks+incomingPacks;
     return total<=0?0:((currentPacks*currentAverage)+incomingTotalCost)/total;
@@ -49,7 +54,7 @@ class PurchaseAndBonusService {
         if(item.locationId!=null){final shelf=await txn.query('shelf_locations',where:'id=? AND warehouse_id=?',whereArgs:[item.locationId,warehouseId],limit:1);if(shelf.isEmpty)throw StateError('موقع الرف لا يتبع المستودع المحدد');}
         if((drug['requires_refrigeration'] as int? ?? 0)==1){final shelf=item.locationId==null?[]:await txn.query('shelf_locations',where:'id=? AND warehouse_id=? AND is_fridge=1',whereArgs:[item.locationId,warehouseId],limit:1);if(warehouseRows.first['wh_type']!='FRIDGE'||shelf.isEmpty)throw StateError('الدواء المبرد يتطلب مستودعاً ورفاً مبردين');}
         final packs=item.qtyPacksPaid+item.bonusPacks;final lineTotal=item.qtyPacksPaid*item.packPrice*(1-item.lineDiscountPct/100);
-        final effective=includeBonusInCost?lineTotal/packs:item.packPrice*(1-item.lineDiscountPct/100);
+        final effective=calculateEffectivePackCost(paidPacks:item.qtyPacksPaid,bonusPacks:item.bonusPacks,packPrice:item.packPrice,discountPct:item.lineDiscountPct,includeBonus:includeBonusInCost);
         final currentPacks=(drug['stock_total_units'] as int)/units;final oldAverage=(drug['cost_price_pack'] as num).toDouble();
         final newAverage=calculateWeightedAverage(currentPacks:currentPacks,currentAverage:oldAverage,incomingPacks:packs.toDouble(),incomingTotalCost:lineTotal);
         subtotal+=lineTotal;totalBonus+=item.bonusPacks;
