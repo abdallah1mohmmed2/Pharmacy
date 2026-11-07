@@ -37,6 +37,9 @@ jobs:
       - name: Flutter version
         run: flutter --version
 
+      - name: Generate Android platform scaffolding
+        run: flutter create --platforms=android .
+
       - name: Resolve dependencies
         run: flutter pub get
 
@@ -76,6 +79,9 @@ jobs:
 
       - name: Enable Windows desktop
         run: flutter config --enable-windows-desktop
+
+      - name: Generate Windows platform scaffolding
+        run: flutter create --platforms=windows .
 
       - name: Resolve dependencies
         run: flutter pub get
