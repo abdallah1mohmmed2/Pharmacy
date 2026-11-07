@@ -45,13 +45,12 @@ class CentralCatalogApi implements CentralCatalogDataSource {
 
     if (endpointMode != CatalogEndpointMode.firebaseStaticShards) {
       try {
-        final page = await _dynamicSearch(
+        return await _dynamicSearch(
           query: normalizedQuery,
           barcode: exactBarcode,
           cursor: cursor,
           limit: safeLimit,
         );
-        return page;
       } on CatalogApiException catch (error) {
         if (endpointMode == CatalogEndpointMode.dynamicApi ||
             error.statusCode != 404) {
@@ -92,7 +91,7 @@ class CentralCatalogApi implements CentralCatalogDataSource {
     final response = await _get(endpoint);
     if (response.statusCode != 200) {
       throw CatalogApiException(
-        'Catalog API returned HTTP ${response.statusCode}',
+        'Catalog API returned HTTP @@response.statusCode}',
         statusCode: response.statusCode,
       );
     }
@@ -108,7 +107,7 @@ class CentralCatalogApi implements CentralCatalogDataSource {
     late Uri endpoint;
     if (barcode != null) {
       endpoint = _baseUri.resolve(
-        '/v1/catalog/barcodes/${Uri.encodeComponent(barcode)}.json',
+        '/v1/catalog/barcodes/@@Uri.encodeComponent(barcode)}.json',
       );
     } else {
       if (query.runes.length < 2) {
@@ -121,14 +120,14 @@ class CentralCatalogApi implements CentralCatalogDataSource {
           ? _safeShardName(cursor)
           : _prefixFor(query);
       endpoint = _baseUri.resolve(
-        '/v1/catalog/search/${Uri.encodeComponent(shard)}.json',
+        '/v1/catalog/search/@@Uri.encodeComponent(shard)}.json',
       );
     }
 
     final response = await _get(endpoint);
     if (response.statusCode != 200) {
       throw CatalogApiException(
-        'Firebase catalogue shard returned HTTP ${response.statusCode}',
+        'Firebase catalogue shard returned HTTP @@response.statusCode}',
         statusCode: response.statusCode,
       );
     }
@@ -136,7 +135,8 @@ class CentralCatalogApi implements CentralCatalogDataSource {
     final page = _parsePage(response, limit: limit);
     final filtered = barcode != null
         ? page.items.where((item) =>
-            item.barcodeInternational == barcode)
+            item.barcodeInternational == barcode ||
+            item.barcodeLocal == barcode)
         : _filterByQuery(page.items, query);
     return CatalogSearchPage(
       items: filtered.take(limit).toList(growable: false),
@@ -227,73 +227,13 @@ class CentralCatalogApi implements CentralCatalogDataSource {
       String.fromCharCodes(_normalizeQuery(query).runes.take(2));
 
   static String _safeShardName(String cursor) {
-    if (!RegExp(r'^[a-zA-Z0-9_\-\u0600-\u06FF]{1,80}
+    if (!RegExp(r'^[a-zA-Z0-9_\-\u0600-\u06FF]{1,80}$').hasMatch(cursor)) {
       throw const FormatException('Invalid catalogue shard cursor');
     }
     return cursor;
   }
 
-  static bool _isBarcode(String value) => RegExp(r'^\d{8,14}).hasMatch(value);
-}
-
-class CatalogApiException implements Exception {
-  const CatalogApiException(this.message, {this.statusCode});
-
-  final String message;
-  final int? statusCode;
-
-  @override
-  String toString() => message;
-}
-).hasMatch(cursor)) {
-      throw const FormatException('Invalid catalogue shard cursor');
-    }
-    return cursor;
-  }
-
-  static bool _isBarcode(String value) => RegExp(r'^\\d{8,14}$').hasMatch(value);
-}
-
-class CatalogApiException implements Exception {
-  const CatalogApiException(this.message, {this.statusCode});
-
-  final String message;
-  final int? statusCode;
-
-  @override
-  String toString() => message;
-}
-).hasMatch(value);
-}
-
-class CatalogApiException implements Exception {
-  const CatalogApiException(this.message, {this.statusCode});
-
-  final String message;
-  final int? statusCode;
-
-  @override
-  String toString() => message;
-}
-).hasMatch(cursor)) {
-      throw const FormatException('Invalid catalogue shard cursor');
-    }
-    return cursor;
-  }
-
-  static bool _isBarcode(String value) => RegExp(r'^\d{8,14}).hasMatch(value);
-}
-
-class CatalogApiException implements Exception {
-  const CatalogApiException(this.message, {this.statusCode});
-
-  final String message;
-  final int? statusCode;
-
-  @override
-  String toString() => message;
-}
-).hasMatch(value);
+  static bool _isBarcode(String value) => RegExp(r'^\d{8,14}$').hasMatch(value);
 }
 
 class CatalogApiException implements Exception {
