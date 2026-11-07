@@ -5,6 +5,7 @@ import '../../core/constants/setting_keys.dart';
 abstract final class SchemaIteration6 {
  static Future<void> upgrade(DatabaseExecutor db) async {
   await _migrateLegacyAudit(db);
+  await _migrateLegacySettings(db);
   await db.execute('''CREATE TABLE IF NOT EXISTS system_settings(
    setting_no INTEGER PRIMARY KEY CHECK(setting_no BETWEEN 1 AND 35),
    setting_key TEXT NOT NULL UNIQUE, group_name TEXT NOT NULL,
@@ -19,6 +20,14 @@ abstract final class SchemaIteration6 {
     'setting_value':spec.defaultJson,'default_value':spec.defaultJson,'description_ar':spec.descriptionAr,
     'requires_manager':spec.requiresManager?1:0,'allowed_values_json':_allowedJson(spec.allowedValues),
    },conflictAlgorithm:ConflictAlgorithm.ignore);
+  }
+  final legacySettings=await db.rawQuery(\"SELECT name FROM sqlite_master WHERE type='table' AND name='system_settings_legacy_i5'\");
+  if(legacySettings.isNotEmpty){
+   final oldRows=await db.query('system_settings_legacy_i5');
+   for(final row in oldRows){
+    final key=row['setting_key']; final value=row['value_text']??row['setting_value'];
+    if(key is String && value!=null) await db.update('system_settings',{'setting_value':value.toString()},where:'setting_key=?',whereArgs:[key]);
+   }
   }
   await db.execute('''CREATE TABLE IF NOT EXISTS import_jobs(
    id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -85,6 +94,13 @@ abstract final class SchemaIteration6 {
   }
  }
  static String _allowedJson(List<String> values)=>values.isEmpty?'[]':'["'+values.join('","')+'"]';
+ static Future<void> _migrateLegacySettings(DatabaseExecutor db) async {
+  final tables=await db.rawQuery(\"SELECT name FROM sqlite_master WHERE type='table' AND name='system_settings'\");
+  if(tables.isEmpty)return;
+  final cols=await db.rawQuery('PRAGMA table_info(system_settings)');
+  if(cols.any((r)=>r['name']=='group_name'))return;
+  await db.execute('ALTER TABLE system_settings RENAME TO system_settings_legacy_i5');
+ }
  static Future<void> _migrateLegacyAudit(DatabaseExecutor db) async {
   final tables=await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='audit_logs'");
   if(tables.isEmpty)return;
