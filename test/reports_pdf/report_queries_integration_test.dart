@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../lib/data/database/database_helper.dart';
 import '../../lib/reports_pdf/models_and_contracts.dart';
 import '../../lib/reports_pdf/registry/report_registry_and_provider.dart';
+import '../../lib/providers/pos_and_drugs_provider.dart';
+import '../../lib/data/models/drug_model.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -91,6 +93,29 @@ void main() {
     await provider.updateCostVisibility(false);
     expect(provider.showCostSetting, isFalse);
     expect(provider.canViewCost, isFalse);
+  });
+
+
+  test('drug catalogue saves never alter batch-derived stock balances', () async {
+    final db = await DatabaseHelper.instance.database;
+    final rows = await db.query('drugs', orderBy: 'id', limit: 1);
+    expect(rows, isNotEmpty);
+    final original = DrugModel.fromMap(rows.single);
+    final originalStock = rows.single['stock_total_units'];
+
+    final alteredMap = Map<String, Object?>.from(original.toMap())
+      ..['stock_total_units'] = 999999;
+    final altered = DrugModel.fromMap(alteredMap);
+    await PosAndDrugsProvider().saveDrug(altered);
+
+    final saved = await db.query(
+      'drugs',
+      columns: ['stock_total_units'],
+      where: 'id=?',
+      whereArgs: [original.id],
+      limit: 1,
+    );
+    expect(saved.single['stock_total_units'], originalStock);
   });
 
 }
