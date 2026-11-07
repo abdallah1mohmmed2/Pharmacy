@@ -51,43 +51,36 @@ abstract final class SchemaIteration2 {
     if (!stocktakingColumns.any((column) => column['name'] == 'is_counted')) {
       await db.execute('ALTER TABLE stocktaking_lines ADD COLUMN is_counted INTEGER NOT NULL DEFAULT 0');
     }
-    await _seedDefaults(db);
+    await _ensureDefaultLocations(db);
   }
-  static Future<void> _seedDefaults(DatabaseExecutor db) async {
-    final count=Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM warehouses'))??0;
-    if(count>0)return;
-    final now=DateTime.now().toIso8601String();
-    final defs=<List<Object>>[['PHARM','صالة الصيدلية','PHARMACY_FLOOR',1],['MAIN','المخزن الرئيسي','MAIN_STORE',0],['FRIDGE','الثلاجة','FRIDGE',1],['CONTROL','خزانة المراقبة','CONTROLLED_CABINET',0],['QUAR','الحجر','QUARANTINE',0],['DAMAGED','التالف','DAMAGED',0]];
-    for(final w in defs){await db.insert('warehouses',{'code':w[0],'name_ar':w[1],'wh_type':w[2],'is_sellable':w[3],'created_at':now});}
-    final warehouses=await db.query('warehouses',columns:['id','code']);
-    final main=warehouses.firstWhere((r)=>r['code']=='MAIN')['id'] as int;
-    final fridge=warehouses.firstWhere((r)=>r['code']=='FRIDGE')['id'] as int;
-    final pharmacy=warehouses.firstWhere((r)=>r['code']=='PHARM')['id'] as int;
-    final shelves=<List<Object>>[['A-01-01',main,0],['A-01-02',main,0],['A-02-01',main,0],['P-01-01',pharmacy,0],['F-01-01',fridge,1],['F-01-02',fridge,1]];
-    for(final shelf in shelves){await db.insert('shelf_locations',{'warehouse_id':shelf[1],'code':shelf[0],'description':'رف '+shelf[0].toString(),'is_fridge':shelf[2]});}
-    final drugs=await db.query('drugs',columns:['id','units_per_pack','cost_price_pack','requires_refrigeration','stock_total_units'],where:'is_deleted=0');
-    for(var index=0;index<drugs.length;index++){
-      final drug=drugs[index];
-      final units=(drug['units_per_pack'] as int?)??1;
-      if(units<=0)throw StateError('وحدات الباكت غير صالحة للصنف رقم '+drug['id'].toString());
-      final cold=(drug['requires_refrigeration'] as int? ?? 0)==1;
-      final originalUnits=(drug['stock_total_units'] as int?)??0;
-      final first=originalUnits~/3;
-      final second=originalUnits~/3;
-      final portions=<int>[first,second,originalUnits-first-second];
-      final offsets=<int>[-4,25,55];
-      final packCost=(drug['cost_price_pack'] as num? ?? 0).toDouble();
-      for(var lot=0;lot<portions.length;lot++){
-        final lotUnits=portions[lot];
-        if(lotUnits<=0)continue;
-        final expiry=DateTime.now().add(Duration(days:offsets[lot])).toIso8601String().substring(0,10);
-        final warehouse=cold?fridge:(lot<2?main:pharmacy);
-        final shelf=await db.query('shelf_locations',columns:['id'],where:'warehouse_id=?',whereArgs:[warehouse],limit:1);
-        if(shelf.isEmpty)throw StateError('لا يوجد رف افتراضي للمستودع');
-        final batchId=await db.insert('batches_fefo',{'drug_id':drug['id'],'warehouse_id':warehouse,'location_id':shelf.first['id'],'batch_no':'SEED-'+(index+1).toString()+'-'+(lot+1).toString(),'expiry_date':expiry,'sealed_packs':lotUnits~/units,'loose_units':lotUnits%units,'total_units':lotUnits,'unit_cost':packCost/units,'pack_cost':packCost,'status':expiry.compareTo(now.substring(0,10))<0?'EXPIRED':'ACTIVE'});
-        await db.insert('stock_movements',{'drug_id':drug['id'],'batch_id':batchId,'warehouse_id':warehouse,'movement_type':'OPENING_BALANCE','qty_units':lotUnits,'unit_cost':packCost/units,'balance_after_units':lotUnits,'movement_at':now,'doc_type':'OPENING','note':'رصيد افتتاحي محفوظ من الدورة الأولى'});
-      }
+  /// Creates empty storage locations only; inventory is entered through real receipts.
+  static Future<void> _ensureDefaultLocations(DatabaseExecutor db) async {
+    final defaults = <List<Object>>[
+      ['PHARM', 'صالة الصيدلية', 'PHARMACY_FLOOR', 1],
+      ['MAIN', 'المخزن الرئيسي', 'MAIN_STORE', 0],
+      ['FRIDGE', 'الثلاجة', 'FRIDGE', 1],
+      ['CONTROL', 'خزانة المراقبة', 'CONTROLLED_CABINET', 0],
+      ['QUAR', 'الحجر', 'QUARANTINE', 0],
+      ['DAMAGED', 'التالف', 'DAMAGED', 0],
+    ];
+    for (final item in defaults) {
+      await db.insert('warehouses', {
+        'code': item[0], 'name_ar': item[1], 'wh_type': item[2],
+        'is_sellable': item[3], 'created_at': DateTime.now().toIso8601String(),
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
     }
-    await db.execute('UPDATE drugs SET stock_total_units=COALESCE((SELECT SUM(total_units) FROM batches_fefo WHERE batches_fefo.drug_id=drugs.id),0)');
+    final warehouses = await db.query('warehouses', columns: ['id', 'code']);
+    final ids = {for (final row in warehouses) row['code']: row['id']};
+    final shelves = <List<Object>>[
+      ['A-01-01', ids['MAIN']!, 0], ['A-01-02', ids['MAIN']!, 0],
+      ['A-02-01', ids['MAIN']!, 0], ['P-01-01', ids['PHARM']!, 0],
+      ['F-01-01', ids['FRIDGE']!, 1], ['F-01-02', ids['FRIDGE']!, 1],
+    ];
+    for (final shelf in shelves) {
+      await db.insert('shelf_locations', {
+        'warehouse_id': shelf[1], 'code': shelf[0],
+        'description': 'رف ${shelf[0]}', 'is_fridge': shelf[2],
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    }
   }
 }
