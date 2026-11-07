@@ -136,8 +136,7 @@ class CentralCatalogApi implements CentralCatalogDataSource {
     final page = _parsePage(response, limit: limit);
     final filtered = barcode != null
         ? page.items.where((item) =>
-            item.barcodeInternational == barcode ||
-            item.barcodeInternational == null)
+            item.barcodeInternational == barcode)
         : _filterByQuery(page.items, query);
     return CatalogSearchPage(
       items: filtered.take(limit).toList(growable: false),
