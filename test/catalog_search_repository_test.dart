@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration10.dart';
@@ -122,8 +121,7 @@ void main() {
         return http.Response(
           jsonEncode(_envelope(items: [_drug().toJson()])),
           200,
-          headers: {'etag': '"static-etag"'},
-          encoding: utf8,
+          headers: {'etag': '"static-etag"', 'content-type': 'application/json'},
         );
       });
       final api = CentralCatalogApi(
@@ -159,7 +157,7 @@ void main() {
               cursor: 'am_p2',
             )),
             200,
-            encoding: utf8,
+            headers: {'content-type': 'application/json'},
           );
         }
         return http.Response(
@@ -167,7 +165,7 @@ void main() {
             items: [_drug(uuid: 'amox-3', name: 'Amoxicillin 1g').toJson()],
           )),
           200,
-          encoding: utf8,
+          headers: {'content-type': 'application/json'},
         );
       });
       final api = CentralCatalogApi(
