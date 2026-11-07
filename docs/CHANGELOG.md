@@ -424,3 +424,14 @@
 - إضافة اختبارات للمسار الديناميكي وfallback للشظايا والباركود والصفحات وتصفية النص وتحديث sync state ومنع تراجع الإصدار.
 - لم يُعثر على `merged_19points_drugs.json` في فرع العمل؛ المولد يرفض المتابعة دون مصدر مرجعي بدلاً من توليد بيانات دوائية غير موثقة. لم يتم نشر Hosting أو إدخال عنوان خادم/مفتاح افتراضي.
 - نتائج dart format وFlutter Analyze والاختبارات لم تُعتمد بعد؛ تُسجل بعد اكتمال CI فقط.
+
+
+## Central Medicine Catalog — Firebase Spark security foundation (2026-11-08)
+
+- Added branch-scoped Firestore rules for `pharmacy_branches`, `pharmacy_daily_dashboards`, `pharmacy_parties_snapshot`, and append-only `pharmacy_sync_batches`.
+- Firestore access requires Firebase Authentication and a trusted `branch_id` custom claim. Sync batch creation is limited to 100 events; client updates/deletes are denied.
+- Locked `partner_mode` to `shares` or `percentage` and disallowed changing the selected mode after snapshot creation.
+- Denied Firestore access to `catalog_meta`; the central drug catalogue remains static JSON on Firebase Hosting and therefore uses zero Firestore reads.
+- Added `firebase/firebase.json` for Hosting from `firebase_public`, with cache and CORS headers for `/v1/catalog/**`. Firebase Hosting supplies HTTP ETag; the content ETag is also embedded in generated JSON.
+- Expanded the central catalog architecture and progress docs with the two-path Mermaid diagram, 100-event batch design, owner dashboard/party snapshot model, Spark usage caveats, and launch prerequisites.
+- **Scope note:** this commit adds Firebase configuration, security rules, and architecture documentation only. It does not implement the SQLite sync worker, inbox/idempotent receiver, setting 35 integration, Firebase Authentication/custom-claim issuer, or deploy Firebase resources. Emulator and live Firebase validation remain required.
