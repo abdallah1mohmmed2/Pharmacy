@@ -64,8 +64,8 @@ jobs:
               raise SystemExit(0)
 
           pattern = re.compile(
-              r"(?m)^(\\s*compileSdk(?:Version)?\\s*(?:=\\s*)?)"
-              r"(?:flutter\\.compileSdkVersion|\\d+)"
+              r"(?m)^(\s*compileSdk(?:Version)?\s*(?:=\s*)?)"
+              r"(?:flutter\.compileSdkVersion|\d+)"
           )
           changed = []
           scanned = 0
@@ -77,7 +77,7 @@ jobs:
               except (OSError, UnicodeError):
                   continue
               scanned += 1
-              updated = pattern.sub(r"\\g<1>36", original)
+              updated = pattern.sub(r"\g<1>36", original)
               if updated != original:
                   gradle_file.write_text(updated, encoding="utf-8")
                   changed.append(str(gradle_file))
@@ -85,7 +85,7 @@ jobs:
           print(f"Scanned {scanned} Android plugin Gradle files.")
           if changed:
               print("Normalized explicit plugin compile SDK declarations to API 36:")
-              print("\\n".join(changed))
+              print("\n".join(changed))
           else:
               print(
                   "No explicit plugin compile SDK declarations needed normalization; "
