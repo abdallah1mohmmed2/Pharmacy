@@ -40,6 +40,7 @@ class SessionAndErpProvider extends ChangeNotifier {
       final hash=row['manager_pin_hash'];
       if(hash is String&&SecurityHashService.verify(pin,hash)){
         _verifiedManagerUserId=row['id'] as int;
+        await AuditService(helper:_db).record(action:'MANAGER_PIN_USED',userId:_verifiedManagerUserId,branchId:branchId,entityType:'users',entityId:_verifiedManagerUserId,severity:'WARNING');
         return true;
       }
     }
