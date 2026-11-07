@@ -60,11 +60,15 @@ class DrugImportExportService {
   for(final key in intFields){if(result[key]!=null){final parsed=int.tryParse(result[key].toString());if(parsed==null)throw FormatException('قيمة عددية غير صحيحة للحقل '+key);result[key]=parsed;}}
   for(final key in doubleFields){if(result[key]!=null){final parsed=double.tryParse(result[key].toString());if(parsed==null)throw FormatException('قيمة عشرية غير صحيحة للحقل '+key);result[key]=parsed;}}
   for(final key in boolFields){if(result[key]!=null){final raw=result[key].toString().toLowerCase();if(!{'1','0','true','false','yes','no'}.contains(raw))throw FormatException('قيمة منطقية غير صحيحة للحقل '+key);result[key]={'1','true','yes'}.contains(raw)?1:0;}}
-  for(final key in result.keys.toList()){if(result[key]!=null&&result[key] is! num)result[key]=result[key].toString();}
+  for(final key in result.keys.toList()){
+   final value=result[key];
+   if(value is Map||value is List){result[key]=jsonEncode(value);}
+   else if(value!=null&&value is! num)result[key]=value.toString();
+  }
   return result;
  }
  static const Set<String> _knownColumns={
-  'internal_code','trade_name_ar','trade_name_en','scientific_name','ingredients_json','chemical_composition','category_id','therapeutic_class','pharmacologic_class','atc_code','dosage_form','strength_text','strength_value','strength_unit','route','indications','dosage_administration','contraindications','contraindications_json','warnings_precautions','black_box_warning','warnings_json','interactions_summary','side_effects_common','side_effects_serious','min_age_months','max_age_months','pregnancy_category','pregnancy_notes','lactation_risk','lactation_notes','storage_conditions','barcode_international','barcode_local','registration_no','is_controlled','requires_prescription','is_antibiotic','cost_price_pack','last_purchase_cost_pack','sell_price_pack','sell_price_strip','sell_price_unit','public_price_pack','tax_rate_pct','strips_per_pack','units_per_strip'
+  internal_code','trade_name_ar','trade_name_en','scientific_name','ingredients_json','chemical_composition','category_id','therapeutic_class','pharmacologic_class','atc_code','dosage_form','strength_text','strength_value','strength_unit','route','indications','dosage_administration','adult_dose_min_mg','adult_dose_max_mg_per_day','dose_frequency_text','take_with_food','label_dose_text_ar','contraindications','contraindications_json','warnings_precautions','black_box_warning','warnings_json','interactions_summary','has_critical_interactions','side_effects_common','side_effects_serious','min_age_months','max_age_months','allowed_populations_json','hepatic_status','hepatic_notes','renal_status','renal_notes','is_nephrotoxic','geriatric_status','geriatric_notes','beers_criteria','geriatric_age_threshold','pediatric_status','pediatric_notes','ped_dose_mg_per_kg_min','ped_dose_mg_per_kg_max','ped_max_daily_mg_per_kg','ped_doses_per_day','neonate_allowed','pregnancy_category','pregnancy_notes','pregnancy_trimester_json','lactation_risk','lactation_notes','storage_conditions','storage_temp_min_c','storage_temp_max_c','requires_refrigeration','protect_from_light','barcode_international','barcode_local','registration_no','is_controlled','controlled_schedule','requires_prescription','prescription_restricted','is_antibiotic','cost_price_pack','last_purchase_cost_pack','sell_price_pack','sell_price_strip','sell_price_unit','profit_margin_pct','public_price_pack','tax_rate_pct','strips_per_pack','units_per_strip','units_per_pack','min_stock_units','reorder_qty_packs','stock_total_units'
  };
  Future<ImportDryRunResult> dryRunImport({required String source,required String format,Map<String,String> mapping=const {}}) async {
   final rows=parse(source,format:format,mapping:mapping);final parsed=await rows;final errors=<ImportRowIssue>[];var valid=0,duplicates=0;final seen=<String>{};
@@ -153,7 +157,7 @@ class DrugImportExportService {
  }
  DrugModel openFdaToDrug(OpenFdaDrugResult result){
   String field(String key)=>result.fields[key]??'';
-  return DrugModel(tradeNameAr:result.brandName,tradeNameEn:result.brandName,scientificName:result.genericName,indications:field('indications_and_usage'),dosageAdministration:field('dosage_and_administration'),contraindications:field('contraindications'),warningsPrecautions:field('warnings'),interactionsSummary:field('drug_interactions'),sideEffectsCommon:field('adverse_reactions'),pregnancyNotes:field('pregnancy'),pediatricNotes:field('pediatric_use'),geriatricNotes:field('geriatric_use'),storageConditions:field('storage_and_handling'),pregnancyCategory:'UNKNOWN');
+  return DrugModel(isActive:false,tradeNameAr:result.brandName,tradeNameEn:result.brandName,scientificName:result.genericName,indications:field('indications_and_usage'),dosageAdministration:field('dosage_and_administration'),contraindications:field('contraindications'),warningsPrecautions:field('warnings'),interactionsSummary:field('drug_interactions'),sideEffectsCommon:field('adverse_reactions'),pregnancyNotes:field('pregnancy'),pediatricNotes:field('pediatric_use'),geriatricNotes:field('geriatric_use'),storageConditions:field('storage_and_handling'),pregnancyCategory:'UNKNOWN');
  }
  Future<File> exportDrugs({required String format,bool hideCostPrices=true,int? categoryId}) async {
   final db=await _helper.database;
