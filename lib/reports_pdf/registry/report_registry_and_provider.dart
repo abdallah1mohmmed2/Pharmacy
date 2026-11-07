@@ -119,9 +119,9 @@ class ReportsCenterProvider extends ChangeNotifier {
     final id = _userId;
     if (id == null) return;
     final db = await _helper.database;
-    // Iteration 6 uses role_permissions and system_settings as the
-    // authoritative sources. The former user_permissions/app_settings tables
-    // are legacy and are not part of a fresh database.
+    // Role authorization is stored in role_permissions; user_permissions is
+    // a legacy per-user table that the current role editor does not populate.
+    // system_settings is canonical; app_settings is only a legacy mirror.
     final permissions = await db.rawQuery(
       '''
       SELECT rp.is_allowed
