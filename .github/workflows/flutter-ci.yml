@@ -92,6 +92,22 @@ jobs:
                   "the app compile SDK remains pinned to API 36."
               )
           PY
+      - name: Check Dart formatting across the repository
+        run: dart format --output=none --set-exit-if-changed .
+      - name: Validate Firebase deployment JSON
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          config = json.loads(Path("firebase/firebase.json").read_text(encoding="utf-8"))
+          assert config["hosting"]["public"] == "firebase_public"
+          assert config["firestore"]["rules"] == "firebase/firestore.rules"
+          assert any(header["key"] == "Cache-Control" for route in config["hosting"]["headers"] if route["source"] == "/v1/catalog/**" for header in route["headers"])
+          assert any(header["key"] == "Access-Control-Allow-Origin" for route in config["hosting"]["headers"] if route["source"] == "/v1/catalog/**" for header in route["headers"])
+          print("Firebase Hosting configuration JSON is valid.")
+          PY
       - run: dart format lib test
       - run: flutter analyze --no-fatal-infos
       - run: flutter test
