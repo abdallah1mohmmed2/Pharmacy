@@ -17,6 +17,9 @@ class SettingsService {
   for(final row in rows){final model=SystemSettingModel.fromMap(row);_cache[model.key]=model.decodedValue;}
   if(_cache.length!=35)throw StateError('يجب تحميل الإعدادات الـ35 كاملة؛ الموجود '+_cache.length.toString());
   _loaded=true;
+  final mode=getString(SettingKey.partnerDistributionMode);
+  final db=await _helper.database;
+  await db.transaction((txn)=>_applyPartnerStateLock(txn,mode));
  }
  void _ensureLoaded(){if(!_loaded)throw StateError('يجب تحميل الإعدادات قبل القراءة');}
  Object? getValue(SettingKey key){_ensureLoaded();return _cache[SettingKeys.byKey(key).name];}
@@ -40,27 +43,19 @@ class SettingsService {
   await AuditService(helper:_helper).record(action:'SETTING_CHANGE',userId:userId,branchId:branchId,entityType:'system_settings',entityId:spec.number,entityLabel:spec.name,oldValues:{'value':old},newValues:{'value':value},reason:reason,severity:'WARNING');
  }
  Future<void> _applyPartnerStateLock(DatabaseExecutor txn,String mode) async {
-  final tables=await txn.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
-  for(final table in tables.map((e)=>e['name'] as String)){
-   if(!table.toLowerCase().contains('partner'))continue;
-   final cols=await txn.rawQuery('PRAGMA table_info('+table+')');
-   final names=cols.map((e)=>e['name'] as String).toSet();
-   final values=<String,Object?>{};
-   for(final name in names){
-    final lower=name.toLowerCase();
-    if(mode=='shares'&&(lower.contains('percent')||lower.endsWith('_pct')))values[name]=0;
-    if(mode=='percentage'&&(lower.contains('share')||lower.contains('unit_count')))values[name]=0;
-   }
-   if(values.isNotEmpty)await txn.update(table,values);
-   final safe=table.replaceAll("'","''");
-   final lockedColumn=mode=='shares'?names.where((n)=>n.toLowerCase().contains('percent')||n.toLowerCase().endsWith('_pct')):names.where((n)=>n.toLowerCase().contains('share')||n.toLowerCase().contains('unit_count'));
-   for(final column in lockedColumn){
-    final trigger='trg_'+table+'_'+column+'_state_lock';
-    final safeColumn=column.replaceAll('"','""');
-    await txn.execute('DROP TRIGGER IF EXISTS "$trigger"');
-    final condition=mode=='shares'?'NEW."$safeColumn" != 0':'NEW."$safeColumn" != 0';
-    await txn.execute('CREATE TRIGGER "$trigger" BEFORE INSERT ON "$safe" WHEN '+condition+' BEGIN SELECT RAISE(ABORT,\'partner distribution field locked by mode\'); END');
-    await txn.execute('CREATE TRIGGER "'+trigger+'_update" BEFORE UPDATE OF "$safeColumn" ON "$safe" WHEN '+condition+' BEGIN SELECT RAISE(ABORT,\'partner distribution field locked by mode\'); END');
+  if(mode!='shares'&&mode!='percentage')throw ArgumentError('نمط توزيع الشركاء غير صالح');
+  final partnerTables=await txn.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='partners'");
+  if(partnerTables.isNotEmpty){
+   if(mode=='shares')await txn.update('partners',{'percentage':null});
+   else await txn.update('partners',{'shares_count':null});
+  }
+  final settingsTable=await txn.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='app_settings'");
+  if(settingsTable.isNotEmpty){
+   final existing=await txn.query('app_settings',where:'setting_key=?',whereArgs:['accounting.partner_distribution_mode'],limit:1);
+   if(existing.isEmpty){
+    await txn.insert('app_settings',{'setting_key':'accounting.partner_distribution_mode','value_text':mode});
+   }else{
+    await txn.update('app_settings',{'value_text':mode},where:'setting_key=?',whereArgs:['accounting.partner_distribution_mode']);
    }
   }
  }
