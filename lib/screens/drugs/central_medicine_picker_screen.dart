@@ -18,7 +18,7 @@ class _CentralMedicinePickerScreenState extends State<CentralMedicinePickerScree
   static const _pageSize = 30;
   static const _baseUrl = String.fromEnvironment('CATALOG_API_BASE_URL');
   final _search = TextEditingController();
-  late final CatalogSearchRepository _repository;
+  CatalogSearchRepository? _repository;\n  bool _initialized = false;
   Timer? _debounce;
   int _generation = 0;
   List<CatalogDrugSummary> _items = [];
@@ -200,7 +200,7 @@ class _CentralMedicinePickerScreenState extends State<CentralMedicinePickerScree
         if (_error != null) Align(alignment: AlignmentDirectional.centerStart,
           child: Text('تعذر الاتصال: ' + _error!, style: const TextStyle(color: Colors.orangeAccent))),
         const SizedBox(height: 8),
-        Expanded(child: _loading ? const Center(child: CircularProgressIndicator())
+        Expanded(child: !_initialized || _loading ? const Center(child: CircularProgressIndicator())
           : _query.isEmpty ? const Center(child: Text('اكتب حرفين على الأقل للبحث في الموسوعة'))
           : _items.isEmpty ? const Center(child: Text('لا توجد نتائج مطابقة'))
           : ListView.separated(itemCount: _items.length, separatorBuilder: (_, __) => const Divider(height: 1),
