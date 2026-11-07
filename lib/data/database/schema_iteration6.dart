@@ -82,6 +82,8 @@ abstract final class SchemaIteration6 {
    permission_code TEXT NOT NULL,is_allowed INTEGER NOT NULL DEFAULT 0 CHECK(is_allowed IN (0,1)),
    UNIQUE(role_code,permission_code)
   )''');
+  await _ensureColumn(db,'users','system_role_code','TEXT');
+  await db.execute('UPDATE users SET system_role_code=role_code WHERE system_role_code IS NULL');
   const roles=<String,String>{'OWNER':'المالك','MANAGER':'مدير','PHARMACIST':'صيدلي','CASHIER':'كاشير','STOREKEEPER':'أمين مخزن','ACCOUNTANT':'محاسب','AUDITOR':'مراجع'};
   const permissions=<String>['dashboard.view','pos.sell','pos.discount.override','drugs.view','drugs.create','drugs.update','drugs.import','drugs.export','inventory.view','inventory.adjust','inventory.stocktake','purchases.manage','sales.returns','clinical.override','finance.view','finance.manage','partners.manage','reports.view','reports.export','settings.view','settings.manage','settings.manager_pin','audit.view','audit.verify','backup.create','backup.restore','sync.manage','period.close','users.manage','roles.manage'];
   for(final role in roles.entries){
@@ -96,6 +98,10 @@ abstract final class SchemaIteration6 {
     await db.insert('role_permissions',{'role_code':role.key,'permission_code':permission,'is_allowed':allowed?1:0},conflictAlgorithm:ConflictAlgorithm.ignore);
    }
   }
+ }
+ static Future<void> _ensureColumn(DatabaseExecutor db,String table,String column,String declaration) async {
+  final columns=await db.rawQuery('PRAGMA table_info('+table+')');
+  if(!columns.any((row)=>row['name']==column))await db.execute('ALTER TABLE '+table+' ADD COLUMN '+column+' '+declaration);
  }
  static String _allowedJson(List<String> values)=>values.isEmpty?'[]':'["'+values.join('","')+'"]';
 
