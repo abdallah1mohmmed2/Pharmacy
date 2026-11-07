@@ -89,15 +89,7 @@ class _S16PurchaseInvoiceBonusScreenState
       0,
       (sum, item) => sum + item.bonusPacks * item.packPrice,
     );
-    final shelves = inventory.shelves
-        .where((shelf) => shelf.warehouseId == warehouse)
-        .where((shelf) {
-      final selectedDrugs = pos.drugs.where((item) => item.id == drug);
-      if (selectedDrugs.isEmpty || !selectedDrugs.first.requiresRefrigeration) {
-        return true;
-      }
-      return shelf.isFridge;
-    }).toList();
+
 
     return Padding(
       padding: const EdgeInsets.all(12),
