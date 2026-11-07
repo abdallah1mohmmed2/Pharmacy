@@ -44,12 +44,14 @@ class BackupAndSyncService {
   final rows=await _helper.query('backup_log',where:'file_path=? AND result=?',whereArgs:[backup.path,'SUCCESS'],limit:1);
   if(rows.isEmpty)throw StateError('لا توجد بصمة موثوقة مسجلة لهذه النسخة');
   if(rows.first['sha256']!=digest)throw StateError('فشل التحقق من بصمة SHA-256 للنسخة');
-  await createBackup(triggerType:'BEFORE_RESTORE',userId:userId);
+  final preRestore=await createBackup(triggerType:'BEFORE_RESTORE',userId:userId);
   final source=backup.path.endsWith('.gz')?GZipCodec().decode(bytes):bytes;
   final destination=await _helper.databaseFilePath;
   await _helper.close();
   await File(destination).writeAsBytes(source,flush:true);
-  await _helper.database;
+  final restoredDb=await _helper.database;
+  await restoredDb.insert('backup_log',{'backup_at':DateTime.now().toIso8601String(),'trigger_type':'BEFORE_RESTORE','file_path':preRestore.file.path,'size_bytes':preRestore.sizeBytes,'sha256':preRestore.sha256,'encrypted':0,'result':'SUCCESS','user_id':userId});
+  await AuditService(helper:_helper).record(action:'BACKUP',userId:userId,entityType:'backup_log',entityLabel:preRestore.file.path,newValues:{'sha256':preRestore.sha256,'size_bytes':preRestore.sizeBytes});
   await AuditService(helper:_helper).record(action:'RESTORE',userId:userId,entityType:'database',entityLabel:backup.path,newValues:{'sha256':digest});
  }
  Future<int> enqueue({required String tableName,required String rowUuid,required String operation,required Map<String,Object?> payload,int syncVersion=1}) async {
