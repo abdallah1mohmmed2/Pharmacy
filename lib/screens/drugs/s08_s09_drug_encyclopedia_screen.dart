@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';\nimport 'central_medicine_picker_screen.dart';
 import 'package:provider/provider.dart';
 import '../../providers/pos_and_drugs_provider.dart';
 import '../../data/models/drug_model.dart';
@@ -42,10 +42,26 @@ class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScr
 
   return Scaffold(
    backgroundColor:Colors.transparent,
-   floatingActionButton:FloatingActionButton.extended(
-    onPressed:()=>_edit(context),
-    icon:const Icon(Icons.add),
-    label:const Text('إضافة دواء'),
+   floatingActionButton:Column(
+    mainAxisSize:MainAxisSize.min,
+    crossAxisAlignment:CrossAxisAlignment.end,
+    children:[
+     FloatingActionButton.extended(
+      heroTag:'central-catalog-picker',
+      onPressed:()=>Navigator.of(context).push(MaterialPageRoute(
+       builder:(_)=>const CentralMedicinePickerScreen(),
+      )),
+      icon:const Icon(Icons.library_books_outlined),
+      label:const Text('اختيار من الموسوعة'),
+     ),
+     const SizedBox(height:10),
+     FloatingActionButton.extended(
+      heroTag:'manual-drug-create',
+      onPressed:()=>_edit(context),
+      icon:const Icon(Icons.add),
+      label:const Text('إضافة دواء يدوياً'),
+     ),
+    ],
    ),
    body:Padding(
     padding:const EdgeInsets.all(12),
