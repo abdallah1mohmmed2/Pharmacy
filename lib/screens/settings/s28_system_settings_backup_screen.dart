@@ -135,7 +135,7 @@ class _S28SystemSettingsBackupScreenState extends State<S28SystemSettingsBackupS
  }
  Widget _syncTab(SettingsAndSystemProvider p)=>ListView(padding:const EdgeInsets.all(12),children:[
   _settingTile(SettingKeys.byKey(SettingKey.cloudSync),p),
-  Wrap(spacing:8,children:[OutlinedButton.icon(onPressed:()async{final ok=await p.testCloudConnection();if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(ok?'الاتصال بالخادم ناجح':'تعذر الاتصال بالخادم')));},icon:const Icon(Icons.wifi),label:const Text('اختبار الاتصال')),FilledButton.icon(onPressed:()=>p.syncNow(),icon:const Icon(Icons.sync),label:const Text('مزامنة الآن'))]),
+  Wrap(spacing:8,children:[OutlinedButton.icon(onPressed:()async{final ok=await p.testCloudConnection();if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(ok?'الاتصال بالخادم ناجح':'تعذر الاتصال بالخادم')));},icon:const Icon(Icons.wifi),label:const Text('اختبار الاتصال')),FilledButton.icon(onPressed:()async{try{final sent=await p.syncNow();if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تمت معالجة $sent سجل مزامنة')));}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}},icon:const Icon(Icons.sync),label:const Text('مزامنة الآن'))]),
   const SizedBox(height:12),const Text('حالة طابور المزامنة',style:TextStyle(fontWeight:FontWeight.bold)),for(final row in p.syncSummary)ListTile(title:Text(row['status'].toString()),trailing:Text(row['count'].toString())),
  ]);
  Widget _auditTab(SettingsAndSystemProvider p){
