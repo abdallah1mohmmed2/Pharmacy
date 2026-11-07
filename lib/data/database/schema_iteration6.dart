@@ -1,4 +1,6 @@
 // lib/data/database/schema_iteration6.dart
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:sqflite/sqflite.dart';
 import '../../core/constants/setting_keys.dart';
 
@@ -51,6 +53,8 @@ abstract final class SchemaIteration6 {
   await db.execute('DROP TRIGGER IF EXISTS trg_audit_no_delete');
   await db.execute("CREATE TRIGGER trg_audit_no_update BEFORE UPDATE ON audit_logs BEGIN SELECT RAISE(ABORT,'audit_logs are immutable'); END");
   await db.execute("CREATE TRIGGER trg_audit_no_delete BEFORE DELETE ON audit_logs BEGIN SELECT RAISE(ABORT,'audit_logs are immutable'); END");
+  await _migrateLegacyAuditRows(db);
+  await _installPeriodTriggers(db);
   await db.execute('''CREATE TABLE IF NOT EXISTS backup_log(
    id INTEGER PRIMARY KEY AUTOINCREMENT,backup_at TEXT NOT NULL,trigger_type TEXT NOT NULL CHECK(trigger_type IN ('MANUAL','ON_SHIFT_CLOSE','ON_APP_CLOSE','BEFORE_RESTORE','BEFORE_PERIOD_CLOSE')),
    file_path TEXT NOT NULL,size_bytes INTEGER NOT NULL DEFAULT 0,sha256 TEXT NOT NULL,encrypted INTEGER NOT NULL DEFAULT 0,
@@ -94,6 +98,48 @@ abstract final class SchemaIteration6 {
   }
  }
  static String _allowedJson(List<String> values)=>values.isEmpty?'[]':'["'+values.join('","')+'"]';
+
+ static String _auditHash(String value)=>sha256.convert(utf8.encode(value)).toString();
+ static Future<void> _migrateLegacyAuditRows(DatabaseExecutor db) async {
+  final tables=await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='audit_logs_legacy_i5'");
+  if(tables.isEmpty)return;
+  final rows=await db.query('audit_logs_legacy_i5',orderBy:'id');
+  var previous='GENESIS';
+  final existing=await db.query('audit_logs',columns:['row_hash'],orderBy:'id DESC',limit:1);
+  if(existing.isNotEmpty)previous=existing.first['row_hash'] as String;
+  const allowed={'LOGIN','LOGOUT','LOGIN_FAILED','CREATE','UPDATE','DELETE','VOID','PRICE_CHANGE','DISCOUNT_OVERRIDE','CLINICAL_OVERRIDE','SETTING_CHANGE','PERIOD_CLOSE','BACKUP','RESTORE','PRINT','EXPORT','MANAGER_PIN_USED'};
+  for(final row in rows){
+   final eventAt=(row['occurred_at']??DateTime.now().toIso8601String()).toString();
+   final requested=(row['action_code']??'UPDATE').toString().toUpperCase();
+   final action=allowed.contains(requested)?requested:'UPDATE';
+   final oldJson=row['old_value']==null?null:jsonEncode({'legacy_value':row['old_value']});
+   final newJson=row['new_value']==null?null:jsonEncode({'legacy_value':row['new_value']});
+   final userId=row['user_id'] as int?;final entityType=row['entity_type'] as String?;final entityId=row['entity_id'] as int?;
+   final canonical=[previous,eventAt,userId?.toString()??'',action,entityType??'',entityId?.toString()??'',oldJson??'',newJson??''].join('|');
+   final hash=_auditHash(canonical);
+   final severity=(row['severity']??'INFO').toString().toUpperCase();
+   await db.insert('audit_logs',{'event_at':eventAt,'user_id':userId,'branch_id':row['branch_id']??1,'action':action,'entity_type':entityType,'entity_id':entityId,'entity_label':row['reference_no'],'old_values_json':oldJson,'new_values_json':newJson,'reason':row['reason'],'severity':{'INFO','WARNING','CRITICAL'}.contains(severity)?severity:'INFO','prev_hash':previous,'row_hash':hash});
+   previous=hash;
+  }
+  await db.execute('ALTER TABLE audit_logs_legacy_i5 RENAME TO audit_logs_legacy_i5_migrated');
+ }
+ static Future<void> _installPeriodTriggers(DatabaseExecutor db) async {
+  const candidates={'sales_invoices':'invoice_date','purchase_invoices':'invoice_date','vouchers':'voucher_date','journal_entries':'entry_date','expenses':'expense_date','stock_movements':'movement_at','stocktaking_sessions':'created_at'};
+  for(final entry in candidates.entries){
+   final tables=await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name=?",[entry.key]);
+   if(tables.isEmpty)continue;
+   final columns=await db.rawQuery('PRAGMA table_info('+entry.key+')');
+   if(!columns.any((row)=>row['name']==entry.value))continue;
+   final table=entry.key,column=entry.value;
+   for(final event in ['INSERT','UPDATE']){
+    final trigger='trg_period_guard_'+table.toLowerCase()+'_'+event.toLowerCase();
+    await db.execute('DROP TRIGGER IF EXISTS '+trigger);
+    final sql="CREATE TRIGGER "+trigger+" BEFORE "+event+" ON "+table+" WHEN (json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'$.locked_through') IS NOT NULL AND substr(NEW."+column+",1,10)<=json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'$.locked_through')) OR EXISTS(SELECT 1 FROM fiscal_periods p WHERE p.status='CLOSED' AND substr(NEW."+column+",1,10) BETWEEN p.start_date AND p.end_date) BEGIN SELECT RAISE(ABORT,'FISCAL_PERIOD_CLOSED'); END";
+    await db.execute(sql);
+   }
+  }
+ }
+
  static Future<void> _migrateLegacySettings(DatabaseExecutor db) async {
   final tables=await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='system_settings'");
   if(tables.isEmpty)return;
