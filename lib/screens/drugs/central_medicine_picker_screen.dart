@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/enterprise_dark_theme.dart';
@@ -158,6 +159,78 @@ class _CentralMedicinePickerScreenState extends State<CentralMedicinePickerScree
     return 'OTHER';
   }
 
+  List<MapEntry<String, String>> _clinicalDetails(CatalogDrugSummary item) {
+    const clinicalTerms = [
+      'indication', 'contraindication', 'dosage', 'dose', 'warning',
+      'adverse', 'side_effect', 'interaction', 'pregnancy', 'lactation',
+      'renal', 'hepatic', 'pediatric', 'paediatric', 'geriatric',
+      'monitoring', 'overdose', 'mechanism', 'pharmacology',
+      'precaution', 'administration', 'toxicity', 'allergy',
+      'استطباب', 'موانع', 'جرع', 'تحذير', 'تداخل', 'حمل', 'رضاعة',
+      'كلوي', 'كبدي', 'أطفال', 'اطفال', 'آثار', 'اثار', 'سمية',
+      'مراقبة', 'احتياط', 'استعمال',
+    ];
+    final labels = <String, String>{
+      'indications': 'دواعي الاستعمال',
+      'indication': 'دواعي الاستعمال',
+      'contraindications': 'موانع الاستعمال',
+      'contraindication': 'موانع الاستعمال',
+      'dosage': 'الجرعات',
+      'dose': 'الجرعة',
+      'warnings': 'التحذيرات',
+      'warning': 'التحذيرات',
+      'adverse_reactions': 'التفاعلات/الآثار الجانبية',
+      'side_effects': 'الآثار الجانبية',
+      'drug_interactions': 'التداخلات الدوائية',
+      'interactions': 'التداخلات الدوائية',
+      'pregnancy': 'الحمل',
+      'lactation': 'الرضاعة',
+      'renal': 'الاعتبارات الكلوية',
+      'hepatic': 'الاعتبارات الكبدية',
+      'pediatric': 'استخدام الأطفال',
+      'paediatric': 'استخدام الأطفال',
+      'geriatric': 'استخدام كبار السن',
+      'overdose': 'الجرعة الزائدة',
+      'monitoring': 'المراقبة',
+      'mechanism_of_action': 'آلية العمل',
+      'precautions': 'الاحتياطات',
+      'storage': 'التخزين',
+    };
+    final result = <MapEntry<String, String>>[];
+    try {
+      final root = jsonDecode(item.payloadJson);
+      void visit(dynamic value, [String parent = '']) {
+        if (value is Map) {
+          for (final entry in value.entries) {
+            final key = entry.key.toString();
+            final normalized = key
+                .replaceAll(RegExp(r'([a-z])([A-Z])'), r'$1_$2')
+                .toLowerCase();
+            final child = entry.value;
+            final isClinical = clinicalTerms.any(normalized.contains);
+            if (isClinical && child != null && child is! Map && child is! List) {
+              final text = child.toString().trim();
+              if (text.isNotEmpty) {
+                result.add(MapEntry(labels[normalized] ?? key, text));
+              }
+            } else if (child is Map || child is List) {
+              visit(child, key);
+            }
+          }
+        } else if (value is List) {
+          for (final child in value) {
+            visit(child, parent);
+          }
+        }
+      }
+      visit(root);
+    } catch (_) {
+      // Malformed or absent clinical payload is never presented as verified data.
+    }
+    final seen = <String>{};
+    return result.where((entry) => seen.add(entry.key + entry.value)).toList();
+  }
+
   void _details(CatalogDrugSummary item) {
     showModalBottomSheet<void>(context: context, isScrollControlled: true,
       backgroundColor: AppColors.surface, builder: (ctx) => SafeArea(
@@ -174,8 +247,24 @@ class _CentralMedicinePickerScreenState extends State<CentralMedicinePickerScree
             _detail('الباركود', item.barcodeInternational),
             _detail('المصدر', item.sourceName),
             _detail('حالة المراجعة', item.reviewStatus),
-            const Text('المعلومات السريرية التفصيلية لا تُعرض كتعليمات علاجية قبل ربط مصدر موثوق ومراجعتها.',
-              style: TextStyle(color: Colors.orangeAccent)),
+            const Divider(height: 24),
+            const Text('التفاصيل السريرية', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            if (_clinicalDetails(item).isEmpty)
+              const Text('لا تتوفر تفاصيل سريرية موثقة لهذا الدواء في بيانات الموسوعة الحالية.',
+                style: TextStyle(color: Colors.white60))
+            else
+              ..._clinicalDetails(item).map((entry) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Text(entry.key, style: const TextStyle(color: Colors.tealAccent, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 3),
+                  Text(entry.value),
+                ]),
+              )),
+            const SizedBox(height: 8),
+            Text('المصدر: ${item.sourceName ?? 'غير محدد'} • حالة المراجعة: ${item.reviewStatus}',
+              style: const TextStyle(color: Colors.white54, fontSize: 12)),
             const SizedBox(height: 16),
             FilledButton.icon(onPressed: () { Navigator.pop(ctx); _add(item); },
               icon: const Icon(Icons.add), label: const Text('إضافة إلى صيدليتي')),
@@ -220,11 +309,13 @@ class _CentralMedicinePickerScreenState extends State<CentralMedicinePickerScree
               final item = _items[index];
               final sub = [item.scientificName, item.strengthText, item.dosageForm]
                 .whereType<String>().where((s) => s.isNotEmpty).join(' • ');
-              return ListTile(leading: const CircleAvatar(child: Icon(Icons.medication_outlined)),
-                title: Text(item.tradeNameAr), subtitle: Text(sub),
+              return ListTile(
+                leading: const CircleAvatar(child: Icon(Icons.medication_outlined)),
+                title: Text(item.tradeNameAr),
+                subtitle: Text(sub),
                 onTap: () => _details(item),
-                trailing: IconButton(tooltip: 'إضافة إلى صيدليتي',
-                  onPressed: () => _add(item), icon: const Icon(Icons.add_circle_outline)));
+                trailing: const Icon(Icons.chevron_left),
+              );
             })),
         if (_cursor != null) SizedBox(width: double.infinity,
           child: OutlinedButton.icon(onPressed: _loadingMore ? null : _loadMore,
