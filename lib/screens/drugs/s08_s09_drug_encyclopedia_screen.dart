@@ -291,7 +291,7 @@ class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScr
    'pregnancy_category':{'A','B','C','D','X','N','UNKNOWN'},
    'lactation_risk':{'L1','L2','L3','L4','L5','UNKNOWN'},
   };
-  List<String> groupFor(List<int> points)=>labels.keys.where((key){final point=int.tryParse(labels[key]!.split('.').first);return point!=null&&points.contains(point);}).toList();
+  List<String> groupFor(List<int> points)=>labels.keys.where((key){if(key=='is_active')return points.contains(1);final point=int.tryParse(labels[key]!.split('.').first);return point!=null&&points.contains(point);}).toList();
   final tabGroups=<List<String>>[groupFor([1,2,3,4]),groupFor([5,6,7,8,9,10]),groupFor([11,12]),groupFor([13,14,15,16,17,18,19])];
   Widget buildField(String key){
    final controller=controllers[key]!;
@@ -314,7 +314,7 @@ class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScr
    insetPadding:const EdgeInsets.all(8),
    scrollable:true,
    title:Text(drug==null?'إضافة دواء — جميع النقاط الـ19':'تعديل بيانات الدواء — جميع النقاط الـ19'),
-   content:SizedBox(width:MediaQuery.sizeOf(context).width<700?double.infinity:900,height:(MediaQuery.sizeOf(context).height-MediaQuery.viewInsetsOf(context).bottom-190).clamp(240.0,720.0),child:Form(key:form,child:DefaultTabController(length:4,child:Column(children:[
+   content:SizedBox(width:MediaQuery.sizeOf(context).width<700?double.infinity:900,height:(MediaQuery.sizeOf(context).height-MediaQuery.viewInsetsOf(context).bottom-190).clamp(240.0,720.0).toDouble(),child:Form(key:form,child:DefaultTabController(length:4,child:Column(children:[
     const TabBar(isScrollable:true,tabs:[Tab(text:'1–4 الهوية والتركيب'),Tab(text:'5–10 الاستعمال والسلامة'),Tab(text:'11–12 التسعير والفئات'),Tab(text:'13–19 الحالات الخاصة')]),
     Expanded(child:TabBarView(children:[for(final keys in tabGroups)tabFields(keys)])),
    ])))),
