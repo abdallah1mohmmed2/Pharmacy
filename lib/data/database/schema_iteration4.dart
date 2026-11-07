@@ -40,16 +40,28 @@ abstract final class SchemaIteration4 {
       '''CREATE TRIGGER IF NOT EXISTS trg_partner_mode_setting_value BEFORE INSERT ON app_settings WHEN NEW.setting_key='accounting.partner_distribution_mode' AND NEW.value_text NOT IN('shares','percentage') BEGIN SELECT RAISE(ABORT,'PARTNER_MODE_INVALID'); END''',
       '''CREATE TRIGGER IF NOT EXISTS trg_partner_mode_setting_value_upd BEFORE UPDATE OF value_text ON app_settings WHEN NEW.setting_key='accounting.partner_distribution_mode' AND NEW.value_text NOT IN('shares','percentage') BEGIN SELECT RAISE(ABORT,'PARTNER_MODE_INVALID'); END''',
     ];
-    for (final sql in statements) { await db.execute(sql); }
-    await _ensureColumn(db, 'chronic_medication_schedules', 'last_dispensed_at', 'TEXT');
-    await _ensureColumn(db, 'chronic_medication_schedules', 'last_dispensed_invoice_id', 'INTEGER');
-    await db.insert('app_settings', {'setting_key':'accounting.partner_distribution_mode','value_text':'shares'}, conflictAlgorithm: ConflictAlgorithm.ignore);
+    for (final sql in statements) {
+      await db.execute(sql);
+    }
+    await _ensureColumn(
+        db, 'chronic_medication_schedules', 'last_dispensed_at', 'TEXT');
+    await _ensureColumn(db, 'chronic_medication_schedules',
+        'last_dispensed_invoice_id', 'INTEGER');
+    await db.insert(
+        'app_settings',
+        {
+          'setting_key': 'accounting.partner_distribution_mode',
+          'value_text': 'shares'
+        },
+        conflictAlgorithm: ConflictAlgorithm.ignore);
     // Demo patients, sample alternatives, employees, expenses, partners and shifts are not preloaded.
   }
 
-  static Future<void> _ensureColumn(DatabaseExecutor db,String table,String column,String definition) async {
-    final rows=await db.rawQuery('PRAGMA table_info($table)');
-    if(!rows.any((row)=>row['name']==column)){await db.execute('ALTER TABLE $table ADD COLUMN $column $definition');}
+  static Future<void> _ensureColumn(DatabaseExecutor db, String table,
+      String column, String definition) async {
+    final rows = await db.rawQuery('PRAGMA table_info($table)');
+    if (!rows.any((row) => row['name'] == column)) {
+      await db.execute('ALTER TABLE $table ADD COLUMN $column $definition');
+    }
   }
-
 }

@@ -235,8 +235,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
           const SizedBox(height: 8),
           Expanded(
             child: ListView.builder(
-              keyboardDismissBehavior:
-                  ScrollViewKeyboardDismissBehavior.onDrag,
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               itemCount: pos.drugs.length,
               itemBuilder: (context, i) {
                 final drug = pos.drugs[i];
@@ -247,9 +246,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
                       '${drug.scientificName} • مخزون ${drug.stockTotalUnits}',
                     ),
                     trailing: Text(MoneyFormatter.format(drug.sellPricePack)),
-                    onTap: pos.currentTab.held
-                        ? null
-                        : () => pos.addDrug(drug),
+                    onTap: pos.currentTab.held ? null : () => pos.addDrug(drug),
                   ),
                 );
               },
@@ -324,7 +321,8 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
           DropdownButtonFormField<int?>(
             value: clinical.currentPatient?.id,
             isExpanded: true,
-            decoration: const InputDecoration(labelText: 'المريض / الملف السريري'),
+            decoration:
+                const InputDecoration(labelText: 'المريض / الملف السريري'),
             items: [
               const DropdownMenuItem<int?>(
                 value: null,
@@ -525,8 +523,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
         if (method == 'MIXED')
           TextField(
             controller: paidAmount,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: const InputDecoration(
               labelText: 'المبلغ المدفوع الآن والباقي على حساب العميل',
             ),
@@ -610,8 +607,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
               batch.totalUnits > 0 &&
               inventory.warehouses.any(
                 (warehouse) =>
-                    warehouse.id == batch.warehouseId &&
-                    warehouse.isSellable,
+                    warehouse.id == batch.warehouseId && warehouse.isSellable,
               ),
         )
         .toList()
@@ -658,8 +654,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
                 DropdownMenuItem(value: 'STRIP', child: Text('شريط')),
                 DropdownMenuItem(value: 'UNIT', child: Text('حبة')),
               ],
-              onChanged: (value) =>
-                  pos.changeUnit(item, value ?? 'UNIT'),
+              onChanged: (value) => pos.changeUnit(item, value ?? 'UNIT'),
             ),
             const Spacer(),
             IconButton.filledTonal(
@@ -674,8 +669,8 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
               child: Text(
                 item.quantity.toStringAsFixed(
                     item.quantity.truncateToDouble() == item.quantity ? 0 : 2),
-                style: const TextStyle(
-                    fontSize: 17, fontWeight: FontWeight.bold),
+                style:
+                    const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
               ),
             ),
             IconButton.filledTonal(
@@ -750,8 +745,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
     final party = matches.first;
     final paid =
         method == 'CREDIT' ? 0.0 : double.tryParse(paidAmount.text) ?? 0.0;
-    final remaining =
-        (pos.total - paid).clamp(0, double.infinity).toDouble();
+    final remaining = (pos.total - paid).clamp(0, double.infinity).toDouble();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -880,26 +874,22 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
       return;
     }
     final List<
-        ({
-          int cashAccountId,
-          double amount,
-          String method,
-          String? walletRef
-        })> payments = paid > 0
-        ? [
-            (
-              cashAccountId: cashId!,
-              amount: paid,
-              method: tender == 'WALLET' ? 'WALLET' : 'CASH',
-              walletRef: isWallet ? walletRef.text.trim() : null,
-            ),
-          ]
-        : <({
-            int cashAccountId,
-            double amount,
-            String method,
-            String? walletRef
-          })>[];
+            ({int cashAccountId, double amount, String method, String? walletRef})>
+        payments = paid > 0
+            ? [
+                (
+                  cashAccountId: cashId!,
+                  amount: paid,
+                  method: tender == 'WALLET' ? 'WALLET' : 'CASH',
+                  walletRef: isWallet ? walletRef.text.trim() : null,
+                ),
+              ]
+            : <({
+                int cashAccountId,
+                double amount,
+                String method,
+                String? walletRef
+              })>[];
     try {
       final id = await pos.checkout(
         cashierId: (session.currentUser?['id'] as int?) ?? 1,
@@ -926,8 +916,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
     }
   }
 
-  void _message(String text) =>
-      ScaffoldMessenger.of(context).showSnackBar(
+  void _message(String text) => ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(text)),
       );
 
@@ -1064,8 +1053,7 @@ class _EmptyCart extends StatelessWidget {
             const Icon(Icons.shopping_basket_outlined,
                 size: 48, color: Colors.white38),
             const SizedBox(height: 10),
-            const Text('السلة فارغة',
-                style: TextStyle(color: Colors.white70)),
+            const Text('السلة فارغة', style: TextStyle(color: Colors.white70)),
             const SizedBox(height: 10),
             OutlinedButton.icon(
               onPressed: onBrowse,

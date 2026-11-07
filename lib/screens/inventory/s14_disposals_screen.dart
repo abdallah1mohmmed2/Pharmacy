@@ -64,7 +64,8 @@ class _S14DisposalsScreenState extends State<S14DisposalsScreen> {
             items: const [
               DropdownMenuItem(value: 'EXPIRED', child: Text('منتهي الصلاحية')),
               DropdownMenuItem(value: 'BROKEN', child: Text('مكسور')),
-              DropdownMenuItem(value: 'DAMAGED_STORAGE', child: Text('تلف التخزين')),
+              DropdownMenuItem(
+                  value: 'DAMAGED_STORAGE', child: Text('تلف التخزين')),
               DropdownMenuItem(value: 'RECALL', child: Text('سحب تشغيلة')),
               DropdownMenuItem(value: 'CONTAMINATED', child: Text('تلوث')),
             ],
@@ -73,7 +74,8 @@ class _S14DisposalsScreenState extends State<S14DisposalsScreen> {
                 : (value) => setState(() {
                       reason = value ?? reason;
                       if (reason == 'EXPIRED') {
-                        final provider = context.read<InventoryAndPurchaseProvider>();
+                        final provider =
+                            context.read<InventoryAndPurchaseProvider>();
                         selectedBatchIds.removeWhere((id) => provider.batches
                             .where((batch) => batch.id == id)
                             .every((batch) => !batch.isExpired));
@@ -152,7 +154,8 @@ class _S14DisposalsScreenState extends State<S14DisposalsScreen> {
                       subtitle: Text(
                         '${disposal.reason} • ${disposal.disposalDate} • ${disposal.status}',
                       ),
-                      trailing: Text(disposal.totalCostValue.toStringAsFixed(2)),
+                      trailing:
+                          Text(disposal.totalCostValue.toStringAsFixed(2)),
                     ),
                   )
                   .toList(),

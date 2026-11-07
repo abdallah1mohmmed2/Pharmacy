@@ -71,7 +71,8 @@ Map<String, dynamic> _envelope({
 
 Future<Database> _database() async {
   final db = await databaseFactoryFfi.openDatabase(inMemoryDatabasePath);
-  await db.execute('CREATE TABLE drugs (branch_id INTEGER, is_deleted INTEGER)');
+  await db
+      .execute('CREATE TABLE drugs (branch_id INTEGER, is_deleted INTEGER)');
   await SchemaIteration10.upgrade(db);
   return db;
 }
@@ -85,7 +86,8 @@ void main() {
   });
 
   group('CentralCatalogApi endpoints', () {
-    test('keeps the standard /v1/catalog/search contract and metadata', () async {
+    test('keeps the standard /v1/catalog/search contract and metadata',
+        () async {
       Uri? requested;
       final client = MockClient((request) async {
         requested = request.url;
@@ -111,7 +113,8 @@ void main() {
       client.close();
     });
 
-    test('falls back to the exact Firebase barcode shard after dynamic 404', () async {
+    test('falls back to the exact Firebase barcode shard after dynamic 404',
+        () async {
       final requestedPaths = <String>[];
       final client = MockClient((request) async {
         requestedPaths.add(request.url.path);
@@ -121,7 +124,10 @@ void main() {
         return http.Response(
           jsonEncode(_envelope(items: [_drug().toJson()])),
           200,
-          headers: {'etag': '"static-etag"', 'content-type': 'application/json'},
+          headers: {
+            'etag': '"static-etag"',
+            'content-type': 'application/json'
+          },
         );
       });
       final api = CentralCatalogApi(
@@ -140,7 +146,8 @@ void main() {
       client.close();
     });
 
-    test('loads prefix and cursor shards, then filters longer text locally', () async {
+    test('loads prefix and cursor shards, then filters longer text locally',
+        () async {
       final requestedPaths = <String>[];
       final client = MockClient((request) async {
         requestedPaths.add(request.url.path);
@@ -243,7 +250,8 @@ void main() {
         'catalog_sync_state',
         where: 'scope_key = ?',
         whereArgs: ['central_catalog'],
-      )).single;
+      ))
+          .single;
       expect(state['last_catalog_version'], 8);
       expect(state['etag'], '"etag-v8"');
       expect(state['last_success_at'], isNotNull);
@@ -252,7 +260,8 @@ void main() {
     }
   });
 
-  test('older catalogue response cannot roll back cache or sync version', () async {
+  test('older catalogue response cannot roll back cache or sync version',
+      () async {
     final db = await _database();
     try {
       final repository = CatalogSearchRepository(
@@ -292,7 +301,8 @@ void main() {
         'catalog_sync_state',
         where: 'scope_key = ?',
         whereArgs: ['central_catalog'],
-      )).single;
+      ))
+          .single;
       expect(cached!.catalogVersion, 9);
       expect(cached.tradeNameAr, 'أموكسيسيلين إصدار أحدث');
       expect(sync['last_catalog_version'], 9);
@@ -302,13 +312,15 @@ void main() {
     }
   });
 
-  test('barcode uses exact lookup and falls back to local cache offline', () async {
+  test('barcode uses exact lookup and falls back to local cache offline',
+      () async {
     final db = await _database();
     try {
       final remote = _FakeCatalogApi(const CatalogSearchPage(
         items: [],
         source: CatalogSearchSource.remote,
-      ))..failure = StateError('offline');
+      ))
+        ..failure = StateError('offline');
       final repository = CatalogSearchRepository(
         database: db,
         remote: remote,
@@ -326,7 +338,9 @@ void main() {
     }
   });
 
-  test('local text search returns cached results and does not fetch short input', () async {
+  test(
+      'local text search returns cached results and does not fetch short input',
+      () async {
     final db = await _database();
     try {
       final remote = _FakeCatalogApi(const CatalogSearchPage(
@@ -350,7 +364,9 @@ void main() {
     }
   });
 
-  test('cache prunes old search results without deleting selected pharmacy drugs', () async {
+  test(
+      'cache prunes old search results without deleting selected pharmacy drugs',
+      () async {
     final db = await _database();
     try {
       final repository = CatalogSearchRepository(
@@ -367,9 +383,10 @@ void main() {
         _drug(uuid: 'drug-old', name: 'Old drug'),
         _drug(uuid: 'drug-new', name: 'New drug'),
       ]);
-      final cachedIds = (await db.query('catalog_cache', columns: ['catalog_uuid']))
-          .map((row) => row['catalog_uuid'])
-          .toSet();
+      final cachedIds =
+          (await db.query('catalog_cache', columns: ['catalog_uuid']))
+              .map((row) => row['catalog_uuid'])
+              .toSet();
       expect(cachedIds, contains('drug-old'));
       expect(cachedIds, contains('drug-new'));
     } finally {
@@ -377,10 +394,12 @@ void main() {
     }
   });
 
-  test('FTS5 is used when available and fallback remains safe otherwise', () async {
+  test('FTS5 is used when available and fallback remains safe otherwise',
+      () async {
     final db = await _database();
     try {
-      final repository = CatalogSearchRepository(database: db, preferFts5: true);
+      final repository =
+          CatalogSearchRepository(database: db, preferFts5: true);
       await repository.cacheItems([_drug()]);
       final result = await repository.searchLocal(query: 'amoxicillin');
       expect(result, hasLength(1));
@@ -389,14 +408,16 @@ void main() {
     }
   });
 
-  test('cache never rolls back when an older catalogue version arrives late', () async {
+  test('cache never rolls back when an older catalogue version arrives late',
+      () async {
     final db = await _database();
     try {
       final repository = CatalogSearchRepository(
         database: db,
         preferFts5: false,
       );
-      await repository.cacheItems([_drug(version: 2, name: 'أموكسيسيلين محدث')]);
+      await repository
+          .cacheItems([_drug(version: 2, name: 'أموكسيسيلين محدث')]);
       await repository.cacheItems([_drug(version: 1, name: 'اسم قديم')]);
       final cached = await repository.getCachedDrug('drug-1');
       expect(cached!.catalogVersion, 2);

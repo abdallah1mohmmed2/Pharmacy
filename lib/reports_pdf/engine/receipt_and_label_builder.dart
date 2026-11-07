@@ -103,13 +103,22 @@ class ReceiptAndLabelBuilder {
           pw.Center(
             child: pw.Column(
               children: [
-                pw.Text(receipt.pharmacyName, style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
-                pw.Text(receipt.branchName, style: const pw.TextStyle(fontSize: 8)),
-                if (receipt.phone.isNotEmpty) pw.Text(receipt.phone, style: const pw.TextStyle(fontSize: 8)),
+                pw.Text(receipt.pharmacyName,
+                    style: pw.TextStyle(
+                        fontSize: 13, fontWeight: pw.FontWeight.bold)),
+                pw.Text(receipt.branchName,
+                    style: const pw.TextStyle(fontSize: 8)),
+                if (receipt.phone.isNotEmpty)
+                  pw.Text(receipt.phone,
+                      style: const pw.TextStyle(fontSize: 8)),
                 pw.Divider(thickness: 1),
-                pw.Text('فاتورة رقم: ${receipt.invoiceNumber}', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
-                pw.Text(_dateTime(receipt.dateTime), style: const pw.TextStyle(fontSize: 8)),
-                pw.Text('العميل: ${receipt.customerName}', style: const pw.TextStyle(fontSize: 8)),
+                pw.Text('فاتورة رقم: ${receipt.invoiceNumber}',
+                    style: pw.TextStyle(
+                        fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                pw.Text(_dateTime(receipt.dateTime),
+                    style: const pw.TextStyle(fontSize: 8)),
+                pw.Text('العميل: ${receipt.customerName}',
+                    style: const pw.TextStyle(fontSize: 8)),
               ],
             ),
           ),
@@ -121,29 +130,39 @@ class ReceiptAndLabelBuilder {
           _moneyLine('التقريب', receipt.rounding, receipt.currency),
           pw.Container(
             padding: const pw.EdgeInsets.symmetric(vertical: 4),
-            decoration: const pw.BoxDecoration(border: pw.Border.symmetric(horizontal: pw.BorderSide(width: 1))),
-            child: _moneyLine('الصافي', receipt.netTotal, receipt.currency, bold: true),
+            decoration: const pw.BoxDecoration(
+                border:
+                    pw.Border.symmetric(horizontal: pw.BorderSide(width: 1))),
+            child: _moneyLine('الصافي', receipt.netTotal, receipt.currency,
+                bold: true),
           ),
           _moneyLine('المدفوع', receipt.paid, receipt.currency),
-          pw.Text('طريقة الدفع: ${receipt.paymentMethod}', style: const pw.TextStyle(fontSize: 8)),
+          pw.Text('طريقة الدفع: ${receipt.paymentMethod}',
+              style: const pw.TextStyle(fontSize: 8)),
           if ((receipt.walletNotificationNumber ?? '').isNotEmpty)
-            pw.Text('رقم إشعار المحفظة: ${receipt.walletNotificationNumber}', style: const pw.TextStyle(fontSize: 8)),
+            pw.Text('رقم إشعار المحفظة: ${receipt.walletNotificationNumber}',
+                style: const pw.TextStyle(fontSize: 8)),
           if (receipt.remainingAfterInvoice > 0)
             pw.Container(
               margin: const pw.EdgeInsets.only(top: 4),
               padding: const pw.EdgeInsets.all(5),
               decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.8)),
-              child: _moneyLine('المتبقي عليه بعد الفاتورة', receipt.remainingAfterInvoice, receipt.currency, bold: true),
+              child: _moneyLine('المتبقي عليه بعد الفاتورة',
+                  receipt.remainingAfterInvoice, receipt.currency,
+                  bold: true),
             ),
           pw.SizedBox(height: 10),
-          pw.Center(child: pw.BarcodeWidget(
+          pw.Center(
+              child: pw.BarcodeWidget(
             barcode: pw.Barcode.code128(),
             data: receipt.invoiceNumber,
             width: width * 0.68,
             height: 38,
             drawText: false,
           )),
-          pw.Center(child: pw.Text('شكراً لزيارتكم', style: const pw.TextStyle(fontSize: 8))),
+          pw.Center(
+              child: pw.Text('شكراً لزيارتكم',
+                  style: const pw.TextStyle(fontSize: 8))),
         ],
       ),
     );
@@ -158,15 +177,27 @@ class ReceiptAndLabelBuilder {
     final rows = <List<String>>[
       headers,
       ...lines.map((line) => narrow
-          ? [line.name, '${line.quantity}', _money(line.unitPrice), _money(line.total)]
-          : [line.name, line.unit, '${line.quantity}', _money(line.unitPrice), _money(line.total)]),
+          ? [
+              line.name,
+              '${line.quantity}',
+              _money(line.unitPrice),
+              _money(line.total)
+            ]
+          : [
+              line.name,
+              line.unit,
+              '${line.quantity}',
+              _money(line.unitPrice),
+              _money(line.total)
+            ]),
     ];
     return pw.TableHelper.fromTextArray(
       data: rows,
       headerCount: 1,
       cellAlignment: pw.Alignment.centerRight,
       headerAlignment: pw.Alignment.centerRight,
-      headerStyle: pw.TextStyle(fontSize: narrow ? 6 : 7, fontWeight: pw.FontWeight.bold),
+      headerStyle: pw.TextStyle(
+          fontSize: narrow ? 6 : 7, fontWeight: pw.FontWeight.bold),
       cellStyle: pw.TextStyle(fontSize: narrow ? 6 : 7),
       cellPadding: const pw.EdgeInsets.symmetric(horizontal: 2, vertical: 3),
       border: const pw.TableBorder(
@@ -176,12 +207,22 @@ class ReceiptAndLabelBuilder {
     );
   }
 
-  pw.Widget _moneyLine(String label, num amount, String currency, {bool bold = false}) =>
+  pw.Widget _moneyLine(String label, num amount, String currency,
+          {bool bold = false}) =>
       pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
-          pw.Expanded(child: pw.Text(label, style: pw.TextStyle(fontSize: 8, fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal))),
-          pw.Text('${_money(amount)} $currency', style: pw.TextStyle(fontSize: 8, fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
+          pw.Expanded(
+              child: pw.Text(label,
+                  style: pw.TextStyle(
+                      fontSize: 8,
+                      fontWeight:
+                          bold ? pw.FontWeight.bold : pw.FontWeight.normal))),
+          pw.Text('${_money(amount)} $currency',
+              style: pw.TextStyle(
+                  fontSize: 8,
+                  fontWeight:
+                      bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
         ],
       );
 
@@ -205,14 +246,27 @@ class ReceiptAndLabelBuilder {
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
-                pw.Center(child: pw.Text(label.pharmacyName, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
-                pw.Text('المريض: ${label.patientName}', style: const pw.TextStyle(fontSize: 6)),
-                pw.Text('${label.drugName} ${label.strength}', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-                pw.Text(label.doseTextAr, style: const pw.TextStyle(fontSize: 7)),
-                pw.Text('تعليمات الأكل: ${label.mealInstruction}', style: const pw.TextStyle(fontSize: 6)),
-                pw.Text('الصلاحية: ${label.expiryDate}', style: const pw.TextStyle(fontSize: 6)),
+                pw.Center(
+                    child: pw.Text(label.pharmacyName,
+                        style: pw.TextStyle(
+                            fontSize: 7, fontWeight: pw.FontWeight.bold))),
+                pw.Text('المريض: ${label.patientName}',
+                    style: const pw.TextStyle(fontSize: 6)),
+                pw.Text('${label.drugName} ${label.strength}',
+                    style: pw.TextStyle(
+                        fontSize: 7, fontWeight: pw.FontWeight.bold)),
+                pw.Text(label.doseTextAr,
+                    style: const pw.TextStyle(fontSize: 7)),
+                pw.Text('تعليمات الأكل: ${label.mealInstruction}',
+                    style: const pw.TextStyle(fontSize: 6)),
+                pw.Text('الصلاحية: ${label.expiryDate}',
+                    style: const pw.TextStyle(fontSize: 6)),
                 if (label.keepRefrigerated)
-                  pw.Text('يحفظ في الثلاجة (2–8°م)', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.red800)),
+                  pw.Text('يحفظ في الثلاجة (2–8°م)',
+                      style: pw.TextStyle(
+                          fontSize: 7,
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.red800)),
               ],
             ),
           ),
@@ -222,19 +276,25 @@ class ReceiptAndLabelBuilder {
     return doc.save();
   }
 
-  Future<void> previewReceipt(BuildContext context, ReceiptData receipt, {ThermalPaper paper = ThermalPaper.mm80}) async {
+  Future<void> previewReceipt(BuildContext context, ReceiptData receipt,
+      {ThermalPaper paper = ThermalPaper.mm80}) async {
     final bytes = await buildReceipt(receipt, paper: paper);
-    await Printing.layoutPdf(name: 'receipt-${receipt.invoiceNumber}.pdf', onLayout: (_) async => bytes);
+    await Printing.layoutPdf(
+        name: 'receipt-${receipt.invoiceNumber}.pdf',
+        onLayout: (_) async => bytes);
   }
 
-  Future<void> printReceiptNow(BuildContext context, ReceiptData receipt, {ThermalPaper paper = ThermalPaper.mm80}) async {
+  Future<void> printReceiptNow(BuildContext context, ReceiptData receipt,
+      {ThermalPaper paper = ThermalPaper.mm80}) async {
     final bytes = await buildReceipt(receipt, paper: paper);
     final printer = await Printing.pickPrinter(context: context);
     if (printer == null) return;
-    await Printing.directPrintPdf(printer: printer, onLayout: (_) async => bytes);
+    await Printing.directPrintPdf(
+        printer: printer, onLayout: (_) async => bytes);
   }
 
-  Future<void> previewDoseLabel(BuildContext context, DoseLabelData label) async {
+  Future<void> previewDoseLabel(
+      BuildContext context, DoseLabelData label) async {
     final bytes = await buildDoseLabel(label);
     await Printing.layoutPdf(
       name: 'dose-label.pdf',
@@ -242,11 +302,13 @@ class ReceiptAndLabelBuilder {
     );
   }
 
-  Future<void> printDoseLabelNow(BuildContext context, DoseLabelData label) async {
+  Future<void> printDoseLabelNow(
+      BuildContext context, DoseLabelData label) async {
     final bytes = await buildDoseLabel(label);
     final printer = await Printing.pickPrinter(context: context);
     if (printer == null) return;
-    await Printing.directPrintPdf(printer: printer, onLayout: (_) async => bytes);
+    await Printing.directPrintPdf(
+        printer: printer, onLayout: (_) async => bytes);
   }
 
   String _dateTime(DateTime value) =>

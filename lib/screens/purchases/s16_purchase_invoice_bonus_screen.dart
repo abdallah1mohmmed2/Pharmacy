@@ -67,29 +67,28 @@ class _S16PurchaseInvoiceBonusScreenState
     final inventory = context.watch<InventoryAndPurchaseProvider>();
     final session = context.watch<SessionAndErpProvider>();
     final pos = context.watch<PosAndDrugsProvider>();
-    final suppliers =
-        session.parties.where((party) => party.partyType == 'SUPPLIER').toList();
+    final suppliers = session.parties
+        .where((party) => party.partyType == 'SUPPLIER')
+        .toList();
     final selectedSupplier =
         suppliers.where((party) => party.id == supplier).toList();
     final subtotal = lines.fold<double>(
       0,
       (sum, item) =>
           sum +
-          item.qtyPacksPaid *
-              item.packPrice *
-              (1 - item.lineDiscountPct / 100),
+          item.qtyPacksPaid * item.packPrice * (1 - item.lineDiscountPct / 100),
     );
     final headerDiscount = double.tryParse(invoiceDiscount.text) ?? 0;
     final taxAmount = double.tryParse(tax.text) ?? 0;
-    final netTotal =
-        (subtotal - headerDiscount + taxAmount).clamp(0, double.infinity).toDouble();
+    final netTotal = (subtotal - headerDiscount + taxAmount)
+        .clamp(0, double.infinity)
+        .toDouble();
     final paidNow = payment == 'CREDIT' ? 0.0 : double.tryParse(paid.text) ?? 0;
     final remaining = (netTotal - paidNow).clamp(0, double.infinity);
     final bonusValue = lines.fold<double>(
       0,
       (sum, item) => sum + item.bonusPacks * item.packPrice,
     );
-
 
     return Padding(
       padding: const EdgeInsets.all(12),
@@ -137,7 +136,8 @@ class _S16PurchaseInvoiceBonusScreenState
                       child: Text(party.nameAr),
                     ))
                 .toList(),
-            onChanged: saving ? null : (value) => setState(() => supplier = value),
+            onChanged:
+                saving ? null : (value) => setState(() => supplier = value),
           ),
           if (selectedSupplier.isNotEmpty)
             PartyBalanceChip(
@@ -182,7 +182,8 @@ class _S16PurchaseInvoiceBonusScreenState
                         child: Text(account.nameAr),
                       ))
                   .toList(),
-              onChanged: saving ? null : (value) => setState(() => cash = value),
+              onChanged:
+                  saving ? null : (value) => setState(() => cash = value),
             ),
           Card(
             child: Padding(
@@ -191,15 +192,16 @@ class _S16PurchaseInvoiceBonusScreenState
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const Text('بنود فاتورة المشتريات',
-                    style: TextStyle(fontSize: 17,fontWeight: FontWeight.bold)),
+                      style:
+                          TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 5),
                   Text('عدد البنود: ${lines.length}',
-                    style: const TextStyle(color: Colors.white60)),
+                      style: const TextStyle(color: Colors.white60)),
                   const SizedBox(height: 10),
                   FilledButton.icon(
                     onPressed: saving
-                      ? null
-                      : () => _showAddPurchaseItemSheet(pos, inventory),
+                        ? null
+                        : () => _showAddPurchaseItemSheet(pos, inventory),
                     icon: const Icon(Icons.add_shopping_cart),
                     label: const Text('إضافة بند شراء'),
                   ),
@@ -266,7 +268,8 @@ class _S16PurchaseInvoiceBonusScreenState
           _summaryLine('المتبقي له للمورد', remaining),
           _summaryLine('قيمة البونص المكتسب', bonusValue),
           FilledButton.icon(
-            onPressed: saving ? null : () => _post(inventory, session, netTotal),
+            onPressed:
+                saving ? null : () => _post(inventory, session, netTotal),
             icon: saving
                 ? const SizedBox(
                     width: 18,
@@ -290,9 +293,10 @@ class _S16PurchaseInvoiceBonusScreenState
       heightFactor: .94,
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, refreshSheet) {
-          final selectedDrug = pos.drugs.where((item) => item.id == drug).toList();
-          final coldRequired =
-              selectedDrug.isNotEmpty && selectedDrug.first.requiresRefrigeration;
+          final selectedDrug =
+              pos.drugs.where((item) => item.id == drug).toList();
+          final coldRequired = selectedDrug.isNotEmpty &&
+              selectedDrug.first.requiresRefrigeration;
           final shelves = inventory.shelves
               .where((shelf) => shelf.warehouseId == warehouse)
               .where((shelf) => !coldRequired || shelf.isFridge)
@@ -302,9 +306,8 @@ class _S16PurchaseInvoiceBonusScreenState
           final unitCost = double.tryParse(price.text) ?? 0;
           final discountPct = double.tryParse(lineDiscount.text) ?? 0;
           final gross = paidQuantity * unitCost * (1 - discountPct / 100);
-          final effectiveUnits = bonusCost
-              ? paidQuantity + bonusQuantity
-              : paidQuantity;
+          final effectiveUnits =
+              bonusCost ? paidQuantity + bonusQuantity : paidQuantity;
           final effectiveCost =
               effectiveUnits > 0 ? gross / effectiveUnits : 0.0;
 
@@ -313,23 +316,34 @@ class _S16PurchaseInvoiceBonusScreenState
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text('إضافة بند إلى فاتورة الشراء',
-                  style: TextStyle(fontSize: 18,fontWeight: FontWeight.bold)),
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<int>(
                   value: drug,
                   isExpanded: true,
                   decoration: const InputDecoration(labelText: 'الدواء *'),
-                  items: pos.drugs.map((item) => DropdownMenuItem(
-                    value: item.id, child: Text(item.tradeNameAr),
-                  )).toList(),
-                  onChanged: saving ? null : (value) {
-                    setState(() { drug = value; location = null; });
-                    refreshSheet(() {});
-                  },
+                  items: pos.drugs
+                      .map((item) => DropdownMenuItem(
+                            value: item.id,
+                            child: Text(item.tradeNameAr),
+                          ))
+                      .toList(),
+                  onChanged: saving
+                      ? null
+                      : (value) {
+                          setState(() {
+                            drug = value;
+                            location = null;
+                          });
+                          refreshSheet(() {});
+                        },
                 ),
                 const SizedBox(height: 8),
-                TextField(controller: batchNo,
-                  decoration: const InputDecoration(labelText: 'رقم التشغيلة *')),
+                TextField(
+                    controller: batchNo,
+                    decoration:
+                        const InputDecoration(labelText: 'رقم التشغيلة *')),
                 const SizedBox(height: 8),
                 TextField(
                   controller: expiry,
@@ -344,29 +358,38 @@ class _S16PurchaseInvoiceBonusScreenState
                   value: location,
                   isExpanded: true,
                   decoration: const InputDecoration(labelText: 'موقع الرف'),
-                  items: shelves.map((item) => DropdownMenuItem(
-                    value: item.id,
-                    child: Text(item.code + (item.isFridge ? ' • مبرد' : '')),
-                  )).toList(),
-                  onChanged: saving ? null : (value) {
-                    setState(() => location = value);
-                    refreshSheet(() {});
-                  },
+                  items: shelves
+                      .map((item) => DropdownMenuItem(
+                            value: item.id,
+                            child: Text(
+                                item.code + (item.isFridge ? ' • مبرد' : '')),
+                          ))
+                      .toList(),
+                  onChanged: saving
+                      ? null
+                      : (value) {
+                          setState(() => location = value);
+                          refreshSheet(() {});
+                        },
                 ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Expanded(child: TextField(
+                    Expanded(
+                        child: TextField(
                       controller: paidPacks,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'باكتات مدفوعة *'),
+                      decoration:
+                          const InputDecoration(labelText: 'باكتات مدفوعة *'),
                       onChanged: (_) => refreshSheet(() {}),
                     )),
                     const SizedBox(width: 8),
-                    Expanded(child: TextField(
+                    Expanded(
+                        child: TextField(
                       controller: bonus,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'باكتات بونص'),
+                      decoration:
+                          const InputDecoration(labelText: 'باكتات بونص'),
                       onChanged: (_) => refreshSheet(() {}),
                     )),
                   ],
@@ -374,17 +397,23 @@ class _S16PurchaseInvoiceBonusScreenState
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Expanded(child: TextField(
+                    Expanded(
+                        child: TextField(
                       controller: price,
-                      keyboardType: const TextInputType.numberWithOptions(decimal:true),
-                      decoration: const InputDecoration(labelText: 'سعر الباكت *'),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration:
+                          const InputDecoration(labelText: 'سعر الباكت *'),
                       onChanged: (_) => refreshSheet(() {}),
                     )),
                     const SizedBox(width: 8),
-                    Expanded(child: TextField(
+                    Expanded(
+                        child: TextField(
                       controller: lineDiscount,
-                      keyboardType: const TextInputType.numberWithOptions(decimal:true),
-                      decoration: const InputDecoration(labelText: 'خصم البند %'),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration:
+                          const InputDecoration(labelText: 'خصم البند %'),
                       onChanged: (_) => refreshSheet(() {}),
                     )),
                   ],
@@ -392,16 +421,20 @@ class _S16PurchaseInvoiceBonusScreenState
                 const SizedBox(height: 8),
                 TextField(
                   controller: sellPrice,
-                  keyboardType: const TextInputType.numberWithOptions(decimal:true),
-                  decoration: const InputDecoration(labelText: 'سعر البيع المقترح للباكت'),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                      labelText: 'سعر البيع المقترح للباكت'),
                 ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   value: bonusCost,
-                  onChanged: saving ? null : (value) {
-                    setState(() => bonusCost = value);
-                    refreshSheet(() {});
-                  },
+                  onChanged: saving
+                      ? null
+                      : (value) {
+                          setState(() => bonusCost = value);
+                          refreshSheet(() {});
+                        },
                   title: const Text('احتساب البونص ضمن تخفيض التكلفة'),
                 ),
                 Card(
@@ -412,25 +445,30 @@ class _S16PurchaseInvoiceBonusScreenState
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         const Text('التكلفة الفعلية بعد البونص',
-                          style: TextStyle(fontWeight: FontWeight.w700)),
+                            style: TextStyle(fontWeight: FontWeight.w700)),
                         Text(effectiveCost.toStringAsFixed(2),
-                          style: const TextStyle(fontSize: 23,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF4DB6AC))),
-                        Text('الكمية المدفوعة: $paidQuantity • البونص: $bonusQuantity باكت'),
+                            style: const TextStyle(
+                                fontSize: 23,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF4DB6AC))),
+                        Text(
+                            'الكمية المدفوعة: $paidQuantity • البونص: $bonusQuantity باكت'),
                       ],
                     ),
                   ),
                 ),
                 const SizedBox(height: 10),
                 FilledButton.icon(
-                  onPressed: saving ? null : () async {
-                    final previousCount = lines.length;
-                    await _addLine(pos, inventory);
-                    if (lines.length > previousCount && sheetContext.mounted) {
-                      Navigator.pop(sheetContext);
-                    }
-                  },
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          final previousCount = lines.length;
+                          await _addLine(pos, inventory);
+                          if (lines.length > previousCount &&
+                              sheetContext.mounted) {
+                            Navigator.pop(sheetContext);
+                          }
+                        },
                   icon: const Icon(Icons.add),
                   label: const Text('إضافة البند إلى الفاتورة'),
                 ),
@@ -466,8 +504,9 @@ class _S16PurchaseInvoiceBonusScreenState
         warehouse == null ||
         batchNo.text.trim().isEmpty ||
         expiryDate == null ||
-        DateTime(expiryDate.year, expiryDate.month, expiryDate.day)
-            .isBefore(DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day)) ||
+        DateTime(expiryDate.year, expiryDate.month, expiryDate.day).isBefore(
+            DateTime(DateTime.now().year, DateTime.now().month,
+                DateTime.now().day)) ||
         packs <= 0 ||
         free < 0 ||
         cost < 0 ||
@@ -490,8 +529,8 @@ class _S16PurchaseInvoiceBonusScreenState
       }
     }
     if (location != null &&
-        !inventory.shelves.any((item) =>
-            item.id == location && item.warehouseId == warehouse)) {
+        !inventory.shelves.any(
+            (item) => item.id == location && item.warehouseId == warehouse)) {
       _message('موقع الرف لا يتبع المستودع المحدد');
       return;
     }
@@ -538,7 +577,8 @@ class _S16PurchaseInvoiceBonusScreenState
         (payment == 'CASH' && (paidNow - netTotal).abs() > 0.005) ||
         (payment == 'PARTIAL' && (paidNow <= 0 || paidNow >= netTotal)) ||
         (payment != 'CREDIT' && paidNow > 0 && cash == null)) {
-      _message('تحقق من المورد والمستودع والبنود والخصم والضريبة وبيانات السداد');
+      _message(
+          'تحقق من المورد والمستودع والبنود والخصم والضريبة وبيانات السداد');
       return;
     }
     setState(() => saving = true);
@@ -579,7 +619,6 @@ class _S16PurchaseInvoiceBonusScreenState
     );
   }
 }
-
 
 class AddPurchaseItemSheet extends StatelessWidget {
   const AddPurchaseItemSheet({super.key, required this.child});

@@ -78,8 +78,7 @@ void main() {
       expect(find.text('تفاصيل إضافية'), findsOneWidget);
     });
 
-    testWidgets('LahAlayhTable displays mobile movement cards',
-        (tester) async {
+    testWidgets('LahAlayhTable displays mobile movement cards', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: EnterpriseDarkTheme.data,
@@ -89,15 +88,15 @@ void main() {
               body: SizedBox(
                 height: 700,
                 child: LahAlayhTable(
-                rows: const [
-                  LahAlayhRow(
-                    date: '2026-11-07',
-                    statement: 'فاتورة بيع',
-                    document: 'INV-1',
-                    alayh: 100,
-                    lah: 20,
-                  ),
-                ],
+                  rows: const [
+                    LahAlayhRow(
+                      date: '2026-11-07',
+                      statement: 'فاتورة بيع',
+                      document: 'INV-1',
+                      alayh: 100,
+                      lah: 20,
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -110,4 +109,3 @@ void main() {
     });
   });
 }
-

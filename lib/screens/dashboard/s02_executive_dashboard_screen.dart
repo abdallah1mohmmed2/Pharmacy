@@ -18,23 +18,62 @@ class S02ExecutiveDashboardScreen extends StatelessWidget {
       Color color,
       bool integer,
     })>[
-      (title: 'مبيعات اليوم', key: 'sales', icon: Icons.point_of_sale,
-        color: AppColors.primary, integer: false),
-      (title: 'أرباح اليوم التقديرية', key: 'profit',
-        icon: Icons.trending_up, color: AppColors.success, integer: false),
-      (title: 'فواتير اليوم', key: 'invoiceCount',
-        icon: Icons.receipt_long, color: AppColors.info, integer: true),
-      (title: 'الأصناف المسجلة', key: 'drugCount',
-        icon: Icons.medication, color: AppColors.primary, integer: true),
-      (title: 'أصناف وصلت حد النقص', key: 'lowStock',
-        icon: Icons.warning_amber, color: AppColors.warning, integer: true),
-      (title: 'إجمالي المتبقي عليهم', key: 'totalAlayh',
-        icon: Icons.call_received, color: AppColors.danger, integer: false),
-      (title: 'إجمالي المتبقي لنا', key: 'totalLah',
-        icon: Icons.call_made, color: AppColors.success, integer: false),
-      (title: 'أرصدة الصناديق والمحافظ', key: 'cashTotal',
-        icon: Icons.account_balance_wallet, color: AppColors.info,
-        integer: false),
+      (
+        title: 'مبيعات اليوم',
+        key: 'sales',
+        icon: Icons.point_of_sale,
+        color: AppColors.primary,
+        integer: false
+      ),
+      (
+        title: 'أرباح اليوم التقديرية',
+        key: 'profit',
+        icon: Icons.trending_up,
+        color: AppColors.success,
+        integer: false
+      ),
+      (
+        title: 'فواتير اليوم',
+        key: 'invoiceCount',
+        icon: Icons.receipt_long,
+        color: AppColors.info,
+        integer: true
+      ),
+      (
+        title: 'الأصناف المسجلة',
+        key: 'drugCount',
+        icon: Icons.medication,
+        color: AppColors.primary,
+        integer: true
+      ),
+      (
+        title: 'أصناف وصلت حد النقص',
+        key: 'lowStock',
+        icon: Icons.warning_amber,
+        color: AppColors.warning,
+        integer: true
+      ),
+      (
+        title: 'إجمالي المتبقي عليهم',
+        key: 'totalAlayh',
+        icon: Icons.call_received,
+        color: AppColors.danger,
+        integer: false
+      ),
+      (
+        title: 'إجمالي المتبقي لنا',
+        key: 'totalLah',
+        icon: Icons.call_made,
+        color: AppColors.success,
+        integer: false
+      ),
+      (
+        title: 'أرصدة الصناديق والمحافظ',
+        key: 'cashTotal',
+        icon: Icons.account_balance_wallet,
+        color: AppColors.info,
+        integer: false
+      ),
     ];
 
     return RefreshIndicator(
@@ -49,8 +88,8 @@ class S02ExecutiveDashboardScreen extends StatelessWidget {
                 children: [
                   const Expanded(
                     child: Text('المؤشرات التنفيذية',
-                      style: TextStyle(fontSize: 21,
-                        fontWeight: FontWeight.bold)),
+                        style: TextStyle(
+                            fontSize: 21, fontWeight: FontWeight.bold)),
                   ),
                   IconButton(
                     tooltip: 'تحديث البيانات',
@@ -88,8 +127,7 @@ class S02ExecutiveDashboardScreen extends StatelessWidget {
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
                   final metric = metrics[index];
-                  final value =
-                      (data[metric.key] as num?)?.toDouble() ?? 0;
+                  final value = (data[metric.key] as num?)?.toDouble() ?? 0;
                   return _KpiCard(
                     title: metric.title,
                     value: metric.integer
@@ -119,8 +157,8 @@ class S02ExecutiveDashboardScreen extends StatelessWidget {
                               contentPadding: EdgeInsets.zero,
                               leading: const CircleAvatar(
                                 backgroundColor: Color(0x2264B5F6),
-                                child: Icon(Icons.wallet,
-                                    color: AppColors.info),
+                                child:
+                                    Icon(Icons.wallet, color: AppColors.info),
                               ),
                               title: Text(account.nameAr),
                               subtitle: Text(account.accountKind),
@@ -163,8 +201,7 @@ class S02ExecutiveDashboardScreen extends StatelessWidget {
                           children: provider.criticalDrugs.map((drug) {
                             return SmartExpandableCard(
                               title: drug['trade_name_ar'] as String,
-                              primary:
-                                  'الحمل: ${drug['pregnancy_category']}',
+                              primary: 'الحمل: ${drug['pregnancy_category']}',
                               secondary:
                                   'مراقب: ${drug['is_controlled']} • سمية كلوية: ${drug['is_nephrotoxic']}',
                               leading: const Icon(
@@ -188,8 +225,7 @@ class S02ExecutiveDashboardScreen extends StatelessWidget {
                               leading: const Icon(Icons.receipt_long,
                                   color: AppColors.info),
                               title: Text(invoice['invoice_no'] as String),
-                              subtitle:
-                                  Text(invoice['invoice_date'] as String),
+                              subtitle: Text(invoice['invoice_date'] as String),
                               trailing: Text(MoneyFormatter.format(
                                 (invoice['net_total'] as num).toDouble(),
                               )),
@@ -209,8 +245,7 @@ class S02ExecutiveDashboardScreen extends StatelessWidget {
                               contentPadding: EdgeInsets.zero,
                               leading: const Icon(Icons.request_quote_outlined),
                               title: Text(voucher['voucher_no'] as String),
-                              subtitle:
-                                  Text(voucher['voucher_type'] as String),
+                              subtitle: Text(voucher['voucher_type'] as String),
                               trailing: Text(MoneyFormatter.format(
                                 (voucher['amount'] as num).toDouble(),
                               )),
@@ -307,13 +342,11 @@ class _SectionExpansion extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: ExpansionTile(
         leading: Icon(icon, color: AppColors.primary),
-        title: Text(title,
-            style: const TextStyle(fontWeight: FontWeight.w700)),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('$count',
-                style: const TextStyle(color: Colors.white60)),
+            Text('$count', style: const TextStyle(color: Colors.white60)),
             const SizedBox(width: 8),
             const Icon(Icons.expand_more),
           ],

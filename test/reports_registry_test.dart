@@ -22,7 +22,9 @@ void main() {
       expect(registry.search('كشف حساب عميل').single.number, 33);
     });
 
-    test('cost columns are hidden unless permission and setting are both enabled', () {
+    test(
+        'cost columns are hidden unless permission and setting are both enabled',
+        () {
       const masker = CostMasker();
       const columns = [
         ReportColumn(key: 'name', label: 'الصنف'),
@@ -31,10 +33,12 @@ void main() {
       final denied = ReportParams(canViewCost: true, showCostSetting: false);
       final allowed = ReportParams(canViewCost: true, showCostSetting: true);
       expect(masker.filter(columns, denied).map((c) => c.key), ['name']);
-      expect(masker.filter(columns, allowed).map((c) => c.key), ['name', 'cost']);
+      expect(
+          masker.filter(columns, allowed).map((c) => c.key), ['name', 'cost']);
     });
 
-    test('totals sum only configured columns and calculate derived percentages', () {
+    test('totals sum only configured columns and calculate derived percentages',
+        () {
       const columns = [
         ReportColumn(key: 'sales', label: 'المبيعات', sumInTotals: true),
         ReportColumn(key: 'profit', label: 'الربح', sumInTotals: true),

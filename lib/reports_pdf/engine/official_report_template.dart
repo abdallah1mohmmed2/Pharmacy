@@ -66,24 +66,32 @@ class OfficialReportTemplate {
     String documentCreator = 'نبض الصيدلية – Pharmacy ERP',
   }) async {
     if (columns.isEmpty && !cardsOnly) {
-      throw ArgumentError.value(columns, 'columns', 'يجب توفير عمود واحد على الأقل.');
+      throw ArgumentError.value(
+          columns, 'columns', 'يجب توفير عمود واحد على الأقل.');
     }
     if (minTableRows < 0) {
-      throw ArgumentError.value(minTableRows, 'minTableRows', 'لا يمكن أن يكون سالبًا.');
+      throw ArgumentError.value(
+          minTableRows, 'minTableRows', 'لا يمكن أن يكون سالبًا.');
     }
 
-    final normalizedRows = rows
-        .map((row) => _fitRow(row, columns.length))
-        .toList(growable: true);
+    final normalizedRows =
+        rows.map((row) => _fitRow(row, columns.length)).toList(growable: true);
     while (normalizedRows.length < minTableRows) {
       normalizedRows.add(List<String>.filled(columns.length, ''));
     }
-    final normalizedFooter = footerTotalRow == null
-        ? null
-        : _fitRow(footerTotalRow, columns.length);
+    final normalizedFooter =
+        footerTotalRow == null ? null : _fitRow(footerTotalRow, columns.length);
     final density = preferredRowsPerPage.clamp(1, 40).toInt();
-    final cellFontSize = density >= 26 ? 7.5 : density >= 16 ? 8.2 : 9.0;
-    final cellVerticalPadding = density >= 26 ? 2.5 : density >= 16 ? 3.5 : 5.0;
+    final cellFontSize = density >= 26
+        ? 7.5
+        : density >= 16
+            ? 8.2
+            : 9.0;
+    final cellVerticalPadding = density >= 26
+        ? 2.5
+        : density >= 16
+            ? 3.5
+            : 5.0;
 
     final arabicFont = await _loadFont(
       'assets/fonts/NotoNaskhArabic-Regular.ttf',
@@ -92,7 +100,8 @@ class OfficialReportTemplate {
       'assets/fonts/NotoNaskhArabic-Bold.ttf',
     );
     final defaultEmblemBytes = emblemImageBytes;
-    final document = pw.Document(title: reportTitle, author: documentAuthor, creator: documentCreator);
+    final document = pw.Document(
+        title: reportTitle, author: documentAuthor, creator: documentCreator);
 
     document.addPage(
       pw.MultiPage(
@@ -134,7 +143,8 @@ class OfficialReportTemplate {
             child: pw.Text(
               reportTitle,
               textAlign: pw.TextAlign.center,
-              style: pw.TextStyle(fontFallback: [pw.Font.helvetica()], 
+              style: pw.TextStyle(
+                fontFallback: [pw.Font.helvetica()],
                 font: arabicBold,
                 fontSize: 18,
                 color: PdfColors.black,
@@ -158,7 +168,8 @@ class OfficialReportTemplate {
             ),
           if (!cardsOnly) pw.SizedBox(height: 35),
           if (!cardsOnly)
-            _buildOfficialSignatures(arabicBold, thirdLabel: thirdSignatureLabel, labels: signatureLabels),
+            _buildOfficialSignatures(arabicBold,
+                thirdLabel: thirdSignatureLabel, labels: signatureLabels),
         ],
       ),
     );
@@ -192,7 +203,8 @@ class OfficialReportTemplate {
     required pw.Font boldFont,
     required String brandMarkText,
   }) {
-    final headerTextStyle = pw.TextStyle(fontFallback: [pw.Font.helvetica()], font: boldFont, fontSize: 10);
+    final headerTextStyle = pw.TextStyle(
+        fontFallback: [pw.Font.helvetica()], font: boldFont, fontSize: 10);
 
     pw.Widget headerColumn(List<String> lines) => pw.Expanded(
           child: pw.Column(
@@ -233,7 +245,8 @@ class OfficialReportTemplate {
                   child: pw.Text(
                     brandMarkText,
                     textAlign: pw.TextAlign.center,
-                    style: pw.TextStyle(fontFallback: [pw.Font.helvetica()], 
+                    style: pw.TextStyle(
+                      fontFallback: [pw.Font.helvetica()],
                       font: boldFont,
                       fontSize: 8,
                       color: PdfColors.grey700,
@@ -314,7 +327,8 @@ class OfficialReportTemplate {
                   data.title,
                   textAlign: pw.TextAlign.center,
                   maxLines: 2,
-                  style: pw.TextStyle(fontFallback: [pw.Font.helvetica()], 
+                  style: pw.TextStyle(
+                    fontFallback: [pw.Font.helvetica()],
                     font: boldFont,
                     fontSize: data.isLarge ? 9 : 9.5,
                     height: 1.15,
@@ -327,14 +341,18 @@ class OfficialReportTemplate {
                 alignment: pw.Alignment.center,
                 decoration: pw.BoxDecoration(
                   color: innerBoxBg,
-                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                  borderRadius:
+                      const pw.BorderRadius.all(pw.Radius.circular(4)),
                   border: pw.Border.all(color: PdfColors.grey700, width: 0.8),
                 ),
                 child: pw.FittedBox(
                   fit: pw.BoxFit.scaleDown,
                   child: pw.Text(
                     data.value,
-                    style: pw.TextStyle(fontFallback: [pw.Font.helvetica()], font: boldFont, fontSize: 10),
+                    style: pw.TextStyle(
+                        fontFallback: [pw.Font.helvetica()],
+                        font: boldFont,
+                        fontSize: 10),
                   ),
                 ),
               ),
@@ -355,7 +373,10 @@ class OfficialReportTemplate {
             ),
             child: pw.Text(
               data.number,
-              style: pw.TextStyle(fontFallback: [pw.Font.helvetica()], font: boldFont, fontSize: 9),
+              style: pw.TextStyle(
+                  fontFallback: [pw.Font.helvetica()],
+                  font: boldFont,
+                  fontSize: 9),
             ),
           ),
         ),
@@ -383,8 +404,7 @@ class OfficialReportTemplate {
           // the surrounding document text direction is RTL. Reverse the
           // display order here so the first logical column appears at the
           // right edge of the printed table.
-          children: columns
-              .reversed
+          children: columns.reversed
               .map(
                 (col) => pw.Container(
                   constraints: const pw.BoxConstraints(minHeight: 32),
@@ -396,7 +416,8 @@ class OfficialReportTemplate {
                   child: pw.Text(
                     col,
                     textAlign: pw.TextAlign.center,
-                    style: pw.TextStyle(fontFallback: [pw.Font.helvetica()], 
+                    style: pw.TextStyle(
+                      fontFallback: [pw.Font.helvetica()],
                       font: boldFont,
                       fontSize: cellFontSize,
                       height: 1.15,
@@ -410,8 +431,7 @@ class OfficialReportTemplate {
           (row) => pw.TableRow(
             // Keep each cell attached to its original heading while rendering
             // the table visually from right to left.
-            children: row
-                .reversed
+            children: row.reversed
                 .map(
                   (cell) => pw.Container(
                     constraints: const pw.BoxConstraints(minHeight: 24),
@@ -423,7 +443,10 @@ class OfficialReportTemplate {
                     child: pw.Text(
                       cell,
                       textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(fontFallback: [pw.Font.helvetica()], font: font, fontSize: cellFontSize),
+                      style: pw.TextStyle(
+                          fontFallback: [pw.Font.helvetica()],
+                          font: font,
+                          fontSize: cellFontSize),
                     ),
                   ),
                 )
@@ -465,11 +488,18 @@ class OfficialReportTemplate {
     required String thirdLabel,
     List<String>? labels,
   }) {
-    final signatureNames = labels == null || labels.isEmpty ? <String>['إعداد', 'المراجعة', thirdLabel] : labels;
-    final style = pw.TextStyle(fontFallback: [pw.Font.helvetica()], font: boldFont, fontSize: 10.5);
+    final signatureNames = labels == null || labels.isEmpty
+        ? <String>['إعداد', 'المراجعة', thirdLabel]
+        : labels;
+    final style = pw.TextStyle(
+        fontFallback: [pw.Font.helvetica()], font: boldFont, fontSize: 10.5);
     return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [for (final label in signatureNames) pw.Expanded(child: pw.Text('$label: ....................', style: style))],
+      children: [
+        for (final label in signatureNames)
+          pw.Expanded(
+              child: pw.Text('$label: ....................', style: style))
+      ],
     );
   }
 }

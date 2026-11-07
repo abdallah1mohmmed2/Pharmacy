@@ -32,7 +32,8 @@ class ReportRegistry {
       ...buildR46ToR55ClinicalDefinitions(_clinical),
     ]..sort((a, b) => a.number.compareTo(b.number));
     if (all.length != 55) {
-      throw StateError('يجب تسجيل 55 تقريراً؛ العدد المسجل حالياً: ${all.length}');
+      throw StateError(
+          'يجب تسجيل 55 تقريراً؛ العدد المسجل حالياً: ${all.length}');
     }
     for (var i = 0; i < all.length; i++) {
       if (all[i].number != i + 1) {
@@ -91,7 +92,8 @@ class ReportsCenterProvider extends ChangeNotifier {
   ReportDataSet? _data;
   ReportParams _params = ReportParams();
   final Set<int> _favorites = {};
-  final Map<ReportParamKind, Future<List<Map<String, Object?>>>> _optionCache = {};
+  final Map<ReportParamKind, Future<List<Map<String, Object?>>>> _optionCache =
+      {};
 
   bool get isLoading => _loading;
   String? get error => _error;
@@ -162,12 +164,14 @@ class ReportsCenterProvider extends ChangeNotifier {
           return db.query('parties',
               columns: ['id', 'name_ar'],
               where: "branch_id=? AND party_type='CUSTOMER' AND is_deleted=0",
-              whereArgs: [_branchId], orderBy: 'name_ar');
+              whereArgs: [_branchId],
+              orderBy: 'name_ar');
         case ReportParamKind.supplier:
           return db.query('parties',
               columns: ['id', 'name_ar'],
               where: "branch_id=? AND party_type='SUPPLIER' AND is_deleted=0",
-              whereArgs: [_branchId], orderBy: 'name_ar');
+              whereArgs: [_branchId],
+              orderBy: 'name_ar');
         case ReportParamKind.employee:
           return db.rawQuery('''
             SELECT p.id,p.name_ar FROM employees e
@@ -178,21 +182,26 @@ class ReportsCenterProvider extends ChangeNotifier {
           return db.query('drugs',
               columns: ['id', 'trade_name_ar AS name_ar'],
               where: 'branch_id=? AND is_deleted=0',
-              whereArgs: [_branchId], orderBy: 'trade_name_ar');
+              whereArgs: [_branchId],
+              orderBy: 'trade_name_ar');
         case ReportParamKind.warehouse:
           return db.query('warehouses',
               columns: ['id', 'name_ar'],
-              where: 'branch_id=?', whereArgs: [_branchId], orderBy: 'name_ar');
+              where: 'branch_id=?',
+              whereArgs: [_branchId],
+              orderBy: 'name_ar');
         case ReportParamKind.cashier:
           return db.query('users',
               columns: ['id', 'full_name AS name_ar'],
               where: 'branch_id=? AND is_deleted=0 AND is_active=1',
-              whereArgs: [_branchId], orderBy: 'full_name');
+              whereArgs: [_branchId],
+              orderBy: 'full_name');
         case ReportParamKind.category:
           return db.query('drug_categories',
               columns: ['id', 'name_ar'],
               where: 'branch_id=? AND is_deleted=0',
-              whereArgs: [_branchId], orderBy: 'name_ar');
+              whereArgs: [_branchId],
+              orderBy: 'name_ar');
         default:
           return <Map<String, Object?>>[];
       }
@@ -302,12 +311,17 @@ class ReportsCenterProvider extends ChangeNotifier {
       final raw = await definition.run(_params);
       final visibleColumns = engine.costMasker.filter(raw.columns, _params);
       final visibleRows = raw.rows.map((row) {
-        final filtered=engine.costMasker.filterRow(row,visibleColumns);
-        return Map<String,Object?>.fromEntries(filtered.entries.map((entry)=>MapEntry(entry.key,entry.value is String?LabelGuard.sanitize(entry.value as String):entry.value)));
-      }).toList(growable:false);
+        final filtered = engine.costMasker.filterRow(row, visibleColumns);
+        return Map<String, Object?>.fromEntries(filtered.entries.map((entry) =>
+            MapEntry(
+                entry.key,
+                entry.value is String
+                    ? LabelGuard.sanitize(entry.value as String)
+                    : entry.value)));
+      }).toList(growable: false);
       final visibleTotals = Map<String, double>.fromEntries(
-        raw.totals.entries.where((entry) =>
-            visibleColumns.any((column) => column.key == entry.key)),
+        raw.totals.entries.where(
+            (entry) => visibleColumns.any((column) => column.key == entry.key)),
       );
       _data = ReportDataSet(
         reportNumber: raw.reportNumber,
@@ -315,7 +329,9 @@ class ReportsCenterProvider extends ChangeNotifier {
         columns: visibleColumns,
         rows: visibleRows,
         totals: visibleTotals,
-        summary: engine.costMasker.canShow(_params) ? raw.summary : const <String,Object?>{},
+        summary: engine.costMasker.canShow(_params)
+            ? raw.summary
+            : const <String, Object?>{},
         generatedAt: raw.generatedAt,
         warnings: raw.warnings,
       );

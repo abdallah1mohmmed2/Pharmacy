@@ -1,20 +1,24 @@
 // lib/data/models/inventory_and_purchase_models.dart
 import 'package:flutter/foundation.dart';
 
-int _asInt(Object? value, [int fallback = 0]) =>
-    value is num ? value.toInt() : int.tryParse(value?.toString() ?? '') ?? fallback;
+int _asInt(Object? value, [int fallback = 0]) => value is num
+    ? value.toInt()
+    : int.tryParse(value?.toString() ?? '') ?? fallback;
 
-double _asDouble(Object? value, [double fallback = 0]) =>
-    value is num ? value.toDouble() : double.tryParse(value?.toString() ?? '') ?? fallback;
+double _asDouble(Object? value, [double fallback = 0]) => value is num
+    ? value.toDouble()
+    : double.tryParse(value?.toString() ?? '') ?? fallback;
 
 String _asString(Object? value, [String fallback = '']) =>
     value == null ? fallback : value.toString();
 
 int? _asNullableInt(Object? value) => value == null ? null : _asInt(value);
 
-String? _asNullableString(Object? value) => value == null ? null : value.toString();
+String? _asNullableString(Object? value) =>
+    value == null ? null : value.toString();
 
-DateTime _dateOnly(DateTime value) => DateTime(value.year, value.month, value.day);
+DateTime _dateOnly(DateTime value) =>
+    DateTime(value.year, value.month, value.day);
 
 @immutable
 class WarehouseModel {
@@ -34,8 +38,7 @@ class WarehouseModel {
 
   bool get isFridge => whType == 'FRIDGE';
 
-  factory WarehouseModel.fromMap(Map<String, Object?> map) =>
-      WarehouseModel(
+  factory WarehouseModel.fromMap(Map<String, Object?> map) => WarehouseModel(
         id: _asInt(map['id']),
         code: _asString(map['code']),
         nameAr: _asString(map['name_ar']),
@@ -137,8 +140,7 @@ class BatchFefoModel {
     return 'متبقي $daysUntilExpiry يوم';
   }
 
-  factory BatchFefoModel.fromMap(Map<String, Object?> map) =>
-      BatchFefoModel(
+  factory BatchFefoModel.fromMap(Map<String, Object?> map) => BatchFefoModel(
         id: _asInt(map['id']),
         drugId: _asInt(map['drug_id']),
         warehouseId: _asInt(map['warehouse_id']),

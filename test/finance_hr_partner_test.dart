@@ -12,7 +12,8 @@ void main() {
     expect(() => policy.validate(sharesCount: 20), returnsNormally);
   });
 
-  test('percentage mode locks shares input and preserves percentage editing', () {
+  test('percentage mode locks shares input and preserves percentage editing',
+      () {
     const policy = PartnerPolicy('percentage');
     expect(policy.percentageEditable, isTrue);
     expect(policy.sharesEditable, isFalse);

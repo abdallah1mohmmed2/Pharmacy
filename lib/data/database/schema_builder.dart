@@ -22,11 +22,17 @@ abstract final class SchemaBuilder {
       '''CREATE TABLE sales_invoice_items (id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT NOT NULL UNIQUE, branch_id INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, is_deleted INTEGER NOT NULL DEFAULT 0, sync_status TEXT NOT NULL DEFAULT 'LOCAL', sync_version INTEGER NOT NULL DEFAULT 1, invoice_id INTEGER NOT NULL, drug_id INTEGER NOT NULL, sell_unit TEXT NOT NULL CHECK(sell_unit IN('PACK','STRIP','UNIT')), qty_in_sell_unit REAL NOT NULL CHECK(qty_in_sell_unit>0), qty_units INTEGER NOT NULL CHECK(qty_units>0), unit_price_sell_unit REAL NOT NULL, line_discount_amount REAL NOT NULL DEFAULT 0, line_total REAL NOT NULL, line_cost REAL NOT NULL, FOREIGN KEY(invoice_id) REFERENCES sales_invoices(id), FOREIGN KEY(drug_id) REFERENCES drugs(id))''',
       '''CREATE TABLE sales_payments (id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT NOT NULL UNIQUE, branch_id INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, is_deleted INTEGER NOT NULL DEFAULT 0, sync_status TEXT NOT NULL DEFAULT 'LOCAL', sync_version INTEGER NOT NULL DEFAULT 1, invoice_id INTEGER NOT NULL, cash_account_id INTEGER NOT NULL, method TEXT NOT NULL CHECK(method IN('CASH','WALLET','BANK')), amount REAL NOT NULL CHECK(amount>0), wallet_ref_no TEXT, wallet_sender_phone TEXT, FOREIGN KEY(invoice_id) REFERENCES sales_invoices(id), FOREIGN KEY(cash_account_id) REFERENCES cash_accounts(id))''',
     ];
-    for (final sql in statements) { await db.execute(sql); }
-    await db.execute('CREATE INDEX idx_drugs_search ON drugs(trade_name_ar, scientific_name, barcode_local, barcode_international)');
-    await db.execute('CREATE INDEX idx_party_ledger ON lah_alayh_ledger(party_id, entry_date, id)');
-    await db.execute('CREATE INDEX idx_invoice_date ON sales_invoices(invoice_date, status)');
-    await db.execute('CREATE INDEX idx_drug_stock ON drugs(stock_total_units, min_stock_units)');
+    for (final sql in statements) {
+      await db.execute(sql);
+    }
+    await db.execute(
+        'CREATE INDEX idx_drugs_search ON drugs(trade_name_ar, scientific_name, barcode_local, barcode_international)');
+    await db.execute(
+        'CREATE INDEX idx_party_ledger ON lah_alayh_ledger(party_id, entry_date, id)');
+    await db.execute(
+        'CREATE INDEX idx_invoice_date ON sales_invoices(invoice_date, status)');
+    await db.execute(
+        'CREATE INDEX idx_drug_stock ON drugs(stock_total_units, min_stock_units)');
     await db.execute('''CREATE VIEW v_party_balance AS
       SELECT p.id AS party_id, p.branch_id,
       p.opening_alayh + COALESCE(SUM(l.alayh_amount),0) AS total_alayh,

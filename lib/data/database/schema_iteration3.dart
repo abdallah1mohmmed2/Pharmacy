@@ -25,15 +25,21 @@ abstract final class SchemaIteration3 {
       'DROP VIEW IF EXISTS v_drug_alternatives',
       '''CREATE VIEW v_drug_alternatives AS SELECT a.id AS source_drug_id,b.id AS drug_id,b.trade_name_ar,b.trade_name_en,b.strength_text,b.dosage_form,b.sell_price_pack,b.sell_price_strip,CASE WHEN a.strength_text=b.strength_text AND a.dosage_form=b.dosage_form THEN 'EXACT' ELSE 'SAME_INGREDIENT' END AS match_type,(b.sell_price_pack-a.sell_price_pack) AS price_diff_pack,COALESCE((SELECT SUM(x.total_units) FROM batches_fefo x JOIN warehouses w ON w.id=x.warehouse_id WHERE x.drug_id=b.id AND x.status='ACTIVE' AND x.expiry_date>=date('now') AND w.is_sellable=1),b.stock_total_units) AS available_units,(SELECT MIN(x.expiry_date) FROM batches_fefo x JOIN warehouses w ON w.id=x.warehouse_id WHERE x.drug_id=b.id AND x.status='ACTIVE' AND x.expiry_date>=date('now') AND w.is_sellable=1) AS nearest_expiry FROM drugs a JOIN drugs b ON b.active_ingredient_id=a.active_ingredient_id AND b.id<>a.id WHERE a.active_ingredient_id IS NOT NULL AND a.is_deleted=0 AND b.is_deleted=0'''
     ];
-    for(final sql in statements){await db.execute(sql);}
-    await _ensureColumn(db,'sales_returns','wallet_ref_no','TEXT');
-    await _ensureColumn(db,'sales_invoice_items','is_substitute','INTEGER NOT NULL DEFAULT 0');
-    await _ensureColumn(db,'sales_invoice_items','substituted_for_drug_id','INTEGER');
+    for (final sql in statements) {
+      await db.execute(sql);
+    }
+    await _ensureColumn(db, 'sales_returns', 'wallet_ref_no', 'TEXT');
+    await _ensureColumn(db, 'sales_invoice_items', 'is_substitute',
+        'INTEGER NOT NULL DEFAULT 0');
+    await _ensureColumn(
+        db, 'sales_invoice_items', 'substituted_for_drug_id', 'INTEGER');
     // Demo patients, sample alternatives, employees, expenses, partners and shifts are not preloaded.
   }
 
-  static Future<void> _ensureColumn(DatabaseExecutor db,String table,String column,String definition) async {
-    final info=await db.rawQuery('PRAGMA table_info($table)');
-    if(!info.any((r)=>r['name']==column))await db.execute('ALTER TABLE $table ADD COLUMN $column $definition');
+  static Future<void> _ensureColumn(DatabaseExecutor db, String table,
+      String column, String definition) async {
+    final info = await db.rawQuery('PRAGMA table_info($table)');
+    if (!info.any((r) => r['name'] == column))
+      await db.execute('ALTER TABLE $table ADD COLUMN $column $definition');
   }
 }

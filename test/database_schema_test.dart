@@ -20,7 +20,8 @@ void main() {
     databaseFactory = databaseFactoryFfi;
   });
 
-  test('fresh database has required structure but no demo business data', () async {
+  test('fresh database has required structure but no demo business data',
+      () async {
     final db = await databaseFactoryFfi.openDatabase(
       inMemoryDatabasePath,
       options: OpenDatabaseOptions(
@@ -46,10 +47,23 @@ void main() {
 
     try {
       final requiredTables = [
-        'drugs', 'parties', 'sales_invoices', 'purchase_invoices',
-        'batches_fefo', 'stock_movements', 'patients', 'prescriptions',
-        'insurance_companies', 'employees', 'partners', 'expenses',
-        'cashier_shifts', 'journal_entries', 'lah_alayh_ledger', 'catalog_cache', 'catalog_sync_state',
+        'drugs',
+        'parties',
+        'sales_invoices',
+        'purchase_invoices',
+        'batches_fefo',
+        'stock_movements',
+        'patients',
+        'prescriptions',
+        'insurance_companies',
+        'employees',
+        'partners',
+        'expenses',
+        'cashier_shifts',
+        'journal_entries',
+        'lah_alayh_ledger',
+        'catalog_cache',
+        'catalog_sync_state',
       ];
       for (final table in requiredTables) {
         final rows = await db.rawQuery(
@@ -61,33 +75,51 @@ void main() {
 
       final counts = <String, int>{};
       for (final table in [
-        'drugs', 'parties', 'sales_invoices', 'purchase_invoices',
-        'batches_fefo', 'stock_movements', 'patients', 'prescriptions',
-        'insurance_companies', 'employees', 'partners', 'expenses',
-        'cashier_shifts', 'journal_entries', 'lah_alayh_ledger',
+        'drugs',
+        'parties',
+        'sales_invoices',
+        'purchase_invoices',
+        'batches_fefo',
+        'stock_movements',
+        'patients',
+        'prescriptions',
+        'insurance_companies',
+        'employees',
+        'partners',
+        'expenses',
+        'cashier_shifts',
+        'journal_entries',
+        'lah_alayh_ledger',
       ]) {
-        counts[table] = (await db.rawQuery('SELECT COUNT(*) AS count FROM $table').then((rows) => rows.first['count'] as int));
+        counts[table] = (await db
+            .rawQuery('SELECT COUNT(*) AS count FROM $table')
+            .then((rows) => rows.first['count'] as int));
       }
       for (final entry in counts.entries) {
-        expect(entry.value, 0, reason: 'Unexpected demo/business rows in ${entry.key}');
+        expect(entry.value, 0,
+            reason: 'Unexpected demo/business rows in ${entry.key}');
       }
 
       expect(await db.rawQuery('SELECT id FROM warehouses'), hasLength(6));
       expect(await db.rawQuery('SELECT id FROM shelf_locations'), hasLength(6));
       expect(await db.rawQuery('SELECT id FROM users'), hasLength(1));
-      expect(await db.rawQuery('SELECT id FROM chart_of_accounts'), hasLength(greaterThanOrEqualTo(30)));
+      expect(await db.rawQuery('SELECT id FROM chart_of_accounts'),
+          hasLength(greaterThanOrEqualTo(30)));
       expect(await db.rawQuery('SELECT id FROM cash_accounts'), hasLength(7));
-      expect(await db.rawQuery('SELECT setting_no FROM system_settings'), hasLength(35));
+      expect(await db.rawQuery('SELECT setting_no FROM system_settings'),
+          hasLength(35));
 
       // Re-running the cleanup migration must remain safe and idempotent.
       await SchemaIteration9.upgrade(db);
       await SchemaIteration10.upgrade(db);
       expect(await db.rawQuery('SELECT id FROM drugs'), isEmpty);
       expect(await db.rawQuery('SELECT id FROM batches_fefo'), isEmpty);
-      expect(await db.rawQuery('SELECT catalog_uuid FROM catalog_cache'), isEmpty);
+      expect(
+          await db.rawQuery('SELECT catalog_uuid FROM catalog_cache'), isEmpty);
       final drugColumns = await db.rawQuery('PRAGMA table_info(drugs)');
       expect(drugColumns.any((row) => row['name'] == 'catalog_uuid'), isTrue);
-      expect(drugColumns.any((row) => row['name'] == 'catalog_version'), isTrue);
+      expect(
+          drugColumns.any((row) => row['name'] == 'catalog_version'), isTrue);
     } finally {
       await db.close();
     }

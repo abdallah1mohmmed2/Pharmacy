@@ -54,21 +54,28 @@ class SmartExpandableCard extends StatelessWidget {
       child: ExpansionTile(
         initiallyExpanded: initiallyExpanded,
         leading: leading,
-        title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w700)),
+        title: Text(title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w700)),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 5),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(primary, maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              Text(primary,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w700)),
               if (secondary != null && secondary!.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 3),
-                  child: Text(secondary!, maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                  child: Text(secondary!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style:
+                          const TextStyle(color: Colors.white60, fontSize: 12)),
                 ),
             ],
           ),
@@ -322,7 +329,8 @@ class _LahAlayhTableState extends State<LahAlayhTable> {
           alignment: AlignmentDirectional.centerEnd,
           child: TextButton.icon(
             onPressed: () => setState(() => _showTable = !_showTable),
-            icon: Icon(_showTable ? Icons.view_agenda_outlined : Icons.table_chart),
+            icon: Icon(
+                _showTable ? Icons.view_agenda_outlined : Icons.table_chart),
             label: Text(_showTable ? 'عرض البطاقات' : 'عرض الجدول'),
           ),
         ),
@@ -366,16 +374,18 @@ class _LahAlayhTableState extends State<LahAlayhTable> {
                   children: [
                     Expanded(
                       child: Text(row.statement,
-                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                          style: const TextStyle(fontWeight: FontWeight.w700)),
                     ),
-                    Text(row.date, style: const TextStyle(color: Colors.white60)),
+                    Text(row.date,
+                        style: const TextStyle(color: Colors.white60)),
                   ],
                 ),
                 if (row.document.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(row.document,
-                      style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                        style: const TextStyle(
+                            color: Colors.white54, fontSize: 12)),
                   ),
                 const Divider(height: 18),
                 Wrap(
@@ -389,10 +399,12 @@ class _LahAlayhTableState extends State<LahAlayhTable> {
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    const Expanded(child: Text('المتبقي التراكمي',
-                      style: TextStyle(color: Colors.white60))),
+                    const Expanded(
+                        child: Text('المتبقي التراكمي',
+                            style: TextStyle(color: Colors.white60))),
                     Text(balance.abs().toStringAsFixed(2),
-                      style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+                        style: TextStyle(
+                            color: color, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ],
@@ -404,13 +416,13 @@ class _LahAlayhTableState extends State<LahAlayhTable> {
   }
 
   Widget _amountLabel(String label, num value, Color color) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Text('$label: ', style: const TextStyle(color: Colors.white60)),
-      Text(value.toStringAsFixed(2),
-        style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-    ],
-  );
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('$label: ', style: const TextStyle(color: Colors.white60)),
+          Text(value.toStringAsFixed(2),
+              style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+        ],
+      );
 
   Widget _table() {
     var running = widget.openingBalance;
@@ -429,7 +441,7 @@ class _LahAlayhTableState extends State<LahAlayhTable> {
         DataCell(Text(row.alayh.toStringAsFixed(2))),
         DataCell(Text(row.lah.toStringAsFixed(2))),
         DataCell(Text(running.abs().toStringAsFixed(2),
-          style: TextStyle(color: color))),
+            style: TextStyle(color: color))),
       ]));
     }
     return DataTable(
@@ -530,32 +542,35 @@ class _ManagerPinDialogState extends State<ManagerPinDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.title),
-    content: SingleChildScrollView(
-      child: TextField(
-        controller: controller,
-        autofocus: true,
-        obscureText: true,
-        keyboardType: TextInputType.number,
-        maxLength: 8,
-        decoration: InputDecoration(labelText: 'رمز المدير', errorText: error),
-        onSubmitted: (_) => _verify(),
-      ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: verifying ? null : () => Navigator.pop(context, false),
-        child: const Text('إلغاء'),
-      ),
-      FilledButton(
-        onPressed: verifying ? null : _verify,
-        child: verifying
-            ? const SizedBox(width: 18, height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2))
-            : const Text('تحقق'),
-      ),
-    ],
-  );
+        title: Text(widget.title),
+        content: SingleChildScrollView(
+          child: TextField(
+            controller: controller,
+            autofocus: true,
+            obscureText: true,
+            keyboardType: TextInputType.number,
+            maxLength: 8,
+            decoration:
+                InputDecoration(labelText: 'رمز المدير', errorText: error),
+            onSubmitted: (_) => _verify(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: verifying ? null : () => Navigator.pop(context, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: verifying ? null : _verify,
+            child: verifying
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('تحقق'),
+          ),
+        ],
+      );
 
   Future<void> _verify() async {
     setState(() => verifying = true);
@@ -586,15 +601,15 @@ class WalletRefField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => TextFormField(
-    controller: controller,
-    textDirection: TextDirection.ltr,
-    keyboardType: TextInputType.number,
-    decoration: InputDecoration(
-      labelText: label,
-      prefixIcon: const Icon(Icons.receipt_long),
-    ),
-    validator: (value) => value == null || value.trim().length < 6
-        ? 'رقم الإشعار مطلوب ولا يقل عن 6 خانات'
-        : null,
-  );
+        controller: controller,
+        textDirection: TextDirection.ltr,
+        keyboardType: TextInputType.number,
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: const Icon(Icons.receipt_long),
+        ),
+        validator: (value) => value == null || value.trim().length < 6
+            ? 'رقم الإشعار مطلوب ولا يقل عن 6 خانات'
+            : null,
+      );
 }

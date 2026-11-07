@@ -13,7 +13,8 @@ class S27ReportsCenterPdfScreen extends StatefulWidget {
   const S27ReportsCenterPdfScreen({super.key});
 
   @override
-  State<S27ReportsCenterPdfScreen> createState() => _S27ReportsCenterPdfScreenState();
+  State<S27ReportsCenterPdfScreen> createState() =>
+      _S27ReportsCenterPdfScreenState();
 }
 
 class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
@@ -34,10 +35,10 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
       final user = session.currentUser;
       if (user == null) return;
       await context.read<ReportsCenterProvider>().initialize(
-        userId: user['id'] as int,
-        userName: user['full_name'] as String? ?? '',
-        branchId: session.branchId,
-      );
+            userId: user['id'] as int,
+            userName: user['full_name'] as String? ?? '',
+            branchId: session.branchId,
+          );
     });
   }
 
@@ -72,7 +73,8 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
   }
 
   List<ReportDefinition> _filteredReports(ReportsCenterProvider provider) {
-    return provider.registry.search(_search.text, category: _category)
+    return provider.registry
+        .search(_search.text, category: _category)
         .where((r) => !_favoritesOnly || provider.favorites.contains(r.number))
         .toList();
   }
@@ -107,10 +109,13 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  selected == null ? 'مركز التقارير' : 'التقرير رقم ${selected.number}',
+                  selected == null
+                      ? 'مركز التقارير'
+                      : 'التقرير رقم ${selected.number}',
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: colors.primary, fontWeight: FontWeight.w700,
-                  ),
+                        color: colors.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
                 ),
                 const SizedBox(height: 3),
                 Text(
@@ -118,8 +123,8 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                        fontWeight: FontWeight.w700,
+                      ),
                 ),
               ],
             ),
@@ -146,45 +151,51 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
       ),
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, setSheetState) => SizedBox(
-        height: MediaQuery.sizeOf(sheetContext).height * .88,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 12, 10, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text('استعراض التقارير',
-                      style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
+          height: MediaQuery.sizeOf(sheetContext).height * .88,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 12, 10, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'استعراض التقارير',
+                        style: Theme.of(sheetContext)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
                       ),
                     ),
-                  ),
-                  IconButton(
-                    tooltip: 'إغلاق',
-                    onPressed: () => Navigator.pop(sheetContext),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
+                    IconButton(
+                      tooltip: 'إغلاق',
+                      onPressed: () => Navigator.pop(sheetContext),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: _buildSidebar(
-                provider,
-                _filteredReports(provider),
-                onReportSelected: () => Navigator.pop(sheetContext),
-                onRefresh: () => setSheetState(() {}),
+              const Divider(height: 1),
+              Expanded(
+                child: _buildSidebar(
+                  provider,
+                  _filteredReports(provider),
+                  onReportSelected: () => Navigator.pop(sheetContext),
+                  onRefresh: () => setSheetState(() {}),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
 
-  Widget _buildSidebar(ReportsCenterProvider provider, List<ReportDefinition> reports, {VoidCallback? onReportSelected, VoidCallback? onRefresh}) {
+  Widget _buildSidebar(
+      ReportsCenterProvider provider, List<ReportDefinition> reports,
+      {VoidCallback? onReportSelected, VoidCallback? onRefresh}) {
     return Container(
       color: Theme.of(context).colorScheme.surface,
       child: Column(
@@ -198,7 +209,10 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
                 hintText: 'ابحث بالاسم أو رقم التقرير 1–55',
                 suffixIcon: IconButton(
                   onPressed: () {
-                    setState(() { _search.clear(); _category = null; });
+                    setState(() {
+                      _search.clear();
+                      _category = null;
+                    });
                     onRefresh?.call();
                   },
                   icon: const Icon(Icons.close),
@@ -234,9 +248,11 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
               children: [
                 for (final category in ReportCategory.values)
                   ExpansionTile(
-                    initiallyExpanded: _category == category || _search.text.isNotEmpty,
+                    initiallyExpanded:
+                        _category == category || _search.text.isNotEmpty,
                     leading: const Icon(Icons.folder_outlined),
-                    title: Text(category.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    title: Text(category.title,
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
                     subtitle: Text('${category.reportCount} تقريراً'),
                     onExpansionChanged: (open) {
                       if (open) {
@@ -245,23 +261,29 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
                       }
                     },
                     children: [
-                      for (final report in reports.where((r) => r.category == category))
+                      for (final report
+                          in reports.where((r) => r.category == category))
                         ListTile(
                           dense: true,
                           selected: provider.selected?.number == report.number,
                           leading: SizedBox(
                             width: 30,
-                            child: Text(report.number.toString().padLeft(2, '0')),
+                            child:
+                                Text(report.number.toString().padLeft(2, '0')),
                           ),
-                          title: Text(report.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+                          title: Text(report.title,
+                              maxLines: 2, overflow: TextOverflow.ellipsis),
                           trailing: IconButton(
                             tooltip: provider.favorites.contains(report.number)
-                                ? 'إزالة من المفضلة' : 'إضافة للمفضلة',
+                                ? 'إزالة من المفضلة'
+                                : 'إضافة للمفضلة',
                             icon: Icon(
                               provider.favorites.contains(report.number)
-                                  ? Icons.star : Icons.star_border,
+                                  ? Icons.star
+                                  : Icons.star_border,
                               color: provider.favorites.contains(report.number)
-                                  ? Colors.amber : null,
+                                  ? Colors.amber
+                                  : null,
                             ),
                             onPressed: () {
                               provider.toggleFavorite(report.number);
@@ -315,7 +337,10 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
           MaterialBanner(
             content: Text(provider.error!),
             leading: const Icon(Icons.error_outline),
-            actions: [TextButton(onPressed: provider.clearResult, child: const Text('إغلاق'))],
+            actions: [
+              TextButton(
+                  onPressed: provider.clearResult, child: const Text('إغلاق'))
+            ],
           ),
         Expanded(
           child: provider.data == null
@@ -328,7 +353,8 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
                       const Text('حدد المعاملات ثم اضغط «تشغيل التقرير».'),
                       const SizedBox(height: 12),
                       FilledButton.icon(
-                        onPressed: provider.isLoading ? null : () => _run(provider),
+                        onPressed:
+                            provider.isLoading ? null : () => _run(provider),
                         icon: const Icon(Icons.play_arrow),
                         label: const Text('تشغيل التقرير'),
                       ),
@@ -341,21 +367,30 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
     );
   }
 
-  Widget _buildParameterPanel(ReportsCenterProvider provider, ReportDefinition report) {
+  Widget _buildParameterPanel(
+      ReportsCenterProvider provider, ReportDefinition report) {
     final compact = MediaQuery.sizeOf(context).width < 700;
     final colors = Theme.of(context).colorScheme;
     final controls = Wrap(
       spacing: 12,
       runSpacing: 12,
-      children: report.params.map((param) => _parameterControl(provider, param)).toList(),
+      children: report.params
+          .map((param) => _parameterControl(provider, param))
+          .toList(),
     );
     final quickActions = Wrap(
       spacing: 8,
       runSpacing: 8,
       children: [
-        ActionChip(label: const Text('اليوم'), onPressed: () => _quickRange(provider, 'today')),
-        ActionChip(label: const Text('هذا الشهر'), onPressed: () => _quickRange(provider, 'month')),
-        ActionChip(label: const Text('هذه السنة'), onPressed: () => _quickRange(provider, 'year')),
+        ActionChip(
+            label: const Text('اليوم'),
+            onPressed: () => _quickRange(provider, 'today')),
+        ActionChip(
+            label: const Text('هذا الشهر'),
+            onPressed: () => _quickRange(provider, 'month')),
+        ActionChip(
+            label: const Text('هذه السنة'),
+            onPressed: () => _quickRange(provider, 'year')),
         FilterChip(
           label: const Text('ورقة عرضية'),
           selected: provider.params.paperLandscape ?? report.isLandscape,
@@ -381,23 +416,30 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
                     color: colors.primary.withValues(alpha: .12),
                     borderRadius: BorderRadius.circular(11),
                   ),
-                  child: Icon(Icons.description_outlined, color: colors.primary),
+                  child:
+                      Icon(Icons.description_outlined, color: colors.primary),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('التقرير رقم ${report.number}',
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: colors.primary, fontWeight: FontWeight.w700,
-                        ),
+                      Text(
+                        'التقرير رقم ${report.number}',
+                        style:
+                            Theme.of(context).textTheme.labelMedium?.copyWith(
+                                  color: colors.primary,
+                                  fontWeight: FontWeight.w700,
+                                ),
                       ),
                       const SizedBox(height: 2),
-                      Text(report.title, maxLines: 2, overflow: TextOverflow.ellipsis,
+                      Text(
+                        report.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                              fontWeight: FontWeight.w800,
+                            ),
                       ),
                     ],
                   ),
@@ -421,17 +463,20 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
             if (compact) ...[
               const SizedBox(height: 6),
               Theme(
-                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                data: Theme.of(context)
+                    .copyWith(dividerColor: Colors.transparent),
                 child: ExpansionTile(
                   tilePadding: EdgeInsets.zero,
                   childrenPadding: const EdgeInsets.only(top: 10, bottom: 4),
                   leading: Icon(Icons.tune_rounded, color: colors.primary),
-                  title: const Text('الفلاتر ومعايير التقرير',
+                  title: const Text(
+                    'الفلاتر ومعايير التقرير',
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
-                  subtitle: Text(report.params.isEmpty
-                    ? 'لا توجد معاملات إضافية'
-                    : '${report.params.length} معياراً متاحاً',
+                  subtitle: Text(
+                    report.params.isEmpty
+                        ? 'لا توجد معاملات إضافية'
+                        : '${report.params.length} معياراً متاحاً',
                   ),
                   children: [
                     if (report.params.isNotEmpty) controls,
@@ -443,10 +488,11 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
             ] else ...[
               if (report.params.isNotEmpty) ...[
                 const SizedBox(height: 16),
-                Text('معايير التقرير',
+                Text(
+                  'معايير التقرير',
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+                        fontWeight: FontWeight.w800,
+                      ),
                 ),
                 const SizedBox(height: 12),
                 controls,
@@ -460,9 +506,11 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
               child: FilledButton.icon(
                 onPressed: provider.isLoading ? null : () => _run(provider),
                 icon: provider.isLoading
-                  ? const SizedBox(width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.play_arrow_rounded),
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.play_arrow_rounded),
                 label: const Text('تشغيل التقرير'),
               ),
             ),
@@ -500,20 +548,26 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
           future: provider.parameterOptions(param.kind),
           builder: (context, snapshot) {
             final options = snapshot.data ?? const <Map<String, Object?>>[];
-            final selected = value == null ? null : int.tryParse(value.toString());
+            final selected =
+                value == null ? null : int.tryParse(value.toString());
             return DropdownButtonFormField<int>(
-              value: options.any((row) => row['id'] == selected) ? selected : null,
+              value:
+                  options.any((row) => row['id'] == selected) ? selected : null,
               isExpanded: true,
               decoration: InputDecoration(
                 labelText: param.label,
                 helperText: snapshot.connectionState == ConnectionState.waiting
                     ? 'جارٍ تحميل الخيارات…'
-                    : options.isEmpty ? 'لا توجد عناصر متاحة' : null,
+                    : options.isEmpty
+                        ? 'لا توجد عناصر متاحة'
+                        : null,
               ),
-              items: options.map((row) => DropdownMenuItem<int>(
-                value: row['id'] as int,
-                child: Text(row['name_ar']?.toString() ?? ''),
-              )).toList(),
+              items: options
+                  .map((row) => DropdownMenuItem<int>(
+                        value: row['id'] as int,
+                        child: Text(row['name_ar']?.toString() ?? ''),
+                      ))
+                  .toList(),
               onChanged: snapshot.connectionState == ConnectionState.waiting ||
                       options.isEmpty
                   ? null
@@ -527,14 +581,19 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
         ),
       );
     }
-    if (param.kind == ReportParamKind.category || param.kind == ReportParamKind.orientation) {
+    if (param.kind == ReportParamKind.category ||
+        param.kind == ReportParamKind.orientation) {
       return SizedBox(
         width: 220,
         child: DropdownButtonFormField<String>(
           value: value?.toString() ?? param.defaultValue?.toString(),
           decoration: InputDecoration(labelText: param.label),
-          items: param.options.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-          onChanged: (v) { if (v != null) provider.updateParams({param.key: v}); },
+          items: param.options
+              .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+              .toList(),
+          onChanged: (v) {
+            if (v != null) provider.updateParams({param.key: v});
+          },
         ),
       );
     }
@@ -548,7 +607,9 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
             : TextInputType.text,
         decoration: InputDecoration(
           labelText: param.label,
-          hintText: param.kind == ReportParamKind.date ? 'YYYY-MM-DD' : param.helpText,
+          hintText: param.kind == ReportParamKind.date
+              ? 'YYYY-MM-DD'
+              : param.helpText,
           suffixIcon: param.kind == ReportParamKind.date
               ? IconButton(
                   icon: const Icon(Icons.calendar_month),
@@ -557,14 +618,17 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
               : null,
         ),
         onChanged: (v) => provider.updateParams({
-          param.key: param.kind == ReportParamKind.number ? num.tryParse(v) ?? v : v,
+          param.key:
+              param.kind == ReportParamKind.number ? num.tryParse(v) ?? v : v,
         }),
       ),
     );
   }
 
-  Future<void> _pickDate(ReportsCenterProvider provider, String key, Object? current) async {
-    final initial = DateTime.tryParse(current?.toString() ?? '') ?? DateTime.now();
+  Future<void> _pickDate(
+      ReportsCenterProvider provider, String key, Object? current) async {
+    final initial =
+        DateTime.tryParse(current?.toString() ?? '') ?? DateTime.now();
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -620,7 +684,8 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
           Expanded(
             flex: 3,
             child: PdfPreview(
-              build: (format) async => await provider.buildPdf() ?? Uint8List(0),
+              build: (format) async =>
+                  await provider.buildPdf() ?? Uint8List(0),
               canChangeOrientation: false,
               canChangePageFormat: false,
               allowPrinting: false,
@@ -677,7 +742,8 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
   }
 
   Widget _dataTable(ReportDataSet data) {
-    if (data.rows.isEmpty) return const Center(child: Text('لا توجد بيانات ضمن المعاملات المحددة.'));
+    if (data.rows.isEmpty)
+      return const Center(child: Text('لا توجد بيانات ضمن المعاملات المحددة.'));
     return Scrollbar(
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -686,25 +752,36 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
             headingRowHeight: 44,
             dataRowMinHeight: 38,
             dataRowMaxHeight: 64,
-            columns: data.columns.map((c) => DataColumn(label: Text(c.label))).toList(),
+            columns: data.columns
+                .map((c) => DataColumn(label: Text(c.label)))
+                .toList(),
             rows: [
               ...data.rows.map((row) => DataRow(
-                cells: data.columns.map((c) => DataCell(
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 220),
-                    child: Text(c.display(row[c.key]), overflow: TextOverflow.ellipsis),
-                  ),
-                )).toList(),
-              )),
+                    cells: data.columns
+                        .map((c) => DataCell(
+                              ConstrainedBox(
+                                constraints:
+                                    const BoxConstraints(maxWidth: 220),
+                                child: Text(c.display(row[c.key]),
+                                    overflow: TextOverflow.ellipsis),
+                              ),
+                            ))
+                        .toList(),
+                  )),
               if (data.totals.isNotEmpty)
                 DataRow(
-                  color: WidgetStatePropertyAll(Theme.of(context).colorScheme.surfaceContainerHighest),
-                  cells: data.columns.map((c) => DataCell(Text(
-                    c.key == data.columns.first.key
-                        ? 'الإجمالي'
-                        : data.totals.containsKey(c.key) ? c.display(data.totals[c.key]) : '',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ))).toList(),
+                  color: WidgetStatePropertyAll(
+                      Theme.of(context).colorScheme.surfaceContainerHighest),
+                  cells: data.columns
+                      .map((c) => DataCell(Text(
+                            c.key == data.columns.first.key
+                                ? 'الإجمالي'
+                                : data.totals.containsKey(c.key)
+                                    ? c.display(data.totals[c.key])
+                                    : '',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          )))
+                      .toList(),
                 ),
             ],
           ),
@@ -717,9 +794,12 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
     try {
       final file = await provider.savePdf();
       if (!mounted || file == null) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم حفظ PDF في: $file')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('تم حفظ PDF في: $file')));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر حفظ PDF: $e')));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('تعذر حفظ PDF: $e')));
     }
   }
 
@@ -727,9 +807,12 @@ class _S27ReportsCenterPdfScreenState extends State<S27ReportsCenterPdfScreen> {
     try {
       final file = await provider.exportCsv();
       if (!mounted || file == null) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم تصدير ملف CSV المتوافق مع Excel: ${file.path}')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('تم تصدير ملف CSV المتوافق مع Excel: ${file.path}')));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر التصدير: $e')));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('تعذر التصدير: $e')));
     }
   }
 }

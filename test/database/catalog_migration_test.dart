@@ -67,7 +67,8 @@ void main() {
         'drugs',
         where: 'id=?',
         whereArgs: [drugId],
-      )).single;
+      ))
+          .single;
       expect(drug['internal_code'], 'MIGRATION-KEEP-001');
       expect(drug['trade_name_ar'], 'دواء اختبار الترحيل');
       expect(drug['cost_price_pack'], 125.5);

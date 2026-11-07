@@ -17,9 +17,20 @@ enum ReportCategory {
 }
 
 enum ColAlign { start, center, end }
-enum ColType { text, integer, decimal, currency, percent, date, dateTime, boolean }
 
-typedef ReportQuery = Future<List<Map<String, Object?>>> Function(ReportParams params);
+enum ColType {
+  text,
+  integer,
+  decimal,
+  currency,
+  percent,
+  date,
+  dateTime,
+  boolean
+}
+
+typedef ReportQuery = Future<List<Map<String, Object?>>> Function(
+    ReportParams params);
 
 class ReportColumn {
   const ReportColumn({
@@ -237,8 +248,8 @@ class SignatureSpec {
   static const purchases = SignatureSpec(['مسؤول المشتريات', 'المحاسب']);
   static const finance = SignatureSpec(['المحاسب', 'المالك']);
   static const clinical = SignatureSpec(['الصيدلي المسؤول', 'المدير']);
-  static const controlled = SignatureSpec(
-      ['الصيدلي المسؤول', 'صيدلي ثانٍ', 'المدير']);
+  static const controlled =
+      SignatureSpec(['الصيدلي المسؤول', 'صيدلي ثانٍ', 'المدير']);
   static const yearEnd = SignatureSpec(['المحاسب', 'المالك', 'الشركاء']);
 }
 
@@ -253,7 +264,8 @@ class ReportDataSet {
     this.generatedAt,
     this.warnings = const [],
   })  : columns = List.unmodifiable(columns),
-        rows = List.unmodifiable(rows.map((r) => Map<String, Object?>.unmodifiable(r))),
+        rows = List.unmodifiable(
+            rows.map((r) => Map<String, Object?>.unmodifiable(r))),
         totals = Map.unmodifiable(totals),
         summary = Map.unmodifiable(summary);
 

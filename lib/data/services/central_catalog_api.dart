@@ -41,7 +41,8 @@ class CentralCatalogApi implements CentralCatalogDataSource {
   }) async {
     final safeLimit = limit.clamp(1, 30).toInt();
     final normalizedQuery = _normalizeQuery(query);
-    final exactBarcode = barcode ?? (_isBarcode(query.trim()) ? query.trim() : null);
+    final exactBarcode =
+        barcode ?? (_isBarcode(query.trim()) ? query.trim() : null);
 
     if (endpointMode != CatalogEndpointMode.firebaseStaticShards) {
       try {
@@ -60,7 +61,8 @@ class CentralCatalogApi implements CentralCatalogDataSource {
     }
 
     if (endpointMode == CatalogEndpointMode.dynamicApi) {
-      throw const CatalogApiException('Dynamic catalogue endpoint is unavailable');
+      throw const CatalogApiException(
+          'Dynamic catalogue endpoint is unavailable');
     }
 
     return _staticSearch(
@@ -147,9 +149,8 @@ class CentralCatalogApi implements CentralCatalogDataSource {
     );
   }
 
-  Future<http.Response> _get(Uri endpoint) => _client
-      .get(endpoint, headers: {'Accept': 'application/json', ..._headers})
-      .timeout(timeout);
+  Future<http.Response> _get(Uri endpoint) => _client.get(endpoint,
+      headers: {'Accept': 'application/json', ..._headers}).timeout(timeout);
 
   CatalogSearchPage _parsePage(http.Response response, {required int limit}) {
     final decoded = jsonDecode(utf8.decode(response.bodyBytes));
@@ -176,12 +177,13 @@ class CentralCatalogApi implements CentralCatalogDataSource {
       throw const FormatException('Catalog response must contain items[]');
     }
     final items = rawItems
-        .map((item) => CatalogDrugSummary.fromJson(
-            Map<String, dynamic>.from(item as Map)))
+        .map((item) =>
+            CatalogDrugSummary.fromJson(Map<String, dynamic>.from(item as Map)))
         .take(limit)
         .toList(growable: false);
     final cursorValue = envelope['next_cursor'] ?? envelope['nextCursor'];
-    final versionValue = envelope['catalog_version'] ?? envelope['catalogVersion'];
+    final versionValue =
+        envelope['catalog_version'] ?? envelope['catalogVersion'];
     final etag = envelope['etag']?.toString() ?? responseHeaders['etag'];
     return CatalogSearchPage(
       items: items,

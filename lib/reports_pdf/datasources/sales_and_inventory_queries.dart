@@ -4,10 +4,12 @@ import '../models_and_contracts.dart';
 
 /// استعلامات التقارير 01–24. جميع القيم مشتقة من جداول الدورة 1–4.
 class SalesAndInventoryQueries {
-  SalesAndInventoryQueries({DatabaseHelper? helper}) : _helper = helper ?? DatabaseHelper.instance;
+  SalesAndInventoryQueries({DatabaseHelper? helper})
+      : _helper = helper ?? DatabaseHelper.instance;
   final DatabaseHelper _helper;
 
-  Future<List<Map<String, Object?>>> _q(String sql, [List<Object?> args = const []]) async =>
+  Future<List<Map<String, Object?>>> _q(String sql,
+          [List<Object?> args = const []]) async =>
       (await _helper.database).rawQuery(sql, args);
 
   String _range(String column, ReportParams p) =>
@@ -271,10 +273,16 @@ class SalesAndInventoryQueries {
     SELECT movement_date,movement_type,document,batch_no,incoming,outgoing,
       running_balance,unit_cost FROM report_rows
     ORDER BY sort_order,movement_date,movement_id
-  ''', [p.branchId,p.intValue('drug_id') ?? -1,
-        p.stringValue('date_from'),p.stringValue('date_from'),
+  ''', [
+        p.branchId,
+        p.intValue('drug_id') ?? -1,
         p.stringValue('date_from'),
-        p.branchId,p.intValue('drug_id') ?? -1,..._rangeArgs(p)]);
+        p.stringValue('date_from'),
+        p.stringValue('date_from'),
+        p.branchId,
+        p.intValue('drug_id') ?? -1,
+        ..._rangeArgs(p)
+      ]);
 
   Future<List<Map<String, Object?>>> r17(ReportParams p) => _q('''
     SELECT d.trade_name_ar AS drug,d.stock_total_units AS current_balance,d.min_stock_units AS minimum_stock,
@@ -313,7 +321,7 @@ class SalesAndInventoryQueries {
     FROM stocktaking_lines l JOIN stocktaking_sessions s ON s.id=l.session_id
     JOIN batches_fefo b ON b.id=l.batch_id JOIN drugs d ON d.id=b.drug_id
     WHERE d.branch_id=? AND s.id=? ORDER BY d.trade_name_ar,b.batch_no
-  ''', [p.branchId,p.intValue('session_id') ?? -1]);
+  ''', [p.branchId, p.intValue('session_id') ?? -1]);
 
   Future<List<Map<String, Object?>>> r21(ReportParams p) => _q('''
     SELECT d.disposal_no AS document_no,d.disposal_date AS date,dr.trade_name_ar AS drug,
@@ -323,7 +331,7 @@ class SalesAndInventoryQueries {
     JOIN batches_fefo b ON b.id=di.batch_id JOIN drugs dr ON dr.id=b.drug_id
     WHERE dr.branch_id=? AND d.status IN('APPROVED','POSTED') ${_range('d.disposal_date', p)}
     ORDER BY d.disposal_date DESC
-  ''', [p.branchId,..._rangeArgs(p)]);
+  ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r22(ReportParams p) => _q('''
     SELECT t.transfer_no AS transfer_no,t.created_at AS date,
@@ -335,7 +343,7 @@ class SalesAndInventoryQueries {
     JOIN warehouses wf ON wf.id=t.from_warehouse_id JOIN warehouses wt ON wt.id=t.to_warehouse_id
     JOIN batches_fefo b ON b.id=ti.from_batch_id JOIN drugs d ON d.id=b.drug_id
     WHERE d.branch_id=? ${_range('t.created_at', p)} ORDER BY t.created_at DESC
-  ''', [p.branchId,..._rangeArgs(p)]);
+  ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r23(ReportParams p) => _q('''
     WITH inventory AS (
@@ -377,5 +385,4 @@ class SalesAndInventoryQueries {
     LEFT JOIN period_movements pm ON pm.drug_id=d.id
     WHERE d.branch_id=? ORDER BY turnover_rate DESC
   ''', [p.branchId, ..._rangeArgs(p), ..._rangeArgs(p), p.branchId]);
-
 }

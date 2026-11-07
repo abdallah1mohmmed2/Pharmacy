@@ -165,8 +165,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       final provider = context.read<SettingsAndSystemProvider>();
       if (!provider.loading) {
         try {
-          final config =
-              provider.settings.getJson(SettingKey.autoLocalOnClose);
+          final config = provider.settings.getJson(SettingKey.autoLocalOnClose);
           if (config['enabled'] == true) {
             provider.createBackup(
               triggerType: 'ON_APP_CLOSE',
@@ -251,8 +250,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(titles[index], maxLines: 1,
-              overflow: TextOverflow.ellipsis),
+          title:
+              Text(titles[index], maxLines: 1, overflow: TextOverflow.ellipsis),
           actions: [
             if (!wide)
               IconButton(
@@ -378,13 +377,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                     padding: const EdgeInsets.all(10),
                     child: Row(
                       children: [
-                        Icon(_pageIcons[pageIndex],
-                            color: AppColors.primary),
+                        Icon(_pageIcons[pageIndex], color: AppColors.primary),
                         const SizedBox(width: 9),
                         Expanded(
                           child: Text(titles[pageIndex],
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis),
+                              maxLines: 2, overflow: TextOverflow.ellipsis),
                         ),
                       ],
                     ),
@@ -410,8 +407,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             child: TextField(
               controller: controller,
               autofocus: true,
-              decoration:
-                  const InputDecoration(hintText: 'اكتب اسم الشاشة'),
+              decoration: const InputDecoration(hintText: 'اكتب اسم الشاشة'),
             ),
           ),
         ),
@@ -503,22 +499,19 @@ class _LoginScreenState extends State<_LoginScreen> {
                         Padding(
                           padding: const EdgeInsets.all(8),
                           child: Text(error!,
-                              style:
-                                  const TextStyle(color: Colors.redAccent)),
+                              style: const TextStyle(color: Colors.redAccent)),
                         ),
                       const SizedBox(height: 14),
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton(
                           onPressed: busy ? null : _login,
-                          child: Text(
-                              busy ? 'جارٍ الدخول' : 'تسجيل الدخول'),
+                          child: Text(busy ? 'جارٍ الدخول' : 'تسجيل الدخول'),
                         ),
                       ),
                       const Text(
                         'حساب التأسيس: admin / 123456',
-                        style:
-                            TextStyle(color: Colors.white54, fontSize: 11),
+                        style: TextStyle(color: Colors.white54, fontSize: 11),
                       ),
                     ],
                   ),

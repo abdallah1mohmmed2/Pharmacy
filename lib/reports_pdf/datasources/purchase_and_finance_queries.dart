@@ -4,17 +4,19 @@ import '../models_and_contracts.dart';
 
 /// استعلامات المشتريات والحسابات والتقارير المالية R25–R45.
 class PurchaseAndFinanceQueries {
-  PurchaseAndFinanceQueries({DatabaseHelper? helper}) : _helper = helper ?? DatabaseHelper.instance;
+  PurchaseAndFinanceQueries({DatabaseHelper? helper})
+      : _helper = helper ?? DatabaseHelper.instance;
   final DatabaseHelper _helper;
 
-  Future<List<Map<String, Object?>>> _q(String sql, [List<Object?> args = const []]) async =>
+  Future<List<Map<String, Object?>>> _q(String sql,
+          [List<Object?> args = const []]) async =>
       (await _helper.database).rawQuery(sql, args);
 
   String _range(String column) =>
       " AND (? IS NULL OR $column>=?) AND (? IS NULL OR $column<date(?,'+1 day'))";
   List<Object?> _rangeArgs(ReportParams p) {
-    final from=p.stringValue('date_from'),to=p.stringValue('date_to');
-    return [from,from,to,to];
+    final from = p.stringValue('date_from'), to = p.stringValue('date_to');
+    return [from, from, to, to];
   }
 
   Future<List<Map<String, Object?>>> r25(ReportParams p) => _q('''
@@ -28,7 +30,7 @@ class PurchaseAndFinanceQueries {
     JOIN parties s ON s.id=pi.supplier_party_id JOIN drugs d ON d.id=pii.drug_id
     WHERE d.branch_id=? ${_range('pi.invoice_date')}
     ORDER BY pi.invoice_date DESC,pi.id DESC
-  ''',[p.branchId,..._rangeArgs(p)]);
+  ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r26(ReportParams p) => _q('''
     WITH returns_by_supplier AS (
@@ -48,7 +50,7 @@ class PurchaseAndFinanceQueries {
     LEFT JOIN returns_by_supplier r ON r.supplier_party_id=s.id
     WHERE EXISTS(SELECT 1 FROM purchase_invoice_items pii JOIN drugs d ON d.id=pii.drug_id WHERE pii.invoice_id=pi.id AND d.branch_id=?) ${_range('pi.invoice_date')}
     GROUP BY s.id ORDER BY remaining_lah DESC
-  ''',[..._rangeArgs(p),p.branchId,..._rangeArgs(p)]);
+  ''', [..._rangeArgs(p), p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r27(ReportParams p) => _q('''
     SELECT s.name_ar AS supplier,d.trade_name_ar AS drug,
@@ -63,7 +65,7 @@ class PurchaseAndFinanceQueries {
     JOIN parties s ON s.id=pi.supplier_party_id JOIN drugs d ON d.id=ii.drug_id
     WHERE d.branch_id=? ${_range('pi.invoice_date')}
     GROUP BY s.id,d.id ORDER BY bonus_cost_value DESC
-  ''',[p.branchId,..._rangeArgs(p)]);
+  ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r28(ReportParams p) => _q('''
     WITH supplier_prices AS (
@@ -90,7 +92,7 @@ class PurchaseAndFinanceQueries {
           AND (other.net_pack_cost<sp.net_pack_cost
             OR (other.net_pack_cost=sp.net_pack_cost AND other.supplier_id<sp.supplier_id))) AS best_supplier_rank
     FROM supplier_prices sp ORDER BY sp.drug,best_supplier_rank
-  ''',[p.branchId,p.intValue('drug_id'),p.intValue('drug_id')]);
+  ''', [p.branchId, p.intValue('drug_id'), p.intValue('drug_id')]);
 
   Future<List<Map<String, Object?>>> r29(ReportParams p) => _q('''
     SELECT pr.return_no AS return_no,pr.return_date AS return_date,s.name_ar AS supplier,
@@ -103,7 +105,7 @@ class PurchaseAndFinanceQueries {
     JOIN batches_fefo b ON b.id=pri.batch_id JOIN drugs d ON d.id=b.drug_id
     WHERE d.branch_id=? ${_range('pr.return_date')}
     ORDER BY pr.return_date DESC
-  ''',[p.branchId,..._rangeArgs(p)]);
+  ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r30(ReportParams p) => _q('''
     SELECT d.trade_name_ar AS drug,b.batch_no AS batch_no,b.expiry_date AS expiry_date,
@@ -120,7 +122,7 @@ class PurchaseAndFinanceQueries {
         FROM sales_invoice_items si JOIN sales_invoices i ON i.id=si.invoice_id
         WHERE si.drug_id=d.id AND i.status='COMPLETED' AND i.invoice_date>=date('now','-30 days')),0)
     ORDER BY b.expiry_date
-  ''',[p.branchId,p.intValue('expiry_days')??90]);
+  ''', [p.branchId, p.intValue('expiry_days') ?? 90]);
 
   Future<List<Map<String, Object?>>> r31(ReportParams p) => _q('''
     SELECT d.trade_name_ar AS drug,ph.old_value AS previous_cost,ph.new_value AS new_cost,
@@ -130,7 +132,7 @@ class PurchaseAndFinanceQueries {
     FROM price_history ph JOIN drugs d ON d.id=ph.drug_id
     WHERE d.branch_id=? ${_range('ph.created_at')}
     ORDER BY ph.created_at DESC
-  ''',[p.branchId,..._rangeArgs(p)]);
+  ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r32(ReportParams p) => _q('''
     SELECT po.po_no AS order_no,po.po_date AS order_date,s.name_ar AS supplier,
@@ -141,14 +143,14 @@ class PurchaseAndFinanceQueries {
     JOIN parties s ON s.id=po.supplier_party_id JOIN drugs d ON d.id=pi.drug_id
     WHERE d.branch_id=? ${_range('po.po_date')} AND po.status NOT IN('CLOSED','CANCELLED')
     ORDER BY po.po_date DESC
-  ''',[p.branchId,..._rangeArgs(p)]);
+  ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r33(ReportParams p) => _partyStatement(p);
   Future<List<Map<String, Object?>>> r36(ReportParams p) => _partyStatement(p);
   Future<List<Map<String, Object?>>> r44(ReportParams p) => _partyStatement(p);
 
   Future<List<Map<String, Object?>>> _partyStatement(ReportParams p) {
-    final partyId=p.intValue('party_id')??-1;
+    final partyId = p.intValue('party_id') ?? -1;
     return _q('''
       WITH party AS (
         SELECT
@@ -182,9 +184,17 @@ class PurchaseAndFinanceQueries {
         ) AS remaining
       FROM ledger l
       ORDER BY date
-    ''',[p.stringValue('date_from'),p.stringValue('date_from'),
-         p.stringValue('date_from'),p.stringValue('date_from'),
-         partyId,p.branchId,partyId,p.branchId,..._rangeArgs(p)]);
+    ''', [
+      p.stringValue('date_from'),
+      p.stringValue('date_from'),
+      p.stringValue('date_from'),
+      p.stringValue('date_from'),
+      partyId,
+      p.branchId,
+      partyId,
+      p.branchId,
+      ..._rangeArgs(p)
+    ]);
   }
 
   Future<List<Map<String, Object?>>> r34(ReportParams p) => _q('''
@@ -198,7 +208,7 @@ class PurchaseAndFinanceQueries {
     FROM parties p LEFT JOIN lah_alayh_ledger l ON l.party_id=p.id AND l.branch_id=p.branch_id
     WHERE p.branch_id=? AND p.party_type='CUSTOMER' AND p.is_deleted=0
     GROUP BY p.id ORDER BY remaining DESC
-  ''',[p.branchId]);
+  ''', [p.branchId]);
 
   Future<List<Map<String, Object?>>> r35(ReportParams p) => _q('''
     SELECT c.name_ar AS customer,
@@ -212,7 +222,7 @@ class PurchaseAndFinanceQueries {
     FROM sales_invoices i JOIN parties c ON c.id=i.customer_party_id
     WHERE i.branch_id=? AND i.status='COMPLETED' AND i.remaining_alayh>0
     GROUP BY c.id ORDER BY total_remaining_alayh DESC
-  ''',[p.branchId]);
+  ''', [p.branchId]);
 
   Future<List<Map<String, Object?>>> r37(ReportParams p) => _q('''
     SELECT s.name_ar AS supplier,s.phone AS phone,
@@ -223,7 +233,7 @@ class PurchaseAndFinanceQueries {
       CAST(julianday('now')-julianday(MIN(CASE WHEN pi.remaining_lah>0 THEN pi.due_date END)) AS INTEGER) AS overdue_days
     FROM purchase_invoices pi JOIN parties s ON s.id=pi.supplier_party_id
     WHERE EXISTS(SELECT 1 FROM purchase_invoice_items pii JOIN drugs d ON d.id=pii.drug_id WHERE pii.invoice_id=pi.id AND d.branch_id=?) GROUP BY s.id ORDER BY remaining DESC
-  ''',[p.branchId]);
+  ''', [p.branchId]);
 
   Future<List<Map<String, Object?>>> r38(ReportParams p) => _q('''
     SELECT ct.tx_date AS time,ca.name_ar AS account,ct.tx_type AS movement_type,
@@ -233,7 +243,7 @@ class PurchaseAndFinanceQueries {
       ct.balance_after AS running_balance
     FROM cash_transactions ct JOIN cash_accounts ca ON ca.id=ct.cash_account_id
     WHERE ct.branch_id=? ${_range('ct.tx_date')} ORDER BY ct.tx_date,ct.id
-  ''',[p.branchId,..._rangeArgs(p)]);
+  ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r39(ReportParams p) => _q('''
     SELECT cs.shift_no AS shift_no,u.full_name AS cashier,cs.opened_at AS opened_at,
@@ -243,7 +253,7 @@ class PurchaseAndFinanceQueries {
       CASE WHEN cs.diff_handling='POST_TO_CASHIER' THEN CASE WHEN cs.diff_amount<0 THEN 'عليه على الكاشير' ELSE 'له للكاشير' END ELSE cs.diff_handling END AS handling
     FROM cashier_shifts cs JOIN users u ON u.id=cs.user_id
     WHERE cs.branch_id=? ${_range('cs.opened_at')} ORDER BY cs.opened_at DESC
-  ''',[p.branchId,..._rangeArgs(p)]);
+  ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r40(ReportParams p) => _q('''
     SELECT e.expense_date AS date,e.expense_no AS voucher,ec.name_ar AS category,
@@ -253,7 +263,7 @@ class PurchaseAndFinanceQueries {
     FROM expenses e JOIN expense_categories ec ON ec.id=e.category_id
     JOIN cash_accounts ca ON ca.id=e.cash_account_id
     WHERE e.branch_id=? ${_range('e.expense_date')} ORDER BY e.expense_date DESC
-  ''',[p.branchId,..._rangeArgs(p)]);
+  ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r41(ReportParams p) => _q('''
     SELECT v.voucher_no AS voucher_no,
@@ -262,10 +272,10 @@ class PurchaseAndFinanceQueries {
       v.wallet_ref_no AS notification_no,v.description AS statement,v.amount AS amount
     FROM vouchers v LEFT JOIN parties pa ON pa.id=v.party_id
     WHERE v.branch_id=? ${_range('v.voucher_date')} ORDER BY v.voucher_date DESC
-  ''',[p.branchId,..._rangeArgs(p)]);
+  ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r42(ReportParams p) async {
-    final rows=await _q('''
+    final rows = await _q('''
       SELECT
         COALESCE((SELECT SUM(subtotal) FROM sales_invoices WHERE branch_id=? AND status='COMPLETED' ${_range('invoice_date')}),0) AS gross_sales,
         COALESCE((SELECT SUM(discount_amount) FROM sales_invoices WHERE branch_id=? AND status='COMPLETED' ${_range('invoice_date')}),0) AS discounts,
@@ -274,32 +284,48 @@ class PurchaseAndFinanceQueries {
         COALESCE((SELECT SUM(amount) FROM expenses WHERE branch_id=? ${_range('expense_date')}),0) AS operating_expenses,
         COALESCE((SELECT SUM(a.wage_earned) FROM employee_attendance a JOIN employees e ON e.id=a.employee_id WHERE e.branch_id=? AND substr(a.work_date,1,10) BETWEEN COALESCE(?,date('now','start of month')) AND COALESCE(?,date('now'))),0) AS daily_wages,
         COALESCE((SELECT SUM(di.qty_units*di.unit_cost) FROM disposals dp JOIN disposal_items di ON di.disposal_id=dp.id JOIN batches_fefo b ON b.id=di.batch_id JOIN drugs d ON d.id=b.drug_id WHERE dp.status IN('APPROVED','POSTED') AND d.branch_id=? ${_range('dp.disposal_date')}),0) AS disposal_losses
-    ''',[
-      p.branchId,..._rangeArgs(p),
-      p.branchId,..._rangeArgs(p),
-      p.branchId,..._rangeArgs(p),
-      p.branchId,..._rangeArgs(p),
-      p.branchId,..._rangeArgs(p),
-      p.branchId,p.stringValue('date_from'),p.stringValue('date_to'),
-      p.branchId,..._rangeArgs(p),
+    ''', [
+      p.branchId,
+      ..._rangeArgs(p),
+      p.branchId,
+      ..._rangeArgs(p),
+      p.branchId,
+      ..._rangeArgs(p),
+      p.branchId,
+      ..._rangeArgs(p),
+      p.branchId,
+      ..._rangeArgs(p),
+      p.branchId,
+      p.stringValue('date_from'),
+      p.stringValue('date_to'),
+      p.branchId,
+      ..._rangeArgs(p),
     ]);
-    final r=rows.first;
-    final gross=_n(r['gross_sales']),discount=_n(r['discounts']),returns=_n(r['returns']);
-    final netSales=gross-discount-returns,cogs=_n(r['cogs']);
-    final grossProfit=netSales-cogs;
-    final expenses=_n(r['operating_expenses'])+_n(r['daily_wages'])+_n(r['disposal_losses']);
-    final netProfit=grossProfit-expenses;
+    final r = rows.first;
+    final gross = _n(r['gross_sales']),
+        discount = _n(r['discounts']),
+        returns = _n(r['returns']);
+    final netSales = gross - discount - returns, cogs = _n(r['cogs']);
+    final grossProfit = netSales - cogs;
+    final expenses = _n(r['operating_expenses']) +
+        _n(r['daily_wages']) +
+        _n(r['disposal_losses']);
+    final netProfit = grossProfit - expenses;
     return [
-      {'line':'إجمالي المبيعات','amount':gross},
-      {'line':'المرتجعات','amount':returns},
-      {'line':'الخصومات','amount':discount},
-      {'line':'صافي المبيعات','amount':netSales},
-      {'line':'تكلفة البضاعة المباعة','amount':cogs},
-      {'line':'مجمل الربح','amount':grossProfit},
-      {'line':'المصروفات التشغيلية','amount':_n(r['operating_expenses'])},
-      {'line':'الرواتب واليوميات','amount':_n(r['daily_wages'])},
-      {'line':'خسائر الإعدام والتلف','amount':_n(r['disposal_losses'])},
-      {'line':'صافي الربح النهائي','amount':netProfit,'margin_pct':netSales>0?netProfit*100/netSales:0},
+      {'line': 'إجمالي المبيعات', 'amount': gross},
+      {'line': 'المرتجعات', 'amount': returns},
+      {'line': 'الخصومات', 'amount': discount},
+      {'line': 'صافي المبيعات', 'amount': netSales},
+      {'line': 'تكلفة البضاعة المباعة', 'amount': cogs},
+      {'line': 'مجمل الربح', 'amount': grossProfit},
+      {'line': 'المصروفات التشغيلية', 'amount': _n(r['operating_expenses'])},
+      {'line': 'الرواتب واليوميات', 'amount': _n(r['daily_wages'])},
+      {'line': 'خسائر الإعدام والتلف', 'amount': _n(r['disposal_losses'])},
+      {
+        'line': 'صافي الربح النهائي',
+        'amount': netProfit,
+        'margin_pct': netSales > 0 ? netProfit * 100 / netSales : 0
+      },
     ];
   }
 
@@ -317,7 +343,16 @@ class PurchaseAndFinanceQueries {
     SELECT 'رأس المال',COALESCE(SUM(capital_amount),0) FROM partners WHERE branch_id=?
     UNION ALL
     SELECT 'مسحوبات الشركاء',COALESCE(SUM(withdrawals_alayh),0) FROM partner_distribution_lines l JOIN partner_distributions d ON d.id=l.distribution_id WHERE d.branch_id=?
-  ''',[p.branchId,p.branchId,p.branchId,p.branchId,p.branchId,p.branchId,p.branchId,p.branchId]);
+  ''', [
+        p.branchId,
+        p.branchId,
+        p.branchId,
+        p.branchId,
+        p.branchId,
+        p.branchId,
+        p.branchId,
+        p.branchId
+      ]);
 
   Future<List<Map<String, Object?>>> r45(ReportParams p) => _q('''
     SELECT d.distribution_no AS distribution_no,d.period_code AS period_code,
@@ -332,7 +367,13 @@ class PurchaseAndFinanceQueries {
     WHERE d.branch_id=? AND d.id=COALESCE(?,(SELECT MAX(id) FROM partner_distributions WHERE branch_id=?))
       AND (? IS NULL OR pt.id=?)
     ORDER BY pa.name_ar
-  ''',[p.branchId,p.intValue('distribution_id'),p.branchId,p.intValue('partner_id'),p.intValue('partner_id')]);
+  ''', [
+        p.branchId,
+        p.intValue('distribution_id'),
+        p.branchId,
+        p.intValue('partner_id'),
+        p.intValue('partner_id')
+      ]);
 
-  double _n(Object? v)=>v is num?v.toDouble():double.tryParse('$v')??0;
+  double _n(Object? v) => v is num ? v.toDouble() : double.tryParse('$v') ?? 0;
 }

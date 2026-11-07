@@ -45,11 +45,13 @@ class _S08ClinicalAuditScreenState extends State<S08ClinicalAuditScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('تعذر تحميل سجل التنبيهات: ${snapshot.error}'));
+            return Center(
+                child: Text('تعذر تحميل سجل التنبيهات: ${snapshot.error}'));
           }
           final rows = snapshot.data ?? const [];
           if (rows.isEmpty) {
-            return const Center(child: Text('لا توجد قرارات سريرية مسجلة بعد.'));
+            return const Center(
+                child: Text('لا توجد قرارات سريرية مسجلة بعد.'));
           }
           return RefreshIndicator(
             onRefresh: _refresh,
@@ -95,11 +97,14 @@ class _S08ClinicalAuditScreenState extends State<S08ClinicalAuditScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('تعذر تحميل سجل الأدوية المراقبة: ${snapshot.error}'));
+            return Center(
+                child:
+                    Text('تعذر تحميل سجل الأدوية المراقبة: ${snapshot.error}'));
           }
           final rows = snapshot.data ?? const [];
           if (rows.isEmpty) {
-            return const Center(child: Text('لا توجد عمليات صرف مراقبة مسجلة بعد.'));
+            return const Center(
+                child: Text('لا توجد عمليات صرف مراقبة مسجلة بعد.'));
           }
           return RefreshIndicator(
             onRefresh: _refresh,
@@ -112,7 +117,8 @@ class _S08ClinicalAuditScreenState extends State<S08ClinicalAuditScreen> {
                 return Card(
                   color: const Color(0xff1E1E1E),
                   child: ListTile(
-                    leading: const Icon(Icons.medication, color: Color(0xffFFB74D)),
+                    leading:
+                        const Icon(Icons.medication, color: Color(0xffFFB74D)),
                     title: Text(_value(row['trade_name_ar'])),
                     subtitle: Text(
                       'الكمية: ${_value(row['qty_units'])} حبة • '
@@ -149,7 +155,9 @@ class _S08ClinicalAuditScreenState extends State<S08ClinicalAuditScreen> {
             ],
             bottom: const TabBar(
               tabs: [
-                Tab(icon: Icon(Icons.health_and_safety), text: 'القرارات السريرية'),
+                Tab(
+                    icon: Icon(Icons.health_and_safety),
+                    text: 'القرارات السريرية'),
                 Tab(icon: Icon(Icons.medication), text: 'الأدوية المراقبة'),
               ],
             ),

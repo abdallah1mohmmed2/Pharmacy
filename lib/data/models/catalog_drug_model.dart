@@ -42,7 +42,8 @@ class CatalogDrugSummary {
   factory CatalogDrugSummary.fromJson(Map<String, dynamic> json) {
     final uuid = (json['catalog_uuid'] ?? json['uuid'] ?? '').toString().trim();
     final version = json['catalog_version'] ?? json['version'];
-    final name = (json['trade_name_ar'] ?? json['tradeNameAr'] ?? '').toString().trim();
+    final name =
+        (json['trade_name_ar'] ?? json['tradeNameAr'] ?? '').toString().trim();
     if (uuid.isEmpty) throw const FormatException('catalog_uuid is required');
     if (version is! num || version < 1) {
       throw const FormatException('catalog_version must be a positive number');
@@ -81,11 +82,16 @@ class CatalogDrugSummary {
       manufacturerName: optional('manufacturer_name', 'manufacturerName'),
       dosageForm: optional('dosage_form', 'dosageForm'),
       strengthText: optional('strength_text', 'strengthText'),
-      barcodeInternational: optional('barcode_international', 'barcodeInternational'),
+      barcodeInternational:
+          optional('barcode_international', 'barcodeInternational'),
       barcodeLocal: optional('barcode_local', 'barcodeLocal'),
-      searchText: [json['search_text'], ...fields].whereType<String>().join(' ').toLowerCase(),
+      searchText: [json['search_text'], ...fields]
+          .whereType<String>()
+          .join(' ')
+          .toLowerCase(),
       payloadJson: payload,
-      sourceName: optional('source_name', 'sourceName') ?? optional('data_source'),
+      sourceName:
+          optional('source_name', 'sourceName') ?? optional('data_source'),
       sourceUrl: optional('source_url', 'sourceUrl'),
       reviewStatus: optional('review_status', 'reviewStatus') ?? 'UNVERIFIED',
       publishedAt: optional('published_at', 'publishedAt'),

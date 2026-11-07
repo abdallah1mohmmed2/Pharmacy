@@ -96,9 +96,8 @@ class CatalogSearchRepository {
         whereArgs: const ['central_catalog'],
         limit: 1,
       );
-      final currentVersion = rows.isEmpty
-          ? 0
-          : (rows.first['last_catalog_version'] as int? ?? 0);
+      final currentVersion =
+          rows.isEmpty ? 0 : (rows.first['last_catalog_version'] as int? ?? 0);
       final canAdvance = incomingVersion >= currentVersion;
       if (rows.isEmpty) {
         await txn.insert('catalog_sync_state', {
@@ -114,7 +113,9 @@ class CatalogSearchRepository {
           {
             'last_catalog_version':
                 canAdvance ? incomingVersion : currentVersion,
-            'etag': canAdvance ? (page.etag ?? rows.first['etag']) : rows.first['etag'],
+            'etag': canAdvance
+                ? (page.etag ?? rows.first['etag'])
+                : rows.first['etag'],
             'last_success_at': now,
             'updated_at': now,
             'last_error_at': null,
@@ -276,6 +277,5 @@ class CatalogSearchRepository {
     }
   }
 
-  bool _looksLikeBarcode(String value) =>
-      RegExp(r'^\d{8,14}$').hasMatch(value);
+  bool _looksLikeBarcode(String value) => RegExp(r'^\d{8,14}$').hasMatch(value);
 }

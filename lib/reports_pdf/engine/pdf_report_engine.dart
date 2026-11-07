@@ -152,9 +152,7 @@ class PdfReportEngine {
     final List<List<String>> tableRows;
     if (data.reportNumber == 46) {
       tableColumns = const ['النقطة السريرية', 'البيانات'];
-      final source = safeRows.isEmpty
-          ? <String, Object?>{}
-          : safeRows.first;
+      final source = safeRows.isEmpty ? <String, Object?>{} : safeRows.first;
       tableRows = columns
           .map(
             (column) => <String>[
@@ -175,7 +173,9 @@ class PdfReportEngine {
     }
 
     List<String>? footerTotalRow;
-    if (definition.includeTotals && totals.isNotEmpty && tableColumns.isNotEmpty) {
+    if (definition.includeTotals &&
+        totals.isNotEmpty &&
+        tableColumns.isNotEmpty) {
       footerTotalRow = [
         for (var index = 0; index < columns.length; index++)
           index == 0

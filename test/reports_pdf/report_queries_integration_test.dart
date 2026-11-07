@@ -27,7 +27,8 @@ void main() {
     }
   });
 
-  test('all 55 report queries execute against the current SQLite schema', () async {
+  test('all 55 report queries execute against the current SQLite schema',
+      () async {
     final registry = ReportRegistry();
     for (final definition in registry.all) {
       final values = <String, Object?>{};
@@ -45,7 +46,8 @@ void main() {
             ReportParamKind.warehouse ||
             ReportParamKind.cashier ||
             ReportParamKind.category ||
-            ReportParamKind.number => 1,
+            ReportParamKind.number =>
+              1,
             ReportParamKind.text => 'test',
             ReportParamKind.boolean => true,
             ReportParamKind.orientation => 'portrait',
@@ -67,7 +69,8 @@ void main() {
     }
   });
 
-  test('reports provider initializes from Iteration 6 permissions and settings', () async {
+  test('reports provider initializes from Iteration 6 permissions and settings',
+      () async {
     final provider = ReportsCenterProvider();
     await provider.initialize(
       userId: 1,
@@ -122,8 +125,8 @@ void main() {
     expect(provider.canViewCost, isFalse);
   });
 
-
-  test('drug catalogue saves never alter batch-derived stock balances', () async {
+  test('drug catalogue saves never alter batch-derived stock balances',
+      () async {
     final db = await DatabaseHelper.instance.database;
     final rows = await db.query('drugs', orderBy: 'id', limit: 1);
     // A clean installation intentionally contains no catalogue/demo drugs.
@@ -147,8 +150,8 @@ void main() {
     expect(saved.single['stock_total_units'], originalStock);
   });
 
-
-  test('inventory provider isolates every stock screen to the active branch', () async {
+  test('inventory provider isolates every stock screen to the active branch',
+      () async {
     final provider = InventoryAndPurchaseProvider();
     await provider.setBranch(999999);
 
@@ -167,8 +170,8 @@ void main() {
     expect(provider.coldChain, isEmpty);
   });
 
-
-  test('clinical and prescription data are isolated to the active branch', () async {
+  test('clinical and prescription data are isolated to the active branch',
+      () async {
     final provider = ClinicalAndRxProvider();
     await provider.setBranch(999999);
 
@@ -186,13 +189,14 @@ void main() {
       limit: 1,
     );
     if (drugs.isNotEmpty) {
-      final alternatives = await provider.loadAlternatives(drugs.first['id'] as int);
+      final alternatives =
+          await provider.loadAlternatives(drugs.first['id'] as int);
       expect(alternatives, isEmpty);
     }
   });
 
-
-  test('legacy Android SQLite report queries execute without window functions', () async {
+  test('legacy Android SQLite report queries execute without window functions',
+      () async {
     final registry = ReportRegistry();
     const affectedReportNumbers = <int>{4, 7, 12, 28, 33, 36, 44};
     for (final definition in registry.all.where(
@@ -212,7 +216,8 @@ void main() {
             ReportParamKind.warehouse ||
             ReportParamKind.cashier ||
             ReportParamKind.category ||
-            ReportParamKind.number => 1,
+            ReportParamKind.number =>
+              1,
             ReportParamKind.text => 'test',
             ReportParamKind.boolean => true,
             ReportParamKind.orientation => 'portrait',
@@ -232,5 +237,4 @@ void main() {
       expect(result.reportNumber, definition.number);
     }
   });
-
 }

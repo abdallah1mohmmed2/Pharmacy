@@ -2,7 +2,7 @@ import 'package:sqflite/sqflite.dart';
 
 abstract final class SchemaIteration2 {
   static Future<void> upgrade(DatabaseExecutor db) async {
-    final statements=<String>[
+    final statements = <String>[
       """CREATE TABLE IF NOT EXISTS warehouses(id INTEGER PRIMARY KEY AUTOINCREMENT,branch_id INTEGER NOT NULL DEFAULT 1,code TEXT NOT NULL UNIQUE,name_ar TEXT NOT NULL,wh_type TEXT NOT NULL CHECK(wh_type IN('PHARMACY_FLOOR','MAIN_STORE','FRIDGE','CONTROLLED_CABINET','QUARANTINE','DAMAGED')),is_sellable INTEGER NOT NULL DEFAULT 1 CHECK(is_sellable IN(0,1)),created_at TEXT NOT NULL)""",
       """CREATE TABLE IF NOT EXISTS shelf_locations(id INTEGER PRIMARY KEY AUTOINCREMENT,warehouse_id INTEGER NOT NULL,code TEXT NOT NULL,description TEXT,is_fridge INTEGER NOT NULL DEFAULT 0 CHECK(is_fridge IN(0,1)),UNIQUE(warehouse_id,code),FOREIGN KEY(warehouse_id) REFERENCES warehouses(id))""",
       """CREATE TABLE IF NOT EXISTS cold_chain_log(id INTEGER PRIMARY KEY AUTOINCREMENT,warehouse_id INTEGER NOT NULL,reading_at TEXT NOT NULL,temp_c REAL NOT NULL,humidity_pct REAL,is_out_of_range INTEGER NOT NULL,corrective_action TEXT,recorded_by INTEGER,FOREIGN KEY(warehouse_id) REFERENCES warehouses(id))""",
@@ -46,13 +46,18 @@ abstract final class SchemaIteration2 {
       "DROP VIEW IF EXISTS v_fefo_batch_balances",
       """CREATE VIEW v_fefo_batch_balances AS SELECT b.*,d.trade_name_ar,d.units_per_pack,d.sell_price_pack,s.code shelf_code,COALESCE((SELECT SUM(-m.qty_units)/30.0 FROM stock_movements m WHERE m.drug_id=d.id AND m.movement_type='SALE_OUT' AND m.movement_at>=datetime('now','-30 days')),0) average_daily_units FROM batches_fefo b JOIN drugs d ON d.id=b.drug_id LEFT JOIN shelf_locations s ON s.id=b.location_id"""
     ];
-    for(final sql in statements){await db.execute(sql);}
-    final stocktakingColumns = await db.rawQuery('PRAGMA table_info(stocktaking_lines)');
+    for (final sql in statements) {
+      await db.execute(sql);
+    }
+    final stocktakingColumns =
+        await db.rawQuery('PRAGMA table_info(stocktaking_lines)');
     if (!stocktakingColumns.any((column) => column['name'] == 'is_counted')) {
-      await db.execute('ALTER TABLE stocktaking_lines ADD COLUMN is_counted INTEGER NOT NULL DEFAULT 0');
+      await db.execute(
+          'ALTER TABLE stocktaking_lines ADD COLUMN is_counted INTEGER NOT NULL DEFAULT 0');
     }
     await _ensureDefaultLocations(db);
   }
+
   /// Creates empty storage locations only; inventory is entered through real receipts.
   static Future<void> _ensureDefaultLocations(DatabaseExecutor db) async {
     final defaults = <List<Object>>[
@@ -64,23 +69,37 @@ abstract final class SchemaIteration2 {
       ['DAMAGED', 'التالف', 'DAMAGED', 0],
     ];
     for (final item in defaults) {
-      await db.insert('warehouses', {
-        'code': item[0], 'name_ar': item[1], 'wh_type': item[2],
-        'is_sellable': item[3], 'created_at': DateTime.now().toIso8601String(),
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      await db.insert(
+          'warehouses',
+          {
+            'code': item[0],
+            'name_ar': item[1],
+            'wh_type': item[2],
+            'is_sellable': item[3],
+            'created_at': DateTime.now().toIso8601String(),
+          },
+          conflictAlgorithm: ConflictAlgorithm.ignore);
     }
     final warehouses = await db.query('warehouses', columns: ['id', 'code']);
     final ids = {for (final row in warehouses) row['code']: row['id']};
     final shelves = <List<Object>>[
-      ['A-01-01', ids['MAIN']!, 0], ['A-01-02', ids['MAIN']!, 0],
-      ['A-02-01', ids['MAIN']!, 0], ['P-01-01', ids['PHARM']!, 0],
-      ['F-01-01', ids['FRIDGE']!, 1], ['F-01-02', ids['FRIDGE']!, 1],
+      ['A-01-01', ids['MAIN']!, 0],
+      ['A-01-02', ids['MAIN']!, 0],
+      ['A-02-01', ids['MAIN']!, 0],
+      ['P-01-01', ids['PHARM']!, 0],
+      ['F-01-01', ids['FRIDGE']!, 1],
+      ['F-01-02', ids['FRIDGE']!, 1],
     ];
     for (final shelf in shelves) {
-      await db.insert('shelf_locations', {
-        'warehouse_id': shelf[1], 'code': shelf[0],
-        'description': 'رف ${shelf[0]}', 'is_fridge': shelf[2],
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      await db.insert(
+          'shelf_locations',
+          {
+            'warehouse_id': shelf[1],
+            'code': shelf[0],
+            'description': 'رف ${shelf[0]}',
+            'is_fridge': shelf[2],
+          },
+          conflictAlgorithm: ConflictAlgorithm.ignore);
     }
   }
 }

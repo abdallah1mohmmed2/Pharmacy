@@ -5,17 +5,19 @@ import '../models_and_contracts.dart';
 
 /// استعلامات التقارير السريرية والرقابية وإغلاق العام R46–R55.
 class ClinicalAndAuditQueries {
-  ClinicalAndAuditQueries({DatabaseHelper? helper}) : _helper = helper ?? DatabaseHelper.instance;
+  ClinicalAndAuditQueries({DatabaseHelper? helper})
+      : _helper = helper ?? DatabaseHelper.instance;
   final DatabaseHelper _helper;
 
-  Future<List<Map<String, Object?>>> _q(String sql, [List<Object?> args = const []]) async =>
+  Future<List<Map<String, Object?>>> _q(String sql,
+          [List<Object?> args = const []]) async =>
       (await _helper.database).rawQuery(sql, args);
 
   String _range(String column) =>
       " AND (? IS NULL OR $column>=?) AND (? IS NULL OR $column<date(?,'+1 day'))";
   List<Object?> _rangeArgs(ReportParams p) {
-    final from=p.stringValue('date_from'),to=p.stringValue('date_to');
-    return [from,from,to,to];
+    final from = p.stringValue('date_from'), to = p.stringValue('date_to');
+    return [from, from, to, to];
   }
 
   Future<List<Map<String, Object?>>> r46(ReportParams p) => _q('''
@@ -47,7 +49,7 @@ class ClinicalAndAuditQueries {
       (SELECT name_ar FROM manufacturers WHERE id=d.manufacturer_id) AS manufacturer,
       (SELECT name_ar FROM drug_categories WHERE id=d.category_id) AS category
     FROM drugs d WHERE d.branch_id=? AND d.id=?
-  ''',[p.branchId,p.intValue('drug_id')??-1]);
+  ''', [p.branchId, p.intValue('drug_id') ?? -1]);
 
   Future<List<Map<String, Object?>>> r47(ReportParams p) => _q('''
     SELECT cdl.recorded_at AS date,i.invoice_no AS invoice_no,
@@ -66,7 +68,7 @@ class ClinicalAndAuditQueries {
     LEFT JOIN users u ON u.id=cdl.pharmacist_user_id
     WHERE d.branch_id=? ${_range('cdl.recorded_at')}
     ORDER BY cdl.recorded_at DESC
-  ''',[p.branchId,..._rangeArgs(p)]);
+  ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r48(ReportParams p) => _q('''
     SELECT a.alert_at AS date,i.invoice_no AS invoice_no,
@@ -80,7 +82,7 @@ class ClinicalAndAuditQueries {
     LEFT JOIN users mu ON mu.id=a.manager_user_id
     WHERE d.branch_id=? AND a.alert_category='INTERACTION'
       ${_range('a.alert_at')} ORDER BY a.alert_at DESC
-  ''',[p.branchId,..._rangeArgs(p)]);
+  ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r49(ReportParams p) => _q('''
     SELECT a.alert_at AS date,i.invoice_no AS invoice_no,pt.full_name AS patient,
@@ -91,7 +93,7 @@ class ClinicalAndAuditQueries {
     LEFT JOIN sales_invoices i ON i.id=a.invoice_id
     WHERE d.branch_id=? AND a.alert_category<>'INTERACTION'
       ${_range('a.alert_at')} ORDER BY a.alert_at DESC
-  ''',[p.branchId,..._rangeArgs(p)]);
+  ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r50(ReportParams p) => _q('''
     SELECT i.invoice_date AS date,i.invoice_no AS invoice_no,
@@ -113,7 +115,7 @@ class ClinicalAndAuditQueries {
     WHERE i.branch_id=? AND d.is_antibiotic=1 AND i.status='COMPLETED'
       ${_range('i.invoice_date')}
     GROUP BY i.id,d.id ORDER BY i.invoice_date DESC
-  ''',[p.branchId,..._rangeArgs(p)]);
+  ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r51(ReportParams p) => _q('''
     SELECT 'FRIDGE_STOCK' AS record_type,w.name_ar AS location,
@@ -133,7 +135,7 @@ class ClinicalAndAuditQueries {
     LEFT JOIN users u ON u.id=c.recorded_by
     WHERE w.branch_id=? ${_range('c.reading_at')}
     ORDER BY record_type,expiry_date,reading_at DESC
-  ''',[p.branchId,p.branchId,..._rangeArgs(p)]);
+  ''', [p.branchId, p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r52(ReportParams p) => _q('''
     SELECT ic.name_ar AS insurance_company,rx.rx_no AS prescription_no,
@@ -149,7 +151,7 @@ class ClinicalAndAuditQueries {
     LEFT JOIN patients pt ON pt.id=rx.patient_id
     WHERE d.branch_id=? ${_range('rx.rx_date')}
     GROUP BY rx.id ORDER BY rx.rx_date DESC
-  ''',[p.branchId,..._rangeArgs(p)]);
+  ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r53(ReportParams p) => _q('''
     SELECT i.invoice_date AS date,i.invoice_no AS invoice_no,
@@ -165,10 +167,10 @@ class ClinicalAndAuditQueries {
     LEFT JOIN users u ON u.id=i.cashier_user_id
     WHERE i.branch_id=? AND si.is_substitute=1
       ${_range('i.invoice_date')} ORDER BY i.invoice_date DESC
-  ''',[p.branchId,..._rangeArgs(p)]);
+  ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r54(ReportParams p) async {
-    final rows=await _q('''
+    final rows = await _q('''
       SELECT a.event_at AS time,u.full_name AS user,a.action AS action,
         a.entity_type AS entity,a.entity_label AS reference,
         a.old_values_json AS old_value,a.new_values_json AS new_value,
@@ -177,18 +179,20 @@ class ClinicalAndAuditQueries {
       FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id
       WHERE a.branch_id=? ${_range('a.event_at')}
       ORDER BY a.event_at DESC,a.id DESC
-    ''',[p.branchId,..._rangeArgs(p)]);
-    final integrity=await AuditService(helper:_helper).verifyChainIntegrity();
-    for(final row in rows){
-      row['chain_integrity']=integrity.isValid?'سليم':'فشل التحقق';
-      row['chain_checked_rows']=integrity.checkedRows;
-      row['first_invalid_id']=integrity.firstInvalidId;
+    ''', [p.branchId, ..._rangeArgs(p)]);
+    final integrity =
+        await AuditService(helper: _helper).verifyChainIntegrity();
+    for (final row in rows) {
+      row['chain_integrity'] = integrity.isValid ? 'سليم' : 'فشل التحقق';
+      row['chain_checked_rows'] = integrity.checkedRows;
+      row['first_invalid_id'] = integrity.firstInvalidId;
     }
     return rows;
   }
 
   Future<List<Map<String, Object?>>> r55(ReportParams p) async {
-    final year = int.tryParse(p.stringValue('year') ?? '') ?? DateTime.now().year;
+    final year =
+        int.tryParse(p.stringValue('year') ?? '') ?? DateTime.now().year;
     final yearText = year.toString();
     final rows = <Map<String, Object?>>[];
 
@@ -281,12 +285,16 @@ class ClinicalAndAuditQueries {
       WHERE d.branch_id=? AND substr(d.period_code,1,4)=?
     ''', [p.branchId, yearText]);
     add('2. المركز المالي الختامي — الأصول', 'النقد والمحافظ', cash);
-    add('2. المركز المالي الختامي — الأصول', 'المتبقي على العملاء', customerBalance);
+    add('2. المركز المالي الختامي — الأصول', 'المتبقي على العملاء',
+        customerBalance);
     add('2. المركز المالي الختامي — الأصول', 'المخزون بالتكلفة', inventory);
-    add('2. المركز المالي الختامي — الالتزامات', 'المتبقي للموردين', supplierBalance);
-    add('2. المركز المالي الختامي — الالتزامات', 'صافي حسابات الموظفين', employeeBalance);
+    add('2. المركز المالي الختامي — الالتزامات', 'المتبقي للموردين',
+        supplierBalance);
+    add('2. المركز المالي الختامي — الالتزامات', 'صافي حسابات الموظفين',
+        employeeBalance);
     add('2. المركز المالي الختامي — حقوق الملاك', 'رأس المال', capital);
-    add('2. المركز المالي الختامي — حقوق الملاك', 'مسحوبات الشركاء', withdrawals);
+    add('2. المركز المالي الختامي — حقوق الملاك', 'مسحوبات الشركاء',
+        withdrawals);
     add('2. المركز المالي الختامي — حقوق الملاك', 'صافي ربح السنة', netProfit);
 
     // 3) ملخص الجرد السنوي وفروقاته.
@@ -331,8 +339,10 @@ class ClinicalAndAuditQueries {
       "SELECT COALESCE(SUM(b.total_units*b.unit_cost),0) FROM batches_fefo b JOIN drugs d ON d.id=b.drug_id WHERE d.branch_id=? AND b.total_units>0 AND date(b.expiry_date)<date('$yearText-12-31')",
       [p.branchId],
     );
-    add('5. التوالف والمنتهي', 'قيمة التوالف المعتمدة خلال السنة', disposalLoss);
-    add('5. التوالف والمنتهي', 'قيمة أرصدة التشغيلات المنتهية حتى نهاية السنة', expiredLoss);
+    add('5. التوالف والمنتهي', 'قيمة التوالف المعتمدة خلال السنة',
+        disposalLoss);
+    add('5. التوالف والمنتهي', 'قيمة أرصدة التشغيلات المنتهية حتى نهاية السنة',
+        expiredLoss);
 
     // 6) ملخص توزيعات أرباح الشركاء.
     final distributions = await scalar('''
@@ -344,8 +354,6 @@ class ClinicalAndAuditQueries {
     add('6. توزيعات أرباح الشركاء', 'إجمالي المسحوبات الشخصية', withdrawals);
     return rows;
   }
-
-
 
   double _n(Object? value) =>
       value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
