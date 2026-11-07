@@ -62,7 +62,7 @@ class _S28SystemSettingsBackupScreenState extends State<S28SystemSettingsBackupS
  Widget _rolesTab(SettingsAndSystemProvider p)=>ListView(padding:const EdgeInsets.all(12),children:[
   const Text('مصفوفة صلاحيات الأدوار السبعة',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
   for(final role in ['OWNER','MANAGER','PHARMACIST','CASHIER','STOREKEEPER','ACCOUNTANT','AUDITOR'])ExpansionTile(title:Text(_roleName(role)),children:[
-   for(final row in p.roleRows.where((r)=>r['role_code']==role))SwitchListTile(dense:true,title:Text(row['permission_code'].toString()),value:(row['is_allowed'] as num)==1,onChanged:role=='OWNER'?null:(v)=>p.setRolePermission(role,row['permission_code'] as String,v)),
+   for(final row in p.roleRows.where((r)=>r['role_code']==role))SwitchListTile(dense:true,title:Text(row['permission_code'].toString()),value:(row['is_allowed'] as num)==1,onChanged:role=='OWNER'?null:(v)=>p.setRolePermission(role,row['permission_code'] as String,v,actorRole:context.read<SessionAndErpProvider>().currentUser?['role_code'] as String? ?? '')),
   ]),
   const Divider(),const Text('إدارة المستخدمين وحسابات الدخول',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
   FilledButton.icon(onPressed:_createUser,icon:const Icon(Icons.person_add),label:const Text('إضافة مستخدم')),
@@ -84,7 +84,7 @@ class _S28SystemSettingsBackupScreenState extends State<S28SystemSettingsBackupS
   final session=context.read<SessionAndErpProvider>();final pin=await _managerPin();
   if(pin==null||!await session.verifyManagerPin(pin))return;
   session.consumeVerifiedManagerUserId();
-  try{await context.read<SettingsAndSystemProvider>().createUser(username:values['username']!,fullName:values['name']!,password:values['password']!,roleCode:values['role']!,branchId:session.branchId,actorUserId:session.currentUser?['id'] as int? ?? 0);if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم إنشاء المستخدم')));}
+  try{await context.read<SettingsAndSystemProvider>().createUser(username:values['username']!,fullName:values['name']!,password:values['password']!,roleCode:values['role']!,branchId:session.branchId,actorUserId:session.currentUser?['id'] as int? ?? 0,actorRole:session.currentUser?['role_code'] as String? ?? '');if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم إنشاء المستخدم')));}
   catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   name.dispose();username.dispose();password.dispose();
  }
@@ -94,7 +94,7 @@ class _S28SystemSettingsBackupScreenState extends State<S28SystemSettingsBackupS
   if(selected==null)return;
   final session=context.read<SessionAndErpProvider>();final pin=await _managerPin();if(pin==null||!await session.verifyManagerPin(pin))return;
   session.consumeVerifiedManagerUserId();
-  try{await context.read<SettingsAndSystemProvider>().updateUserRole(targetUserId:user['id'] as int,roleCode:selected,actorUserId:session.currentUser?['id'] as int? ?? 0);}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  try{await context.read<SettingsAndSystemProvider>().updateUserRole(targetUserId:user['id'] as int,roleCode:selected,actorUserId:session.currentUser?['id'] as int? ?? 0,actorRole:session.currentUser?['role_code'] as String? ?? '');}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
  }
  Future<void> _editUserSecurity(Map<String,Object?> user) async {
   final password=TextEditingController(),pinController=TextEditingController();
@@ -105,7 +105,7 @@ class _S28SystemSettingsBackupScreenState extends State<S28SystemSettingsBackupS
   if(values==null)return;
   final session=context.read<SessionAndErpProvider>();final verified=await _managerPin();if(verified==null||!await session.verifyManagerPin(verified))return;
   session.consumeVerifiedManagerUserId();
-  try{await context.read<SettingsAndSystemProvider>().updateUserSecurity(targetUserId:user['id'] as int,actorUserId:session.currentUser?['id'] as int? ?? 0,newPassword:values['password'],newManagerPin:values['pin']);if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم تحديث بيانات الدخول')));}
+  try{await context.read<SettingsAndSystemProvider>().updateUserSecurity(targetUserId:user['id'] as int,actorUserId:session.currentUser?['id'] as int? ?? 0,actorRole:session.currentUser?['role_code'] as String? ?? '',newPassword:values['password'],newManagerPin:values['pin']);if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم تحديث بيانات الدخول')));}
   catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   password.dispose();pinController.dispose();
  }
