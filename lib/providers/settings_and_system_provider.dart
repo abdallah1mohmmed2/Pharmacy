@@ -10,9 +10,9 @@ import '../data/services/backup_and_sync_service.dart';
 import '../data/services/security_hash_service.dart';
 
 class SettingsAndSystemProvider extends ChangeNotifier {
- SettingsAndSystemProvider({required Future<bool> Function(String) verifyManagerPin,DatabaseHelper? helper})
+ SettingsAndSystemProvider({required Future<bool> Function(String) verifyManagerPin,required Future<bool> Function(String) verifyOwnerPin,DatabaseHelper? helper})
   :_helper=helper??DatabaseHelper.instance,
-   settings=SettingsService(helper:helper,verifyManagerPin:verifyManagerPin),
+   settings=SettingsService(helper:helper,verifyManagerPin:verifyManagerPin,verifyOwnerPin:verifyOwnerPin),
    importer=DrugImportExportService(helper:helper),
    backup=BackupAndSyncService(helper:helper),
    audit=AuditService(helper:helper),
