@@ -12,6 +12,7 @@ import '../../providers/inventory_and_purchase_provider.dart';
 import '../../providers/clinical_and_rx_provider.dart';
 import '../../providers/treasury_hr_partner_provider.dart';
 import '../../data/database/database_helper.dart';
+import '../../core/widgets/manager_pin_dialog.dart';
 
 class S28SystemSettingsBackupScreen extends StatefulWidget {
  const S28SystemSettingsBackupScreen({super.key});
@@ -21,11 +22,7 @@ class _S28SystemSettingsBackupScreenState extends State<S28SystemSettingsBackupS
  static const titles=['الهوية العامة','البيع والتسعير','الحماية السريرية','المخزون والصلاحية','المحاسبة والشركاء','الطباعة والورق','المستخدمون والصلاحيات','النسخ والاستعادة','المزامنة السحابية','سجل الرقابة الأمني','إغلاق الفترات المالية'];
  static const groups=[SettingGroup.general,SettingGroup.sales,SettingGroup.clinical,SettingGroup.inventory,SettingGroup.accounting,SettingGroup.printBackup];
  String? auditUserFilter,auditActionFilter,auditSeverityFilter;
- Future<String?> _managerPin({String title='تأكيد صلاحية المدير'}) async {
-  final controller=TextEditingController();
-  final result=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(title:Text(title),content:TextField(controller:controller,obscureText:true,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'رمز المدير')),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,controller.text),child:const Text('تأكيد'))]));
-  controller.dispose();return result;
- }
+ Future<String?> _managerPin({String title='تأكيد صلاحية المدير'})=>ManagerPinDialog.show(context,title:title);
  Future<void> _change(SettingSpec spec,Object value) async {
   final p=context.read<SettingsAndSystemProvider>();final session=context.read<SessionAndErpProvider>();
   String? pin;if(spec.requiresManager){pin=await _managerPin(title:spec.key==SettingKey.partnerDistributionMode?'تأكيد صلاحية المالك':'تأكيد صلاحية المدير');if(pin==null||pin.isEmpty)return;}
