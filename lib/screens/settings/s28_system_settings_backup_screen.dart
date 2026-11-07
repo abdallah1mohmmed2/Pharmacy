@@ -16,6 +16,7 @@ class S28SystemSettingsBackupScreen extends StatefulWidget {
 class _S28SystemSettingsBackupScreenState extends State<S28SystemSettingsBackupScreen> {
  static const titles=['الهوية العامة','البيع والتسعير','الحماية السريرية','المخزون والصلاحية','المحاسبة والشركاء','الطباعة والورق','المستخدمون والصلاحيات','النسخ والاستعادة','المزامنة السحابية','سجل الرقابة الأمني','إغلاق الفترات المالية'];
  static const groups=[SettingGroup.general,SettingGroup.sales,SettingGroup.clinical,SettingGroup.inventory,SettingGroup.accounting,SettingGroup.printBackup];
+ String? auditUserFilter,auditActionFilter,auditSeverityFilter;
  Future<String?> _managerPin() async {
   final controller=TextEditingController();
   return showDialog<String>(context:context,builder:(ctx)=>AlertDialog(title:const Text('تأكيد صلاحية المدير'),content:TextField(controller:controller,obscureText:true,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'رمز المدير')),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,controller.text),child:const Text('تأكيد'))]));
@@ -37,6 +38,7 @@ class _S28SystemSettingsBackupScreenState extends State<S28SystemSettingsBackupS
   final specs=SettingKeys.all.where((s)=>s.group==group&&(group!=SettingGroup.printBackup||s.number<=33)).toList();
   return ListView(padding:const EdgeInsets.all(12),children:[
    for(final spec in specs)_settingTile(spec,p),
+   if(group==SettingGroup.general)Card(child:ListTile(leading:const Icon(Icons.preview),title:const Text('معاينة الترويسة والتذييل'),subtitle:Text('الترويسة: ${p.settings.getJson(SettingKey.reportHeaderFooter)['header']??''}\nالتذييل: ${p.settings.getJson(SettingKey.reportHeaderFooter)['footer']??''}'),isThreeLine:true)),
    if(group==SettingGroup.accounting)const Card(child:ListTile(leading:Icon(Icons.lock,color:Colors.green),title:Text('مصطلحات «له وعليه» مقفولة دائماً'),subtitle:Text('لا يمكن تعطيل هذا القيد من أي دور.'))),
    if(group==SettingGroup.printBackup)Card(child:ListTile(title:const Text('طباعة تجريبية'),subtitle:const Text('اختبر إعدادات الورق الحالية'),trailing:IconButton(onPressed:()=>ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('إرسال صفحة اختبار للطباعة يتطلب اختيار طابعة من نافذة الطباعة.'))),icon:const Icon(Icons.print)))),
   ]);
@@ -119,11 +121,23 @@ class _S28SystemSettingsBackupScreenState extends State<S28SystemSettingsBackupS
   Wrap(spacing:8,children:[OutlinedButton.icon(onPressed:()async{final ok=await p.testCloudConnection();if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(ok?'الاتصال بالخادم ناجح':'تعذر الاتصال بالخادم')));},icon:const Icon(Icons.wifi),label:const Text('اختبار الاتصال')),FilledButton.icon(onPressed:()=>p.syncNow(),icon:const Icon(Icons.sync),label:const Text('مزامنة الآن'))]),
   const SizedBox(height:12),const Text('حالة طابور المزامنة',style:TextStyle(fontWeight:FontWeight.bold)),for(final row in p.syncSummary)ListTile(title:Text(row['status'].toString()),trailing:Text(row['count'].toString())),
  ]);
- Widget _auditTab(SettingsAndSystemProvider p)=>ListView(padding:const EdgeInsets.all(12),children:[
-  FilledButton.icon(onPressed:()async{final r=await p.verifyAuditChain();if(mounted)showDialog(context:context,builder:(ctx)=>AlertDialog(title:Text(r.isValid?'السلسلة سليمة':'تم اكتشاف اختلاف'),content:Text('السجلات المفحوصة: ${r.checkedRows}\nأول سجل غير سليم: ${r.firstInvalidId??'لا يوجد'}\nالبصمة المتوقعة: ${r.expectedHash??'-'}\nالبصمة الفعلية: ${r.actualHash??'-'}'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إغلاق'))]));},icon:const Icon(Icons.verified),label:const Text('فحص سلامة سلسلة SHA-256')),
-  if(p.chainResult!=null)Card(child:ListTile(leading:Icon(p.chainResult!.isValid?Icons.check_circle:Icons.error,color:p.chainResult!.isValid?Colors.green:Colors.red),title:Text(p.chainResult!.isValid?'السلسلة سليمة 100%':'السلسلة تحتاج مراجعة'),subtitle:Text('تم فحص ${p.chainResult!.checkedRows} سجلاً'))),
-  for(final row in p.auditLogs)Card(child:ExpansionTile(title:Text('${row.action} • ${row.entityLabel??row.entityType??''}'),subtitle:Text('${row.eventAt} • ${row.severity} • المستخدم ${row.userId??'-'}'),children:[if(row.oldValuesJson!=null)ListTile(title:const Text('القيم القديمة'),subtitle:SelectableText(row.oldValuesJson!)),if(row.newValuesJson!=null)ListTile(title:const Text('القيم الجديدة'),subtitle:SelectableText(row.newValuesJson!)),if(row.reason!=null)ListTile(title:const Text('السبب'),subtitle:Text(row.reason!)),ListTile(title:const Text('SHA-256'),subtitle:SelectableText(row.rowHash??''))])),
- ]);
+ Widget _auditTab(SettingsAndSystemProvider p){
+  final users=p.auditLogs.map((e)=>e.userId?.toString()??'').where((e)=>e.isNotEmpty).toSet().toList()..sort();
+  final actions=p.auditLogs.map((e)=>e.action).toSet().toList()..sort();
+  final severities=p.auditLogs.map((e)=>e.severity).toSet().toList()..sort();
+  final filtered=p.auditLogs.where((e)=>(auditUserFilter==null||e.userId?.toString()==auditUserFilter)&&(auditActionFilter==null||e.action==auditActionFilter)&&(auditSeverityFilter==null||e.severity==auditSeverityFilter)).toList();
+  return ListView(padding:const EdgeInsets.all(12),children:[
+   Wrap(spacing:8,runSpacing:8,children:[
+    SizedBox(width:150,child:DropdownButtonFormField<String?>(value:auditUserFilter,decoration:const InputDecoration(labelText:'المستخدم'),items:[const DropdownMenuItem<String?>(value:null,child:Text('كل المستخدمين')),...users.map((v)=>DropdownMenuItem<String?>(value:v,child:Text(v)))],onChanged:(v)=>setState(()=>auditUserFilter=v))),
+    SizedBox(width:170,child:DropdownButtonFormField<String?>(value:auditActionFilter,decoration:const InputDecoration(labelText:'نوع الحدث'),items:[const DropdownMenuItem<String?>(value:null,child:Text('كل الأحداث')),...actions.map((v)=>DropdownMenuItem<String?>(value:v,child:Text(v)))],onChanged:(v)=>setState(()=>auditActionFilter=v))),
+    SizedBox(width:150,child:DropdownButtonFormField<String?>(value:auditSeverityFilter,decoration:const InputDecoration(labelText:'الخطورة'),items:[const DropdownMenuItem<String?>(value:null,child:Text('كل المستويات')),...severities.map((v)=>DropdownMenuItem<String?>(value:v,child:Text(v)))],onChanged:(v)=>setState(()=>auditSeverityFilter=v))),
+   ]),
+   const SizedBox(height:8),
+   FilledButton.icon(onPressed:()async{final r=await p.verifyAuditChain();if(mounted)showDialog(context:context,builder:(ctx)=>AlertDialog(title:Text(r.isValid?'السلسلة سليمة':'تم اكتشاف اختلاف'),content:Text('السجلات المفحوصة: ${r.checkedRows}\nأول سجل غير سليم: ${r.firstInvalidId??'لا يوجد'}\nالبصمة المتوقعة: ${r.expectedHash??'-'}\nالبصمة الفعلية: ${r.actualHash??'-'}'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إغلاق'))]));},icon:const Icon(Icons.verified),label:const Text('فحص سلامة سلسلة SHA-256')),
+   if(p.chainResult!=null)Card(child:ListTile(leading:Icon(p.chainResult!.isValid?Icons.check_circle:Icons.error,color:p.chainResult!.isValid?Colors.green:Colors.red),title:Text(p.chainResult!.isValid?'السلسلة سليمة 100%':'السلسلة تحتاج مراجعة'),subtitle:Text('تم فحص ${p.chainResult!.checkedRows} سجلاً'))),
+   for(final row in filtered)Card(child:ExpansionTile(title:Text('${row.action} • ${row.entityLabel??row.entityType??''}'),subtitle:Text('${row.eventAt} • ${row.severity} • المستخدم ${row.userId??'-'}'),children:[if(row.oldValuesJson!=null)ListTile(title:const Text('القيم القديمة'),subtitle:SelectableText(row.oldValuesJson!)),if(row.newValuesJson!=null)ListTile(title:const Text('القيم الجديدة'),subtitle:SelectableText(row.newValuesJson!)),if(row.reason!=null)ListTile(title:const Text('السبب'),subtitle:Text(row.reason!)),ListTile(title:const Text('SHA-256'),subtitle:SelectableText(row.rowHash??''))])),
+  ]);
+ }
  Widget _periodTab(SettingsAndSystemProvider p)=>ListView(padding:const EdgeInsets.all(12),children:[
   FilledButton.icon(onPressed:()=>_createCurrentPeriod(),icon:const Icon(Icons.add),label:const Text('إنشاء فترة الشهر والسنة الحالية')),
   for(final row in p.periodRows)Card(child:ListTile(title:Text('${row['period_code']} • ${row['period_type']}'),subtitle:Text('${row['start_date']} إلى ${row['end_date']} • ${row['status']}'),trailing:row['status']=='OPEN'?IconButton(icon:const Icon(Icons.lock),onPressed:()=>_closePeriod(p,row['period_code'] as String)):const Icon(Icons.lock_outline))),
