@@ -1,4 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -42,12 +46,29 @@ CatalogDrugSummary _drug({
       'catalog_uuid': uuid,
       'catalog_version': version,
       'trade_name_ar': name,
+      'trade_name_en': 'Amoxicillin',
       'scientific_name': 'Amoxicillin',
+      'active_ingredient': 'Amoxicillin',
       'active_ingredient_name': 'Amoxicillin',
       'barcode_international': barcode,
       'source_name': 'Verified source',
       'review_status': 'REVIEWED',
     });
+
+Map<String, dynamic> _envelope({
+  required List<Map<String, dynamic>> items,
+  String? cursor,
+  int version = 20261108,
+  String etag = 'W/"cat-v20261108-p1"',
+}) =>
+    {
+      'ok': true,
+      'catalog_version': version,
+      'etag': etag,
+      'count': items.length,
+      'next_cursor': cursor,
+      'items': items,
+    };
 
 Future<Database> _database() async {
   final db = await databaseFactoryFfi.openDatabase(inMemoryDatabasePath);
@@ -62,6 +83,113 @@ void main() {
   setUpAll(() {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
+  });
+
+  group('CentralCatalogApi endpoints', () {
+    test('keeps the standard /v1/catalog/search contract and metadata', () async {
+      Uri? requested;
+      final client = MockClient((request) async {
+        requested = request.url;
+        return http.Response(
+          jsonEncode(_envelope(items: [_drug().toJson()])),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final api = CentralCatalogApi(
+        baseUri: Uri.parse('https://catalog.test'),
+        client: client,
+      );
+
+      final page = await api.search(query: 'amoxicillin', limit: 100);
+
+      expect(requested!.path, '/v1/catalog/search');
+      expect(requested!.queryParameters['q'], 'amoxicillin');
+      expect(requested!.queryParameters['limit'], '30');
+      expect(page.items, hasLength(1));
+      expect(page.etag, 'W/"cat-v20261108-p1"');
+      expect(page.catalogVersion, 20261108);
+      client.close();
+    });
+
+    test('falls back to the exact Firebase barcode shard after dynamic 404', () async {
+      final requestedPaths = <String>[];
+      final client = MockClient((request) async {
+        requestedPaths.add(request.url.path);
+        if (request.url.path == '/v1/catalog/search') {
+          return http.Response('not found', 404);
+        }
+        return http.Response(
+          jsonEncode(_envelope(items: [_drug().toJson()])),
+          200,
+          headers: {'etag': '"static-etag"'},
+        );
+      });
+      final api = CentralCatalogApi(
+        baseUri: Uri.parse('https://catalog.test'),
+        client: client,
+      );
+
+      final page = await api.search(query: '6281000000001');
+
+      expect(requestedPaths, [
+        '/v1/catalog/search',
+        '/v1/catalog/barcodes/6281000000001.json',
+      ]);
+      expect(page.items.single.barcodeInternational, '6281000000001');
+      expect(page.etag, 'W/"cat-v20261108-p1"');
+      client.close();
+    });
+
+    test('loads prefix and cursor shards, then filters longer text locally', () async {
+      final requestedPaths = <String>[];
+      final client = MockClient((request) async {
+        requestedPaths.add(request.url.path);
+        if (request.url.path == '/v1/catalog/search') {
+          return http.Response('not found', 404);
+        }
+        if (request.url.path.endsWith('/am.json')) {
+          return http.Response(
+            jsonEncode(_envelope(
+              items: [
+                _drug(uuid: 'amox-1', name: 'Amoxicillin 500 mg').toJson(),
+                _drug(uuid: 'amox-2', name: 'Amoxicillin Clavulanate').toJson(),
+              ],
+              cursor: 'am_p2',
+            )),
+            200,
+          );
+        }
+        return http.Response(
+          jsonEncode(_envelope(
+            items: [_drug(uuid: 'amox-3', name: 'Amoxicillin 1g').toJson()],
+          )),
+          200,
+        );
+      });
+      final api = CentralCatalogApi(
+        baseUri: Uri.parse('https://catalog.test'),
+        client: client,
+      );
+
+      final first = await api.search(query: 'amoxicillin clavulanate');
+      final second = await api.search(
+        query: 'amoxicillin clavulanate',
+        cursor: first.nextCursor,
+      );
+
+      expect(requestedPaths, [
+        '/v1/catalog/search',
+        '/v1/catalog/search/am.json',
+        '/v1/catalog/search',
+        '/v1/catalog/search/am_p2.json',
+      ]);
+      expect(first.items, hasLength(1));
+      expect(first.items.single.catalogUuid, 'amox-2');
+      expect(first.nextCursor, 'am_p2');
+      expect(second.items, isEmpty);
+      client.close();
+    });
   });
 
   test('remote search is paginated and remote results are cached', () async {
@@ -90,6 +218,84 @@ void main() {
       expect(remote.lastLimit, 30);
       expect(remote.lastCursor, 'cursor-1');
       expect(await repository.getCachedDrug('drug-1'), isNotNull);
+    } finally {
+      await db.close();
+    }
+  });
+
+  test('successful sync stores etag and catalog version', () async {
+    final db = await _database();
+    try {
+      final remote = _FakeCatalogApi(const CatalogSearchPage(
+        items: [],
+        source: CatalogSearchSource.remote,
+        etag: '"etag-v8"',
+        catalogVersion: 8,
+      ));
+      final repository = CatalogSearchRepository(
+        database: db,
+        remote: remote,
+        preferFts5: false,
+      );
+      await repository.search(query: 'amoxicillin');
+      final state = (await db.query(
+        'catalog_sync_state',
+        where: 'scope_key = ?',
+        whereArgs: ['central_catalog'],
+      )).single;
+      expect(state['last_catalog_version'], 8);
+      expect(state['etag'], '"etag-v8"');
+      expect(state['last_success_at'], isNotNull);
+    } finally {
+      await db.close();
+    }
+  });
+
+  test('older catalogue response cannot roll back cache or sync version', () async {
+    final db = await _database();
+    try {
+      final repository = CatalogSearchRepository(
+        database: db,
+        preferFts5: false,
+      );
+      await repository.cacheItems([
+        _drug(version: 9, name: 'أموكسيسيلين إصدار أحدث'),
+      ]);
+      final newerApi = _FakeCatalogApi(const CatalogSearchPage(
+        items: [],
+        source: CatalogSearchSource.remote,
+        etag: '"etag-v9"',
+        catalogVersion: 9,
+      ));
+      final newerRepository = CatalogSearchRepository(
+        database: db,
+        remote: newerApi,
+        preferFts5: false,
+      );
+      await newerRepository.search(query: 'amoxicillin');
+      final olderApi = _FakeCatalogApi(CatalogSearchPage(
+        items: [_drug(version: 4, name: 'اسم قديم')],
+        source: CatalogSearchSource.remote,
+        etag: '"etag-v4"',
+        catalogVersion: 4,
+      ));
+      final olderRepository = CatalogSearchRepository(
+        database: db,
+        remote: olderApi,
+        preferFts5: false,
+      );
+      await olderRepository.search(query: 'amoxicillin');
+
+      final cached = await olderRepository.getCachedDrug('drug-1');
+      final sync = (await db.query(
+        'catalog_sync_state',
+        where: 'scope_key = ?',
+        whereArgs: ['central_catalog'],
+      )).single;
+      expect(cached!.catalogVersion, 9);
+      expect(cached.tradeNameAr, 'أموكسيسيلين إصدار أحدث');
+      expect(sync['last_catalog_version'], 9);
+      expect(sync['etag'], '"etag-v9"');
     } finally {
       await db.close();
     }
