@@ -125,7 +125,7 @@ class _S11InventoryBatchesShelvesScreenState extends State<S11InventoryBatchesSh
     final batches=p.batches.where((batch)=>_matchesExpiry(batch)&&(query.isEmpty||
       batch.drugName.toLowerCase().contains(query)||
       batch.batchNo.toLowerCase().contains(query)||
-      batch.shelfCode.toLowerCase().contains(query)).toList();
+      batch.shelfCode.toLowerCase().contains(query))).toList();
     if(batches.isEmpty)return const Center(child:Text('لا توجد تشغيلات مطابقة للبحث.'));
     return ListView.builder(
       keyboardDismissBehavior:ScrollViewKeyboardDismissBehavior.onDrag,
