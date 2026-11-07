@@ -87,7 +87,7 @@ class SettingsAndSystemProvider extends ChangeNotifier {
   final tables=await _helper.rawQuery("SELECT name FROM sqlite_master WHERE type='table'");
   for(final row in tables){
    final name=row['name'] as String;
-   if(!RegExp(r'(shift|stocktake|stock_taking)',caseSensitive:false).hasMatch(name))continue;
+   if(!RegExp(r'(shift|stocktak|stock_taking)',caseSensitive:false).hasMatch(name))continue;
    final columns=await _helper.rawQuery('PRAGMA table_info('+name+')');
    final names=columns.map((e)=>e['name'] as String).toSet();
    final statusColumn=names.contains('status')?'status':names.contains('state')?'state':null;
