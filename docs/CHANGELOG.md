@@ -244,3 +244,10 @@
 - السبب أن الفرع لا يحتوي ملفات المنصتين؛ أمر `flutter config --enable-windows-desktop` يفعّل الدعم في بيئة Flutter فقط ولا ينشئ ملفات المشروع.
 - تحديث Workflow إعادة تصميم الواجهات لتوليد ملفات منصة Android عبر `flutter create --platforms=android .` وملفات Windows عبر `flutter create --platforms=windows .` قبل حل الاعتماديات والبناء، دون تعديل شيفرة Dart أو قاعدة البيانات.
 - التحقق النهائي ما زال معلقاً حتى يكتمل تشغيل GitHub Actions الجديد وتنجح اختبارات التحليل والاختبارات وبناء APK وWindows ورفع الـ artifacts.
+
+
+## متابعة إصلاح بوابات CI — 2026-11-07
+- نجح Workflow واجهات المستخدم في Windows: التحليل وبناء Release والتغليف ورفع Artifact باسم `pharmacy-ui-ux-windows`.
+- نجح في Android كل من إنشاء ملفات المنصة، التنسيق، التحليل والاختبارات؛ أُلغي APK في محاولة سابقة بسبب وصول push أحدث أثناء التنفيذ، وأعيد تشغيل التحقق على أحدث commit.
+- كشف Workflow العام `Pharmacy Flutter CI` أن خطوة تطبيع compile SDK كانت تفشل بسبب اشتراط العثور على declarations محددة داخل وحدات `file_picker` و`flutter_plugin_android_lifecycle`، رغم ضبط compile SDK للتطبيق إلى 36. أزيل شرط الوجود الصارم وأصبحت الخطوة تطبّق التعديل عند وجود declaration صريح وتتجاوز الوحدات التي لا تحتاجه.
+- لا تزال النتيجة النهائية مشروطة بنجاح أحدث تشغيل Android APK والـ CI العام وظهور Artifacts المطلوبة.
