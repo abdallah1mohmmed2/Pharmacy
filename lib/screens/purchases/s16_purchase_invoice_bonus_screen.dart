@@ -96,6 +96,26 @@ class _S16PurchaseInvoiceBonusScreenState
       child: ListView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         children: [
+          const Card(
+            color: Color(0x2239A9A0),
+            child: Padding(
+              padding: EdgeInsets.all(12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'تنبيه: قبل ترحيل الشراء اختر المورد والمستودع وأضف بنداً واحداً على الأقل. '
+                      'ولكل بند أدخل الدواء ورقم التشغيلة وتاريخ صلاحية مستقبلي والكمية المدفوعة وسعر التكلفة. '
+                      'الرف مطلوب للأدوية المبردة، أما رقم فاتورة المورد وسعر البيع المقترح فاختياريان.',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           const Text(
             'فواتير المشتريات والبونص',
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
@@ -110,7 +130,7 @@ class _S16PurchaseInvoiceBonusScreenState
           ),
           DropdownButtonFormField<int>(
             value: supplier,
-            decoration: const InputDecoration(labelText: 'المورد'),
+            decoration: const InputDecoration(labelText: 'المورد *'),
             items: suppliers
                 .map((party) => DropdownMenuItem(
                       value: party.id,
@@ -126,7 +146,7 @@ class _S16PurchaseInvoiceBonusScreenState
             ),
           DropdownButtonFormField<int>(
             value: warehouse,
-            decoration: const InputDecoration(labelText: 'المستودع'),
+            decoration: const InputDecoration(labelText: 'المستودع *'),
             items: inventory.warehouses
                 .map((item) => DropdownMenuItem(
                       value: item.id,
@@ -298,7 +318,7 @@ class _S16PurchaseInvoiceBonusScreenState
                 DropdownButtonFormField<int>(
                   value: drug,
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'الدواء'),
+                  decoration: const InputDecoration(labelText: 'الدواء *'),
                   items: pos.drugs.map((item) => DropdownMenuItem(
                     value: item.id, child: Text(item.tradeNameAr),
                   )).toList(),
@@ -309,13 +329,13 @@ class _S16PurchaseInvoiceBonusScreenState
                 ),
                 const SizedBox(height: 8),
                 TextField(controller: batchNo,
-                  decoration: const InputDecoration(labelText: 'رقم التشغيلة')),
+                  decoration: const InputDecoration(labelText: 'رقم التشغيلة *')),
                 const SizedBox(height: 8),
                 TextField(
                   controller: expiry,
                   keyboardType: TextInputType.datetime,
                   decoration: const InputDecoration(
-                    labelText: 'الصلاحية YYYY-MM-DD',
+                    labelText: 'الصلاحية * YYYY-MM-DD',
                     hintText: '2027-12-31',
                   ),
                 ),
@@ -339,7 +359,7 @@ class _S16PurchaseInvoiceBonusScreenState
                     Expanded(child: TextField(
                       controller: paidPacks,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'باكتات مدفوعة'),
+                      decoration: const InputDecoration(labelText: 'باكتات مدفوعة *'),
                       onChanged: (_) => refreshSheet(() {}),
                     )),
                     const SizedBox(width: 8),
@@ -357,7 +377,7 @@ class _S16PurchaseInvoiceBonusScreenState
                     Expanded(child: TextField(
                       controller: price,
                       keyboardType: const TextInputType.numberWithOptions(decimal:true),
-                      decoration: const InputDecoration(labelText: 'سعر الباكت'),
+                      decoration: const InputDecoration(labelText: 'سعر الباكت *'),
                       onChanged: (_) => refreshSheet(() {}),
                     )),
                     const SizedBox(width: 8),

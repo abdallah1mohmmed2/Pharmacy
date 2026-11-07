@@ -117,6 +117,14 @@ abstract final class SchemaIteration6 {
    }
   }
  }
+ static Future<void> reinstallPeriodTriggers(DatabaseExecutor db) async {
+  await _installPeriodTriggers(db);
+  await _installRelatedPeriodTriggers(db);
+  await _installDistributionPeriodTriggers(db);
+ }
+
+ static String _lockedThroughSql() =>
+  "(SELECT CASE WHEN instr(setting_value, '\"locked_through\"')>0 THEN NULLIF(trim(substr(setting_value,instr(setting_value,'\"locked_through\"')+16),' :\" ,}'),'null') END FROM system_settings WHERE setting_no=29)";
  static Future<void> _ensureColumn(DatabaseExecutor db,String table,String column,String declaration) async {
   final columns=await db.rawQuery('PRAGMA table_info('+table+')');
   if(!columns.any((row)=>row['name']==column))await db.execute('ALTER TABLE '+table+' ADD COLUMN '+column+' '+declaration);
@@ -154,7 +162,8 @@ abstract final class SchemaIteration6 {
   for(final event in ['INSERT','UPDATE']){
    final trigger='trg_period_partner_distributions_'+event.toLowerCase();
    await db.execute('DROP TRIGGER IF EXISTS '+trigger);
-   final sql="CREATE TRIGGER "+trigger+" BEFORE "+event+" ON partner_distributions WHEN EXISTS(SELECT 1 FROM fiscal_periods p WHERE p.status='CLOSED' AND p.period_code=NEW.period_code) OR (json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'\$.locked_through') IS NOT NULL AND NEW.period_code<=substr(json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'\$.locked_through'),1,7)) BEGIN SELECT RAISE(ABORT,'FISCAL_PERIOD_CLOSED'); END";
+   final lockedThrough=_lockedThroughSql();
+   final sql="CREATE TRIGGER "+trigger+" BEFORE "+event+" ON partner_distributions WHEN EXISTS(SELECT 1 FROM fiscal_periods p WHERE p.status='CLOSED' AND p.period_code=NEW.period_code) OR ("+lockedThrough+" IS NOT NULL AND NEW.period_code<=substr("+lockedThrough+",1,7)) BEGIN SELECT RAISE(ABORT,'FISCAL_PERIOD_CLOSED'); END";
    await db.execute(sql);
   }
  }
@@ -178,9 +187,10 @@ abstract final class SchemaIteration6 {
    for(final event in ['INSERT','UPDATE']){
     final trigger='trg_period_related_'+child+'_'+event.toLowerCase();
     await db.execute('DROP TRIGGER IF EXISTS '+trigger);
+    final lockedThrough=_lockedThroughSql();
     final periodCheck=parentDate=='period_code'
-     ?"EXISTS(SELECT 1 FROM fiscal_periods p WHERE p.status='CLOSED' AND p.period_code=parent."+parentDate+") OR (json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'\$.locked_through') IS NOT NULL AND parent."+parentDate+"<=substr(json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'\$.locked_through'),1,7))"
-     :"EXISTS(SELECT 1 FROM fiscal_periods p WHERE p.status='CLOSED' AND substr(parent."+parentDate+",1,10) BETWEEN p.start_date AND p.end_date) OR (json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'\$.locked_through') IS NOT NULL AND substr(parent."+parentDate+",1,10)<=json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'\$.locked_through'))";
+     ?"EXISTS(SELECT 1 FROM fiscal_periods p WHERE p.status='CLOSED' AND p.period_code=parent."+parentDate+") OR ("+lockedThrough+" IS NOT NULL AND parent."+parentDate+"<=substr("+lockedThrough+",1,7))"
+     :"EXISTS(SELECT 1 FROM fiscal_periods p WHERE p.status='CLOSED' AND substr(parent."+parentDate+",1,10) BETWEEN p.start_date AND p.end_date) OR ("+lockedThrough+" IS NOT NULL AND substr(parent."+parentDate+",1,10)<="+lockedThrough+")";
     final sql='CREATE TRIGGER '+trigger+' BEFORE '+event+' ON '+child+' WHEN EXISTS(SELECT 1 FROM '+parent+' parent WHERE parent.'+parentKey+'=NEW.'+foreignKey+' AND ('+periodCheck+')) BEGIN SELECT RAISE(ABORT,\'FISCAL_PERIOD_CLOSED\'); END';
     await db.execute(sql);
    }
@@ -198,7 +208,8 @@ abstract final class SchemaIteration6 {
    for(final event in ['INSERT','UPDATE']){
     final trigger='trg_period_guard_'+table.toLowerCase()+'_'+event.toLowerCase();
     await db.execute('DROP TRIGGER IF EXISTS '+trigger);
-    final sql="CREATE TRIGGER "+trigger+" BEFORE "+event+" ON "+table+" WHEN (json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'\$.locked_through') IS NOT NULL AND substr(NEW."+column+",1,10)<=json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'\$.locked_through')) OR EXISTS(SELECT 1 FROM fiscal_periods p WHERE p.status='CLOSED' AND substr(NEW."+column+",1,10) BETWEEN p.start_date AND p.end_date) BEGIN SELECT RAISE(ABORT,'FISCAL_PERIOD_CLOSED'); END";
+    final lockedThrough=_lockedThroughSql();
+    final sql="CREATE TRIGGER "+trigger+" BEFORE "+event+" ON "+table+" WHEN ("+lockedThrough+" IS NOT NULL AND substr(NEW."+column+",1,10)<="+lockedThrough+") OR EXISTS(SELECT 1 FROM fiscal_periods p WHERE p.status='CLOSED' AND substr(NEW."+column+",1,10) BETWEEN p.start_date AND p.end_date) BEGIN SELECT RAISE(ABORT,'FISCAL_PERIOD_CLOSED'); END";
     await db.execute(sql);
    }
   }

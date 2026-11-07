@@ -406,6 +406,26 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Card(
+              color: const Color(0x2239A9A0),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.info_outline, size: 20),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'تنبيه قبل إتمام البيع: أضف دواءً واحداً على الأقل وتأكد من الكمية، واختر الصندوق/المحفظة. '
+                        'للبيع الآجل أو المختلط اختر العميل. عند الدفع بالمحفظة أدخل رقم إشعار صحيحاً (6 خانات على الأقل). '
+                        'في البيع المختلط أدخل المبلغ المدفوع الآن وحدد وسيلة دفعه، ثم راجع الإجمالي قبل التأكيد.',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             _patientSelector(clinical),
             const SizedBox(height: 8),
             Wrap(
@@ -480,7 +500,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
       children: [
         DropdownButtonFormField<String>(
           value: method,
-          decoration: const InputDecoration(labelText: 'طريقة الدفع'),
+          decoration: const InputDecoration(labelText: 'طريقة الدفع *'),
           items: const [
             DropdownMenuItem(value: 'CASH', child: Text('نقداً')),
             DropdownMenuItem(value: 'WALLET', child: Text('محفظة إلكترونية')),
@@ -493,7 +513,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
         DropdownButtonFormField<int>(
           value: cashId,
           isExpanded: true,
-          decoration: const InputDecoration(labelText: 'الصندوق / المحفظة'),
+          decoration: const InputDecoration(labelText: 'الصندوق / المحفظة *'),
           items: session.cashAccounts
               .map((account) => DropdownMenuItem(
                     value: account.id,
@@ -530,7 +550,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
           DropdownButtonFormField<int>(
             value: customerId,
             isExpanded: true,
-            decoration: const InputDecoration(labelText: 'العميل'),
+            decoration: const InputDecoration(labelText: 'العميل *'),
             items: session.parties
                 .where((party) => party.partyType == 'CUSTOMER')
                 .map((party) => DropdownMenuItem(
