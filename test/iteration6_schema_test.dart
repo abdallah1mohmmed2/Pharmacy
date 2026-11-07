@@ -28,8 +28,8 @@ void main(){
    final userColumns=await db.rawQuery('PRAGMA table_info(users)');
    expect(userColumns.any((r)=>r['name']=='system_role_code'),isTrue);
    await db.insert('audit_logs',{'event_at':'2026-11-07T00:00:00Z','action':'CREATE','entity_type':'test','prev_hash':'GENESIS','row_hash':'test-hash'});
-   expect(()=>db.update('audit_logs',{'reason':'tampered'},where:'id=1'),throwsA(isA<DatabaseException>()));
-   expect(()=>db.delete('audit_logs',where:'id=1'),throwsA(isA<DatabaseException>()));
+   await expectLater(db.update('audit_logs',{'reason':'tampered'},where:'id=1'),throwsA(isA<DatabaseException>()));
+   await expectLater(db.delete('audit_logs',where:'id=1'),throwsA(isA<DatabaseException>()));
   }finally{await db.close();}
  });
  test('closed fiscal period trigger rejects journal entry creation',() async {
@@ -38,7 +38,7 @@ void main(){
   }));
   try{
    await db.insert('fiscal_periods',{'period_code':'2026-01','period_type':'MONTH','start_date':'2026-01-01','end_date':'2026-01-31','status':'CLOSED'});
-   expect(()=>db.insert('journal_entries',{'uuid':'closed-period-test','branch_id':1,'created_at':'2026-01-15T10:00:00','updated_at':'2026-01-15T10:00:00','entry_no':'CLOSED-TEST','entry_date':'2026-01-15','description':'اختبار','source_type':'TEST','is_posted':1}),throwsA(isA<DatabaseException>()));
+   await expectLater(db.insert('journal_entries',{'uuid':'closed-period-test','branch_id':1,'created_at':'2026-01-15T10:00:00','updated_at':'2026-01-15T10:00:00','entry_no':'CLOSED-TEST','entry_date':'2026-01-15','description':'اختبار','source_type':'TEST','is_posted':1}),throwsA(isA<DatabaseException>()));
   }finally{await db.close();}
  });
 }
