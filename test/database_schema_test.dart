@@ -10,6 +10,7 @@ import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration6.d
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration7.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration8.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration9.dart';
+import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration10.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -23,7 +24,7 @@ void main() {
     final db = await databaseFactoryFfi.openDatabase(
       inMemoryDatabasePath,
       options: OpenDatabaseOptions(
-        version: 12,
+        version: 13,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
         },
@@ -38,6 +39,7 @@ void main() {
           await SchemaIteration7.upgrade(database);
           await SchemaIteration8.upgrade(database);
           await SchemaIteration9.upgrade(database);
+          await SchemaIteration10.upgrade(database);
         },
       ),
     );
@@ -47,7 +49,7 @@ void main() {
         'drugs', 'parties', 'sales_invoices', 'purchase_invoices',
         'batches_fefo', 'stock_movements', 'patients', 'prescriptions',
         'insurance_companies', 'employees', 'partners', 'expenses',
-        'cashier_shifts', 'journal_entries', 'lah_alayh_ledger',
+        'cashier_shifts', 'journal_entries', 'lah_alayh_ledger', 'catalog_cache', 'catalog_sync_state',
       ];
       for (final table in requiredTables) {
         final rows = await db.rawQuery(
@@ -79,8 +81,13 @@ void main() {
 
       // Re-running the cleanup migration must remain safe and idempotent.
       await SchemaIteration9.upgrade(db);
+      await SchemaIteration10.upgrade(db);
       expect(await db.rawQuery('SELECT id FROM drugs'), isEmpty);
       expect(await db.rawQuery('SELECT id FROM batches_fefo'), isEmpty);
+      expect(await db.rawQuery('SELECT catalog_uuid FROM catalog_cache'), isEmpty);
+      final drugColumns = await db.rawQuery('PRAGMA table_info(drugs)');
+      expect(drugColumns.any((row) => row['name'] == 'catalog_uuid'), isTrue);
+      expect(drugColumns.any((row) => row['name'] == 'catalog_version'), isTrue);
     } finally {
       await db.close();
     }
