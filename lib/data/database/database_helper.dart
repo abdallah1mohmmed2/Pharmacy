@@ -15,6 +15,8 @@ class DatabaseHelper {
   DatabaseHelper._();
   static final DatabaseHelper instance=DatabaseHelper._();
   Database? _db;
+  String? _openedPath;
+  Future<String> get databaseFilePath async { await database; return _openedPath!; }
   Future<Database> get database async => _db ??= await _open();
   Future<Database> _open() async {
     if(Platform.isWindows || Platform.isLinux || Platform.isMacOS){sqfliteFfiInit();databaseFactory=databaseFactoryFfi;}
@@ -22,7 +24,8 @@ class DatabaseHelper {
         ? p.join((await getApplicationSupportDirectory()).path,'databases')
         : await getDatabasesPath();
     await Directory(directory).create(recursive:true);
-    final db=await openDatabase(p.join(directory,'global_pharmacy_erp.db'),version:9,onConfigure:(database)async{
+    _openedPath=p.join(directory,'global_pharmacy_erp.db');
+    final db=await openDatabase(_openedPath!,version:9,onConfigure:(database)async{
       await database.execute('PRAGMA foreign_keys = ON');
       await database.execute('PRAGMA journal_mode = WAL');
       await database.execute('PRAGMA synchronous = NORMAL');
