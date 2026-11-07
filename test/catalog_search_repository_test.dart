@@ -14,6 +14,7 @@ class _FakeCatalogApi implements CentralCatalogDataSource {
   String? lastBarcode;
   int? lastLimit;
   String? lastCursor;
+  int calls = 0;
 
   @override
   Future<CatalogSearchPage> search({
@@ -22,6 +23,7 @@ class _FakeCatalogApi implements CentralCatalogDataSource {
     String? cursor,
     int limit = 30,
   }) async {
+    calls++;
     lastBarcode = barcode;
     lastLimit = limit;
     lastCursor = cursor;
@@ -130,12 +132,12 @@ void main() {
         preferFts5: false,
       );
       await repository.cacheItems([_drug()]);
-      final result = await repository.search(query: 'amoxicillin');
-      expect(result.items, hasLength(1));
-      expect(result.source, CatalogSearchSource.remote);
+      final result = await repository.searchLocal(query: 'amoxicillin');
+      expect(result, hasLength(1));
 
       final short = await repository.search(query: 'a');
       expect(short.items, isEmpty);
+      expect(remote.calls, 0);
     } finally {
       await db.close();
     }
