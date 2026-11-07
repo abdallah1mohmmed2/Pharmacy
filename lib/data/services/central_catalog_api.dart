@@ -39,7 +39,7 @@ class CentralCatalogApi implements CentralCatalogDataSource {
     String? cursor,
     int limit = 30,
   }) async {
-    final safeLimit = limit.clamp(1, 30);
+    final safeLimit = limit.clamp(1, 30).toInt();
     final normalizedQuery = _normalizeQuery(query);
     final exactBarcode = barcode ?? (_isBarcode(query.trim()) ? query.trim() : null);
 
