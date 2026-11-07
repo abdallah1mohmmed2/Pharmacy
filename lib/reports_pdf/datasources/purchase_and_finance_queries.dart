@@ -181,7 +181,7 @@ class PurchaseAndFinanceQueries {
             OR (prior.entry_date=l.entry_date AND prior.id<=l.id)
         ) AS remaining
       FROM ledger l
-      ORDER BY date,l.id
+      ORDER BY date
     ''',[p.stringValue('date_from'),p.stringValue('date_from'),
          p.stringValue('date_from'),p.stringValue('date_from'),
          partyId,p.branchId,partyId,p.branchId,..._rangeArgs(p)]);
