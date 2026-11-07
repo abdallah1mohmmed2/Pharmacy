@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../data/database/database_helper.dart';
 import '../data/models/erp_models.dart';
 import '../data/services/posting_and_sales_service.dart';
+import '../data/services/settings_and_audit_service.dart';
 
 class SessionAndErpProvider extends ChangeNotifier {
   SessionAndErpProvider({DatabaseHelper? database,PostingAndSalesService? posting}):_db=database??DatabaseHelper.instance,_posting=posting??PostingAndSalesService(helper:database);
@@ -22,8 +23,13 @@ class SessionAndErpProvider extends ChangeNotifier {
 
   Future<bool> login(String username,String password) async {
     final rows=await _db.rawQuery('SELECT * FROM users WHERE username=? AND is_active=1 AND is_deleted=0',[username.trim()]);
-    if(rows.isEmpty || !SecurityHashService.verify(password,rows.first['password_hash'] as String))return false;
-    currentUser=Map<String,Object?>.from(rows.first)..['role_code']=rows.first['system_role_code']??rows.first['role_code'];branchId=rows.first['branch_id'] as int;notifyListeners();await refresh();return true;
+    if(rows.isEmpty || !SecurityHashService.verify(password,rows.first['password_hash'] as String)){
+      await AuditService(helper:_db).record(action:'LOGIN_FAILED',branchId:branchId,entityType:'users',entityLabel:username.trim(),severity:'WARNING');
+      return false;
+    }
+    currentUser=Map<String,Object?>.from(rows.first)..['role_code']=rows.first['system_role_code']??rows.first['role_code'];branchId=rows.first['branch_id'] as int;
+    await AuditService(helper:_db).record(action:'LOGIN',userId:currentUser?['id'] as int?,branchId:branchId,entityType:'users',entityId:currentUser?['id'] as int?,entityLabel:username.trim());
+    notifyListeners();await refresh();return true;
   }
   int? _verifiedManagerUserId;
   int? consumeVerifiedManagerUserId(){final id=_verifiedManagerUserId;_verifiedManagerUserId=null;return id;}
@@ -39,7 +45,11 @@ class SessionAndErpProvider extends ChangeNotifier {
     }
     return false;
   }
-  void logout(){currentUser=null;notifyListeners();}
+  void logout(){
+    final user=currentUser;
+    if(user!=null){AuditService(helper:_db).record(action:'LOGOUT',userId:user['id'] as int?,branchId:branchId,entityType:'users',entityId:user['id'] as int?,entityLabel:user['username']?.toString());}
+    currentUser=null;notifyListeners();
+  }
   Future<void> refresh() async {
     loading=true;notifyListeners();
     try{
