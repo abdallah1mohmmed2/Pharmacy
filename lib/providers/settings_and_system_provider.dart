@@ -128,7 +128,9 @@ class SettingsAndSystemProvider extends ChangeNotifier {
  }
  Future<void> setRolePermission(String role,String permission,bool allowed) async {
   final db=await _helper.database;
+  final before=await db.query('role_permissions',where:'role_code=? AND permission_code=?',whereArgs:[role,permission],limit:1);
   await db.update('role_permissions',{'is_allowed':allowed?1:0},where:'role_code=? AND permission_code=?',whereArgs:[role,permission]);
+  await audit.record(action:'UPDATE',entityType:'role_permissions',entityLabel:'$role.$permission',oldValues:{'is_allowed':before.isNotEmpty?before.first['is_allowed']:null},newValues:{'is_allowed':allowed?1:0});
   await refreshSystemData();notifyListeners();
  }
 }
