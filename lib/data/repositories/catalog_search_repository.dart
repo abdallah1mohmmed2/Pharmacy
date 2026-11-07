@@ -186,7 +186,7 @@ class CatalogSearchRepository {
     }
     args.add(limit);
     return _database.rawQuery(
-      'SELECT * FROM catalog_cache WHERE ${clauses.join(' AND ') '
+      'SELECT * FROM catalog_cache WHERE ${clauses.join(' AND ')} '
       'ORDER BY cached_at DESC LIMIT ?',
       args,
     );
