@@ -92,6 +92,7 @@ class ClinicalGuardService {
 
   double? crcl(PatientClinicalModel p)=>p.crcl;
   static bool blocksPregnancyX(DrugModel drug,PatientClinicalModel? patient)=>patient?.isPregnant==true&&drug.pregnancyCategory.toUpperCase()=='X';
+  static bool hepaticRuleMatches(String? patientChildPughClass,HepaticRuleModel rule)=>patientChildPughClass!=null&&patientChildPughClass==rule.childPughClass;
   Future<List<ClinicalAlertModel>> _renal(DrugModel d,PatientClinicalModel? p) async {
     final value=p?.crcl;if(value==null||d.id==null)return [];
     final rows=await (await _helper.database).query('drug_renal_rules',where:'drug_id=? AND crcl_min<=? AND crcl_max>=?',whereArgs:[d.id,value,value],limit:1);
@@ -104,7 +105,7 @@ class ClinicalGuardService {
   Future<List<ClinicalAlertModel>> _hepatic(DrugModel d,PatientClinicalModel? p) async {
     final child=p?.childPughClass;if(child==null||d.id==null)return [];
     final rows=await (await _helper.database).query('drug_hepatic_rules',where:'drug_id=? AND child_pugh_class=?',whereArgs:[d.id,child],limit:1);if(rows.isEmpty)return [];
-    final r=HepaticRuleModel.fromMap(rows.first);final level=switch(r.action){'CONTRAINDICATED'=>ClinicalLevel.block,'AVOID'=>ClinicalLevel.warning,'REDUCE_DOSE'=>ClinicalLevel.caution,_=>ClinicalLevel.info};
+    final r=HepaticRuleModel.fromMap(rows.first);if(!hepaticRuleMatches(child,r))return [];final level=switch(r.action){'CONTRAINDICATED'=>ClinicalLevel.block,'AVOID'=>ClinicalLevel.warning,'REDUCE_DOSE'=>ClinicalLevel.caution,_=>ClinicalLevel.info};
     return [ClinicalAlertModel(category:'HEPATIC',level:level,drugId:d.id,ruleRef:'drug_hepatic_rules:${r.id}',messageAr:r.noteAr.isEmpty?'قاعدة الكبد Child-Pugh ${child}: ${r.action}.':r.noteAr,recommendation:r.doseFactor==null?'': 'معامل الجرعة ${r.doseFactor}')];
   }
   Future<List<ClinicalAlertModel>> _interactions(DrugModel drug,List<DrugModel> others,int? patientId) async {
