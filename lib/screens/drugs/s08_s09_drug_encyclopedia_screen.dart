@@ -11,40 +11,155 @@ import '../../reports_pdf/registry/report_registry_and_provider.dart';
 
 class S08S09DrugEncyclopediaScreen extends StatefulWidget{const S08S09DrugEncyclopediaScreen({super.key});@override State<S08S09DrugEncyclopediaScreen> createState()=>_S08S09DrugEncyclopediaScreenState();}
 class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScreen>{
- String filter='ALL';DrugModel? selected;
- @override Widget build(BuildContext context){final p=context.watch<PosAndDrugsProvider>();final list=p.drugs.where((d)=>switch(filter){'ANTIBIOTIC'=>d.isAntibiotic,'CONTROLLED'=>d.isControlled,'COLD'=>d.requiresRefrigeration,'PREG_X'=>d.pregnancyCategory=='X',_=>true}).toList();
-  return Scaffold(backgroundColor:Colors.transparent,floatingActionButton:FloatingActionButton.extended(onPressed:()=>_edit(context),icon:const Icon(Icons.add),label:const Text('إضافة دواء')),body:Padding(padding:const EdgeInsets.all(12),child:Column(children:[
-   TextField(decoration:const InputDecoration(prefixIcon:Icon(Icons.search),hintText:'ابحث بالاسم التجاري أو العلمي أو الباركود'),onChanged:p.searchDrugs),
-   const SizedBox(height:8),
-   Wrap(spacing:6,children:[for(final f in const [('ALL','الكل'),('ANTIBIOTIC','مضادات حيوية'),('CONTROLLED','مراقبة'),('COLD','ثلاجة'),('PREG_X','حمل X')])ChoiceChip(label:Text(f.$2),selected:filter==f.$1,onSelected:(_)=>setState(()=>filter=f.$1))]),
-   Expanded(child:LayoutBuilder(builder:(context,c)=>Row(children:[
-     SizedBox(
-      width: c.maxWidth > 800 ? 330 : c.maxWidth * .42,
-      child: ListView(
-       children: list.map((d) => Card(
-        child: ListTile(
-         selected: selected?.id == d.id,
-         title: Text(d.tradeNameAr),
-         subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-           Text(d.scientificName),
-           LinearProgressIndicator(
-            value: d.calculateCompletenessPct() / 100,
-            color: AppColors.primary,
+ String filter='ALL';
+ DrugModel? selected;
+ final searchController=TextEditingController();
+
+ @override
+ void dispose(){
+  searchController.dispose();
+  super.dispose();
+ }
+
+ @override
+ Widget build(BuildContext context){
+  final p=context.watch<PosAndDrugsProvider>();
+  final list=p.drugs.where((d)=>switch(filter){
+   'ANTIBIOTIC'=>d.isAntibiotic,
+   'CONTROLLED'=>d.isControlled,
+   'COLD'=>d.requiresRefrigeration,
+   'PREG_X'=>d.pregnancyCategory=='X',
+   _=>true,
+  }).toList();
+
+  final filters=const [
+   ('ALL','الكل'),
+   ('ANTIBIOTIC','مضادات حيوية'),
+   ('CONTROLLED','مراقبة'),
+   ('COLD','ثلاجة'),
+   ('PREG_X','حمل X'),
+  ];
+
+  return Scaffold(
+   backgroundColor:Colors.transparent,
+   floatingActionButton:FloatingActionButton.extended(
+    onPressed:()=>_edit(context),
+    icon:const Icon(Icons.add),
+    label:const Text('إضافة دواء'),
+   ),
+   body:Padding(
+    padding:const EdgeInsets.all(12),
+    child:Column(
+     children:[
+      CompactSearchAndFilterBar(
+       controller:searchController,
+       hintText:'ابحث بالاسم التجاري أو العلمي أو الباركود',
+       onChanged:p.searchDrugs,
+       activeFilterCount:filter=='ALL'?0:1,
+       onFilter:()=>_showFilters(filters),
+      ),
+      const SizedBox(height:8),
+      Expanded(
+       child:ResponsiveLayout(
+        mobile:selected==null
+         ?_drugList(list)
+         :Column(
+          children:[
+           Align(
+            alignment:AlignmentDirectional.centerStart,
+            child:TextButton.icon(
+             onPressed:()=>setState(()=>selected=null),
+             icon:const Icon(Icons.arrow_back),
+             label:const Text('العودة إلى قائمة الأدوية'),
+            ),
            ),
-           Text('اكتمال البيانات: ${d.calculateCompletenessPct().toStringAsFixed(0)}%'),
+           Expanded(child:_details(selected!)),
           ],
          ),
-         onTap: () => setState(() => selected = d),
+        desktop:Row(
+         children:[
+          SizedBox(width:330,child:_drugList(list)),
+          const VerticalDivider(width:12),
+          Expanded(
+           child:selected==null
+            ?const Center(child:Text('اختر دواء لعرض التفاصيل'))
+            :_details(selected!),
+          ),
+         ],
         ),
-       )).toList(),
+       ),
       ),
-     ),
-    const VerticalDivider(width:12),Expanded(child:selected==null?const Center(child:Text('اختر دواء لعرض التفاصيل')):_details(selected!)),
-   ]))),
-  ])));
+     ],
+    ),
+   ),
+  );
  }
+
+ Widget _drugList(List<DrugModel> list)=>ListView.builder(
+  keyboardDismissBehavior:ScrollViewKeyboardDismissBehavior.onDrag,
+  itemCount:list.length,
+  itemBuilder:(context,index){
+   final drug=list[index];
+   return SmartExpandableCard(
+    title:drug.tradeNameAr,
+    primary:drug.scientificName,
+    secondary:'اكتمال البيانات: ${drug.calculateCompletenessPct().toStringAsFixed(0)}%',
+    leading:const CircleAvatar(
+     backgroundColor:Color(0x224DB6AC),
+     child:Icon(Icons.medication,color:AppColors.primary),
+    ),
+    trailing:IconButton(
+     tooltip:'عرض التفاصيل',
+     onPressed:()=>setState(()=>selected=drug),
+     icon:const Icon(Icons.arrow_forward_ios,size:16),
+    ),
+    details:[
+     LinearProgressIndicator(
+      value:drug.calculateCompletenessPct()/100,
+      color:AppColors.primary,
+     ),
+     const SizedBox(height:8),
+     Text('السعر: ${MoneyFormatter.format(drug.sellPricePack)} • المخزون: ${drug.stockTotalUnits} حبة'),
+    ],
+    actions:[
+     OutlinedButton.icon(
+      onPressed:()=>setState(()=>selected=drug),
+      icon:const Icon(Icons.visibility_outlined),
+      label:const Text('التفاصيل السريرية'),
+     ),
+     OutlinedButton.icon(
+      onPressed:()=>_edit(context,drug),
+      icon:const Icon(Icons.edit_outlined),
+      label:const Text('تعديل'),
+     ),
+    ],
+   );
+  },
+ );
+
+ Future<void> _showFilters(List<(String,String)> filters)async{
+  await KeyboardSafeModalSheet.show<void>(
+   context:context,
+   builder:(sheetContext)=>Column(
+    crossAxisAlignment:CrossAxisAlignment.stretch,
+    children:[
+     const Text('تصفية الموسوعة الدوائية',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
+     const SizedBox(height:12),
+     for(final entry in filters)
+      RadioListTile<String>(
+       value:entry.$1,
+       groupValue:filter,
+       title:Text(entry.$2),
+       onChanged:(value){
+        setState(()=>filter=value??'ALL');
+        Navigator.pop(sheetContext);
+       },
+      ),
+    ],
+   ),
+  );
+ }
+
  Widget _details(DrugModel d)=>DefaultTabController(length:5,child:Column(children:[
   Row(children:[Expanded(child:Text(d.tradeNameAr,style:const TextStyle(fontSize:20,fontWeight:FontWeight.bold))),IconButton(tooltip:'البدائل',onPressed:()=>S05DrugAlternativesSheet.show(context,d,(_){ }),icon:const Icon(Icons.swap_horiz)),IconButton(tooltip:'طباعة البطاقة السريرية PDF - تقرير 46',onPressed:()=>_printClinicalCard(d),icon:const Icon(Icons.picture_as_pdf)),IconButton(onPressed:()=>_edit(context,d),icon:const Icon(Icons.edit))]),
   const TabBar(isScrollable:true,tabs:[Tab(text:'الهوية والتسعير'),Tab(text:'الاستعمال والسلامة'),Tab(text:'الفئات الخاصة'),Tab(text:'التخزين والرقابة'),Tab(text:'القواعد السريرية')]),
@@ -196,8 +311,10 @@ class _S08S09DrugEncyclopediaScreenState extends State<S08S09DrugEncyclopediaScr
   ]);
   final provider = context.read<PosAndDrugsProvider>();
   await showDialog<void>(context:context,builder:(dialogContext)=>AlertDialog(
+   insetPadding:const EdgeInsets.all(8),
+   scrollable:true,
    title:Text(drug==null?'إضافة دواء — جميع النقاط الـ19':'تعديل بيانات الدواء — جميع النقاط الـ19'),
-   content:SizedBox(width:720,height:MediaQuery.sizeOf(context).height*.76,child:Form(key:form,child:DefaultTabController(length:4,child:Column(children:[
+   content:SizedBox(width:MediaQuery.sizeOf(context).width<700?double.infinity:900,height:(MediaQuery.sizeOf(context).height-MediaQuery.viewInsetsOf(context).bottom-190).clamp(240.0,720.0),child:Form(key:form,child:DefaultTabController(length:4,child:Column(children:[
     const TabBar(isScrollable:true,tabs:[Tab(text:'1–4 الهوية والتركيب'),Tab(text:'5–10 الاستعمال والسلامة'),Tab(text:'11–12 التسعير والفئات'),Tab(text:'13–19 الحالات الخاصة')]),
     Expanded(child:TabBarView(children:[for(final keys in tabGroups)tabFields(keys)])),
    ])))),
