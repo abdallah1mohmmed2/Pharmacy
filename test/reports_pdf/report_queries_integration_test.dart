@@ -93,6 +93,31 @@ void main() {
     await provider.updateCostVisibility(false);
     expect(provider.showCostSetting, isFalse);
     expect(provider.canViewCost, isFalse);
+
+    // The settings screen writes system_settings independently of this
+    // provider. A subsequent report run must pick up the new value.
+    provider.selectReport(1);
+    provider.updateParams({
+      'date_from': '2026-01-01',
+      'date_to': '2026-12-31',
+    });
+    await db.update(
+      'system_settings',
+      {'setting_value': 'true'},
+      where: 'setting_key=?',
+      whereArgs: ['sales.show_cost_to_pharmacist'],
+    );
+    await provider.runSelected();
+    expect(provider.canViewCost, isTrue);
+
+    await db.update(
+      'system_settings',
+      {'setting_value': 'false'},
+      where: 'setting_key=?',
+      whereArgs: ['sales.show_cost_to_pharmacist'],
+    );
+    await provider.runSelected();
+    expect(provider.canViewCost, isFalse);
   });
 
 

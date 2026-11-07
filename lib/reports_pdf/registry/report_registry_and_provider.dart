@@ -147,6 +147,10 @@ class ReportsCenterProvider extends ChangeNotifier {
         ? null
         : setting.first['setting_value']?.toString().trim();
     _showCostSetting = rawSetting == 'true' || rawSetting == '1';
+    _params = _params.copyWith(
+      canViewCost: _canViewCost,
+      showCostSetting: _showCostSetting,
+    );
     notifyListeners();
   }
 
@@ -287,6 +291,10 @@ class ReportsCenterProvider extends ChangeNotifier {
   Future<ReportDataSet?> runSelected() async {
     final definition = _selected;
     if (definition == null) return null;
+    // Settings and role permissions may have changed from the Settings screen
+    // while this IndexedStack page remained mounted. Re-read them before each
+    // execution so a report never uses stale cost visibility.
+    await _loadCostPermission();
     _loading = true;
     _error = null;
     notifyListeners();
