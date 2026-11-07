@@ -89,7 +89,10 @@ class DrugImportExportService {
      for(final row in batch){
       try{
        final now=DateTime.now().toIso8601String();
-       final drug=DrugModel.fromMap(row).toMap()..remove('id')..['uuid']=row['uuid']??'drug-import-'+DateTime.now().microsecondsSinceEpoch.toString()+'-'+done.toString()..['created_at']=now..['updated_at']=now;
+       final drug=DrugModel.fromMap(row).toMap();
+       drug.remove('id');
+       drug['uuid']=row['uuid']??'drug-import-'+DateTime.now().microsecondsSinceEpoch.toString()+'-'+done.toString();
+       drug['created_at']=now;drug['updated_at']=now;
        final code=(row['internal_code']??'').toString();
        final name=(row['trade_name_ar']??'').toString();
        final scientific=(row['scientific_name']??'').toString();
