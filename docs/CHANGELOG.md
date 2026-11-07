@@ -1,3 +1,11 @@
+## UI/UX Mobile Overhaul — CI analyzer follow-up
+
+- Reviewed failed validation run `42366689434` and retrieved both platform job logs.
+- The run did not fail during compilation: `flutter analyze --no-fatal-infos` exited with code 1 because two analyzer warnings were promoted to errors: an obsolete unused `_expiryBadge` helper in the inventory screen and an unused local shelf calculation in the purchase screen.
+- Removed the obsolete helper and the stale calculation. Shelf compatibility filtering remains in the add-purchase-item sheet, where it is used to populate the selectable shelf list.
+- No business rules, inventory calculations, purchase bonus calculations, or clinical data were intentionally changed by this warning cleanup.
+- Android tests and APK build, and Windows build, were skipped by CI because analysis failed first. A fresh CI run is required before declaring the branch validated.
+
 ## تصحيح اكتشاف تعريف compileSdk في إضافات Android — 2026-11-07
 - فشل فحص CI الوقائي لأن بعض إضافات Gradle تستخدم صيغة `compileSdk 34` دون `=` أو `Version`؛ وسّعت المطابقة لتغطي صيغ Kotlin وGroovy المختلفة مع التحقق من تعديل وحدتي `file_picker` و`flutter_plugin_android_lifecycle`.
 - لا يُعد فشل فحص التهيئة هذا فشلاً في تحليل Dart أو الاختبارات؛ لم تُنفذ تلك الخطوات في هذا التشغيل. ننتظر إعادة CI لإثبات بناء APK فعلياً.
