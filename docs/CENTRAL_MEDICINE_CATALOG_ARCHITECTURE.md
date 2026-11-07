@@ -222,7 +222,7 @@ flowchart TB
 
 ### قواعد Firebase المنشورة في المستودع
 
-- `firebase/firestore.rules`: تتطلب هوية Firebase موثقة وcustom claim باسم `branch_id`؛ لا تثق بمعرف الفرع القادم من payload وحده.
+- `firebase/firestore.rules`: تتطلب هوية Firebase موثقة وcustom claim باسم `branch_id`، وclaim باسم `branch_role` بقيمة `owner` أو `manager` للعمليات الإدارية؛ لا تثق بمعرف الفرع القادم من payload وحده. تحديث نبض الفرع محصور في حقول heartbeat المسموح بها.
 - الوصول للفرع مقيد بمعرف الفرع الموجود في claim. حذف وثائق الفرع واللقطات واللوحات ممنوع من العميل.
 - حزم المزامنة append-only: يسمح بإنشائها فقط، مع `events` قائمة لا تتجاوز 100 عنصراً ووجود `batch_uuid` المطابق لمعرف الوثيقة؛ يمنع update/delete.
 - `partner_mode` لا يقبل إلا `shares` أو `percentage`، ويمنع تغييره بعد الإنشاء.
