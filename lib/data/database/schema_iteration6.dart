@@ -130,7 +130,7 @@ abstract final class SchemaIteration6 {
   await db.execute('ALTER TABLE audit_logs_legacy_i5 RENAME TO audit_logs_legacy_i5_migrated');
  }
  static Future<void> _installPeriodTriggers(DatabaseExecutor db) async {
-  const candidates={'sales_invoices':'invoice_date','purchase_invoices':'invoice_date','vouchers':'voucher_date','journal_entries':'entry_date','expenses':'expense_date','stock_movements':'movement_at','stocktaking_sessions':'created_at'};
+  const candidates={'sales_invoices':'invoice_date','purchase_invoices':'invoice_date','vouchers':'voucher_date','journal_entries':'entry_date','expenses':'expense_date','stock_movements':'movement_at','stocktaking_sessions':'created_at','sales_returns':'return_date','lah_alayh_ledger':'entry_date','employee_attendance':'work_date','disposals':'disposal_date'};
   for(final entry in candidates.entries){
    final tables=await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name=?",[entry.key]);
    if(tables.isEmpty)continue;
