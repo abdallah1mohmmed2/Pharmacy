@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/session_and_erp_provider.dart';
 import '../../data/models/erp_models.dart';
 import '../../core/widgets/shared_widgets.dart';
+import '../../core/theme/enterprise_dark_theme.dart';
 import 'party_extensions_screen.dart';
 import '../../reports_pdf/registry/report_registry_and_provider.dart';
 
@@ -11,6 +12,7 @@ class _S19S20S21PartiesAndVouchersScreenState extends State<S19S20S21PartiesAndV
  late final TabController tabs=TabController(length:3,vsync:this);
  final searchController=TextEditingController();
  String query='';
+ String balanceFilter='ALL';
  @override void dispose(){tabs.dispose();searchController.dispose();super.dispose();}
  @override Widget build(BuildContext context){final p=context.watch<SessionAndErpProvider>();return Scaffold(backgroundColor:Colors.transparent,floatingActionButton:FloatingActionButton.extended(onPressed:()=>_addParty(context),icon:const Icon(Icons.person_add),label:const Text('إضافة طرف')),body:Column(children:[
   TabBar(controller:tabs,tabs:const [Tab(text:'العملاء'),Tab(text:'الموردون / المذاخر'),Tab(text:'خدمات الأطراف')]),
@@ -20,7 +22,11 @@ class _S19S20S21PartiesAndVouchersScreenState extends State<S19S20S21PartiesAndV
   final list=p.parties.where((party)=>
    party.partyType==type&&
    (query.isEmpty||party.nameAr.toLowerCase().contains(query)||
-    party.phone.toLowerCase().contains(query)||party.code.toLowerCase().contains(query))
+    party.phone.toLowerCase().contains(query)||party.code.toLowerCase().contains(query))&&
+   (balanceFilter=='ALL'||
+    (balanceFilter=='ALAYH'&&party.totalAlayh>party.totalLah)||
+    (balanceFilter=='LAH'&&party.totalLah>party.totalAlayh)||
+    (balanceFilter=='SETTLED'&&(party.totalAlayh-party.totalLah).abs()<.005))
   ).toList();
   return Column(
    children:[
@@ -30,6 +36,8 @@ class _S19S20S21PartiesAndVouchersScreenState extends State<S19S20S21PartiesAndV
       controller:searchController,
       hintText:type=='CUSTOMER'?'ابحث عن عميل بالاسم أو الهاتف':'ابحث عن مورد بالاسم أو الهاتف',
       onChanged:(value)=>setState(()=>query=value.trim().toLowerCase()),
+      activeFilterCount:balanceFilter=='ALL'?0:1,
+      onFilter:_showPartyFilters,
      ),
     ),
     Expanded(
@@ -79,6 +87,33 @@ class _S19S20S21PartiesAndVouchersScreenState extends State<S19S20S21PartiesAndV
    ],
   );
  }
+ Future<void> _showPartyFilters()async{
+  await KeyboardSafeModalSheet.show<void>(
+   context:context,
+   builder:(sheetContext)=>Column(
+    crossAxisAlignment:CrossAxisAlignment.stretch,
+    children:[
+     const Text('تصفية الحسابات',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
+     for(final option in const [
+      ('ALL','جميع الحسابات'),
+      ('ALAYH','لديه مبلغ متبقٍ عليه'),
+      ('LAH','لديه مبلغ متبقٍ له'),
+      ('SETTLED','حسابات مسددة'),
+     ])
+      RadioListTile<String>(
+       value:option.$1,
+       groupValue:balanceFilter,
+       title:Text(option.$2),
+       onChanged:(value){
+        setState(()=>balanceFilter=value??'ALL');
+        Navigator.pop(sheetContext);
+       },
+      ),
+    ],
+   ),
+  );
+ }
+
  Future<void> _statement(SessionAndErpProvider p,PartyModel party)async{
   final entries=await p.ledger(party.id!);if(!mounted)return;
   final rows=<LahAlayhRow>[];if(party.openingAlayh>0||party.openingLah>0){rows.add(LahAlayhRow(date:'—',statement:'رصيد افتتاحي',document:'OPENING',alayh:party.openingAlayh,lah:party.openingLah));}for(final e in entries){final a=(e['alayh_amount'] as num).toDouble();final l=(e['lah_amount'] as num).toDouble();rows.add(LahAlayhRow(date:(e['entry_date'] as String).split('T').first,statement:e['statement_ar'] as String,document:(e['doc_type'] as String)+' #'+(e['doc_id']?.toString()??''),alayh:a,lah:l));}
