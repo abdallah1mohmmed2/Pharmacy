@@ -92,7 +92,7 @@ class SettingsAndSystemProvider extends ChangeNotifier {
    final names=columns.map((e)=>e['name'] as String).toSet();
    final statusColumn=names.contains('status')?'status':names.contains('state')?'state':null;
    if(statusColumn==null)continue;
-   final open=await _helper.rawQuery('SELECT COUNT(*) AS n FROM '+name+' WHERE upper('+statusColumn+') IN (\'OPEN\',\'ACTIVE\',\'IN_PROGRESS\')');
+   final open=await _helper.rawQuery('SELECT COUNT(*) AS n FROM '+name+' WHERE upper('+statusColumn+') IN (\'OPEN\',\'ACTIVE\',\'IN_PROGRESS\',\'COUNTING\',\'REVIEW\',\'PENDING\')');
    if((open.first['n'] as num)>0)return true;
   }
   return false;
