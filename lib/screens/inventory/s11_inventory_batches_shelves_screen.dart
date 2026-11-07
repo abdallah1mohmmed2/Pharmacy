@@ -140,7 +140,7 @@ class _S11InventoryBatchesShelvesScreenState extends State<S11InventoryBatchesSh
     int warehouse=p.warehouses.first.id;bool isFridge=p.warehouses.first.whType=='FRIDGE';
     final saved=await showDialog<bool>(context:context,builder:(dialogContext)=>StatefulBuilder(builder:(dialogContext,setDialog)=>AlertDialog(
       title:const Text('إدارة مواقع الأرفف'),
-      content:SizedBox(width:420,child:Column(mainAxisSize:MainAxisSize.min,children:[
+      content:SizedBox(width:420,height:MediaQuery.sizeOf(context).height*.65,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
         DropdownButtonFormField<int>(value:warehouse,decoration:const InputDecoration(labelText:'المستودع'),items:p.warehouses.map((w)=>DropdownMenuItem(value:w.id,child:Text(w.nameAr))).toList(),onChanged:(value)=>setDialog((){warehouse=value??warehouse;isFridge=p.warehouses.firstWhere((w)=>w.id==warehouse).whType=='FRIDGE';})),
         TextField(controller:code,decoration:const InputDecoration(labelText:'رمز الرف مثال A-01-02')),
         TextField(controller:description,decoration:const InputDecoration(labelText:'الوصف')),
@@ -148,7 +148,7 @@ class _S11InventoryBatchesShelvesScreenState extends State<S11InventoryBatchesSh
         const Divider(),
         const Text('الأرفف الحالية'),
         ...p.shelves.where((s)=>s.warehouseId==warehouse).map((s)=>ListTile(dense:true,title:Text(s.code),subtitle:Text(s.description),trailing:Icon(s.isFridge?Icons.ac_unit:Icons.inventory_2))),
-      ])),
+      ]))),
       actions:[TextButton(onPressed:()=>Navigator.pop(dialogContext,false),child:const Text('إغلاق')),FilledButton(onPressed:()=>Navigator.pop(dialogContext,true),child:const Text('إضافة رف'))],
     )));
     if(saved==true){
@@ -168,7 +168,7 @@ class _S11InventoryBatchesShelvesScreenState extends State<S11InventoryBatchesSh
   Future<void> _temperature(InventoryAndPurchaseProvider p)async{
     final fridges=p.warehouses.where((w)=>w.whType=='FRIDGE').toList();if(fridges.isEmpty){_message('لم يتم إعداد مستودع الثلاجة');return;}
     final temp=TextEditingController();final humidity=TextEditingController();final action=TextEditingController();int warehouse=fridges.first.id;
-    final save=await showDialog<bool>(context:context,builder:(c)=>StatefulBuilder(builder:(c,set)=>AlertDialog(title:const Text('قراءة سلسلة التبريد'),content:Column(mainAxisSize:MainAxisSize.min,children:[DropdownButton<int>(value:warehouse,items:fridges.map((w)=>DropdownMenuItem(value:w.id,child:Text(w.nameAr))).toList(),onChanged:(v)=>set(()=>warehouse=v??warehouse)),TextField(controller:temp,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'الحرارة °م')),TextField(controller:humidity,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'الرطوبة %')),TextField(controller:action,decoration:const InputDecoration(labelText:'الإجراء التصحيحي'))]),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('تسجيل'))])));
+    final save=await showDialog<bool>(context:context,builder:(c)=>StatefulBuilder(builder:(c,set)=>AlertDialog(title:const Text('قراءة سلسلة التبريد'),content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[DropdownButton<int>(value:warehouse,items:fridges.map((w)=>DropdownMenuItem(value:w.id,child:Text(w.nameAr))).toList(),onChanged:(v)=>set(()=>warehouse=v??warehouse)),TextField(controller:temp,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'الحرارة °م')),TextField(controller:humidity,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'الرطوبة %')),TextField(controller:action,decoration:const InputDecoration(labelText:'الإجراء التصحيحي'))])),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('تسجيل'))])));
     if(save==true){final value=double.tryParse(temp.text);if(value==null){_message('أدخل درجة حرارة صحيحة');return;}await p.recordTemperature(warehouseId:warehouse,tempC:value,humidity:double.tryParse(humidity.text),action:action.text);_message(value<2||value>8?'تم تسجيل قراءة خارج النطاق الآمن':'تم تسجيل القراءة');}
   }
   Future<void> _movementCard(InventoryAndPurchaseProvider p)async{final rows=p.movements;if(rows.isEmpty){_message('لا توجد حركات مخزنية');return;}await showDialog<void>(context:context,builder:(c)=>AlertDialog(title:const Text('كارت حركة المخزون'),content:SizedBox(width:520,child:ListView.builder(shrinkWrap:true,itemCount:rows.length,itemBuilder:(c,i){final row=rows[i];return ListTile(title:Text(row['trade_name_ar'].toString()+' • '+row['batch_no'].toString()),subtitle:Text(row['movement_type'].toString()+' • '+row['movement_at'].toString()),trailing:Text(row['qty_units'].toString()+' حبة'));})),actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('إغلاق'))]));}
