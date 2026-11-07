@@ -34,7 +34,7 @@ class _S28SystemSettingsBackupScreenState extends State<S28SystemSettingsBackupS
   ])),
  ));
  Widget _settingsGroup(SettingGroup group,SettingsAndSystemProvider p){
-  final specs=SettingKeys.all.where((s)=>s.group==group).toList();
+  final specs=SettingKeys.all.where((s)=>s.group==group&&(group!=SettingGroup.printBackup||s.number<=33)).toList();
   return ListView(padding:const EdgeInsets.all(12),children:[
    for(final spec in specs)_settingTile(spec,p),
    if(group==SettingGroup.accounting)const Card(child:ListTile(leading:Icon(Icons.lock,color:Colors.green),title:Text('مصطلحات «له وعليه» مقفولة دائماً'),subtitle:Text('لا يمكن تعطيل هذا القيد من أي دور.'))),
@@ -65,6 +65,7 @@ class _S28SystemSettingsBackupScreenState extends State<S28SystemSettingsBackupS
  ]);
  String _roleName(String r)=>switch(r){'OWNER'=>'المالك','MANAGER'=>'المدير','PHARMACIST'=>'الصيدلي','CASHIER'=>'الكاشير','STOREKEEPER'=>'أمين المخزن','ACCOUNTANT'=>'المحاسب',_=>'المراجع'};
  Widget _backupTab(SettingsAndSystemProvider p)=>ListView(padding:const EdgeInsets.all(12),children:[
+  _settingTile(SettingKeys.byKey(SettingKey.autoLocalOnClose),p),
   FilledButton.icon(onPressed:()=>_createBackup(p),icon:const Icon(Icons.backup),label:const Text('إنشاء نسخة احتياطية الآن')),
   const SizedBox(height:8),for(final row in p.backupLogs)Card(child:ListTile(leading:const Icon(Icons.verified_user),title:Text(row['file_path'].toString().split(Platform.pathSeparator).last),subtitle:Text('الحالة: ${row['result']} • الحجم: ${row['size_bytes']} بايت\nSHA-256: ${row['sha256']}'),isThreeLine:true,trailing:IconButton(icon:const Icon(Icons.restore),onPressed:()=>_restoreBackup(p,row['file_path'] as String)))),
  ]);
