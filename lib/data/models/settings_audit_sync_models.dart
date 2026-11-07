@@ -21,7 +21,10 @@ class ColumnMappingTemplate {
 class OpenFdaDrugResult {
  const OpenFdaDrugResult({required this.brandName,required this.genericName,required this.manufacturer,required this.fields,required this.rawJson});
  final String brandName,genericName,manufacturer; final Map<String,String> fields; final Map<String,Object?> rawJson;
- factory OpenFdaDrugResult.fromMap(Map<String,Object?> m)=>OpenFdaDrugResult(brandName:m['brand_name'] as String? ?? '',genericName:m['generic_name'] as String? ?? '',manufacturer:m['manufacturer_name'] as String? ?? '',fields:{for(final e in m.entries)if(e.value is List&&(e.value as List).isNotEmpty)e.key:(e.value as List).first.toString()},rawJson:m);
+ factory OpenFdaDrugResult.fromMap(Map<String,Object?> m){
+  String first(String key)=>m[key] is List&&(m[key] as List).isNotEmpty?(m[key] as List).first.toString():m[key]?.toString()??'';
+  return OpenFdaDrugResult(brandName:first('brand_name'),genericName:first('generic_name'),manufacturer:first('manufacturer_name'),fields:{for(final e in m.entries)if(e.value is List&&(e.value as List).isNotEmpty)e.key:(e.value as List).first.toString()},rawJson:m);
+ }
 }
 class AuditLogModel {
  const AuditLogModel({this.id,required this.eventAt,this.userId,this.branchId=1,this.deviceId,required this.action,this.entityType,this.entityId,this.entityLabel,this.oldValuesJson,this.newValuesJson,this.reason,this.severity='INFO',this.prevHash,this.rowHash});
