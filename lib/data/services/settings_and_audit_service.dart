@@ -129,7 +129,7 @@ class AuditService {
    final rowHash=_hash(_canonical(prevHash:prev,eventAt:eventAt,userId:userId,action:action,entityType:entityType,entityId:entityId,oldValues:oldJson,newValues:newJson));
    return txn.insert('audit_logs',{'event_at':eventAt,'user_id':userId,'branch_id':branchId,'device_id':deviceId,'action':action,'entity_type':entityType,'entity_id':entityId,'entity_label':entityLabel,'old_values_json':oldJson,'new_values_json':newJson,'reason':reason,'severity':severity,'prev_hash':prev,'row_hash':rowHash});
   }
-  if(_executor!=null)return insertRecord(_executor!);
+  if(_executor!=null)return insertRecord(_executor);
   return (db as Database).transaction(insertRecord);
  }
  Future<ChainVerificationResult> verifyChainIntegrity() async {
