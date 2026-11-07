@@ -1,15 +1,17 @@
 import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../lib/data/database/schema_iteration7.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() => sqfliteFfiInit());
 
   test('iteration 7 adds report cost permissions idempotently for existing roles', () async {
-    final db = await openDatabase(
+    final db = await databaseFactoryFfi.openDatabase(
       inMemoryDatabasePath,
-      version: 1,
+      options: OpenDatabaseOptions(version: 1,
       onCreate: (database, version) async {
         await database.execute(
           'CREATE TABLE roles(role_code TEXT PRIMARY KEY)',
@@ -33,7 +35,7 @@ void main() {
         ]) {
           await database.insert('roles', {'role_code': role});
         }
-      },
+      }),
     );
 
     await SchemaIteration7.upgrade(db);
