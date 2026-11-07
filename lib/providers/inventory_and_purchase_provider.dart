@@ -18,18 +18,53 @@ class InventoryAndPurchaseProvider extends ChangeNotifier {
     loading=true;error=null;notifyListeners();
     try{
       final db=await _db.database;
-      warehouses=(await db.query('warehouses',orderBy:'name_ar')).map(WarehouseModel.fromMap).toList();
-      shelves=(await db.query('shelf_locations',orderBy:'code')).map(ShelfLocationModel.fromMap).toList();
-      batches=(await db.rawQuery('SELECT * FROM v_fefo_batch_balances ORDER BY expiry_date,id')).map(BatchFefoModel.fromMap).toList();
-      stocktaking=(await db.query('stocktaking_sessions',orderBy:'id DESC')).map(StocktakingSessionModel.fromMap).toList();
-      disposals=(await db.query('disposals',orderBy:'id DESC')).map(DisposalModel.fromMap).toList();
-      transfers=(await db.query('stock_transfers',orderBy:'id DESC')).map(StockTransferModel.fromMap).toList();
-      purchaseInvoices=(await db.query('purchase_invoices',orderBy:'id DESC',limit:100)).map(PurchaseInvoiceModel.fromMap).toList();
-      purchaseOrders=await db.rawQuery("SELECT po.*,p.name_ar supplier_name,(SELECT COUNT(*) FROM purchase_order_items poi WHERE poi.po_id=po.id) item_count FROM purchase_orders po JOIN parties p ON p.id=po.supplier_party_id WHERE po.status IN('DRAFT','PARTIALLY_RECEIVED') ORDER BY po.id DESC");
-      shortages=(await _purchases.shortages()).map(ShortageItemModel.fromMap).toList();
-      radar=await db.rawQuery("SELECT b.*,d.trade_name_ar,d.sell_price_pack,(SELECT pi.supplier_party_id FROM purchase_invoice_items pii JOIN purchase_invoices pi ON pi.id=pii.invoice_id WHERE pii.id=b.purchase_invoice_item_id) supplier_party_id,COALESCE((SELECT SUM(-m.qty_units)/30.0 FROM stock_movements m WHERE m.drug_id=b.drug_id AND m.movement_type='SALE_OUT' AND m.movement_at>=datetime('now','-30 day')),0) average_daily_units FROM batches_fefo b JOIN drugs d ON d.id=b.drug_id WHERE b.total_units>0 ORDER BY b.expiry_date");
-      movements=await db.rawQuery('SELECT m.*,d.trade_name_ar,b.batch_no FROM stock_movements m JOIN drugs d ON d.id=m.drug_id JOIN batches_fefo b ON b.id=m.batch_id ORDER BY m.id DESC LIMIT 200');
-      coldChain=await db.rawQuery('SELECT c.*,w.name_ar warehouse_name FROM cold_chain_log c JOIN warehouses w ON w.id=c.warehouse_id ORDER BY c.id DESC LIMIT 100');
+      warehouses=(await db.query(
+        'warehouses',
+        where:'branch_id=?',
+        whereArgs:[branchId],
+        orderBy:'name_ar',
+      )).map(WarehouseModel.fromMap).toList();
+      shelves=(await db.rawQuery(
+        'SELECT s.* FROM shelf_locations s JOIN warehouses w ON w.id=s.warehouse_id WHERE w.branch_id=? ORDER BY s.code',
+        [branchId],
+      )).map(ShelfLocationModel.fromMap).toList();
+      batches=(await db.rawQuery(
+        'SELECT v.* FROM v_fefo_batch_balances v JOIN warehouses w ON w.id=v.warehouse_id WHERE w.branch_id=? ORDER BY v.expiry_date,v.id',
+        [branchId],
+      )).map(BatchFefoModel.fromMap).toList();
+      stocktaking=(await db.rawQuery(
+        'SELECT s.* FROM stocktaking_sessions s JOIN warehouses w ON w.id=s.warehouse_id WHERE w.branch_id=? ORDER BY s.id DESC',
+        [branchId],
+      )).map(StocktakingSessionModel.fromMap).toList();
+      disposals=(await db.rawQuery(
+        'SELECT DISTINCT d.* FROM disposals d JOIN disposal_items di ON di.disposal_id=d.id JOIN batches_fefo b ON b.id=di.batch_id JOIN warehouses w ON w.id=b.warehouse_id WHERE w.branch_id=? ORDER BY d.id DESC',
+        [branchId],
+      )).map(DisposalModel.fromMap).toList();
+      transfers=(await db.rawQuery(
+        'SELECT t.* FROM stock_transfers t WHERE t.from_warehouse_id IN (SELECT id FROM warehouses WHERE branch_id=?) OR t.to_warehouse_id IN (SELECT id FROM warehouses WHERE branch_id=?) ORDER BY t.id DESC',
+        [branchId,branchId],
+      )).map(StockTransferModel.fromMap).toList();
+      purchaseInvoices=(await db.rawQuery(
+        'SELECT pi.* FROM purchase_invoices pi JOIN warehouses w ON w.id=pi.warehouse_id WHERE w.branch_id=? ORDER BY pi.id DESC LIMIT 100',
+        [branchId],
+      )).map(PurchaseInvoiceModel.fromMap).toList();
+      purchaseOrders=await db.rawQuery(
+        "SELECT po.*,p.name_ar supplier_name,(SELECT COUNT(*) FROM purchase_order_items poi WHERE poi.po_id=po.id) item_count FROM purchase_orders po JOIN parties p ON p.id=po.supplier_party_id WHERE p.branch_id=? AND po.status IN('DRAFT','PARTIALLY_RECEIVED') ORDER BY po.id DESC",
+        [branchId],
+      );
+      shortages=(await _purchases.shortages(branchId:branchId)).map(ShortageItemModel.fromMap).toList();
+      radar=await db.rawQuery(
+        "SELECT b.*,d.trade_name_ar,d.sell_price_pack,(SELECT pi.supplier_party_id FROM purchase_invoice_items pii JOIN purchase_invoices pi ON pi.id=pii.invoice_id WHERE pii.id=b.purchase_invoice_item_id) supplier_party_id,COALESCE((SELECT SUM(-m.qty_units)/30.0 FROM stock_movements m WHERE m.drug_id=b.drug_id AND m.movement_type='SALE_OUT' AND m.movement_at>=datetime('now','-30 day')),0) average_daily_units FROM batches_fefo b JOIN drugs d ON d.id=b.drug_id JOIN warehouses w ON w.id=b.warehouse_id WHERE w.branch_id=? AND b.total_units>0 ORDER BY b.expiry_date",
+        [branchId],
+      );
+      movements=await db.rawQuery(
+        'SELECT m.*,d.trade_name_ar,b.batch_no FROM stock_movements m JOIN drugs d ON d.id=m.drug_id JOIN batches_fefo b ON b.id=m.batch_id JOIN warehouses w ON w.id=m.warehouse_id WHERE w.branch_id=? ORDER BY m.id DESC LIMIT 200',
+        [branchId],
+      );
+      coldChain=await db.rawQuery(
+        'SELECT c.*,w.name_ar warehouse_name FROM cold_chain_log c JOIN warehouses w ON w.id=c.warehouse_id WHERE w.branch_id=? ORDER BY c.id DESC LIMIT 100',
+        [branchId],
+      );
     }catch(e){error=e.toString();}
     loading=false;notifyListeners();
   }

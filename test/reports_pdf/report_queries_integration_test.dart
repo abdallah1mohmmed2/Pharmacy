@@ -4,6 +4,7 @@ import '../../lib/data/database/database_helper.dart';
 import '../../lib/reports_pdf/models_and_contracts.dart';
 import '../../lib/reports_pdf/registry/report_registry_and_provider.dart';
 import '../../lib/providers/pos_and_drugs_provider.dart';
+import '../../lib/providers/inventory_and_purchase_provider.dart';
 import '../../lib/data/models/drug_model.dart';
 
 void main() {
@@ -141,6 +142,26 @@ void main() {
       limit: 1,
     );
     expect(saved.single['stock_total_units'], originalStock);
+  });
+
+
+  test('inventory provider isolates every stock screen to the active branch', () async {
+    final provider = InventoryAndPurchaseProvider();
+    await provider.setBranch(999999);
+
+    expect(provider.error, isNull);
+    expect(provider.warehouses, isEmpty);
+    expect(provider.shelves, isEmpty);
+    expect(provider.batches, isEmpty);
+    expect(provider.stocktaking, isEmpty);
+    expect(provider.disposals, isEmpty);
+    expect(provider.transfers, isEmpty);
+    expect(provider.purchaseInvoices, isEmpty);
+    expect(provider.purchaseOrders, isEmpty);
+    expect(provider.shortages, isEmpty);
+    expect(provider.radar, isEmpty);
+    expect(provider.movements, isEmpty);
+    expect(provider.coldChain, isEmpty);
   });
 
 }
