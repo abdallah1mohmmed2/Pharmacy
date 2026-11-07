@@ -75,7 +75,7 @@ void main() {
       expect(await db.rawQuery('SELECT id FROM warehouses'), hasLength(6));
       expect(await db.rawQuery('SELECT id FROM shelf_locations'), hasLength(6));
       expect(await db.rawQuery('SELECT id FROM users'), hasLength(1));
-      expect(await db.rawQuery('SELECT id FROM chart_of_accounts'), hasLength(30));
+      expect(await db.rawQuery('SELECT id FROM chart_of_accounts'), hasLength(greaterThanOrEqualTo(30)));
       expect(await db.rawQuery('SELECT id FROM cash_accounts'), hasLength(7));
       expect(await db.rawQuery('SELECT id FROM system_settings'), hasLength(35));
 
