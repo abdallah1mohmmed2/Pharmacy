@@ -61,8 +61,48 @@ class _S28SystemSettingsBackupScreenState extends State<S28SystemSettingsBackupS
   for(final role in ['OWNER','MANAGER','PHARMACIST','CASHIER','STOREKEEPER','ACCOUNTANT','AUDITOR'])ExpansionTile(title:Text(_roleName(role)),children:[
    for(final row in p.roleRows.where((r)=>r['role_code']==role))SwitchListTile(dense:true,title:Text(row['permission_code'].toString()),value:(row['is_allowed'] as num)==1,onChanged:role=='OWNER'?null:(v)=>p.setRolePermission(role,row['permission_code'] as String,v)),
   ]),
-  const Divider(),const ListTile(leading:Icon(Icons.people),title:Text('إدارة المستخدمين'),subtitle:Text('حسابات الدخول الحالية تُدار من شاشة المستخدمين؛ هذه الدورة تعرض مصفوفة الأدوار وصلاحياتها.')),
+  const Divider(),const Text('إدارة المستخدمين وحسابات الدخول',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
+  FilledButton.icon(onPressed:_createUser,icon:const Icon(Icons.person_add),label:const Text('إضافة مستخدم')),
+  for(final user in p.userRows)Card(child:ListTile(title:Text(user['full_name'].toString()),subtitle:Text('${user['username']} • ${_roleName(user['role_code'] as String)}'),trailing:Wrap(mainAxisSize:MainAxisSize.min,children:[
+   IconButton(tooltip:'تغيير الدور',icon:const Icon(Icons.badge_outlined),onPressed:()=>_editUserRole(user)),
+   IconButton(tooltip:'كلمة المرور ورمز المدير',icon:const Icon(Icons.key),onPressed:()=>_editUserSecurity(user)),
+  ]))),
  ]);
+ Future<void> _createUser() async {
+  final name=TextEditingController(),username=TextEditingController(),password=TextEditingController();
+  String role='CASHIER';
+  final values=await showDialog<Map<String,String>>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,setLocal)=>AlertDialog(title:const Text('إضافة مستخدم'),content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+   TextField(controller:name,decoration:const InputDecoration(labelText:'الاسم الكامل')),
+   TextField(controller:username,decoration:const InputDecoration(labelText:'اسم المستخدم')),
+   TextField(controller:password,obscureText:true,decoration:const InputDecoration(labelText:'كلمة المرور (8 خانات على الأقل)')),
+   DropdownButtonFormField<String>(value:role,decoration:const InputDecoration(labelText:'الدور'),items:const ['OWNER','MANAGER','PHARMACIST','CASHIER','STOREKEEPER','ACCOUNTANT','AUDITOR'].map((v)=>DropdownMenuItem(value:v,child:Text(_roleName(v)))).toList(),onChanged:(v)=>setLocal(()=>role=v??'CASHIER')),
+  ])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,{'name':name.text,'username':username.text,'password':password.text,'role':role}),child:const Text('إنشاء'))])));
+  if(values==null)return;
+  final session=context.read<SessionAndErpProvider>();final pin=await _managerPin();
+  if(pin==null||!await session.verifyManagerPin(pin))return;
+  try{await context.read<SettingsAndSystemProvider>().createUser(username:values['username']!,fullName:values['name']!,password:values['password']!,roleCode:values['role']!,branchId:session.branchId,actorUserId:session.currentUser?['id'] as int? ?? 0);if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم إنشاء المستخدم')));}
+  catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  name.dispose();username.dispose();password.dispose();
+ }
+ Future<void> _editUserRole(Map<String,Object?> user) async {
+  String role=user['role_code'] as String;
+  final selected=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(title:const Text('تغيير دور المستخدم'),content:DropdownButtonFormField<String>(value:role,items:const ['OWNER','MANAGER','PHARMACIST','CASHIER','STOREKEEPER','ACCOUNTANT','AUDITOR'].map((v)=>DropdownMenuItem(value:v,child:Text(_roleName(v)))).toList(),onChanged:(v)=>role=v??role),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,role),child:const Text('حفظ'))]));
+  if(selected==null)return;
+  final session=context.read<SessionAndErpProvider>();final pin=await _managerPin();if(pin==null||!await session.verifyManagerPin(pin))return;
+  try{await context.read<SettingsAndSystemProvider>().updateUserRole(targetUserId:user['id'] as int,roleCode:selected,actorUserId:session.currentUser?['id'] as int? ?? 0);}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+ }
+ Future<void> _editUserSecurity(Map<String,Object?> user) async {
+  final password=TextEditingController(),pinController=TextEditingController();
+  final values=await showDialog<Map<String,String>>(context:context,builder:(ctx)=>AlertDialog(title:Text('تحديث بيانات ${user['username']}'),content:Column(mainAxisSize:MainAxisSize.min,children:[
+   TextField(controller:password,obscureText:true,decoration:const InputDecoration(labelText:'كلمة مرور جديدة')),
+   TextField(controller:pinController,obscureText:true,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'رمز مدير جديد (اختياري)')),
+  ]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,{'password':password.text,'pin':pinController.text}),child:const Text('حفظ'))]));
+  if(values==null)return;
+  final session=context.read<SessionAndErpProvider>();final verified=await _managerPin();if(verified==null||!await session.verifyManagerPin(verified))return;
+  try{await context.read<SettingsAndSystemProvider>().updateUserSecurity(targetUserId:user['id'] as int,actorUserId:session.currentUser?['id'] as int? ?? 0,newPassword:values['password'],newManagerPin:values['pin']);if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم تحديث بيانات الدخول')));}
+  catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  password.dispose();pinController.dispose();
+ }
  String _roleName(String r)=>switch(r){'OWNER'=>'المالك','MANAGER'=>'المدير','PHARMACIST'=>'الصيدلي','CASHIER'=>'الكاشير','STOREKEEPER'=>'أمين المخزن','ACCOUNTANT'=>'المحاسب',_=>'المراجع'};
  Widget _backupTab(SettingsAndSystemProvider p)=>ListView(padding:const EdgeInsets.all(12),children:[
   _settingTile(SettingKeys.byKey(SettingKey.autoLocalOnClose),p),
