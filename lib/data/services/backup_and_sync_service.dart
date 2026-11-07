@@ -100,10 +100,23 @@ class BackupAndSyncService {
    for(final item in results.whereType<Map>()){
     final id=(item['id'] as num?)?.toInt();if(id==null)continue;
     final status=switch(item['status']){'DONE'=>'DONE','CONFLICT'=>'CONFLICT',_=>'FAILED'};
-    await db.update('sync_queue',{'status':status,'last_error':item['message']?.toString(),'attempts':1},where:'id=?',whereArgs:[id]);
+    final queueRow=pending.firstWhere((e)=>e['id']==id,orElse:()=>{});
+    final attempts=((queueRow['attempts'] as num?)??0).toInt()+1;
+    await db.update('sync_queue',{'status':status,'last_error':item['message']?.toString(),'attempts':attempts},where:'id=?',whereArgs:[id]);
+    if(status=='DONE'&&queueRow.isNotEmpty){
+     final table=queueRow['table_name'] as String;final uuid=queueRow['row_uuid'] as String;
+     final tableExists=await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name=?",[table]);
+     if(tableExists.isNotEmpty){
+      final cols=await db.rawQuery('PRAGMA table_info('+table+')');
+      if(cols.any((e)=>e['name']=='sync_status'))await db.update(table,{'sync_status':'SYNCED'},where:'uuid=?',whereArgs:[uuid]);
+     }
+    }
    }
+   final completedIds=results.whereType<Map>().map((e)=>(e['id'] as num?)?.toInt()).whereType<int>().toSet();
+   final unreported=ids.where((id)=>!completedIds.contains(id)).toList();
+   if(unreported.isNotEmpty)await db.update('sync_queue',{'status':'FAILED','last_error':'لم يرجع الخادم نتيجة لهذا السجل'},where:'id IN ('+List.filled(unreported.length,'?').join(',')+')',whereArgs:unreported);
    final processed=results.length;
-   if(processed==0)await db.update('sync_queue',{'status':'FAILED','last_error':'الخادم لم يرجع نتائج للعناصر المرسلة'},where:'id IN ('+List.filled(ids.length,'?').join(',')+')',whereArgs:ids);
+   await AuditService(helper:_helper).record(action:'UPDATE',entityType:'sync_queue',entityLabel:'Cloud sync batch',newValues:{'sent':ids.length,'responses':processed,'unreported':unreported.length},severity:unreported.isEmpty?'INFO':'WARNING');
    return processed;
   }catch(e){
    await db.update('sync_queue',{'status':'FAILED','last_error':e.toString(),'attempts':1},where:'id IN ('+List.filled(ids.length,'?').join(',')+')',whereArgs:ids);
