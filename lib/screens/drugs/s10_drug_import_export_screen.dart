@@ -15,7 +15,7 @@ class S10DrugImportExportScreen extends StatefulWidget {
 class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
  final sourceController=TextEditingController(),mappingController=TextEditingController();
  final searchController=TextEditingController();
- String format='CSV',policy='SKIP';String? fileName;bool hideCosts=true;
+ String format='CSV',policy='SKIP';String? fileName;bool hideCosts=true;int? exportCategoryId;
  List<OpenFdaDrugResult> fdaResults=[];bool searching=false;
  @override void dispose(){sourceController.dispose();mappingController.dispose();searchController.dispose();super.dispose();}
  Map<String,String> get mapping {
@@ -53,7 +53,7 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
   catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
  }
  Future<void> export(String kind) async {
-  try{final file=await context.read<SettingsAndSystemProvider>().exportDrugs(format:kind,hideCostPrices:hideCosts);await Share.shareXFiles([XFile(file.path)],text:'تصدير الموسوعة الدوائية');}
+  try{final file=await context.read<SettingsAndSystemProvider>().exportDrugs(format:kind,hideCostPrices:hideCosts,categoryId:exportCategoryId);await Share.shareXFiles([XFile(file.path)],text:'تصدير الموسوعة الدوائية');}
   catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
  }
  @override Widget build(BuildContext context)=>DefaultTabController(length:4,child:Scaffold(
@@ -77,11 +77,12 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
   ]))),
  ]);
  String _arabicField(String field)=>switch(field){'indications_and_usage'=>'دواعي الاستعمال','dosage_and_administration'=>'الجرعة وطريقة الاستخدام','contraindications'=>'موانع الاستعمال','warnings'=>'التحذيرات','drug_interactions'=>'التفاعلات الدوائية','adverse_reactions'=>'الأعراض الجانبية','pregnancy'=>'الحمل','pediatric_use'=>'استخدام الأطفال','geriatric_use'=>'استخدام كبار السن','storage_and_handling'=>'التخزين',_=>field};
- Widget _exportTab()=>ListView(padding:const EdgeInsets.all(16),children:[
+ Widget _exportTab()=>Consumer<SettingsAndSystemProvider>(builder:(context,p,_)=>ListView(padding:const EdgeInsets.all(16),children:[
+  DropdownButtonFormField<int?>(value:exportCategoryId,decoration:const InputDecoration(labelText:'تصفية حسب الفئة'),items:[const DropdownMenuItem<int?>(value:null,child:Text('كل الفئات')),...p.drugCategories.map((row)=>DropdownMenuItem<int?>(value:row['id'] as int,child:Text(row['name_ar'].toString())))],onChanged:(v)=>setState(()=>exportCategoryId=v)),
   SwitchListTile(value:hideCosts,onChanged:(v)=>setState(()=>hideCosts=v),title:const Text('إخفاء أسعار التكلفة من الملف')),
   const SizedBox(height:8),Card(child:ListTile(leading:const Icon(Icons.table_chart),title:const Text('تصدير CSV'),subtitle:const Text('UTF-8 مع BOM لدعم العربية في Excel'),trailing:IconButton(onPressed:()=>export('CSV'),icon:const Icon(Icons.ios_share)))),
   Card(child:ListTile(leading:const Icon(Icons.data_object),title:const Text('تصدير JSON'),subtitle:const Text('بيانات منظمة مع حقول الموسوعة'),trailing:IconButton(onPressed:()=>export('JSON'),icon:const Icon(Icons.ios_share)))),
- ]);
+ ]));
  Widget _jobsTab()=>Consumer<SettingsAndSystemProvider>(builder:(context,p,_)=>RefreshIndicator(onRefresh:p.refreshSystemData,child:ListView(padding:const EdgeInsets.all(12),children:[
   for(final job in p.importJobs)Card(child:ListTile(title:Text('${job.sourceType} • ${job.fileName??'بدون اسم ملف'}'),subtitle:Text('الحالة: ${job.status} • إجمالي: ${job.totalRows} • إضافة: ${job.insertedRows} • تحديث: ${job.updatedRows} • أخطاء: ${job.errorRows}'),trailing:Text('#${job.id}'))),
  ])));
