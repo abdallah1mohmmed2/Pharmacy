@@ -32,18 +32,17 @@ abstract final class SchemaIteration6 {
     final matchingSpecs=SettingKeys.all.where((item)=>item.name==key).toList();
     if(matchingSpecs.isEmpty)continue;
     final spec=matchingSpecs.first;final raw=value.toString();String? normalized;
-    switch(spec.type){
-     case SettingValueType.boolean:
-      if({'1','true','TRUE'}.contains(raw))normalized='1';
-      if({'0','false','FALSE'}.contains(raw))normalized='0';
-     case SettingValueType.integer:
-      if(int.tryParse(raw)!=null)normalized=raw;
-     case SettingValueType.real:
-      if(double.tryParse(raw)!=null)normalized=raw;
-     case SettingValueType.string:
-      if(spec.allowedValues.isEmpty||spec.allowedValues.contains(raw))normalized=raw;
-     case SettingValueType.json:
-      try{jsonDecode(raw);normalized=raw;}catch(_){}
+    if(spec.type==SettingValueType.boolean){
+     if({'1','true','TRUE'}.contains(raw))normalized='1';
+     if({'0','false','FALSE'}.contains(raw))normalized='0';
+    }else if(spec.type==SettingValueType.integer){
+     if(int.tryParse(raw)!=null)normalized=raw;
+    }else if(spec.type==SettingValueType.real){
+     if(double.tryParse(raw)!=null)normalized=raw;
+    }else if(spec.type==SettingValueType.string){
+     if(spec.allowedValues.isEmpty||spec.allowedValues.contains(raw))normalized=raw;
+    }else if(spec.type==SettingValueType.json){
+     try{jsonDecode(raw);normalized=raw;}catch(_){}
     }
     if(normalized!=null)await db.update('system_settings',{'setting_value':normalized},where:'setting_key=?',whereArgs:[key]);
    }
