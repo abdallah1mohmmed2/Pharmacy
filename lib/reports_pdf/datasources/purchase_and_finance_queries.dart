@@ -69,17 +69,27 @@ class PurchaseAndFinanceQueries {
     WITH supplier_prices AS (
       SELECT d.id AS drug_id,d.trade_name_ar AS drug,s.id AS supplier_id,s.name_ar AS supplier,
         pii.pack_price AS latest_price,pii.effective_pack_cost AS net_pack_cost,
-        CASE WHEN pii.qty_packs_paid>0 THEN pii.bonus_packs*100.0/pii.qty_packs_paid ELSE 0 END AS bonus_pct,
-        ROW_NUMBER() OVER(PARTITION BY d.id,s.id ORDER BY pi.invoice_date DESC,pi.id DESC) AS supplier_rank
+        CASE WHEN pii.qty_packs_paid>0 THEN pii.bonus_packs*100.0/pii.qty_packs_paid ELSE 0 END AS bonus_pct
       FROM purchase_invoice_items pii JOIN purchase_invoices pi ON pi.id=pii.invoice_id
       JOIN parties s ON s.id=pi.supplier_party_id JOIN drugs d ON d.id=pii.drug_id
       WHERE d.branch_id=? AND (? IS NULL OR d.id=?)
+        AND NOT EXISTS (
+          SELECT 1 FROM purchase_invoice_items newer_pii
+          JOIN purchase_invoices newer_pi ON newer_pi.id=newer_pii.invoice_id
+          WHERE newer_pii.drug_id=pii.drug_id
+            AND newer_pi.supplier_party_id=pi.supplier_party_id
+            AND (newer_pi.invoice_date>pi.invoice_date
+              OR (newer_pi.invoice_date=pi.invoice_date AND newer_pi.id>pi.id))
+        )
     )
-    SELECT drug,supplier,latest_price,
-      MIN(net_pack_cost) OVER(PARTITION BY drug_id) AS lowest_price,
-      bonus_pct,net_pack_cost,
-      ROW_NUMBER() OVER(PARTITION BY drug_id ORDER BY net_pack_cost) AS best_supplier_rank
-    FROM supplier_prices WHERE supplier_rank=1 ORDER BY drug,best_supplier_rank
+    SELECT sp.drug,sp.supplier,sp.latest_price,
+      (SELECT MIN(other.net_pack_cost) FROM supplier_prices other WHERE other.drug_id=sp.drug_id) AS lowest_price,
+      sp.bonus_pct,sp.net_pack_cost,
+      (SELECT COUNT(*)+1 FROM supplier_prices other
+        WHERE other.drug_id=sp.drug_id
+          AND (other.net_pack_cost<sp.net_pack_cost
+            OR (other.net_pack_cost=sp.net_pack_cost AND other.supplier_id<sp.supplier_id))) AS best_supplier_rank
+    FROM supplier_prices sp ORDER BY sp.drug,best_supplier_rank
   ''',[p.branchId,p.intValue('drug_id'),p.intValue('drug_id')]);
 
   Future<List<Map<String, Object?>>> r29(ReportParams p) => _q('''
@@ -152,8 +162,7 @@ class PurchaseAndFinanceQueries {
               AND prior_entry.is_deleted=0 AND ? IS NOT NULL AND prior_entry.entry_date<?),0) AS opening_lah
         FROM parties p WHERE p.id=? AND p.branch_id=?
       ), ledger AS (
-        SELECT l.entry_date,l.statement_ar,l.doc_type,l.doc_id,l.alayh_amount,l.lah_amount,
-          SUM(l.alayh_amount-l.lah_amount) OVER(ORDER BY l.entry_date,l.id ROWS UNBOUNDED PRECEDING) AS movement_balance
+        SELECT l.id,l.entry_date,l.statement_ar,l.doc_type,l.doc_id,l.alayh_amount,l.lah_amount
         FROM lah_alayh_ledger l WHERE l.party_id=? AND l.branch_id=? AND l.is_deleted=0
           ${_range('l.entry_date')}
       )
@@ -162,12 +171,17 @@ class PurchaseAndFinanceQueries {
         party.opening_alayh-party.opening_lah AS remaining
       FROM party
       UNION ALL
-      SELECT entry_date AS date,statement_ar AS statement,
-        COALESCE(doc_type,'') || CASE WHEN doc_id IS NULL THEN '' ELSE ':' || doc_id END AS document,
-        alayh_amount AS alayh,lah_amount AS lah,
-        (SELECT opening_alayh-opening_lah FROM party)+movement_balance AS remaining
-      FROM ledger
-      ORDER BY date
+      SELECT l.entry_date AS date,l.statement_ar AS statement,
+        COALESCE(l.doc_type,'') || CASE WHEN l.doc_id IS NULL THEN '' ELSE ':' || l.doc_id END AS document,
+        l.alayh_amount AS alayh,l.lah_amount AS lah,
+        (SELECT opening_alayh-opening_lah FROM party) + (
+          SELECT COALESCE(SUM(prior.alayh_amount-prior.lah_amount),0)
+          FROM ledger prior
+          WHERE prior.entry_date<l.entry_date
+            OR (prior.entry_date=l.entry_date AND prior.id<=l.id)
+        ) AS remaining
+      FROM ledger l
+      ORDER BY date,l.id
     ''',[p.stringValue('date_from'),p.stringValue('date_from'),
          p.stringValue('date_from'),p.stringValue('date_from'),
          partyId,p.branchId,partyId,p.branchId,..._rangeArgs(p)]);

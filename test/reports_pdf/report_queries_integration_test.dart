@@ -189,4 +189,46 @@ void main() {
     }
   });
 
+
+  test('legacy Android SQLite report queries execute without window functions', () async {
+    final registry = ReportRegistry();
+    const affectedReportNumbers = <int>{4, 7, 12, 28, 33, 36, 44};
+    for (final definition in registry.all.where(
+      (item) => affectedReportNumbers.contains(item.number),
+    )) {
+      final values = <String, Object?>{};
+      for (final parameter in definition.params) {
+        if (parameter.defaultValue != null) {
+          values[parameter.key] = parameter.defaultValue;
+        } else if (parameter.required) {
+          values[parameter.key] = switch (parameter.kind) {
+            ReportParamKind.date || ReportParamKind.dateRange => '2026-01-01',
+            ReportParamKind.customer ||
+            ReportParamKind.supplier ||
+            ReportParamKind.employee ||
+            ReportParamKind.drug ||
+            ReportParamKind.warehouse ||
+            ReportParamKind.cashier ||
+            ReportParamKind.category ||
+            ReportParamKind.number => 1,
+            ReportParamKind.text => 'test',
+            ReportParamKind.boolean => true,
+            ReportParamKind.orientation => 'portrait',
+          };
+        }
+      }
+      final result = await definition.run(
+        ReportParams(
+          branchId: 1,
+          userId: 1,
+          userName: 'SQLite compatibility test',
+          canViewCost: true,
+          showCostSetting: true,
+          values: values,
+        ),
+      );
+      expect(result.reportNumber, definition.number);
+    }
+  });
+
 }
