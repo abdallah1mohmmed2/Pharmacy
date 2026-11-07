@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../providers/session_and_erp_provider.dart';
 import '../providers/pos_and_drugs_provider.dart';
 import '../providers/inventory_and_purchase_provider.dart';
+import '../providers/clinical_and_rx_provider.dart';
 import '../providers/treasury_hr_partner_provider.dart';
 import '../providers/settings_and_system_provider.dart';
 import '../core/constants/setting_keys.dart';
