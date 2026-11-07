@@ -38,9 +38,17 @@ class SettingsService {
   await db.transaction((txn)async{
    await txn.update('system_settings',{'setting_value':encoded,'updated_at':DateTime.now().toIso8601String(),'updated_by':userId},where:'setting_key=?',whereArgs:[spec.name]);
    if(key==SettingKey.partnerDistributionMode)await _applyPartnerStateLock(txn,value as String);
+   if(key==SettingKey.showCostToPharmacist)await _syncLegacyAppSetting(txn,'reports.show_cost_to_pharmacist',(value as bool)?'1':'0');
   });
   _cache[spec.name]=value;
   await AuditService(helper:_helper).record(action:'SETTING_CHANGE',userId:userId,branchId:branchId,entityType:'system_settings',entityId:spec.number,entityLabel:spec.name,oldValues:{'value':old},newValues:{'value':value},reason:reason,severity:'WARNING');
+ }
+ Future<void> _syncLegacyAppSetting(DatabaseExecutor txn,String key,String value) async {
+  final tables=await txn.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='app_settings'");
+  if(tables.isEmpty)return;
+  final rows=await txn.query('app_settings',where:'setting_key=?',whereArgs:[key],limit:1);
+  if(rows.isEmpty){await txn.insert('app_settings',{'setting_key':key,'value_text':value});}
+  else{await txn.update('app_settings',{'value_text':value,'updated_at':DateTime.now().toIso8601String()},where:'setting_key=?',whereArgs:[key]);}
  }
  Future<void> _applyPartnerStateLock(DatabaseExecutor txn,String mode) async {
   if(mode!='shares'&&mode!='percentage')throw ArgumentError('نمط توزيع الشركاء غير صالح');
