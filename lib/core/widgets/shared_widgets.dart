@@ -73,7 +73,16 @@ class SmartExpandableCard extends StatelessWidget {
             ],
           ),
         ),
-        trailing: trailing ?? const Icon(Icons.expand_more),
+        trailing: trailing == null
+            ? const Icon(Icons.expand_more)
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  trailing!,
+                  const SizedBox(width: 3),
+                  const Icon(Icons.expand_more),
+                ],
+              ),
         children: [
           if (details.isNotEmpty)
             Padding(
@@ -298,7 +307,12 @@ class _LahAlayhTableState extends State<LahAlayhTable> {
   @override
   Widget build(BuildContext context) {
     final mobile = MediaQuery.sizeOf(context).width < 700;
-    if (!mobile || widget.forceTable) return _table();
+    if (!mobile || widget.forceTable) {
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: _table(),
+      );
+    }
     return Column(
       children: [
         Align(
