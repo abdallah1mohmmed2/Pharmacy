@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../providers/settings_and_system_provider.dart';
 import '../../data/models/settings_audit_sync_models.dart';
+import '../../data/services/drug_import_export_service.dart';
 
 class S10DrugImportExportScreen extends StatefulWidget {
  const S10DrugImportExportScreen({super.key});
@@ -63,7 +64,7 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
  Widget _importTab()=>Consumer<SettingsAndSystemProvider>(builder:(context,p,_)=>ListView(padding:const EdgeInsets.all(16),children:[
   Row(children:[Expanded(child:DropdownButtonFormField<String>(value:format,decoration:const InputDecoration(labelText:'صيغة المصدر'),items:const [DropdownMenuItem(value:'CSV',child:Text('CSV')),DropdownMenuItem(value:'JSON',child:Text('JSON'))],onChanged:(v)=>setState(()=>format=v??'CSV'))),const SizedBox(width:12),OutlinedButton.icon(onPressed:pickFile,icon:const Icon(Icons.attach_file),label:const Text('اختيار ملف'))]),
   const SizedBox(height:12),TextField(controller:sourceController,minLines:8,maxLines:14,decoration:const InputDecoration(labelText:'محتوى الملف أو البيانات الملصقة',alignLabelWithHint:true,border:OutlineInputBorder())),
-  const SizedBox(height:12),DropdownButtonFormField<ColumnMappingTemplate>(decoration:const InputDecoration(labelText:'قوالب ربط الأعمدة الجاهزة'),items:p.importer.templates.map((template)=>DropdownMenuItem(value:template,child:Text(template.name))).toList(),onChanged:(template){if(template!=null)setState(()=>mappingController.text=jsonEncode(template.columns));}),
+  const SizedBox(height:12),DropdownButtonFormField<ColumnMappingTemplate>(decoration:const InputDecoration(labelText:'قوالب ربط الأعمدة الجاهزة'),items:DrugImportExportService.templates.map((template)=>DropdownMenuItem(value:template,child:Text(template.name))).toList(),onChanged:(template){if(template!=null)setState(()=>mappingController.text=jsonEncode(template.columns));}),
   const SizedBox(height:12),TextField(controller:mappingController,minLines:2,maxLines:5,onChanged:(_)=>setState(()=>{}),decoration:const InputDecoration(labelText:'ربط الأعمدة بصيغة JSON (اختياري)',hintText:'{"اسم الدواء":"trade_name_ar"}',border:OutlineInputBorder())),
   if(mapping.isNotEmpty)Card(child:Padding(padding:const EdgeInsets.all(8),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('معاينة الربط'),for(final entry in mapping.entries)Text('${entry.key}  ←  ${entry.value}')]))),
   const SizedBox(height:12),DropdownButtonFormField<String>(value:policy,decoration:const InputDecoration(labelText:'سياسة التعارض'),items:const [DropdownMenuItem(value:'SKIP',child:Text('تخطي السجل الموجود')),DropdownMenuItem(value:'UPDATE_EMPTY_ONLY',child:Text('تحديث الحقول الفارغة فقط')),DropdownMenuItem(value:'OVERWRITE',child:Text('استبدال البيانات الموجودة'))],onChanged:(v)=>setState(()=>policy=v??'SKIP')),
