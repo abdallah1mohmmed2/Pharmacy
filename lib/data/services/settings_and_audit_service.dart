@@ -77,8 +77,8 @@ class SettingsService {
   final valid=switch(s.type){SettingValueType.boolean=>value is bool,SettingValueType.integer=>value is int,SettingValueType.real=>value is num,SettingValueType.string=>value is String,SettingValueType.json=>value is Map||value is List};
   if(!valid)throw ArgumentError('نوع قيمة الإعداد غير صحيح: '+s.name);
   if(s.allowedValues.isNotEmpty&&!s.allowedValues.contains(value))throw ArgumentError('قيمة غير مسموحة للإعداد '+s.name);
-  if(s.key==SettingKey.maxCashierDiscountPct&&(value as num)<0||s.key==SettingKey.maxCashierDiscountPct&&(value as num)>100)throw RangeError('نسبة الخصم يجب أن تكون بين 0 و100');
-  if(s.key==SettingKey.expiryWarningDays&&((value as int)<0||(value as int)>3650))throw RangeError('أيام التنبيه خارج النطاق');
+  if(s.key==SettingKey.maxCashierDiscountPct&&value is num&&(value<0||value>100))throw RangeError('نسبة الخصم يجب أن تكون بين 0 و100');
+  if(s.key==SettingKey.expiryWarningDays&&value is int&&(value<0||value>3650))throw RangeError('أيام التنبيه خارج النطاق');
   if(s.type==SettingValueType.json)jsonEncode(value);
  }
  String _encode(Object value)=>value is String?value:value is bool?(value?'1':'0'):value is Map||value is List?jsonEncode(value):value.toString();
