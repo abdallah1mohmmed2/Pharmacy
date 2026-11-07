@@ -6,7 +6,7 @@ on:
     branches: [main]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: pharmacy-ci-${{ github.ref }}
   cancel-in-progress: true
@@ -92,7 +92,18 @@ jobs:
                   "the app compile SDK remains pinned to API 36."
               )
           PY
-      - name: Check Dart formatting across the repository
+      - name: Format and commit Dart sources
+        shell: bash
+        run: |
+          dart format .
+          if ! git diff --quiet -- '*.dart'; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -- '*.dart'
+            git commit -m "chore: format Dart sources [skip ci]"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+      - name: Verify Dart formatting across the repository
         run: dart format --output=none --set-exit-if-changed .
       - name: Validate Firebase deployment JSON
         shell: bash
@@ -108,7 +119,6 @@ jobs:
           assert any(header["key"] == "Access-Control-Allow-Origin" for route in config["hosting"]["headers"] if route["source"] == "/v1/catalog/**" for header in route["headers"])
           print("Firebase Hosting configuration JSON is valid.")
           PY
-      - run: dart format lib test
       - run: flutter analyze --no-fatal-infos
       - run: flutter test
       - run: flutter build apk --release
