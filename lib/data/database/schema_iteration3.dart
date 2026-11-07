@@ -29,7 +29,7 @@ abstract final class SchemaIteration3 {
     await _ensureColumn(db,'sales_returns','wallet_ref_no','TEXT');
     await _ensureColumn(db,'sales_invoice_items','is_substitute','INTEGER NOT NULL DEFAULT 0');
     await _ensureColumn(db,'sales_invoice_items','substituted_for_drug_id','INTEGER');
-    await _seed(db);
+    // Demo patients, sample alternatives, employees, expenses, partners and shifts are not preloaded.
   }
 
   static Future<void> _ensureColumn(DatabaseExecutor db,String table,String column,String definition) async {

@@ -44,7 +44,7 @@ abstract final class SchemaIteration4 {
     await _ensureColumn(db, 'chronic_medication_schedules', 'last_dispensed_at', 'TEXT');
     await _ensureColumn(db, 'chronic_medication_schedules', 'last_dispensed_invoice_id', 'INTEGER');
     await db.insert('app_settings', {'setting_key':'accounting.partner_distribution_mode','value_text':'shares'}, conflictAlgorithm: ConflictAlgorithm.ignore);
-    await _seed(db);
+    // Demo patients, sample alternatives, employees, expenses, partners and shifts are not preloaded.
   }
 
   static Future<void> _ensureColumn(DatabaseExecutor db,String table,String column,String definition) async {
