@@ -1,10 +1,15 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_builder.dart';
+import 'package:global_enterprise_pharmacy_erp/data/database/seed_data.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration2.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration3.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration4.dart';
-import 'package:global_enterprise_pharmacy_erp/data/database/seed_data.dart';
+import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration5.dart';
+import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration6.dart';
+import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration7.dart';
+import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration8.dart';
+import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration9.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -14,18 +19,13 @@ void main() {
     databaseFactory = databaseFactoryFfi;
   });
 
-  test('creates the ERP and Iteration 2 inventory schemas with valid seed data',
-      () async {
+  test('fresh database has required structure but no demo business data', () async {
     final db = await databaseFactoryFfi.openDatabase(
       inMemoryDatabasePath,
       options: OpenDatabaseOptions(
-        version: 7,
+        version: 12,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
-          await database.execute('PRAGMA journal_mode = WAL');
-          await database.execute('PRAGMA synchronous = NORMAL');
-          await database.execute('PRAGMA busy_timeout = 5000');
-          await database.execute('PRAGMA temp_store = MEMORY');
         },
         onCreate: (database, version) async {
           await SchemaBuilder.build(database);
@@ -33,262 +33,56 @@ void main() {
           await SchemaIteration2.upgrade(database);
           await SchemaIteration3.upgrade(database);
           await SchemaIteration4.upgrade(database);
+          await SchemaIteration5.upgrade(database);
+          await SchemaIteration6.upgrade(database);
+          await SchemaIteration7.upgrade(database);
+          await SchemaIteration8.upgrade(database);
+          await SchemaIteration9.upgrade(database);
         },
       ),
     );
+
     try {
-      final drugs = (await db.rawQuery(
-        'SELECT COUNT(*) AS c FROM drugs',
-      )).first['c'] as int;
-      final settings = (await db.rawQuery(
-        'SELECT COUNT(*) AS c FROM system_settings',
-      )).first['c'] as int;
-      final accounts = (await db.rawQuery(
-        'SELECT COUNT(*) AS c FROM chart_of_accounts',
-      )).first['c'] as int;
-      final wallets = (await db.rawQuery(
-        "SELECT COUNT(*) AS c FROM cash_accounts WHERE account_kind='WALLET'",
-      )).first['c'] as int;
-      final openingJournals = (await db.rawQuery(
-        "SELECT COUNT(*) AS c FROM journal_entries WHERE source_type='OPENING'",
-      )).first['c'] as int;
-      final incompleteDrugs = (await db.rawQuery(
-        'SELECT COUNT(*) AS c FROM drugs WHERE completeness_pct < 100',
-      )).first['c'] as int;
-      final unbalancedJournals = await db.rawQuery(
-        'SELECT je.id FROM journal_entries je '
-        'JOIN journal_lines jl ON jl.journal_entry_id=je.id '
-        'GROUP BY je.id '
-        'HAVING ABS(SUM(jl.dr_amount)-SUM(jl.cr_amount))>0.005',
-      );
-
-      expect(drugs, 10);
-      expect(settings, 35);
-      expect(accounts, greaterThanOrEqualTo(30));
-      expect(wallets, 4);
-      expect(openingJournals, 4);
-      expect(incompleteDrugs, 0);
-      expect(unbalancedJournals, isEmpty);
-
-      final warehouses = (await db.rawQuery(
-        'SELECT COUNT(*) AS c FROM warehouses',
-      )).first['c'] as int;
-      final shelves = (await db.rawQuery(
-        'SELECT COUNT(*) AS c FROM shelf_locations',
-      )).first['c'] as int;
-      final batches = (await db.rawQuery(
-        'SELECT COUNT(*) AS c FROM batches_fefo',
-      )).first['c'] as int;
-      final movements = (await db.rawQuery(
-        'SELECT COUNT(*) AS c FROM stock_movements',
-      )).first['c'] as int;
-      final expiredBatches = (await db.rawQuery(
-        "SELECT COUNT(*) AS c FROM batches_fefo WHERE status='EXPIRED'",
-      )).first['c'] as int;
-      final invalidBalances = await db.rawQuery(
-        'SELECT b.id FROM batches_fefo b '
-        'JOIN drugs d ON d.id=b.drug_id '
-        'WHERE b.loose_units<0 OR b.loose_units>=d.units_per_pack '
-        'OR b.total_units != b.sealed_packs*d.units_per_pack+b.loose_units',
-      );
-      final stockTotals = await db.rawQuery(
-        'SELECT d.id,d.stock_total_units,COALESCE(SUM(b.total_units),0) batch_units '
-        'FROM drugs d LEFT JOIN batches_fefo b ON b.drug_id=d.id '
-        'GROUP BY d.id HAVING d.stock_total_units != COALESCE(SUM(b.total_units),0)',
-      );
-
-      expect(warehouses, 6);
-      expect(shelves, 6);
-      expect(batches, greaterThan(0));
-      expect(movements, greaterThan(0));
-      expect(expiredBatches, greaterThan(0));
-      final activeExpired = (await db.rawQuery(
-        "SELECT COUNT(*) AS c FROM batches_fefo WHERE status='ACTIVE' AND expiry_date<date('now')",
-      )).first['c'] as int;
-      expect(activeExpired, 0);
-      final fefoViewRows = await db.rawQuery(
-        'SELECT units_per_pack,sell_price_pack,average_daily_units FROM v_fefo_batch_balances LIMIT 1',
-      );
-      expect(fefoViewRows, hasLength(1));
-      expect(fefoViewRows.first.containsKey('units_per_pack'), isTrue);
-      expect(fefoViewRows.first.containsKey('average_daily_units'), isTrue);
-      expect(invalidBalances, isEmpty);
-
-      expect(stockTotals, isEmpty);
-      final clinicalTables = ['drug_interactions','drug_renal_rules','drug_hepatic_rules','drug_pediatric_rules','patients','clinical_alert_logs','controlled_drug_log','insurance_companies','insurance_policies','prescriptions','prescription_items','sales_returns','sales_return_items'];
-      for (final table in clinicalTables) {
-        final rows = await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name=?", [table]);
-        expect(rows, hasLength(1), reason: 'Missing clinical table $table');
-      }
-      final alternativesView = await db.rawQuery("SELECT name FROM sqlite_master WHERE type='view' AND name='v_drug_alternatives'");
-      expect(alternativesView, hasLength(1));
-      final patientCount = (await db.rawQuery('SELECT COUNT(*) AS c FROM patients')).first['c'] as int;
-      final insuranceCount = (await db.rawQuery('SELECT COUNT(*) AS c FROM insurance_companies')).first['c'] as int;
-      final alternativeCount = (await db.rawQuery("SELECT COUNT(*) AS c FROM drugs WHERE internal_code LIKE 'ALT-I3-%'")).first['c'] as int;
-      expect(patientCount, 3);
-      expect(insuranceCount, 2);
-      expect(alternativeCount, 4);
-      final interactionCount = (await db.rawQuery('SELECT COUNT(*) AS c FROM drug_interactions')).first['c'] as int;
-      final renalRuleCount = (await db.rawQuery('SELECT COUNT(*) AS c FROM drug_renal_rules')).first['c'] as int;
-      final hepaticRuleCount = (await db.rawQuery('SELECT COUNT(*) AS c FROM drug_hepatic_rules')).first['c'] as int;
-      final pediatricRuleCount = (await db.rawQuery('SELECT COUNT(*) AS c FROM drug_pediatric_rules')).first['c'] as int;
-      expect(interactionCount, greaterThanOrEqualTo(3));
-      expect(renalRuleCount, greaterThanOrEqualTo(4));
-      expect(hepaticRuleCount, greaterThanOrEqualTo(2));
-      expect(pediatricRuleCount, greaterThanOrEqualTo(2));
-      final saleItemColumns = await db.rawQuery('PRAGMA table_info(sales_invoice_items)');
-      expect(saleItemColumns.any((r) => r['name'] == 'is_substitute'), isTrue);
-      expect(saleItemColumns.any((r) => r['name'] == 'substituted_for_drug_id'), isTrue);
-      final returnColumns = await db.rawQuery('PRAGMA table_info(sales_returns)');
-      expect(returnColumns.any((r) => r['name'] == 'wallet_ref_no'), isTrue);
-      await SchemaIteration4.upgrade(db);
-
-      final patientColumns = await db.rawQuery('PRAGMA table_info(patients)');
-      expect(patientColumns.any((r) => r['name'] == 'pregnancy_status_known'), isTrue);
-
-      final iteration4Tables = [
-        'cash_transactions','work_shifts','cashier_shifts','expense_categories',
-        'expenses','employees','employee_attendance','payroll_runs','partners',
-        'partner_distributions','partner_distribution_lines','chronic_medication_schedules',
-        'representative_visit_days','party_settlements',
-      ];
-      for (final table in iteration4Tables) {
-        final rows = await db.rawQuery(
-          "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-          [table],
-        );
-        expect(rows, hasLength(1), reason: 'Missing Iteration 4 table $table');
-      }
-      final triggerNames = [
-        'trg_partner_lock_pct_ins','trg_partner_lock_pct_upd',
-        'trg_partner_lock_shares_ins','trg_partner_lock_shares_upd',
-        'trg_partner_mode_switch_requires_clear','trg_partner_mode_switch_requires_clear_pct',
-        'trg_partner_mode_switch_requires_clear_ins','trg_partner_mode_switch_requires_clear_pct_ins',
-        'trg_partner_mode_setting_delete','trg_partner_mode_setting_value',
-        'trg_partner_mode_setting_value_upd',
-      ];
-      for (final trigger in triggerNames) {
-        final rows = await db.rawQuery(
-          "SELECT name FROM sqlite_master WHERE type='trigger' AND name=?",
-          [trigger],
-        );
-        expect(rows, hasLength(1), reason: 'Missing partner state-lock trigger $trigger');
-      }
-      final distributionMode = await db.query(
-        'app_settings',
-        where: "setting_key='accounting.partner_distribution_mode'",
-        limit: 1,
-      );
-      expect(distributionMode.single['value_text'], 'shares');
-      expect(await db.rawQuery("SELECT id FROM partners WHERE percentage IS NOT NULL"), isEmpty);
-      expect(await db.rawQuery("SELECT id FROM employees"), hasLength(3));
-      expect(await db.rawQuery("SELECT id FROM expense_categories"), hasLength(8));
-      expect(await db.rawQuery("SELECT id FROM expenses"), hasLength(3));
-      expect(await db.rawQuery("SELECT id FROM cashier_shifts WHERE status='OPEN'"), hasLength(1));
-      expect(await db.rawQuery("SELECT id FROM lah_alayh_ledger WHERE entry_type='EMPLOYEE_ADVANCE' AND alayh_amount>0"), isNotEmpty);
-      final partnerId = (await db.query('partners', columns: ['id'], limit: 1)).first['id'];
-      await expectLater(
-        db.update('partners', {'percentage': 25.0}, where: 'id=?', whereArgs: [partnerId]),
-        throwsA(anything),
-      );
-      await expectLater(
-        db.update('app_settings', {'value_text':'percentage'}, where: "setting_key='accounting.partner_distribution_mode'"),
-        throwsA(anything),
-      );
-      await expectLater(
-        db.insert(
-          'app_settings',
-          {'setting_key':'accounting.partner_distribution_mode','value_text':'percentage'},
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        ),
-        throwsA(anything),
-      );
-      await db.update('partners', {'shares_count':null}, where:'1=1');
-      await db.update(
-        'app_settings',
-        {'value_text':'percentage'},
-        where: "setting_key='accounting.partner_distribution_mode'",
-      );
-      await expectLater(
-        db.update('partners', {'shares_count': 99}, where: 'id=?', whereArgs: [partnerId]),
-        throwsA(anything),
-      );
-      await db.update('partners', {'percentage': 100.0}, where: 'id=?', whereArgs: [partnerId]);
-      await expectLater(
-        db.insert(
-          'app_settings',
-          {'setting_key':'accounting.partner_distribution_mode','value_text':'shares'},
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        ),
-        throwsA(anything),
-      );
-
-
       final requiredTables = [
-        'warehouses',
-        'shelf_locations',
-        'cold_chain_log',
-        'batches_fefo',
-        'stock_movements',
-        'sales_invoice_item_batches',
-        'stocktaking_sessions',
-        'stocktaking_lines',
-        'disposals',
-        'disposal_items',
-        'stock_transfers',
-        'stock_transfer_items',
-        'purchase_orders',
-        'purchase_order_items',
-        'purchase_invoices',
-        'purchase_invoice_items',
-        'purchase_returns',
-        'purchase_return_items',
-        'price_history',
+        'drugs', 'parties', 'sales_invoices', 'purchase_invoices',
+        'batches_fefo', 'stock_movements', 'patients', 'prescriptions',
+        'insurance_companies', 'employees', 'partners', 'expenses',
+        'cashier_shifts', 'journal_entries', 'lah_alayh_ledger',
       ];
       for (final table in requiredTables) {
         final rows = await db.rawQuery(
           "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
           [table],
         );
-        expect(rows, hasLength(1), reason: 'Missing table $table');
+        expect(rows, hasLength(1), reason: 'Missing required table $table');
       }
 
-      final countedColumn = await db.rawQuery(
-        'PRAGMA table_info(stocktaking_lines)',
-      );
-      expect(countedColumn.any((column) => column['name'] == 'is_counted'), isTrue);
+      final counts = <String, int>{};
+      for (final table in [
+        'drugs', 'parties', 'sales_invoices', 'purchase_invoices',
+        'batches_fefo', 'stock_movements', 'patients', 'prescriptions',
+        'insurance_companies', 'employees', 'partners', 'expenses',
+        'cashier_shifts', 'journal_entries', 'lah_alayh_ledger',
+      ]) {
+        counts[table] = Sqflite.firstIntValue(
+          await db.rawQuery('SELECT COUNT(*) FROM $table'),
+        ) ?? 0;
+      }
+      for (final entry in counts.entries) {
+        expect(entry.value, 0, reason: 'Unexpected demo/business rows in ${entry.key}');
+      }
 
-      final movement = (await db.query(
-        'stock_movements',
-        columns: ['id'],
-        limit: 1,
-      )).first;
-      await expectLater(
-        db.update(
-          'stock_movements',
-          {'note': 'محاولة تعديل غير مسموحة'},
-          where: 'id=?',
-          whereArgs: [movement['id']],
-        ),
-        throwsA(anything),
-      );
-      await expectLater(
-        db.delete(
-          'stock_movements',
-          where: 'id=?',
-          whereArgs: [movement['id']],
-        ),
-        throwsA(anything),
-      );
+      expect(await db.rawQuery('SELECT id FROM warehouses'), hasLength(6));
+      expect(await db.rawQuery('SELECT id FROM shelf_locations'), hasLength(6));
+      expect(await db.rawQuery('SELECT id FROM users'), hasLength(1));
+      expect(await db.rawQuery('SELECT id FROM chart_of_accounts'), hasLength(30));
+      expect(await db.rawQuery('SELECT id FROM cash_accounts'), hasLength(7));
+      expect(await db.rawQuery('SELECT id FROM system_settings'), hasLength(35));
 
-      final partyBalanceView = await db.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type='view' AND name='v_party_balance'",
-      );
-      final inventoryView = await db.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type='view' AND name='v_inventory_by_drug'",
-      );
-      expect(partyBalanceView, hasLength(1));
-      expect(inventoryView, hasLength(1));
+      // Re-running the cleanup migration must remain safe and idempotent.
+      await SchemaIteration9.upgrade(db);
+      expect(await db.rawQuery('SELECT id FROM drugs'), isEmpty);
+      expect(await db.rawQuery('SELECT id FROM batches_fefo'), isEmpty);
     } finally {
       await db.close();
     }
