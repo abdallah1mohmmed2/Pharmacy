@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';\nimport 'central_medicine_picker_screen.dart';
+import 'package:flutter/material.dart';
+import 'central_medicine_picker_screen.dart';
 import 'package:provider/provider.dart';
 import '../../providers/pos_and_drugs_provider.dart';
 import '../../data/models/drug_model.dart';
