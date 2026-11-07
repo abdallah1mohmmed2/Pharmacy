@@ -19,7 +19,10 @@ class SettingsService {
   _loaded=true;
   final mode=getString(SettingKey.partnerDistributionMode);
   final db=await _helper.database;
-  await db.transaction((txn)=>_applyPartnerStateLock(txn,mode));
+  await db.transaction((txn)async{
+   await _applyPartnerStateLock(txn,mode);
+   await _syncLegacyAppSetting(txn,'reports.show_cost_to_pharmacist',getBool(SettingKey.showCostToPharmacist)?'1':'0');
+  });
  }
  void _ensureLoaded(){if(!_loaded)throw StateError('يجب تحميل الإعدادات قبل القراءة');}
  Object? getValue(SettingKey key){_ensureLoaded();return _cache[SettingKeys.byKey(key).name];}
