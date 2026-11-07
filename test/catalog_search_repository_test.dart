@@ -123,6 +123,7 @@ void main() {
           jsonEncode(_envelope(items: [_drug().toJson()])),
           200,
           headers: {'etag': '"static-etag"'},
+          encoding: utf8,
         );
       });
       final api = CentralCatalogApi(
@@ -158,6 +159,7 @@ void main() {
               cursor: 'am_p2',
             )),
             200,
+            encoding: utf8,
           );
         }
         return http.Response(
@@ -165,6 +167,7 @@ void main() {
             items: [_drug(uuid: 'amox-3', name: 'Amoxicillin 1g').toJson()],
           )),
           200,
+          encoding: utf8,
         );
       });
       final api = CentralCatalogApi(
