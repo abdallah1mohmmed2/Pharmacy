@@ -42,7 +42,8 @@ class BackupAndSyncService {
   if(!await backup.exists())throw FileSystemException('ملف النسخة غير موجود',backup.path);
   final bytes=await backup.readAsBytes();final digest=sha256.convert(bytes).toString();
   final rows=await _helper.query('backup_log',where:'file_path=? AND result=?',whereArgs:[backup.path,'SUCCESS'],limit:1);
-  if(rows.isNotEmpty&&rows.first['sha256']!=digest)throw StateError('فشل التحقق من بصمة SHA-256 للنسخة');
+  if(rows.isEmpty)throw StateError('لا توجد بصمة موثوقة مسجلة لهذه النسخة');
+  if(rows.first['sha256']!=digest)throw StateError('فشل التحقق من بصمة SHA-256 للنسخة');
   await createBackup(triggerType:'BEFORE_RESTORE',userId:userId);
   final source=backup.path.endsWith('.gz')?GZipCodec().decode(bytes):bytes;
   final destination=await _helper.databaseFilePath;
@@ -62,8 +63,28 @@ class BackupAndSyncService {
   final headers=<String,String>{'Accept':'application/json'};if(apiKey!=null&&apiKey.isNotEmpty)headers['Authorization']='Bearer $apiKey';
   try{final response=await _client.get(base.resolve('/ping'),headers:headers).timeout(const Duration(seconds:12));return response.statusCode>=200&&response.statusCode<300;}catch(_){return false;}
  }
+ Future<int> collectLocalChanges({int maxRows=1000}) async {
+  final db=await _helper.database;var collected=0;
+  final tableRows=await db.rawQuery(\"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('audit_logs','sync_queue','backup_log')\");
+  for(final tableRow in tableRows){
+   final table=tableRow['name'] as String;
+   final columns=await db.rawQuery('PRAGMA table_info('+table+')');
+   final names=columns.map((e)=>e['name'] as String).toSet();
+   if(!names.contains('uuid')||!names.contains('sync_status')||!names.contains('sync_version'))continue;
+   final rows=await db.query(table,where:\"CAST(sync_status AS TEXT) IN ('LOCAL','PENDING','0')\",limit:(maxRows-collected).clamp(0,maxRows));
+   for(final row in rows){
+    final uuid=row['uuid'];if(uuid==null)continue;
+    final deleted=(row['is_deleted'] as num? ?? 0)==1;
+    await db.insert('sync_queue',{'table_name':table,'row_uuid':uuid.toString(),'operation':deleted?'SOFT_DELETE':'INSERT','payload_json':jsonEncode(row),'sync_version':row['sync_version'],'status':'PENDING'},conflictAlgorithm:ConflictAlgorithm.ignore);
+    await db.update(table,{'sync_status':'QUEUED'},where:'uuid=?',[uuid]);
+    collected++;if(collected>=maxRows)return collected;
+   }
+  }
+  return collected;
+ }
  Future<int> syncNow({required String baseUrl,String? apiKey,int batchSize=100}) async {
   final base=Uri.tryParse(baseUrl.trim());if(base==null||base.host.isEmpty)throw ArgumentError('رابط خادم المزامنة غير صحيح');
+  await collectLocalChanges(maxRows:batchSize*10);
   final db=await _helper.database;final pending=await db.query('sync_queue',where:'status IN (?,?)',whereArgs:['PENDING','FAILED'],orderBy:'id',limit:batchSize);
   if(pending.isEmpty)return 0;
   final ids=pending.map((e)=>e['id'] as int).toList();
