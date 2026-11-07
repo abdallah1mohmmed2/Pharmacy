@@ -9,12 +9,76 @@ import '../../reports_pdf/registry/report_registry_and_provider.dart';
 class S19S20S21PartiesAndVouchersScreen extends StatefulWidget{const S19S20S21PartiesAndVouchersScreen({super.key});@override State<S19S20S21PartiesAndVouchersScreen> createState()=>_S19S20S21PartiesAndVouchersScreenState();}
 class _S19S20S21PartiesAndVouchersScreenState extends State<S19S20S21PartiesAndVouchersScreen> with SingleTickerProviderStateMixin{
  late final TabController tabs=TabController(length:3,vsync:this);
- @override void dispose(){tabs.dispose();super.dispose();}
+ final searchController=TextEditingController();
+ String query='';
+ @override void dispose(){tabs.dispose();searchController.dispose();super.dispose();}
  @override Widget build(BuildContext context){final p=context.watch<SessionAndErpProvider>();return Scaffold(backgroundColor:Colors.transparent,floatingActionButton:FloatingActionButton.extended(onPressed:()=>_addParty(context),icon:const Icon(Icons.person_add),label:const Text('إضافة طرف')),body:Column(children:[
   TabBar(controller:tabs,tabs:const [Tab(text:'العملاء'),Tab(text:'الموردون / المذاخر'),Tab(text:'خدمات الأطراف')]),
   Expanded(child:TabBarView(controller:tabs,children:[_partyList(p,'CUSTOMER'),_partyList(p,'SUPPLIER'),const PartyExtensionsScreen()])),
  ]));}
- Widget _partyList(SessionAndErpProvider p,String type){final list=p.parties.where((x)=>x.partyType==type).toList();return ListView(padding:const EdgeInsets.all(12),children:list.map((party)=>Card(child:ListTile(leading:CircleAvatar(child:Icon(type=='CUSTOMER'?Icons.person:Icons.local_shipping)),title:Text(party.nameAr),subtitle:Text(party.phone),trailing:PartyBalanceChip(totalAlayh:party.totalAlayh,totalLah:party.totalLah,compact:true),onTap:()=>_statement(p,party)))).toList());}
+ Widget _partyList(SessionAndErpProvider p,String type){
+  final list=p.parties.where((party)=>
+   party.partyType==type&&
+   (query.isEmpty||party.nameAr.toLowerCase().contains(query)||
+    party.phone.toLowerCase().contains(query)||party.code.toLowerCase().contains(query))
+  ).toList();
+  return Column(
+   children:[
+    Padding(
+     padding:const EdgeInsets.fromLTRB(12,10,12,4),
+     child:CompactSearchAndFilterBar(
+      controller:searchController,
+      hintText:type=='CUSTOMER'?'ابحث عن عميل بالاسم أو الهاتف':'ابحث عن مورد بالاسم أو الهاتف',
+      onChanged:(value)=>setState(()=>query=value.trim().toLowerCase()),
+     ),
+    ),
+    Expanded(
+     child:list.isEmpty
+      ?const Center(child:Text('لا توجد أطراف مطابقة للبحث.'))
+      :ListView.builder(
+       padding:const EdgeInsets.all(10),
+       keyboardDismissBehavior:ScrollViewKeyboardDismissBehavior.onDrag,
+       itemCount:list.length,
+       itemBuilder:(context,index){
+        final party=list[index];
+        return SmartExpandableCard(
+         title:party.nameAr,
+         primary:party.phone.isEmpty?'لا يوجد رقم هاتف':party.phone,
+         secondary:party.code,
+         leading:CircleAvatar(
+          backgroundColor:const Color(0x224DB6AC),
+          child:Icon(type=='CUSTOMER'?Icons.person_outline:Icons.local_shipping_outlined,
+            color:AppColors.primary),
+         ),
+         trailing:PartyBalanceChip(
+          totalAlayh:party.totalAlayh,
+          totalLah:party.totalLah,
+          compact:true,
+         ),
+         details:[
+          Text(type=='CUSTOMER'?'حساب عميل':'حساب مورد / مذخر'),
+          if(party.address.isNotEmpty)Text('العنوان: ${party.address}'),
+          if(party.creditLimit>0)Text('حد الائتمان: ${party.creditLimit.toStringAsFixed(2)}'),
+         ],
+         actions:[
+          OutlinedButton.icon(
+           onPressed:()=>_statement(p,party),
+           icon:const Icon(Icons.receipt_long),
+           label:const Text('كشف الحساب'),
+          ),
+          FilledButton.tonalIcon(
+           onPressed:()=>_voucher(p,party),
+           icon:const Icon(Icons.payments_outlined),
+           label:const Text('سند قبض / صرف'),
+          ),
+         ],
+        );
+       },
+      ),
+    ),
+   ],
+  );
+ }
  Future<void> _statement(SessionAndErpProvider p,PartyModel party)async{
   final entries=await p.ledger(party.id!);if(!mounted)return;
   final rows=<LahAlayhRow>[];if(party.openingAlayh>0||party.openingLah>0){rows.add(LahAlayhRow(date:'—',statement:'رصيد افتتاحي',document:'OPENING',alayh:party.openingAlayh,lah:party.openingLah));}for(final e in entries){final a=(e['alayh_amount'] as num).toDouble();final l=(e['lah_amount'] as num).toDouble();rows.add(LahAlayhRow(date:(e['entry_date'] as String).split('T').first,statement:e['statement_ar'] as String,document:(e['doc_type'] as String)+' #'+(e['doc_id']?.toString()??''),alayh:a,lah:l));}
@@ -56,12 +120,12 @@ class _S19S20S21PartiesAndVouchersScreenState extends State<S19S20S21PartiesAndV
  }
  Future<void> _addParty(BuildContext context)async{
   final name=TextEditingController();final phone=TextEditingController();final code=TextEditingController(text:'PTY-'+DateTime.now().millisecondsSinceEpoch.toString());final opening=TextEditingController();String type='CUSTOMER';String side='ALAYH';
-  await showDialog<void>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,set)=>AlertDialog(title:const Text('إضافة عميل أو مورد'),content:Column(mainAxisSize:MainAxisSize.min,children:[
+  await showDialog<void>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,set)=>AlertDialog(title:const Text('إضافة عميل أو مورد'),content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
    DropdownButtonFormField<String>(value:type,items:const [DropdownMenuItem(value:'CUSTOMER',child:Text('عميل')),DropdownMenuItem(value:'SUPPLIER',child:Text('مورد / مذخر'))],onChanged:(v)=>set(()=>type=v??type)),
    TextField(controller:code,decoration:const InputDecoration(labelText:'الكود')),TextField(controller:name,decoration:const InputDecoration(labelText:'الاسم')),TextField(controller:phone,decoration:const InputDecoration(labelText:'الهاتف')),
    TextField(controller:opening,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'الرصيد الافتتاحي (اختياري)')),
    DropdownButtonFormField<String>(value:side,items:const [DropdownMenuItem(value:'ALAYH',child:Text('عليه')),DropdownMenuItem(value:'LAH',child:Text('له'))],onChanged:(v)=>set(()=>side=v??side)),
-  ]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{if(name.text.trim().isEmpty)return;final v=double.tryParse(opening.text)??0;await context.read<SessionAndErpProvider>().createParty(PartyModel(partyType:type,code:code.text,nameAr:name.text,phone:phone.text),openingAlayh:side=='ALAYH'?v:0,openingLah:side=='LAH'?v:0);if(ctx.mounted)Navigator.pop(ctx);},child:const Text('حفظ'))])));
+  ])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{if(name.text.trim().isEmpty)return;final v=double.tryParse(opening.text)??0;await context.read<SessionAndErpProvider>().createParty(PartyModel(partyType:type,code:code.text,nameAr:name.text,phone:phone.text),openingAlayh:side=='ALAYH'?v:0,openingLah:side=='LAH'?v:0);if(ctx.mounted)Navigator.pop(ctx);},child:const Text('حفظ'))])));
   name.dispose();phone.dispose();code.dispose();opening.dispose();await context.read<SessionAndErpProvider>().refresh();
  }
 }
