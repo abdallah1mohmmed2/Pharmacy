@@ -4,6 +4,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:pdf/pdf.dart';
+import 'package:printing/printing.dart';
 import '../../core/constants/setting_keys.dart';
 import '../../providers/settings_and_system_provider.dart';
 import '../../providers/session_and_erp_provider.dart';
@@ -42,7 +45,7 @@ class _S28SystemSettingsBackupScreenState extends State<S28SystemSettingsBackupS
    for(final spec in specs)_settingTile(spec,p),
    if(group==SettingGroup.general)Card(child:ListTile(leading:const Icon(Icons.preview),title:const Text('معاينة الترويسة والتذييل'),subtitle:Text('الترويسة: ${p.settings.getJson(SettingKey.reportHeaderFooter)['header']??''}\nالتذييل: ${p.settings.getJson(SettingKey.reportHeaderFooter)['footer']??''}'),isThreeLine:true)),
    if(group==SettingGroup.accounting)const Card(child:ListTile(leading:Icon(Icons.lock,color:Colors.green),title:Text('مصطلحات «له وعليه» مقفولة دائماً'),subtitle:Text('لا يمكن تعطيل هذا القيد من أي دور.'))),
-   if(group==SettingGroup.printBackup)Card(child:ListTile(title:const Text('طباعة تجريبية'),subtitle:const Text('اختبر إعدادات الورق الحالية'),trailing:IconButton(onPressed:()=>ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('إرسال صفحة اختبار للطباعة يتطلب اختيار طابعة من نافذة الطباعة.'))),icon:const Icon(Icons.print)))),
+   if(group==SettingGroup.printBackup)Card(child:ListTile(title:const Text('طباعة تجريبية'),subtitle:const Text('اختبر إعدادات الورق الحالية'),trailing:IconButton(onPressed:()=>_testPrint(p),icon:const Icon(Icons.print)))),
   ]);
  }
  Widget _settingTile(SettingSpec spec,SettingsAndSystemProvider p){
@@ -151,6 +154,21 @@ class _S28SystemSettingsBackupScreenState extends State<S28SystemSettingsBackupS
    if(p.chainResult!=null)Card(child:ListTile(leading:Icon(p.chainResult!.isValid?Icons.check_circle:Icons.error,color:p.chainResult!.isValid?Colors.green:Colors.red),title:Text(p.chainResult!.isValid?'السلسلة سليمة 100%':'السلسلة تحتاج مراجعة'),subtitle:Text('تم فحص ${p.chainResult!.checkedRows} سجلاً'))),
    for(final row in filtered)Card(child:ExpansionTile(title:Text('${row.action} • ${row.entityLabel??row.entityType??''}'),subtitle:Text('${row.eventAt} • ${row.severity} • المستخدم ${row.userId??'-'}'),children:[if(row.oldValuesJson!=null)ListTile(title:const Text('القيم القديمة'),subtitle:SelectableText(row.oldValuesJson!)),if(row.newValuesJson!=null)ListTile(title:const Text('القيم الجديدة'),subtitle:SelectableText(row.newValuesJson!)),if(row.reason!=null)ListTile(title:const Text('السبب'),subtitle:Text(row.reason!)),ListTile(title:const Text('SHA-256'),subtitle:SelectableText(row.rowHash??''))])),
   ]);
+ }
+ Future<void> _testPrint(SettingsAndSystemProvider p) async {
+  final receipt=p.settings.getString(SettingKey.receiptPaper);
+  final receiptWidth=receipt=='58mm'?58.0:80.0;
+  final reportConfig=p.settings.getJson(SettingKey.reportPaper);
+  final reportSize=(reportConfig['size']??'A4').toString().toUpperCase();
+  final reportFormat=reportSize=='A4'?PdfPageFormat.a4:PdfPageFormat.a4;
+  try{
+   final report=pw.Document();
+   report.addPage(pw.Page(pageFormat:reportFormat,build:(_)=>pw.Center(child:pw.Column(mainAxisSize:pw.MainAxisSize.min,children:[pw.Text('PHARMACY REPORT PRINT TEST',style:pw.TextStyle(fontSize:22,fontWeight:pw.FontWeight.bold)),pw.SizedBox(height:12),pw.Text('Report paper: $reportSize'),pw.Text('Generated: ${DateTime.now().toIso8601String()}')]))));
+   await Printing.layoutPdf(onLayout:(_)=>report.save());
+   final receiptDoc=pw.Document();
+   receiptDoc.addPage(pw.Page(pageFormat:PdfPageFormat(receiptWidth*PdfPageFormat.mm,180*PdfPageFormat.mm,marginAll:4*PdfPageFormat.mm),build:(_)=>pw.Column(crossAxisAlignment:pw.CrossAxisAlignment.center,children:[pw.Text('PHARMACY RECEIPT TEST',style:pw.TextStyle(fontSize:16,fontWeight:pw.FontWeight.bold)),pw.Divider(),pw.Text('Receipt width: ${receiptWidth.toStringAsFixed(0)}mm'),pw.Text(DateTime.now().toIso8601String())])));
+   await Printing.layoutPdf(onLayout:(_)=>receiptDoc.save());
+  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر فتح نافذة الطباعة: $e')));}
  }
  Widget _periodTab(SettingsAndSystemProvider p)=>ListView(padding:const EdgeInsets.all(12),children:[
   FilledButton.icon(onPressed:()=>_createCurrentPeriod(),icon:const Icon(Icons.add),label:const Text('إنشاء فترة الشهر والسنة الحالية')),
