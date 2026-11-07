@@ -48,7 +48,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
     final session = context.watch<SessionAndErpProvider>();
     final inventory = context.watch<InventoryAndPurchaseProvider>();
     final clinical = context.watch<ClinicalAndRxProvider>();
-    final wide = MediaQuery.sizeOf(context).width >= 850;
+    final wide = MediaQuery.sizeOf(context).width >= 700;
 
     return Focus(
       onKeyEvent: (node, event) {
