@@ -53,9 +53,13 @@ class DrugImportExportService {
   final result=<String,Object?>{};
   if(mapping.isEmpty){for(final e in source.entries){if(_knownColumns.contains(e.key))result[e.key]=e.value;}}
   else{for(final e in mapping.entries){if(source.containsKey(e.key))result[e.value]=source[e.key];}}
-  for(final key in ['trade_name_ar','trade_name_en','scientific_name','internal_code','dosage_form','strength_text','indications','dosage_administration','contraindications','warnings_precautions','interactions_summary','side_effects_common','side_effects_serious','pregnancy_category','pregnancy_notes','pediatric_notes','geriatric_notes','storage_conditions','ingredients_json']){
-   if(result[key]!=null)result[key]=result[key].toString();
-  }
+  const intFields=['manufacturer_id','active_ingredient_id','category_id','strips_per_pack','units_per_strip','units_per_pack','min_age_months','max_age_months','geriatric_age_threshold','min_stock_units','reorder_qty_packs','stock_total_units'];
+  const doubleFields=['strength_value','adult_dose_min_mg','adult_dose_max_mg_per_day','ped_dose_mg_per_kg_min','ped_dose_mg_per_kg_max','ped_max_daily_mg_per_kg','storage_temp_min_c','storage_temp_max_c','cost_price_pack','last_purchase_cost_pack','sell_price_pack','sell_price_strip','sell_price_unit','profit_margin_pct','public_price_pack','tax_rate_pct'];
+  const boolFields=['is_active','is_strip_based','has_critical_interactions','is_nephrotoxic','neonate_allowed','requires_refrigeration','protect_from_light','is_controlled','requires_prescription','prescription_restricted','is_antibiotic'];
+  for(final key in intFields){if(result[key]!=null){final parsed=int.tryParse(result[key].toString());if(parsed==null)throw FormatException('قيمة عددية غير صحيحة للحقل '+key);result[key]=parsed;}}
+  for(final key in doubleFields){if(result[key]!=null){final parsed=double.tryParse(result[key].toString());if(parsed==null)throw FormatException('قيمة عشرية غير صحيحة للحقل '+key);result[key]=parsed;}}
+  for(final key in boolFields){if(result[key]!=null){final raw=result[key].toString().toLowerCase();if(!{'1','0','true','false','yes','no'}.contains(raw))throw FormatException('قيمة منطقية غير صحيحة للحقل '+key);result[key]={'1','true','yes'}.contains(raw)?1:0;}}
+  for(final key in result.keys.toList()){if(result[key]!=null&&result[key] is! num)result[key]=result[key].toString();}
   return result;
  }
  static const Set<String> _knownColumns={
@@ -84,7 +88,8 @@ class DrugImportExportService {
     await db.transaction((txn)async{
      for(final row in batch){
       try{
-       final drug=DrugModel.fromMap(row).toMap()..remove('id');
+       final now=DateTime.now().toIso8601String();
+       final drug=DrugModel.fromMap(row).toMap()..remove('id')..['uuid']=row['uuid']??'drug-import-'+DateTime.now().microsecondsSinceEpoch.toString()+'-'+done.toString()..['created_at']=now..['updated_at']=now;
        final code=(row['internal_code']??'').toString();
        final name=(row['trade_name_ar']??'').toString();
        final scientific=(row['scientific_name']??'').toString();
