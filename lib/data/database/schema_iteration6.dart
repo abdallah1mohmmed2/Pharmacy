@@ -70,7 +70,6 @@ abstract final class SchemaIteration6 {
   await db.execute("CREATE TRIGGER trg_audit_no_update BEFORE UPDATE ON audit_logs BEGIN SELECT RAISE(ABORT,'audit_logs are immutable'); END");
   await db.execute("CREATE TRIGGER trg_audit_no_delete BEFORE DELETE ON audit_logs BEGIN SELECT RAISE(ABORT,'audit_logs are immutable'); END");
   await _migrateLegacyAuditRows(db);
-  await _installPeriodTriggers(db);
   await db.execute('''CREATE TABLE IF NOT EXISTS backup_log(
    id INTEGER PRIMARY KEY AUTOINCREMENT,backup_at TEXT NOT NULL,trigger_type TEXT NOT NULL CHECK(trigger_type IN ('MANUAL','ON_SHIFT_CLOSE','ON_APP_CLOSE','BEFORE_RESTORE','BEFORE_PERIOD_CLOSE')),
    file_path TEXT NOT NULL,size_bytes INTEGER NOT NULL DEFAULT 0,sha256 TEXT NOT NULL,encrypted INTEGER NOT NULL DEFAULT 0,
@@ -90,6 +89,7 @@ abstract final class SchemaIteration6 {
    status TEXT NOT NULL DEFAULT 'OPEN' CHECK(status IN ('OPEN','CLOSED')),closed_at TEXT,closed_by INTEGER,
    CHECK(start_date<=end_date)
   )''');
+  await _installPeriodTriggers(db);
   await db.execute('''CREATE TABLE IF NOT EXISTS roles(
    role_code TEXT PRIMARY KEY,role_name_ar TEXT NOT NULL,is_system INTEGER NOT NULL DEFAULT 1
   )''');
