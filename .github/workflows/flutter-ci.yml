@@ -20,6 +20,30 @@ jobs:
           channel: stable
           cache: true
       - run: flutter create --platforms=android,windows --org com.globalpharmacy .
+      - name: Set Android compile SDK to 36 for current plugins
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          candidates = [Path("android/app/build.gradle.kts"), Path("android/app/build.gradle")]
+          replacements = {
+              "compileSdk = flutter.compileSdkVersion": "compileSdk = 36",
+              "compileSdkVersion flutter.compileSdkVersion": "compileSdkVersion 36",
+          }
+          for path in candidates:
+              if not path.exists():
+                  continue
+              content = path.read_text()
+              updated = content
+              for old, new in replacements.items():
+                  updated = updated.replace(old, new)
+              if updated != content:
+                  path.write_text(updated)
+                  print(f"Configured compile SDK 36 in {path}")
+                  break
+          else:
+              raise SystemExit("Could not locate Flutter Android compileSdk declaration")
+          PY
       - run: flutter pub get
       - run: dart format lib test
       - run: flutter analyze --no-fatal-infos
