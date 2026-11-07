@@ -69,7 +69,7 @@ class _S28SystemSettingsBackupScreenState extends State<S28SystemSettingsBackupS
   ]),
   const Divider(),const Text('إدارة المستخدمين وحسابات الدخول',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
   FilledButton.icon(onPressed:_createUser,icon:const Icon(Icons.person_add),label:const Text('إضافة مستخدم')),
-  for(final user in p.userRows)Card(child:ListTile(title:Text(user['full_name'].toString()),subtitle:Text('${user['username']} • ${_roleName(user['role_code'] as String)}'),trailing:Wrap(mainAxisSize:MainAxisSize.min,children:[
+  for(final user in p.userRows)Card(child:ListTile(title:Text(user['full_name'].toString()),subtitle:Text('${user['username']} • ${_roleName(user['role_code'] as String)}'),trailing:Wrap(children:[
    IconButton(tooltip:'تغيير الدور',icon:const Icon(Icons.badge_outlined),onPressed:()=>_editUserRole(user)),
    IconButton(tooltip:'كلمة المرور ورمز المدير',icon:const Icon(Icons.key),onPressed:()=>_editUserSecurity(user)),
   ]))),
