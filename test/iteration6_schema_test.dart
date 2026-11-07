@@ -10,6 +10,7 @@ import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration4.d
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration5.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration6.dart';
 import 'package:global_enterprise_pharmacy_erp/core/constants/setting_keys.dart';
+import 'package:global_enterprise_pharmacy_erp/data/services/settings_and_audit_service.dart';
 
 void main(){
  TestWidgetsFlutterBinding.ensureInitialized();
@@ -30,6 +31,20 @@ void main(){
    await db.insert('audit_logs',{'event_at':'2026-11-07T00:00:00Z','action':'CREATE','entity_type':'test','prev_hash':'GENESIS','row_hash':'test-hash'});
    await expectLater(db.update('audit_logs',{'reason':'tampered'},where:'id=1'),throwsA(isA<DatabaseException>()));
    await expectLater(db.delete('audit_logs',where:'id=1'),throwsA(isA<DatabaseException>()));
+  }finally{await db.close();}
+ });
+ test('SHA-256 audit chain verifies records and detects altered data',() async {
+  final db=await databaseFactoryFfi.openDatabase(inMemoryDatabasePath,options:OpenDatabaseOptions(version:9,onConfigure:(d)async{await d.execute('PRAGMA foreign_keys=ON');},onCreate:(d,_)async{
+   await SchemaBuilder.build(d);await SeedData.run(d);await SchemaIteration2.upgrade(d);await SchemaIteration3.upgrade(d);await SchemaIteration4.upgrade(d);await SchemaIteration5.upgrade(d);await SchemaIteration6.upgrade(d);
+  }));
+  try{
+   final audit=AuditService(executor:db);
+   await audit.record(action:'CREATE',userId:1,entityType:'test',entityId:1,newValues:{'value':1});
+   await audit.record(action:'UPDATE',userId:1,entityType:'test',entityId:1,oldValues:{'value':1},newValues:{'value':2});
+   final valid=await audit.verifyChainIntegrity();expect(valid.isValid,isTrue);expect(valid.checkedRows,2);
+   await db.execute('DROP TRIGGER trg_audit_no_update');
+   await db.update('audit_logs',{'reason':'external modification'},where:'id=1');
+   final invalid=await audit.verifyChainIntegrity();expect(invalid.isValid,isFalse);expect(invalid.firstInvalidId,1);
   }finally{await db.close();}
  });
  test('closed fiscal period trigger rejects journal entry creation',() async {
