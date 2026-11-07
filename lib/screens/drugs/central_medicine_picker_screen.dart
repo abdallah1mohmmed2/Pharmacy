@@ -61,7 +61,7 @@ class _CentralMedicinePickerScreenState extends State<CentralMedicinePickerScree
       _cursor = null;
       _error = null;
       _offline = false;
-      _loading = _query.length >= 2 || RegExp(r'^\d{8,14}\;
+      _loading = _query.length >= 2 || RegExp(r'^\d{8,14}$').hasMatch(_query);
       _loadingMore = false;
     });
     if (_query.isEmpty || (!_loading)) return;
