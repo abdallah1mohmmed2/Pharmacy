@@ -5,8 +5,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
-import '../../../providers/settings_and_system_provider.dart';
-import '../../../data/models/settings_audit_sync_models.dart';
+import '../../providers/settings_and_system_provider.dart';
+import '../../data/models/settings_audit_sync_models.dart';
 
 class S10DrugImportExportScreen extends StatefulWidget {
  const S10DrugImportExportScreen({super.key});
