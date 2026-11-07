@@ -32,10 +32,10 @@ void main() {
       expect(triggers, isNotEmpty);
       expect(triggers.every((row) => !(row['sql'] as String).contains('json_extract')), isTrue);
       await db.insert('purchase_invoices', {'invoice_date': '2026-12-01'});
+      final salesId = await db.insert('sales_invoices', {'invoice_date': '2026-11-20'});
       await db.update('system_settings', {'setting_value': '{"locked_through":"2026-11-30"}'}, where: 'setting_no=29');
       await expectLater(db.insert('purchase_invoices', {'invoice_date': '2026-11-15'}), throwsA(isA<DatabaseException>()));
       await db.insert('purchase_invoices', {'invoice_date': '2026-12-02'});
-      final salesId = await db.insert('sales_invoices', {'invoice_date': '2026-11-20'});
       await expectLater(db.insert('sales_invoice_items', {'invoice_id': salesId}), throwsA(isA<DatabaseException>()));
     } finally {
       await db.close();
