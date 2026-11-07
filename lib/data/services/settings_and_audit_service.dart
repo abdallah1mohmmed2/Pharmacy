@@ -8,8 +8,8 @@ import '../../core/constants/setting_keys.dart';
 
 typedef ManagerPinVerifier = Future<bool> Function(String pin);
 class SettingsService {
- SettingsService({DatabaseHelper? helper,required ManagerPinVerifier verifyManagerPin}):_helper=helper??DatabaseHelper.instance,_verifyManagerPin=verifyManagerPin;
- final DatabaseHelper _helper; final ManagerPinVerifier _verifyManagerPin;
+ SettingsService({DatabaseHelper? helper,required ManagerPinVerifier verifyManagerPin,ManagerPinVerifier? verifyOwnerPin}):_helper=helper??DatabaseHelper.instance,_verifyManagerPin=verifyManagerPin,_verifyOwnerPin=verifyOwnerPin??verifyManagerPin;
+ final DatabaseHelper _helper; final ManagerPinVerifier _verifyManagerPin;final ManagerPinVerifier _verifyOwnerPin;
  final Map<String,Object?> _cache={}; bool _loaded=false;
  Future<void> load() async {
   final rows=await _helper.query('system_settings',orderBy:'setting_no');
@@ -35,7 +35,10 @@ class SettingsService {
   _ensureLoaded(); final spec=SettingKeys.byKey(key);
   if(key==SettingKey.lahAlayhTermsOnly&&value!=true)throw StateError('هذا الإعداد مقفول ولا يمكن تعطيله');
   _validate(spec,value);
-  if(spec.requiresManager){if(managerPin==null||!await _verifyManagerPin(managerPin))throw StateError('رمز المدير غير صحيح أو غير متوفر');}
+  if(spec.requiresManager){
+   final verifier=key==SettingKey.partnerDistributionMode?_verifyOwnerPin:_verifyManagerPin;
+   if(managerPin==null||!await verifier(managerPin))throw StateError(key==SettingKey.partnerDistributionMode?'رمز المالك غير صحيح أو غير متوفر':'رمز المدير غير صحيح أو غير متوفر');
+  }
   final old=_cache[spec.name]; final encoded=_encode(value);
   final db=await _helper.database;
   await db.transaction((txn)async{
