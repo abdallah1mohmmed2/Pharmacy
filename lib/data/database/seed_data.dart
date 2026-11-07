@@ -1,6 +1,5 @@
 import '../services/security_hash_service.dart';
 import 'package:sqflite/sqflite.dart';
-import '../models/drug_model.dart';
 
 abstract final class SeedData {
   static const _now = '2026-11-05T00:00:00.000';
@@ -29,69 +28,6 @@ abstract final class SeedData {
     ];
     final glCodes={'CASH-MAIN':'1101','CASH-DRAWER':'1102','W-JAWALI':'1103','W-JAIB':'1104','W-FLOUSK':'1105','W-KURAIMI':'1106','BANK-MAIN':'1107'};
     for(final c in cashKinds){final gl=await db.query('chart_of_accounts',columns:['id'],where:'code=?',whereArgs:[glCodes[c[0]]],limit:1);await db.insert('cash_accounts',{...base,'uuid':'cash-'+c[0],'code':c[0],'name_ar':c[1],'account_kind':c[2],'wallet_provider':c[3].isEmpty?null:c[3],'gl_account_id':gl.first['id'],'current_balance':0});}
-    final parties=<List<String>>[
-      ['CUSTOMER','C-001','عميل نقدي'],['CUSTOMER','C-002','عميل آجل تجريبي'],['SUPPLIER','S-001','مذخر الأمل'],['SUPPLIER','S-002','مذخر الشفاء']
-    ];
-    for(final p in parties){await db.insert('parties',{...base,'uuid':'party-'+p[1],'party_type':p[0],'code':p[1],'name_ar':p[2],'credit_limit':100000,'payment_terms_days':30,'opening_alayh':0,'opening_lah':0});}
-    final openingMovements=<List<Object>>[
-      ['C-002',3500.0,0.0,'رصيد افتتاحي للعميل'],
-      ['C-001',0.0,500.0,'رصيد افتتاحي لصالح العميل'],
-      ['S-001',8000.0,0.0,'رصيد افتتاحي للمذخر'],
-      ['S-002',0.0,1200.0,'رصيد افتتاحي لصالح المذخر'],
-    ];
-    final equityRows=await db.query('chart_of_accounts',columns:['id'],where:'code=?',whereArgs:['3101'],limit:1);
-    final equityAccountId=equityRows.first['id'] as int;
-    for(final movement in openingMovements){
-      final movementCode = movement[0] as String;
-      final alayhAmount = (movement[1] as num).toDouble();
-      final lahAmount = (movement[2] as num).toDouble();
-      final movementDescription = movement[3] as String;
-      final party=await db.query('parties',columns:['id','party_type'],where:'code=?',whereArgs:[movementCode],limit:1);
-      final partyId=party.first['id'] as int;
-      final isAlayh=alayhAmount>0;
-      final partyAccountCode=party.first['party_type']=='SUPPLIER'&&!isAlayh?'2101':'1201';
-      final partyAccountRows=await db.query('chart_of_accounts',columns:['id'],where:'code=?',whereArgs:[partyAccountCode],limit:1);
-      final partyAccountId=partyAccountRows.first['id'] as int;
-      final amount=alayhAmount+lahAmount;
-      final journalId=await db.insert('journal_entries',{...base,'uuid':'opening-je-'+movementCode,'entry_no':'OPENING-'+movementCode,'entry_date':_now,'description':movementDescription,'source_type':'OPENING','source_id':partyId,'is_posted':1});
-      await db.insert('journal_lines',{...base,'uuid':'opening-jl-'+movementCode+'-1','journal_entry_id':journalId,'account_id':isAlayh?partyAccountId:equityAccountId,'party_id':isAlayh?partyId:null,'dr_amount':amount,'cr_amount':0,'memo':movementDescription});
-      await db.insert('journal_lines',{...base,'uuid':'opening-jl-'+movementCode+'-2','journal_entry_id':journalId,'account_id':isAlayh?equityAccountId:partyAccountId,'party_id':isAlayh?null:partyId,'dr_amount':0,'cr_amount':amount,'memo':movementDescription});
-      await db.insert('lah_alayh_ledger',{...base,'uuid':'opening-'+movementCode,'party_id':partyId,'entry_date':_now,'entry_type':'OPENING','alayh_amount':alayhAmount,'lah_amount':lahAmount,'doc_type':'OPENING','doc_id':journalId,'journal_entry_id':journalId,'statement_ar':movementDescription});
-    }
-    final ingredientIds=<String,int>{};
-    final ingredientSeeds=<List<String>>[
-      ['Amoxicillin','أموكسيسيلين'],['Clavulanic acid','حمض كلافولانيك'],['Paracetamol','باراسيتامول'],['Caffeine','كافيين'],['Warfarin','وارفارين'],['Isotretinoin','إيزوتريتينوين'],['Metformin','ميتفورمين'],['Gentamicin','جنتاميسين']
-    ];
-    for(final ingredient in ingredientSeeds){
-      ingredientIds[ingredient[0]]=await db.insert('active_ingredients',{...base,'uuid':'ingredient-'+ingredient[0].replaceAll(' ','-'),'inn_name':ingredient[0],'name_ar':ingredient[1]});
-    }
-    final ingredientId=ingredientIds['Amoxicillin']!;
-    final categoryId=await db.insert('drug_categories',{...base,'uuid':'category-medicine','code':'MED','name_ar':'أدوية عامة','atc_prefix':'J01'});
-    final manufacturers=<int>[];
-    for(final m in ['GSK','Haleon','Bayer','Teva','Merck','Generic Manufacturer']){manufacturers.add(await db.insert('manufacturers',{...base,'uuid':'manufacturer-'+m,'name_en':m,'name_ar':m,'country':'International'}));}
-    final drugs=<DrugModel>[
-      DrugModel(internalCode:'DR-0001',tradeNameAr:'أوجمنتين 1 جم',tradeNameEn:'Augmentin 1g',scientificName:'Amoxicillin + Clavulanic acid',activeIngredientId:ingredientId,ingredientsJson:'[{"name":"Amoxicillin","strength":"875 mg"},{"name":"Clavulanic acid","strength":"125 mg"}]',chemicalComposition:'Amoxicillin 875 mg + Clavulanic acid 125 mg',categoryId:categoryId,atcCode:'J01CR02',dosageForm:'TABLET',strengthText:'875 mg + 125 mg',strengthValue:1000,strengthUnit:'mg',route:'ORAL',indications:'عدوى بكتيرية حساسة وفق التشخيص والوصفة',dosageAdministration:'يحدد الطبيب الجرعة والمدة حسب العدوى ووظائف الكلى',contraindications:'تحسس شديد للبنسلين أو تاريخ يرقان/خلل كبدي مرتبط بالمستحضر',warningsPrecautions:'لا يعالج العدوى الفيروسية؛ راجع النشرة المحلية',interactionsSummary:'قد يتداخل مع الوارفارين والميثوتريكسات',sideEffectsCommon:'إسهال وغثيان وطفح',sideEffectsSerious:'تحسس شديد أو التهاب قولون مرتبط بالمضادات',stripsPerPack:2,unitsPerStrip:7,unitsPerPack:14,costPricePack:3500,sellPricePack:4500,sellPriceStrip:2250,sellPriceUnit:321.43,stockTotalUnits:70,isAntibiotic:true,requiresPrescription:true,hepaticStatus:'ADJUST',hepaticNotes:'الحذر عند وجود تاريخ خلل كبدي مرتبط بالدواء',renalStatus:'ADJUST',renalNotes:'قد يتطلب تعديل الجرعة في القصور الكلوي',pediatricStatus:'ADJUST',pediatricNotes:'الأطفال يحتاجون مستحضراً وجرعة بحسب الوزن',pregnancyCategory:'UNKNOWN',pregnancyNotes:'يستخدم عند الحاجة الطبية بعد تقييم مختص',lactationRisk:'L2',lactationNotes:'يراقب الرضيع لاحتمال اضطراب هضمي',storageConditions:'يحفظ في مكان جاف حسب النشرة',manufacturerId:manufacturers[0]),
-      DrugModel(internalCode:'DR-0002',tradeNameAr:'بانادول إكسترا',tradeNameEn:'Panadol Extra',scientificName:'Paracetamol + Caffeine',activeIngredientId:ingredientIds['Paracetamol']!,ingredientsJson:'[{"name":"Paracetamol","strength":"500 mg"},{"name":"Caffeine","strength":"65 mg"}]',chemicalComposition:'Paracetamol 500 mg + Caffeine 65 mg',categoryId:categoryId,atcCode:'N02BE51',dosageForm:'TABLET',strengthText:'500 mg + 65 mg',route:'ORAL',indications:'تسكين الألم والصداع وفق النشرة',dosageAdministration:'اتبع الجرعة المكتوبة على العبوة ولا تجمعه مع باراسيتامول آخر',contraindications:'حساسية للمكونات',warningsPrecautions:'احسب إجمالي الباراسيتامول من جميع المستحضرات',interactionsSummary:'تداخلات محتملة مع الوارفارين والمنبهات',sideEffectsCommon:'غثيان وعصبية وأرق',sideEffectsSerious:'أذية كبدية عند تجاوز الجرعة',stripsPerPack:2,unitsPerStrip:12,unitsPerPack:24,costPricePack:1200,sellPricePack:1800,sellPriceStrip:900,sellPriceUnit:75,stockTotalUnits:120,hepaticStatus:'AVOID',hepaticNotes:'الحذر الشديد في أمراض الكبد',renalStatus:'UNKNOWN',geriatricStatus:'ADJUST',geriatricNotes:'الحذر من المنبهات',pediatricStatus:'AVOID',pediatricNotes:'ليس مناسباً للأطفال الصغار',pregnancyCategory:'UNKNOWN',pregnancyNotes:'استشارة مختص بسبب الكافيين',lactationRisk:'UNKNOWN',storageConditions:'يحفظ جافاً',manufacturerId:manufacturers[1]),
-      DrugModel(internalCode:'DR-0003',tradeNameAr:'وارفارين 5 مجم',tradeNameEn:'Warfarin 5mg',scientificName:'Warfarin',activeIngredientId:ingredientIds['Warfarin']!,ingredientsJson:'[{"name":"Warfarin","strength":"5 mg"}]',chemicalComposition:'Warfarin sodium 5 mg',categoryId:categoryId,atcCode:'B01AA03',dosageForm:'TABLET',strengthText:'5 mg',route:'ORAL',indications:'مضاد تخثر لاستطبابات محددة وتحت متابعة INR',dosageAdministration:'جرعة فردية يحددها الطبيب بناء على INR',contraindications:'نزف فعال والحمل وموانع أخرى بالنشرة',warningsPrecautions:'خطر نزف مرتفع؛ متابعة INR والتداخلات ضرورية',blackBoxWarning:'قد يسبب نزفاً قاتلاً',interactionsSummary:'تداخلات كثيرة مع أدوية وأطعمة ومكملات',hasCriticalInteractions:true,sideEffectsCommon:'كدمات ونزف بسيط',sideEffectsSerious:'نزف شديد ونخر جلدي نادر',stripsPerPack:3,unitsPerStrip:10,unitsPerPack:30,costPricePack:900,sellPricePack:1400,sellPriceStrip:466.67,sellPriceUnit:46.67,stockTotalUnits:30,hepaticStatus:'ADJUST',hepaticNotes:'مرض الكبد يزيد حساسية التأثير',renalStatus:'ADJUST',renalNotes:'تقييم سريري ومراقبة',geriatricStatus:'ADJUST',geriatricNotes:'زيادة خطر النزف لدى كبار السن',pediatricStatus:'ADJUST',pediatricNotes:'متابعة تخصصية',pregnancyCategory:'X',pregnancyNotes:'مضاد استطباب أثناء الحمل في معظم الحالات',lactationRisk:'L2',storageConditions:'يحفظ بعيداً عن الحرارة والرطوبة',requiresPrescription:true,manufacturerId:manufacturers[2]),
-      DrugModel(internalCode:'DR-0004',tradeNameAr:'إيزوتريتينوين 20 مجم',tradeNameEn:'Isotretinoin 20mg',scientificName:'Isotretinoin',activeIngredientId:ingredientIds['Isotretinoin']!,ingredientsJson:'[{"name":"Isotretinoin","strength":"20 mg"}]',chemicalComposition:'Isotretinoin 20 mg',categoryId:categoryId,atcCode:'D10BA01',dosageForm:'CAPSULE',strengthText:'20 mg',route:'ORAL',indications:'حب الشباب الشديد تحت إشراف اختصاصي',dosageAdministration:'جرعة فردية يحددها طبيب الجلدية مع متابعة دورية',contraindications:'الحمل والرضاعة وبعض اضطرابات الكبد والدهون',warningsPrecautions:'برنامج صارم لمنع الحمل ومراقبة مخبرية',blackBoxWarning:'تشوهات جنينية شديدة؛ يمنع أثناء الحمل',interactionsSummary:'تجنب فيتامين A والتتراسيكلينات',hasCriticalInteractions:true,sideEffectsCommon:'جفاف الجلد والشفاه والعينين',sideEffectsSerious:'تغيرات مزاجية واضطراب كبدي ودهون',stripsPerPack:3,unitsPerStrip:10,unitsPerPack:30,costPricePack:5000,sellPricePack:6500,sellPriceStrip:2166.67,sellPriceUnit:216.67,stockTotalUnits:30,hepaticStatus:'AVOID',hepaticNotes:'يمنع أو يتجنب في اضطرابات كبدية مهمة حسب الطبيب',renalStatus:'UNKNOWN',geriatricStatus:'UNKNOWN',pediatricStatus:'AVOID',pediatricNotes:'ليس للاستخدام الروتيني للأطفال',pregnancyCategory:'X',pregnancyNotes:'ممنوع منعاً باتاً أثناء الحمل',lactationRisk:'L5',lactationNotes:'يمنع أثناء الرضاعة',storageConditions:'يحفظ حسب النشرة وبعيداً عن الأطفال',requiresPrescription:true,prescriptionRestricted:true,manufacturerId:manufacturers[3]),
-      DrugModel(internalCode:'DR-0005',tradeNameAr:'ميتفورمين 500 مجم',tradeNameEn:'Metformin 500mg',scientificName:'Metformin',activeIngredientId:ingredientIds['Metformin']!,ingredientsJson:'[{"name":"Metformin","strength":"500 mg"}]',chemicalComposition:'Metformin hydrochloride 500 mg',categoryId:categoryId,atcCode:'A10BA02',dosageForm:'TABLET',strengthText:'500 mg',route:'ORAL',indications:'السكري من النوع الثاني وفق الخطة العلاجية',dosageAdministration:'يبدأ ويعدل الطبيب الجرعة تدريجياً مع الطعام',contraindications:'حماض استقلابي وقصور كلوي شديد وفق النشرة',warningsPrecautions:'تقييم eGFR ومراجعة حالات الجفاف ونقص الأكسجة',interactionsSummary:'مواد التباين اليودية وبعض الأدوية قد تستلزم احتياطات',sideEffectsCommon:'إسهال وغثيان وطعم معدني',sideEffectsSerious:'حماض لبني نادر ونقص فيتامين B12 على المدى الطويل',stripsPerPack:3,unitsPerStrip:10,unitsPerPack:30,costPricePack:1000,sellPricePack:1500,sellPriceStrip:500,sellPriceUnit:50,stockTotalUnits:150,hepaticStatus:'AVOID',hepaticNotes:'تجنب عند القصور الكبدي المهم',renalStatus:'ADJUST',renalNotes:'يعتمد الاستخدام على eGFR ويمنع عند الانخفاض الشديد',isNephrotoxic:false,geriatricStatus:'ADJUST',geriatricNotes:'مراقبة وظائف الكلى بانتظام',pediatricStatus:'ADJUST',pediatricNotes:'استطبابات وأعمار محددة وفق الطبيب',pregnancyCategory:'UNKNOWN',pregnancyNotes:'قرار علاجي فردي وفق إرشادات السكري',lactationRisk:'L2',lactationNotes:'تقييم طبي فردي',storageConditions:'يحفظ جافاً بدرجة الغرفة',manufacturerId:manufacturers[4]),
-      DrugModel(internalCode:'DR-0006',tradeNameAr:'جنتاميسين 80 مجم أمبول',tradeNameEn:'Gentamicin 80mg Ampoule',scientificName:'Gentamicin',activeIngredientId:ingredientIds['Gentamicin']!,ingredientsJson:'[{"name":"Gentamicin","strength":"80 mg"}]',chemicalComposition:'Gentamicin sulfate equivalent to gentamicin 80 mg',categoryId:categoryId,atcCode:'J01GB03',dosageForm:'INJECTION',strengthText:'80 mg / 2 ml',route:'IM',indications:'عدوى بكتيرية خطيرة حساسة ضمن بروتوكول طبي',dosageAdministration:'جرعة ومدة حسب الوزن ووظائف الكلى ومستويات الدواء',contraindications:'تحسس للأمينوغليكوزيدات',warningsPrecautions:'سمية كلوية وسمعية؛ مراقبة وظائف الكلى والسمع',interactionsSummary:'يزداد خطر السمية مع أدوية كلوية أو أذنية السمية',hasCriticalInteractions:true,sideEffectsCommon:'غثيان وتهيج موضع الحقن',sideEffectsSerious:'فشل كلوي وسمية سمعية/دهليزية',stripsPerPack:1,unitsPerStrip:10,unitsPerPack:10,costPricePack:600,sellPricePack:900,sellPriceStrip:900,sellPriceUnit:90,stockTotalUnits:50,hepaticStatus:'SAFE',hepaticNotes:'لا يعتمد التخلص أساساً على الكبد',renalStatus:'ADJUST',renalNotes:'تعديل الجرعة والفاصل حسب وظائف الكلى ومراقبة مستويات الدواء',isNephrotoxic:true,geriatricStatus:'ADJUST',geriatricNotes:'خطر سمية أعلى مع ضعف الكلى',pediatricStatus:'ADJUST',pediatricNotes:'جرعات تخصصية محسوبة بالوزن والعمر',pregnancyCategory:'D',pregnancyNotes:'قد يسبب أذية سمعية جنينية؛ يقتصر على الضرورة القصوى',lactationRisk:'L2',lactationNotes:'تقييم الحالة السريرية',storageConditions:'يحفظ وفق نشرة المستحضر ولا يجمد',requiresPrescription:true,manufacturerId:manufacturers[5]),
-    ];
-    for(final drug in drugs){
-      final map=drug.toMap()..remove('id');
-      map['uuid']='drug-'+drug.internalCode;map['branch_id']=branchId;map['created_at']=_now;map['updated_at']=_now;
-      map['allowed_populations_json']='{"review_status":"PENDING_PHARMACIST"}';
-      map['pregnancy_trimester_json']='{"first":"REVIEW_REQUIRED","second":"REVIEW_REQUIRED","third":"REVIEW_REQUIRED"}';
-      map['chemical_composition']=drug.scientificName;
-      final reviewNote='لم يتم توثيق هذه الجزئية في بيانات البذر؛ يجب مراجعة النشرة الرسمية قبل الاستخدام.';
-      for(final pair in <String,String>{'hepatic_status':'hepatic_notes','renal_status':'renal_notes','geriatric_status':'geriatric_notes','pediatric_status':'pediatric_notes','pregnancy_category':'pregnancy_notes','lactation_risk':'lactation_notes'}.entries){
-        final status=map[pair.key]?.toString()??'UNKNOWN';
-        final note=map[pair.value]?.toString()??'';
-        if((status=='UNKNOWN'||status.isEmpty)&&note.isEmpty)map[pair.value]=reviewNote;
-      }
-      map['completeness_pct']=DrugModel.fromMap(map).calculateCompletenessPct();
-      await db.insert('drugs',map);
-    }
     await db.insert('number_sequences',{...base,'uuid':'seq-invoice','branch_id':branchId,'doc_type':'INVOICE','prefix':'INV','year':DateTime.now().year,'last_no':0,'pad_length':6});
     await db.insert('number_sequences',{...base,'uuid':'seq-voucher','branch_id':branchId,'doc_type':'VOUCHER','prefix':'VCH','year':DateTime.now().year,'last_no':0,'pad_length':6});
   }
