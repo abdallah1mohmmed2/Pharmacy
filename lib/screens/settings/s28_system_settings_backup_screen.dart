@@ -22,7 +22,6 @@ class S28SystemSettingsBackupScreen extends StatefulWidget {
  @override State<S28SystemSettingsBackupScreen> createState()=>_S28SystemSettingsBackupScreenState();
 }
 class _S28SystemSettingsBackupScreenState extends State<S28SystemSettingsBackupScreen> {
- static const titles=['الهوية العامة','البيع والتسعير','الحماية السريرية','المخزون والصلاحية','المحاسبة والشركاء','الطباعة والورق','المستخدمون والصلاحيات','النسخ والاستعادة','المزامنة السحابية','سجل الرقابة الأمني','إغلاق الفترات المالية'];
  static const groups=[SettingGroup.general,SettingGroup.sales,SettingGroup.clinical,SettingGroup.inventory,SettingGroup.accounting,SettingGroup.printBackup];
  String? auditUserFilter,auditActionFilter,auditSeverityFilter;
  Future<String?> _managerPin({String title='تأكيد صلاحية المدير'})=>ManagerPinDialog.show(context,title:title);
@@ -163,7 +162,7 @@ class _S28SystemSettingsBackupScreenState extends State<S28SystemSettingsBackupS
   final reportFormat=reportSize=='A4'?PdfPageFormat.a4:PdfPageFormat.a4;
   try{
    final report=pw.Document();
-   report.addPage(pw.Page(pageFormat:reportFormat,build:(_)=>pw.Center(child:pw.Column(mainAxisSize:pw.MainAxisSize.min,children:[pw.Text('PHARMACY REPORT PRINT TEST',style:pw.TextStyle(fontSize:22,fontWeight:pw.FontWeight.bold)),pw.SizedBox(height:12),pw.Text('Report paper: $reportSize'),pw.Text('Generated: ${DateTime.now().toIso8601String()}')]))));
+   report.addPage(pw.Page(pageFormat:reportFormat,build:(_)=>pw.Center(child:pw.Column(children:[pw.Text('PHARMACY REPORT PRINT TEST',style:pw.TextStyle(fontSize:22,fontWeight:pw.FontWeight.bold)),pw.SizedBox(height:12),pw.Text('Report paper: $reportSize'),pw.Text('Generated: ${DateTime.now().toIso8601String()}')]))));
    await Printing.layoutPdf(onLayout:(_)=>report.save());
    final receiptDoc=pw.Document();
    receiptDoc.addPage(pw.Page(pageFormat:PdfPageFormat(receiptWidth*PdfPageFormat.mm,180*PdfPageFormat.mm,marginAll:4*PdfPageFormat.mm),build:(_)=>pw.Column(crossAxisAlignment:pw.CrossAxisAlignment.center,children:[pw.Text('PHARMACY RECEIPT TEST',style:pw.TextStyle(fontSize:16,fontWeight:pw.FontWeight.bold)),pw.Divider(),pw.Text('Receipt width: ${receiptWidth.toStringAsFixed(0)}mm'),pw.Text(DateTime.now().toIso8601String())])));
