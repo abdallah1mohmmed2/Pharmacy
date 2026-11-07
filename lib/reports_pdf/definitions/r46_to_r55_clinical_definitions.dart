@@ -1,0 +1,43 @@
+// lib/reports_pdf/definitions/r46_to_r55_clinical_definitions.dart
+import '../datasources/clinical_and_audit_queries.dart';
+import '../models_and_contracts.dart';
+
+ReportColumn _c(String key,String label,{ColType type=ColType.text,bool sum=false,bool cost=false,double width=1}) =>
+    ReportColumn(key:key,label:label,type:type,widthWeight:width,sumInTotals:sum,costSensitive:cost);
+const _dates=<ReportParam>[
+  ReportParam(key:'date_from',label:'من تاريخ',kind:ReportParamKind.date),
+  ReportParam(key:'date_to',label:'إلى تاريخ',kind:ReportParamKind.date),
+];
+
+List<ReportDefinition> buildR46ToR55ClinicalDefinitions(ClinicalAndAuditQueries q)=>[
+  ConfiguredReportDefinition(number:46,title:'البطاقة السريرية الكاملة للدواء - 19 نقطة',category:ReportCategory.clinicalAndAudit,query:q.r46,params:[const ReportParam(key:'drug_id',label:'الدواء',kind:ReportParamKind.drug,required:true)],signatures:SignatureSpec.clinical,columns:[
+    _c('trade_name','01 الهوية: الاسم التجاري'),_c('scientific_name','02 الاسم العلمي'),_c('strength','03 التركيز والشكل'),_c('manufacturer','04 الشركة المصنعة'),_c('category','05 التصنيف العلاجي'),_c('cost_price','06 سعر التكلفة',type:ColType.currency,cost:true),_c('selling_price','07 سعر البيع',type:ColType.currency),_c('dosage','08 الجرعات والإعطاء'),_c('indications','09 دواعي الاستعمال'),_c('contraindications','10 الموانع'),_c('warnings','11 التحذيرات والاحتياطات'),_c('black_box_warning','12 التحذير الصندوقي'),_c('interaction_rules','13 التفاعلات الدوائية'),_c('renal_rules','14 تعديل جرعات الكلى'),_c('hepatic_rules','15 تعديل جرعات الكبد'),_c('pediatric_rules','16 جرعات الأطفال'),_c('geriatric_notes','17 كبار السن'),_c('pregnancy_notes','18 الحمل والرضاعة'),_c('storage_conditions','19 التخزين والرقابة'),
+  ],totals:const TotalsSpec(),description:'تُعرض بيانات الدواء المنظمة من الموسوعة السريرية وقواعد الكلى والكبد والأطفال والتفاعلات.'),
+  ConfiguredReportDefinition(number:47,title:'سجل صرف الأدوية المراقبة والمقيدة',category:ReportCategory.clinicalAndAudit,query:q.r47,params:_dates,signatures:SignatureSpec.controlled,forceLandscape:true,columns:[
+    _c('date','التاريخ',type:ColType.dateTime),_c('invoice_no','الفاتورة'),_c('drug_schedule','الدواء والجدول'),_c('batch_no','التشغيلة'),_c('quantity','الكمية',type:ColType.decimal,sum:true),_c('patient','اسم المريض'),_c('patient_national_id','الرقم الوطني'),_c('receiver','المستلم'),_c('receiver_national_id','هوية المستلم'),_c('prescription_no','رقم الوصفة'),_c('doctor','الطبيب'),_c('dispensing_pharmacist','الصيدلي الصارف'),_c('balance_after','الرصيد بعد الصرف',type:ColType.decimal),
+  ],totals:const TotalsSpec(sumKeys:['quantity'])),
+  ConfiguredReportDefinition(number:48,title:'التفاعلات الدوائية التي تم رصدها ومنعها في الكاشير',category:ReportCategory.clinicalAndAudit,query:q.r48,params:_dates,signatures:SignatureSpec.clinical,columns:[
+    _c('date','التاريخ',type:ColType.dateTime),_c('invoice_no','الفاتورة'),_c('drug_one','الدواء الأول'),_c('drug_two','الدواء الثاني'),_c('severity','مستوى الخطورة'),_c('clinical_effect','الأثر السريري'),_c('pharmacist_decision','قرار الصيدلي'),_c('approving_manager','المدير المجيز'),_c('reason','السبب'),
+  ]),
+  ConfiguredReportDefinition(number:49,title:'التنبيهات السريرية للحمل والكلى والكبد والأطفال',category:ReportCategory.clinicalAndAudit,query:q.r49,params:_dates,signatures:SignatureSpec.clinical,columns:[
+    _c('date','التاريخ',type:ColType.dateTime),_c('invoice_no','الفاتورة'),_c('patient','المريض'),_c('patient_category','الفئة'),_c('drug','الدواء'),_c('level','المستوى'),_c('message','الرسالة'),_c('user_decision','قرار المستخدم'),_c('reason','السبب'),
+  ]),
+  ConfiguredReportDefinition(number:50,title:'سجل صرف المضادات الحيوية',category:ReportCategory.clinicalAndAudit,query:q.r50,params:_dates,signatures:SignatureSpec.clinical,columns:[
+    _c('date','التاريخ',type:ColType.dateTime),_c('invoice_no','الفاتورة'),_c('patient','المريض'),_c('antibiotic','المضاد الحيوي والتركيز'),_c('quantity','الكمية',type:ColType.decimal,sum:true),_c('has_prescription','هل بوصفة؟',type:ColType.boolean),_c('doctor','اسم الطبيب'),
+  ],totals:const TotalsSpec(sumKeys:['quantity'])),
+  ConfiguredReportDefinition(number:51,title:'أدوية الثلاجة وسجل سلسلة التبريد 2–8 درجات',category:ReportCategory.clinicalAndAudit,query:q.r51,params:_dates,signatures:SignatureSpec.clinical,forceLandscape:true,columns:[
+    _c('record_type','نوع السجل'),_c('location','الموقع'),_c('drug','الصنف'),_c('batch_no','التشغيلة'),_c('expiry_date','الصلاحية',type:ColType.date),_c('balance','الرصيد',type:ColType.integer,sum:true),_c('cost_value','قيمة التكلفة',type:ColType.currency,sum:true,cost:true),_c('reading_at','وقت القراءة',type:ColType.dateTime),_c('temperature','الحرارة °م',type:ColType.decimal),_c('humidity','الرطوبة',type:ColType.decimal),_c('corrective_action','الإجراء التصحيحي'),_c('recorded_by','مسجل القراءة'),
+  ],totals:const TotalsSpec(sumKeys:['balance','cost_value'])),
+  ConfiguredReportDefinition(number:52,title:'وصفات التأمين الصحي والمطالبات المالية للشركات',category:ReportCategory.clinicalAndAudit,query:q.r52,params:_dates,signatures:SignatureSpec.finance,columns:[
+    _c('insurance_company','شركة التأمين'),_c('prescription_no','رقم الوصفة'),_c('date','التاريخ',type:ColType.date),_c('patient','المريض'),_c('policy_no','رقم البوليصة'),_c('prescription_total','إجمالي الوصفة',type:ColType.currency,sum:true),_c('coverage_pct','نسبة التغطية',type:ColType.percent),_c('insurer_share','حصة شركة التأمين',type:ColType.currency,sum:true),_c('patient_share','حصة تحمل المريض',type:ColType.currency,sum:true),
+  ],totals:TotalsSpec(sumKeys:['prescription_total','insurer_share','patient_share'],derivedValues:{'coverage_pct':(v)=>v['prescription_total']!>0?v['insurer_share']!*100/v['prescription_total']!:0})),
+  ConfiguredReportDefinition(number:53,title:'البدائل الدوائية المصروفة وأثرها المالي',category:ReportCategory.clinicalAndAudit,query:q.r53,params:_dates,signatures:SignatureSpec.clinical,columns:[
+    _c('date','التاريخ',type:ColType.dateTime),_c('invoice_no','الفاتورة'),_c('requested_drug','الدواء الأصلي المطلوب'),_c('dispensed_alternative','البديل المصروف'),_c('quantity','الكمية',type:ColType.decimal,sum:true),_c('customer_price_difference','فرق السعر للزبون',type:ColType.currency,sum:true),_c('pharmacy_profit_difference','فرق الربح للصيدلية',type:ColType.currency,sum:true,cost:true),_c('pharmacist','الصيدلي'),
+  ],totals:const TotalsSpec(sumKeys:['quantity','customer_price_difference','pharmacy_profit_difference'])),
+  ConfiguredReportDefinition(number:54,title:'سجل الرقابة الأمني Audit Log',category:ReportCategory.clinicalAndAudit,query:q.r54,params:_dates,signatures:SignatureSpec.finance,columns:[
+    _c('time','الوقت',type:ColType.dateTime),_c('user','المستخدم'),_c('action','الإجراء'),_c('entity','الكيان'),_c('reference','المرجع'),_c('old_value','القيمة القديمة'),_c('new_value','القيمة الجديدة'),_c('reason','السبب'),_c('severity','الخطورة'),
+  ]),
+  ConfiguredReportDefinition(number:55,title:'التقرير الشامل لإغلاق العام المالي والجرد السنوي',category:ReportCategory.clinicalAndAudit,query:q.r55,params:[const ReportParam(key:'year',label:'السنة المالية',kind:ReportParamKind.number,required:true)],signatures:SignatureSpec.yearEnd,forceLandscape:true,columns:[
+    _c('section','القسم'),_c('amount','القيمة',type:ColType.currency,sum:true,cost:true),
+  ],totals:const TotalsSpec()),
+];

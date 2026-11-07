@@ -1,0 +1,57 @@
+name: Pharmacy Flutter CI
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pharmacy-ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter create --platforms=android,windows --org com.globalpharmacy .
+      - run: flutter pub get
+      - run: dart format lib test
+      - run: flutter analyze --no-fatal-infos
+      - run: flutter test
+      - run: flutter build apk --release
+      - name: Package Android APK into one ZIP
+        run: zip -j pharmacy-android.zip build/app/outputs/flutter-apk/app-release.apk
+      - name: Upload Android ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: pharmacy-android
+          path: pharmacy-android.zip
+          if-no-files-found: error
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter config --enable-windows-desktop
+      - run: flutter create --platforms=windows --org com.globalpharmacy .
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos
+      - run: flutter build windows --release
+      - name: Package Windows release into one ZIP
+        shell: pwsh
+        run: Compress-Archive -Path "build/windows/x64/runner/Release/*" -DestinationPath "pharmacy-windows.zip" -Force
+      - name: Upload Windows ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: pharmacy-windows
+          path: pharmacy-windows.zip
+          if-no-files-found: error
