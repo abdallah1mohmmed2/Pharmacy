@@ -310,7 +310,10 @@ class _LahAlayhTableState extends State<LahAlayhTable> {
     if (!mobile || widget.forceTable) {
       return SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        child: _table(),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.vertical,
+          child: _table(),
+        ),
       );
     }
     return Column(
