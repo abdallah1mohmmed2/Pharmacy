@@ -90,6 +90,7 @@ abstract final class SchemaIteration6 {
    CHECK(start_date<=end_date)
   )''');
   await _installPeriodTriggers(db);
+  await _installRelatedPeriodTriggers(db);
   await db.execute('''CREATE TABLE IF NOT EXISTS roles(
    role_code TEXT PRIMARY KEY,role_name_ar TEXT NOT NULL,is_system INTEGER NOT NULL DEFAULT 1
   )''');
@@ -145,6 +146,35 @@ abstract final class SchemaIteration6 {
   }
   await db.execute('ALTER TABLE audit_logs_legacy_i5 RENAME TO audit_logs_legacy_i5_migrated');
  }
+
+ static Future<void> _installRelatedPeriodTriggers(DatabaseExecutor db) async {
+  const relations={
+   'journal_lines':('journal_entry_id','journal_entries','id','entry_date'),
+   'sales_invoice_items':('invoice_id','sales_invoices','id','invoice_date'),
+   'sales_payments':('invoice_id','sales_invoices','id','invoice_date'),
+   'sales_return_items':('sales_return_id','sales_returns','id','return_date'),
+   'partner_distribution_lines':('distribution_id','partner_distributions','id','period_code'),
+  };
+  for(final entry in relations.entries){
+   final child=entry.key,foreignKey=entry.value.$1,parent=entry.value.$2,parentKey=entry.value.$3,parentDate=entry.value.$4;
+   final childExists=await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name=?",[child]);
+   final parentExists=await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name=?",[parent]);
+   if(childExists.isEmpty||parentExists.isEmpty)continue;
+   final childCols=await db.rawQuery('PRAGMA table_info('+child+')');
+   final parentCols=await db.rawQuery('PRAGMA table_info('+parent+')');
+   if(!childCols.any((r)=>r['name']==foreignKey)||!parentCols.any((r)=>r['name']==parentDate))continue;
+   for(final event in ['INSERT','UPDATE']){
+    final trigger='trg_period_related_'+child+'_'+event.toLowerCase();
+    await db.execute('DROP TRIGGER IF EXISTS '+trigger);
+    final periodCheck=parentDate=='period_code'
+     ?"EXISTS(SELECT 1 FROM fiscal_periods p WHERE p.status='CLOSED' AND p.period_code=parent."+parentDate+") OR (json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'$.locked_through') IS NOT NULL AND parent."+parentDate+"<=substr(json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'$.locked_through'),1,7))"
+     :"EXISTS(SELECT 1 FROM fiscal_periods p WHERE p.status='CLOSED' AND substr(parent."+parentDate+",1,10) BETWEEN p.start_date AND p.end_date) OR (json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'$.locked_through') IS NOT NULL AND substr(parent."+parentDate+",1,10)<=json_extract((SELECT setting_value FROM system_settings WHERE setting_no=29),'$.locked_through'))";
+    final sql='CREATE TRIGGER '+trigger+' BEFORE '+event+' ON '+child+' WHEN EXISTS(SELECT 1 FROM '+parent+' parent WHERE parent.'+parentKey+'=NEW.'+foreignKey+' AND ('+periodCheck+')) BEGIN SELECT RAISE(ABORT,\'FISCAL_PERIOD_CLOSED\'); END';
+    await db.execute(sql);
+   }
+  }
+ }
+
  static Future<void> _installPeriodTriggers(DatabaseExecutor db) async {
   const candidates={'sales_invoices':'invoice_date','purchase_invoices':'invoice_date','vouchers':'voucher_date','journal_entries':'entry_date','expenses':'expense_date','stock_movements':'movement_at','stocktaking_sessions':'created_at','sales_returns':'return_date','lah_alayh_ledger':'entry_date','employee_attendance':'work_date','disposals':'disposal_date'};
   for(final entry in candidates.entries){
