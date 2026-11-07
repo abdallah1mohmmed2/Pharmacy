@@ -16,7 +16,7 @@ class BackupResult {
 class BackupAndSyncService {
  BackupAndSyncService({DatabaseHelper? helper,http.Client? client}):_helper=helper??DatabaseHelper.instance,_client=client??http.Client();
  final DatabaseHelper _helper; final http.Client _client;
- Future<BackupResult> createBackup({String triggerType='MANUAL',int? userId,int? keepLast,bool compress=true}) async {
+ Future<BackupResult> createBackup({String triggerType='MANUAL',int? userId,int? keepLast,bool compress=true,String? preserveFilePath}) async {
   const triggers={'MANUAL','ON_SHIFT_CLOSE','ON_APP_CLOSE','BEFORE_RESTORE','BEFORE_PERIOD_CLOSE'};
   if(!triggers.contains(triggerType))throw ArgumentError('نوع النسخ الاحتياطي غير صحيح');
   final db=await _helper.database;final rows=await db.query('system_settings',where:'setting_no=34',limit:1);
@@ -35,7 +35,7 @@ class BackupAndSyncService {
   await db.insert('backup_log',{'backup_at':DateTime.now().toIso8601String(),'trigger_type':triggerType,'file_path':finalFile.path,'size_bytes':bytes.length,'sha256':digest,'encrypted':0,'result':'SUCCESS','user_id':userId});
   await AuditService(helper:_helper).record(action:'BACKUP',userId:userId,entityType:'backup_log',entityLabel:finalFile.path,newValues:{'sha256':digest,'size_bytes':bytes.length});
   final files=directory.listSync().whereType<File>().where((f)=>f.path.contains('pharmacy_backup_')).toList()..sort((a,b)=>b.lastModifiedSync().compareTo(a.lastModifiedSync()));
-  for(final old in files.skip(keepLast)){if(old.path!=finalFile.path)await old.delete();}
+  for(final old in files.skip(keepLast)){if(old.path!=finalFile.path&&old.path!=preserveFilePath)await old.delete();}
   return BackupResult(file:finalFile,sha256:digest,sizeBytes:bytes.length,compressed:compress);
  }
  Future<void> restoreBackup({required File backup,int? userId}) async {
@@ -44,7 +44,7 @@ class BackupAndSyncService {
   final rows=await _helper.query('backup_log',where:'file_path=? AND result=?',whereArgs:[backup.path,'SUCCESS'],limit:1);
   if(rows.isEmpty)throw StateError('لا توجد بصمة موثوقة مسجلة لهذه النسخة');
   if(rows.first['sha256']!=digest)throw StateError('فشل التحقق من بصمة SHA-256 للنسخة');
-  final preRestore=await createBackup(triggerType:'BEFORE_RESTORE',userId:userId);
+  final preRestore=await createBackup(triggerType:'BEFORE_RESTORE',userId:userId,preserveFilePath:backup.path);
   final source=backup.path.endsWith('.gz')?GZipCodec().decode(bytes):bytes;
   final destination=await _helper.databaseFilePath;
   await _helper.close();
