@@ -77,7 +77,10 @@ class BackupAndSyncService {
    for(final row in rows){
     final uuid=row['uuid'];if(uuid==null)continue;
     final deleted=(row['is_deleted'] as num? ?? 0)==1;
-    await db.insert('sync_queue',{'table_name':table,'row_uuid':uuid.toString(),'operation':deleted?'SOFT_DELETE':'INSERT','payload_json':jsonEncode(row),'sync_version':row['sync_version'],'status':'PENDING'},conflictAlgorithm:ConflictAlgorithm.ignore);
+    final version=(row['sync_version'] as num? ?? 1).toInt();
+    final createdAt=row['created_at']?.toString(),updatedAt=row['updated_at']?.toString();
+    final operation=deleted?'SOFT_DELETE':(version>1||(createdAt!=null&&updatedAt!=null&&createdAt!=updatedAt)?'UPDATE':'INSERT');
+    await db.insert('sync_queue',{'table_name':table,'row_uuid':uuid.toString(),'operation':operation,'payload_json':jsonEncode(row),'sync_version':row['sync_version'],'status':'PENDING'},conflictAlgorithm:ConflictAlgorithm.ignore);
     await db.update(table,{'sync_status':'QUEUED'},where:'uuid=?',whereArgs:[uuid]);
     collected++;if(collected>=maxRows)return collected;
    }
