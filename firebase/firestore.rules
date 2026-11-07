@@ -24,8 +24,8 @@ service cloud.firestore {
     }
 
     match /pharmacy_branches/{branchId} {
-      allow get: if ownsBranch(branchId);
-      allow list: if signedIn()
+      allow get: if ownsBranch(branchId) && branchManager();
+      allow list: if branchManager()
         && resource.data.branch_id == request.auth.token.branch_id;
       allow create: if ownsBranch(branchId)
         && branchManager()
@@ -41,7 +41,7 @@ service cloud.firestore {
     }
 
     match /pharmacy_daily_dashboards/{dashboardId} {
-      allow get, list: if signedIn()
+      allow get, list: if branchManager()
         && resource.data.branch_id == request.auth.token.branch_id;
       allow create, update: if branchManager()
         && request.resource.data.branch_id == request.auth.token.branch_id;
@@ -57,6 +57,7 @@ service cloud.firestore {
         && request.resource.data.branch_id == branchId
         && validPartnerMode(request.resource.data.partner_mode);
       allow update: if ownsBranch(branchId)
+        && branchManager()
         && resource.data.branch_id == branchId
         && request.resource.data.branch_id == branchId
         && validPartnerMode(request.resource.data.partner_mode)
