@@ -59,9 +59,10 @@ class CatalogDrugSummary {
       name,
       optional('trade_name_en', 'tradeNameEn'),
       optional('scientific_name', 'scientificName'),
-      optional('active_ingredient_name', 'activeIngredientName'),
+      optional('active_ingredient_name', 'activeIngredientName') ??
+          optional('active_ingredient'),
       optional('manufacturer_name', 'manufacturerName'),
-      optional('dosage_form', 'dosageForm'),
+      optional('dosage_form', 'dosageForm') ?? optional('dosage_form'),
       optional('strength_text', 'strengthText'),
       optional('barcode_international', 'barcodeInternational'),
       optional('barcode_local', 'barcodeLocal'),
@@ -74,7 +75,9 @@ class CatalogDrugSummary {
       tradeNameAr: name,
       tradeNameEn: optional('trade_name_en', 'tradeNameEn'),
       scientificName: optional('scientific_name', 'scientificName'),
-      activeIngredientName: optional('active_ingredient_name', 'activeIngredientName'),
+      activeIngredientName:
+          optional('active_ingredient_name', 'activeIngredientName') ??
+              optional('active_ingredient'),
       manufacturerName: optional('manufacturer_name', 'manufacturerName'),
       dosageForm: optional('dosage_form', 'dosageForm'),
       strengthText: optional('strength_text', 'strengthText'),
@@ -82,7 +85,7 @@ class CatalogDrugSummary {
       barcodeLocal: optional('barcode_local', 'barcodeLocal'),
       searchText: [json['search_text'], ...fields].whereType<String>().join(' ').toLowerCase(),
       payloadJson: payload,
-      sourceName: optional('source_name', 'sourceName'),
+      sourceName: optional('source_name', 'sourceName') ?? optional('data_source'),
       sourceUrl: optional('source_url', 'sourceUrl'),
       reviewStatus: optional('review_status', 'reviewStatus') ?? 'UNVERIFIED',
       publishedAt: optional('published_at', 'publishedAt'),
@@ -145,6 +148,8 @@ class CatalogSearchPage {
     this.nextCursor,
     this.offlineFallback = false,
     this.remoteError,
+    this.etag,
+    this.catalogVersion,
   });
 
   final List<CatalogDrugSummary> items;
@@ -152,6 +157,8 @@ class CatalogSearchPage {
   final CatalogSearchSource source;
   final bool offlineFallback;
   final String? remoteError;
+  final String? etag;
+  final int? catalogVersion;
 
   bool get hasMore => nextCursor != null && nextCursor!.isNotEmpty;
 }
