@@ -83,7 +83,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver{
   }
   Future<void> _showQuickSearch() async {
     final controller=TextEditingController();
-    final selected=await showDialog<int>(context:context,builder:(ctx)=>AlertDialog(title:const Text('البحث السريع'),content:SizedBox(width:360,child:TextField(controller:controller,autofocus:true,decoration:const InputDecoration(hintText:'اكتب اسم الشاشة'))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:(){final q=controller.text.trim();final i=visibleIndexes.where((index)=>titles[index].contains(q)).firstOrNull;Navigator.pop(ctx,i);},child:const Text('فتح'))]));
+    final selected=await showDialog<int>(context:context,builder:(ctx)=>AlertDialog(title:const Text('البحث السريع'),content:SizedBox(width:360,child:TextField(controller:controller,autofocus:true,decoration:const InputDecoration(hintText:'اكتب اسم الشاشة'))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:(){final q=controller.text.trim();final matches=visibleIndexes.where((index)=>titles[index].contains(q)).toList();Navigator.pop(ctx,matches.isEmpty?null:matches.first);},child:const Text('فتح'))]));
     if(selected!=null&&mounted)setState(()=>index=selected);
   }
 }
