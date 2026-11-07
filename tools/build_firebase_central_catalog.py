@@ -50,12 +50,26 @@ def normalize_key(value: str) -> str:
     return re.sub(r"[^a-z0-9]", "", value.casefold())
 
 BLOCKED_KEYS = {normalize_key(key) for key in OPERATIONAL_KEYS}
+OPERATIONAL_FRAGMENTS = (
+    "price", "cost", "stock", "inventory", "batch", "lotnumber",
+    "supplier", "warehouse", "shelf", "balance", "ledger", "invoice",
+    "movement", "branchid", "pharmacyid", "accountid", "quantity", "cashbox",
+    "receivable", "payable", "profit", "margin", "discount", "tax",
+    "reorder", "minimumstock", "maximumstock", "auditlog", "syncqueue",
+    "openingbalance", "lastpurchase", "lastsale",
+)
+
+def is_operational_key(key: str) -> bool:
+    normalized = normalize_key(key)
+    return normalized in BLOCKED_KEYS or any(
+        fragment in normalized for fragment in OPERATIONAL_FRAGMENTS
+    )
 
 def strip_operational(value: Any) -> Any:
     if isinstance(value, dict):
         cleaned = {}
         for key, child in value.items():
-            if normalize_key(str(key)) in BLOCKED_KEYS:
+            if is_operational_key(str(key)):
                 continue
             cleaned[str(key)] = strip_operational(child)
         return cleaned
