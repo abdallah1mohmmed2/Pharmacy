@@ -108,11 +108,13 @@ class AuditService {
   const actions={'LOGIN','LOGOUT','LOGIN_FAILED','CREATE','UPDATE','DELETE','VOID','PRICE_CHANGE','DISCOUNT_OVERRIDE','CLINICAL_OVERRIDE','SETTING_CHANGE','PERIOD_CLOSE','BACKUP','RESTORE','PRINT','EXPORT','MANAGER_PIN_USED'};
   if(!actions.contains(action))throw ArgumentError('حدث رقابي غير مدعوم');
   final db=await _helper.database;final eventAt=DateTime.now().toUtc().toIso8601String();
-  final previous=await db.query('audit_logs',columns:['row_hash'],orderBy:'id DESC',limit:1);
-  final prev=previous.isEmpty?'GENESIS':previous.first['row_hash'] as String;
   final oldJson=oldValues==null?null:jsonEncode(oldValues),newJson=newValues==null?null:jsonEncode(newValues);
-  final rowHash=_hash(_canonical(prevHash:prev,eventAt:eventAt,userId:userId,action:action,entityType:entityType,entityId:entityId,oldValues:oldJson,newValues:newJson));
-  return db.insert('audit_logs',{'event_at':eventAt,'user_id':userId,'branch_id':branchId,'device_id':deviceId,'action':action,'entity_type':entityType,'entity_id':entityId,'entity_label':entityLabel,'old_values_json':oldJson,'new_values_json':newJson,'reason':reason,'severity':severity,'prev_hash':prev,'row_hash':rowHash});
+  return db.transaction((txn)async{
+   final previous=await txn.query('audit_logs',columns:['row_hash'],orderBy:'id DESC',limit:1);
+   final prev=previous.isEmpty?'GENESIS':previous.first['row_hash'] as String;
+   final rowHash=_hash(_canonical(prevHash:prev,eventAt:eventAt,userId:userId,action:action,entityType:entityType,entityId:entityId,oldValues:oldJson,newValues:newJson));
+   return txn.insert('audit_logs',{'event_at':eventAt,'user_id':userId,'branch_id':branchId,'device_id':deviceId,'action':action,'entity_type':entityType,'entity_id':entityId,'entity_label':entityLabel,'old_values_json':oldJson,'new_values_json':newJson,'reason':reason,'severity':severity,'prev_hash':prev,'row_hash':rowHash});
+  });
  }
  Future<ChainVerificationResult> verifyChainIntegrity() async {
   final rows=await _helper.query('audit_logs',orderBy:'id');
