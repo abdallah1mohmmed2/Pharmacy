@@ -64,10 +64,13 @@ class CatalogSearchRepository {
       );
       final boundedItems = page.items.take(safeLimit).toList(growable: false);
       await cacheItems(boundedItems);
+      await _recordSuccessfulSync(page);
       return CatalogSearchPage(
         items: boundedItems,
         nextCursor: page.nextCursor,
         source: CatalogSearchSource.remote,
+        etag: page.etag,
+        catalogVersion: page.catalogVersion,
       );
     } catch (error) {
       return CatalogSearchPage(
@@ -77,6 +80,51 @@ class CatalogSearchRepository {
         remoteError: error.toString(),
       );
     }
+  }
+
+  Future<void> _recordSuccessfulSync(CatalogSearchPage page) async {
+    final itemVersion = page.items.fold<int>(
+      0,
+      (current, item) => max(current, item.catalogVersion),
+    );
+    final incomingVersion = max(page.catalogVersion ?? 0, itemVersion);
+    final now = DateTime.now().toUtc().toIso8601String();
+    await _database.transaction((txn) async {
+      final rows = await txn.query(
+        'catalog_sync_state',
+        where: 'scope_key = ?',
+        whereArgs: const ['central_catalog'],
+        limit: 1,
+      );
+      final currentVersion = rows.isEmpty
+          ? 0
+          : (rows.first['last_catalog_version'] as int? ?? 0);
+      final canAdvance = incomingVersion >= currentVersion;
+      if (rows.isEmpty) {
+        await txn.insert('catalog_sync_state', {
+          'scope_key': 'central_catalog',
+          'last_catalog_version': incomingVersion,
+          'etag': page.etag,
+          'last_success_at': now,
+          'updated_at': now,
+        });
+      } else {
+        await txn.update(
+          'catalog_sync_state',
+          {
+            'last_catalog_version':
+                canAdvance ? incomingVersion : currentVersion,
+            'etag': canAdvance ? (page.etag ?? rows.first['etag']) : rows.first['etag'],
+            'last_success_at': now,
+            'updated_at': now,
+            'last_error_at': null,
+            'last_error_message': null,
+          },
+          where: 'scope_key = ?',
+          whereArgs: const ['central_catalog'],
+        );
+      }
+    });
   }
 
   Future<List<CatalogDrugSummary>> searchLocal({
@@ -103,7 +151,7 @@ class CatalogSearchRepository {
     List<Map<String, Object?>> rows;
     if (_ftsReady) {
       final expression = normalized
-          .split(RegExp(r'\s+'))
+          .split(RegExp(r'\\s+'))
           .where((part) => part.isNotEmpty)
           .map((part) => '"${part.replaceAll('"', '""')}"')
           .join(' AND ');
@@ -129,7 +177,7 @@ class CatalogSearchRepository {
     String query,
     int limit,
   ) async {
-    final terms = query.split(RegExp(r'\s+')).where((e) => e.isNotEmpty);
+    final terms = query.split(RegExp(r'\\s+')).where((e) => e.isNotEmpty);
     final clauses = <String>[];
     final args = <Object?>[];
     for (final term in terms) {
@@ -229,5 +277,5 @@ class CatalogSearchRepository {
   }
 
   bool _looksLikeBarcode(String value) =>
-      RegExp(r'^\d{8,14}$').hasMatch(value);
+      RegExp(r'^\\d{8,14}$').hasMatch(value);
 }
