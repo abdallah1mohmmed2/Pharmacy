@@ -39,7 +39,7 @@ class FefoAllocator {
     final rows=await txn.rawQuery("SELECT b.* FROM batches_fefo b JOIN warehouses w ON w.id=b.warehouse_id WHERE b.id=? AND b.drug_id=? AND b.warehouse_id=? AND b.status='ACTIVE' AND b.total_units>0 AND b.expiry_date>=? AND w.is_sellable=1",[batchId,drugId,warehouseId,DateTime.now().toIso8601String().substring(0,10)]);
     if(rows.isEmpty)throw StateError('التشغيلة غير متاحة أو منتهية الصلاحية');
     final packRows=await txn.query('drugs',columns:['units_per_pack'],where:'id=?',whereArgs:[drugId],limit:1);if(packRows.isEmpty||(packRows.first['units_per_pack'] as int? ?? 1)!=unitsPerPack)throw StateError('وحدات التعبئة لا تطابق تعريف الصنف');
-    final batch=rows.first;final sealed=batch['sealed_packs'] as int;final loose=batch['loose_units'] as int;final available=batch['total_units'] as int;
+    final batch=rows.first;final loose=batch['loose_units'] as int;final available=batch['total_units'] as int;
     if(needUnits>available)throw StateError('الكمية المطلوبة أكبر من رصيد التشغيلة');
     final shortfall=needUnits-loose;final opened=shortfall>0?(shortfall+unitsPerPack-1)~/unitsPerPack:0;
     final balance=available-needUnits;final packState=splitUnits(balance,unitsPerPack);final newSealed=packState.sealedPacks;final newLoose=packState.looseUnits;
