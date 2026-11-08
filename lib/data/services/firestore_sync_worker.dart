@@ -7,6 +7,7 @@ import '../database/database_helper.dart';
 import '../database/global_uuid.dart';
 import 'backup_and_sync_service.dart';
 import 'sync_inbox_processor.dart';
+import 'device_identity_service.dart';
 
 /// Firestore REST worker. Authentication is deliberately injected: callers
 /// must supply a Firebase ID token issued for the signed-in branch account.
@@ -16,12 +17,16 @@ class FirestoreSyncWorker {
     http.Client? client,
     FirestoreInboxProcessor? inbox,
     String? emulatorHost,
-  })  : _emulatorHost = emulatorHost ??
+    Future<String> Function()? deviceIdProvider,
+  })  : _deviceIdProvider =
+            deviceIdProvider ?? DeviceIdentityService.instance.getOrCreateDeviceId,
+        _emulatorHost = emulatorHost ??
             const String.fromEnvironment('FIRESTORE_EMULATOR_HOST'),
         _helper = helper ?? DatabaseHelper.instance,
         _client = client ?? http.Client(),
         _inbox = inbox ?? FirestoreInboxProcessor(helper: helper);
 
+  final Future<String> Function() _deviceIdProvider;
   final String _emulatorHost;
   final DatabaseHelper _helper;
   final http.Client _client;
@@ -122,6 +127,10 @@ class FirestoreSyncWorker {
 
     final db = await _helper.database;
     final branchUuid = await _branchUuid(db, branchId);
+    final sourceDeviceId = await _deviceIdProvider();
+    if (!DeviceIdentityService.isValidDeviceId(sourceDeviceId)) {
+      throw StateError('معرّف الجهاز المحلي غير صالح؛ أوقفت المزامنة.');
+    }
     await db.update('sync_queue', {'status': 'PENDING'},
         where: "status='SENDING'");
     await BackupAndSyncService(helper: _helper, client: _client)
@@ -144,6 +153,7 @@ class FirestoreSyncWorker {
             databaseId: databaseId,
             branchId: branchId,
             branchUuid: branchUuid,
+            sourceDeviceId: sourceDeviceId,
             idToken: idToken,
             batch: batch,
           );
@@ -446,6 +456,7 @@ class FirestoreSyncWorker {
     required String databaseId,
     required int branchId,
     required String branchUuid,
+    required String sourceDeviceId,
     required String idToken,
     required _FirestoreBatch batch,
   }) async {
@@ -456,6 +467,7 @@ class FirestoreSyncWorker {
     );
     final fields = <String, Object?>{
       'branch_id': branchUuid,
+      'source_device_id': sourceDeviceId,
       'batch_uuid': batch.batchUuid,
       'payload_hash': batch.payloadHash,
       'schema_version': 1,
