@@ -215,6 +215,34 @@ void main() {
     );
   });
 
+  test('rejects an event whose payload belongs to another branch', () async {
+    final incoming = event(
+      table: 'sync_items',
+      uuid: 'foreign-item',
+      version: 1,
+      payload: {
+        'uuid': 'foreign-item',
+        'branch_id': 'branch-b-uuid',
+        'sync_version': 1,
+        'sync_status': 'SYNCED',
+        'is_deleted': 0,
+        'title': 'must not cross branches',
+      },
+    );
+
+    final result = await processor.processBatch(
+      branchId: 7,
+      batchUuid: 'foreign-branch-batch',
+      payloadHash: batchFingerprint([incoming]),
+      expectedBranchUuid: 'branch-a-uuid',
+      events: [incoming],
+    );
+
+    expect(result.rejected, 1);
+    expect(await db.query('sync_items'), isEmpty);
+    expect((await db.query('sync_inbox')).single['status'], 'FAILED');
+  });
+
   test('does not overwrite a newer unsynchronized local edit', () async {
     await db.insert('sync_items', {
       'uuid': 'item-local',
