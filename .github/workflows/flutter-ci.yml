@@ -220,8 +220,8 @@ jobs:
                   continue
               replacement = groovy_mirror if path.suffix == ".gradle" else mirror
               updated, count = re.subn(
-                  r"(?m)^(\\s*)mavenCentral\\(\\)\\s*$",
-                  lambda match: f"{match.group(1)}{replacement}\\n{match.group(1)}mavenCentral()",
+                  r"(?m)^(s*)mavenCentral()s*$",
+                  lambda match: f"{match.group(1)}{replacement}\n{match.group(1)}mavenCentral()",
                   original,
               )
               if count:
@@ -230,7 +230,7 @@ jobs:
           if not changed:
               raise SystemExit("Could not add the Maven mirror to any Gradle repository block.")
           print("Added verified Maven Central mirror before mavenCentral() in:")
-          print("\\n".join(changed))
+          print("\n".join(changed))
           PY
       - name: Build Android APK with retry for transient Gradle distribution failures
         shell: bash
