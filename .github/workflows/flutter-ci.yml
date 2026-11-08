@@ -238,8 +238,34 @@ jobs:
                   changed.append(str(path))
           if not changed:
               raise SystemExit("Could not add the Maven mirror to any Gradle repository block.")
-          print("Added verified Maven Central mirror before mavenCentral() in:")
+          print("Added Maven Central mirror before mavenCentral() in:")
           print("\n".join(changed))
+
+          # Resolve Kotlin through its published implementation module instead
+          # of relying on the separate plugin-marker artifact.
+          settings = Path("android/settings.gradle.kts")
+          if not settings.is_file():
+              raise SystemExit("Generated Android settings.gradle.kts was not found.")
+          content = settings.read_text(encoding="utf-8")
+          mapping = 'useModule("org.jetbrains.kotlin:kotlin-gradle-plugin:' + "${requested.version}" + '")'
+          if mapping not in content:
+              marker = re.search(r"(?m)^pluginManagement\s*\{", content)
+              if not marker:
+                  raise SystemExit("Could not find pluginManagement block in Android settings.")
+              strategy = """pluginManagement {
+              resolutionStrategy {
+                  eachPlugin {
+                      if (requested.id.id == "org.jetbrains.kotlin.android") {
+                          useModule("org.jetbrains.kotlin:kotlin-gradle-plugin:${requested.version}")
+                      }
+                  }
+              }
+          """
+              content = content[:marker.start()] + strategy + content[marker.end():]
+              settings.write_text(content, encoding="utf-8")
+          if mapping not in settings.read_text(encoding="utf-8"):
+              raise SystemExit("Kotlin plugin implementation mapping was not applied.")
+          print("Configured Kotlin Android plugin to resolve its implementation from Maven Central.")
           PY
       - name: Build Android APK with retry for transient Gradle distribution failures
         shell: bash
