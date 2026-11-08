@@ -276,6 +276,7 @@ class FirestoreSyncWorker {
           branchId: branchId,
           batchUuid: batchId,
           payloadHash: batchHash,
+          expectedBranchUuid: branchUuid,
           events: events
               .whereType<Map>()
               .map((e) => Map<String, Object?>.from(e))
