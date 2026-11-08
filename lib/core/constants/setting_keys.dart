@@ -411,7 +411,7 @@ abstract final class SettingKeys {
         group: SettingGroup.printBackup,
         type: SettingValueType.json,
         defaultValue:
-            '{"enabled":false,"base_url":"","api_key":"","batch_size":100}',
+            '{"enabled":false,"provider":"firestore","project_id":"","database_id":"(default)","batch_size":100}',
         descriptionAr: 'المزامنة السحابية',
         requiresManager: true),
   ];
