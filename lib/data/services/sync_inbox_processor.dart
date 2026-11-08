@@ -6,10 +6,12 @@ import '../database/database_helper.dart';
 /// Applies remote deltas once, inside the same SQLite transaction that records
 /// their idempotency keys. Unknown or unsafe tables are never written.
 class FirestoreInboxProcessor {
-  FirestoreInboxProcessor({DatabaseHelper? helper})
-      : _helper = helper ?? DatabaseHelper.instance;
+  FirestoreInboxProcessor({DatabaseHelper? helper, Database? database})
+      : _helper = helper ?? DatabaseHelper.instance,
+        _database = database;
 
   final DatabaseHelper _helper;
+  final Database? _database;
 
   static const _excludedTables = <String>{
     'branches',
@@ -51,7 +53,7 @@ class FirestoreInboxProcessor {
     if (events.isEmpty || events.length > 100) {
       throw RangeError('دفعة Inbox يجب أن تحتوي من 1 إلى 100 حدث');
     }
-    final db = await _helper.database;
+    final db = _database ?? await _helper.database;
     var applied = 0;
     var duplicates = 0;
     var deferred = 0;
