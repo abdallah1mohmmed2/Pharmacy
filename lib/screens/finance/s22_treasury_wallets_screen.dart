@@ -55,9 +55,8 @@ class S22TreasuryWalletsScreen extends StatelessWidget {
                 Text(p.error!,
                     style: const TextStyle(color: Color(0xFFEF5350))),
               LayoutBuilder(builder: (context, constraints) {
-                final cardWidth = constraints.maxWidth < 600
-                    ? constraints.maxWidth
-                    : 280.0;
+                final cardWidth =
+                    constraints.maxWidth < 600 ? constraints.maxWidth : 280.0;
                 return Wrap(
                   spacing: 12,
                   runSpacing: 12,
