@@ -128,7 +128,7 @@ class SessionAndErpProvider extends ChangeNotifier {
     try {
       final db = await _db.database;
       parties = (await db.rawQuery(
-              'SELECT p.*,v.total_alayh,v.total_lah,v.net,v.balance_side,v.balance_abs FROM parties p LEFT JOIN v_party_balance v ON v.party_id=p.id WHERE p.branch_id=? AND p.is_deleted=0 ORDER BY p.name_ar',
+              'SELECT p.*,v.total_alayh,v.total_lah,v.net,v.balance_side,v.balance_abs,EXISTS(SELECT 1 FROM patients pt WHERE pt.party_id=p.id) AS is_patient FROM parties p LEFT JOIN v_party_balance v ON v.party_id=p.id WHERE p.branch_id=? AND p.is_deleted=0 ORDER BY p.name_ar',
               [branchId]))
           .map(PartyModel.fromMap)
           .toList();
@@ -202,7 +202,12 @@ class SessionAndErpProvider extends ChangeNotifier {
           whereArgs: [partyId],
           orderBy: 'entry_date,id');
   Future<int> createParty(PartyModel party,
-      {double openingAlayh = 0, double openingLah = 0}) async {
+      {double openingAlayh = 0,
+      double openingLah = 0,
+      bool createPatient = false}) async {
+    if (createPatient && party.partyType != 'CUSTOMER') {
+      throw ArgumentError('يمكن تفعيل الملف الطبي للعميل فقط');
+    }
     if (openingAlayh > 0 && openingLah > 0)
       throw ArgumentError('اختر رصيداً افتتاحياً في جهة واحدة');
     final db = await _db.database;
@@ -226,6 +231,14 @@ class SessionAndErpProvider extends ChangeNotifier {
         'opening_alayh': openingAlayh,
         'opening_lah': openingLah
       });
+      if (createPatient) {
+        await txn.insert('patients', {
+          'party_id': id,
+          'full_name': party.nameAr.trim(),
+          'created_at': now,
+          'updated_at': now,
+        });
+      }
       final openingAmount = openingAlayh + openingLah;
       if (openingAmount > 0) {
         final partyAccountCode =
