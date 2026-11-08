@@ -109,6 +109,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Test one-time signed branch identity provisioning
+        run: node --test tools/provisioning/issuer.test.js
       - name: Set up Java for Firebase Emulator
         uses: actions/setup-java@v4
         with:
