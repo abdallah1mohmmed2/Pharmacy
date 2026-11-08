@@ -237,7 +237,8 @@ class SettingsAndSystemProvider extends ChangeNotifier {
         databaseId: cfg['database_id']?.toString() ?? '(default)',
         idToken: token,
       );
-      cloudSyncStatus = 'اتصال Firestore ناجح وتم التحقق من صلاحية الوصول للفرع';
+      cloudSyncStatus =
+          'اتصال Firestore ناجح وتم التحقق من صلاحية الوصول للفرع';
       notifyListeners();
       return true;
     } catch (error) {
