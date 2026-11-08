@@ -55,6 +55,55 @@ class FirestoreSyncWorker {
     );
   }
 
+  /// Performs a real authenticated Firestore query against the active
+  /// branch's append-only batch collection. An empty result is still a
+  /// successful connectivity and Security Rules check.
+  Future<void> testConnection({
+    required int branchId,
+    required String projectId,
+    required String idToken,
+    String databaseId = '(default)',
+  }) async {
+    if (branchId <= 0 || projectId.trim().isEmpty || idToken.trim().isEmpty) {
+      throw ArgumentError('بيانات فحص اتصال Firestore غير مكتملة');
+    }
+    final db = await _helper.database;
+    final branchUuid = await _branchUuid(db, branchId);
+    final uri = _firestoreUri(
+      '/v1/projects/$projectId/databases/$databaseId/documents/pharmacy_sync_batches/$branchUuid:runQuery',
+    );
+    final response = await _client
+        .post(
+          uri,
+          headers: _headers(idToken),
+          body: jsonEncode({
+            'structuredQuery': {
+              'from': [
+                {'collectionId': 'batches'}
+              ],
+              'where': {
+                'fieldFilter': {
+                  'field': {'fieldPath': 'branch_id'},
+                  'op': 'EQUAL',
+                  'value': {'stringValue': branchUuid},
+                }
+              },
+              'limit': 1,
+            }
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw HttpException(
+        'Firestore connection check HTTP ${response.statusCode}: ${response.body}',
+      );
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! List) {
+      throw const FormatException('استجابة فحص Firestore غير صالحة');
+    }
+  }
+
   Future<FirestoreSyncResult> syncOnce({
     required int branchId,
     required String projectId,
