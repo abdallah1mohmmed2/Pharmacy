@@ -560,6 +560,7 @@ class _S28SystemSettingsBackupScreenState
     try {
       await FirebaseBranchAuthService.instance.configure(
         apiKey: config['api_key']?.toString() ?? '',
+                      projectId: config['project_id']?.toString() ?? '',
       );
     } catch (e) {
       if (mounted)
