@@ -333,21 +333,46 @@
 > هذا القسم هو مرجع الحالة المعتمد الأحدث، ويتقدم على أي حالة تاريخية أقدم في هذا الملف.
 
 ### تثبيت آخر CI قبل المرحلة الجديدة
-- HEAD قبل بدء هذه المرحلة: \`3999e07a43e9a64535ec8a9b3308a532458beb5a\`.
+- HEAD قبل بدء هذه المرحلة: `3999e07a43e9a64535ec8a9b3308a532458beb5a`.
 - هذا HEAD يتضمن توثيقاً فقط فوق الالتزام الوظيفي الذي اجتاز CI.
 - آخر تشغيل ناجح مثبت: [42469850687](https://github.com/abdallah1mohmmed2/Pharmacy/actions/runs/42469850687).
-- الالتزام الذي بُني فعلياً: \`72d309be3b6d07d7f4918ad59d3c04a983699ad8\`.
+- الالتزام الذي بُني فعلياً: `72d309be3b6d07d7f4918ad59d3c04a983699ad8`.
 - النتيجة: Firebase Emulator tests، اختبار تأسيس الهوية، Flutter Analyze، 78 Flutter tests، Android Release APK، Windows Release، ورفع artifact لكلا النظامين.
-- artifacts: \`pharmacy-android\` (ID \`13612947510\`) و\`pharmacy-windows\` (ID \`13613730529\`)؛ كلاهما غير منتهي الصلاحية وقت التحقق، والانتهاء المسجل 2027-02-06.
+- artifacts: `pharmacy-android` (ID `13612947510`) و`pharmacy-windows` (ID `13613730529`)؛ كلاهما غير منتهي الصلاحية وقت التحقق، والانتهاء المسجل 2027-02-06.
 - لا يجوز اعتبار هذا التشغيل تحققاً من أي كود وظيفي أضيف بعد الالتزام أعلاه.
 
 ### مرحلة تكامل SQLite / Outbox / FirestoreSyncWorker
-- أضيف مسار اختبار بحقن اتصال SQLite مستقل عبر \`DatabaseHelper.forTesting\` دون تغيير مسار الإنتاج الذي يستخدم \`DatabaseHelper.instance\`.
-- أضيف \`test/firestore_sync_worker_integration_test.dart\` بقاعدتي SQLite فعليتين منفصلتين على القرص، لا بقاعدة مشتركة في الذاكرة.
+- أضيف مسار اختبار بحقن اتصال SQLite مستقل عبر `DatabaseHelper.forTesting` دون تغيير مسار الإنتاج الذي يستخدم `DatabaseHelper.instance`.
+- أضيف `test/firestore_sync_worker_integration_test.dart` بقاعدتي SQLite فعليتين منفصلتين على القرص، لا بقاعدة مشتركة في الذاكرة.
 - يغطي الاختبار: الرفع من الجهاز A، الاستقبال في الجهاز B، إعادة إرسال الدفعة ومنع تكرار السجل، رفض اختلاف هوية الفرع داخل الحدث، انقطاع الشبكة واستئناف Outbox، فشل كتابة SQLite ثم إعادة المحاولة، وفشل إنهاء معاملة Inbox مع التحقق من rollback ثم إعادة استقبال الدفعة.
-- أضيف اختبار تكامل مخصص يعمل على Firestore Emulator الحقيقي عند ضبط \`FIRESTORE_EMULATOR_HOST\`، ويُشغّل من workflow داخل \`firebase emulators:exec\`. اختبار Mock REST منفصل عن اختبار Emulator ولا يُستخدم بديلاً عنه.
+- أضيف اختبار تكامل مخصص يعمل على Firestore Emulator الحقيقي عند ضبط `FIRESTORE_EMULATOR_HOST`، ويُشغّل من workflow داخل `firebase emulators:exec`. اختبار Mock REST منفصل عن اختبار Emulator ولا يُستخدم بديلاً عنه.
 - **حالة هذه المرحلة عند إضافة الكود:** بانتظار تشغيل CI. لا تُعلن الاختبارات أو البناء ناجحة حتى اكتمال تشغيل GitHub Actions والتحقق من كل الوظائف والـ artifacts.
 - لم يتم نشر Firebase الإنتاجي، ولم تصدر Custom Claims حية، ولم تتغير هوية الفرع المؤقتة.
 
 ### معيار الإغلاق
 لا تُغلق المرحلة إلا بعد نجاح Emulator integration test، Flutter Analyze، كامل Flutter Test، Android Release APK، Windows Release، ووجود artifact حديث لكل من Android وWindows على الالتزام الوظيفي المختبر.
+
+
+## النتيجة المعتمدة — تكامل المزامنة واختبارات CI (2026-11-08)
+
+> هذا القسم يحل محل حالة «بانتظار CI» الواردة في سجل إضافة الاختبارات أعلاه.
+
+- اكتمل GitHub Actions Run [42474041481](https://github.com/abdallah1mohmmed2/Pharmacy/actions/runs/42474041481) بحالة `success`.
+- SHA التشغيل: `3eff7c7123da7eb1d112a06b6429a16cd9e6e1b3`.
+- أثناء خطوة تنسيق Dart أنشأ workflow الالتزام `d3bb72f9aed189f7dade89cd0b8f11ed7478bce0`، والتغيير الوحيد فيه تنسيق سطر واحد في ملف الاختبار. استمرت بقية خطوات الاختبار والبناء على شجرة العمل المنسقة؛ لا يوجد تغيير وظيفي بعد الكود الذي اجتاز التشغيل.
+- Firebase Emulator security tests: نجاح.
+- Signed branch identity tests: نجاح.
+- Flutter Analyze: نجاح.
+- اختبار التكامل المنفصل على Firestore Emulator الحقيقي: **6 اختبارات ناجحة**، منها النقل بين قاعدتي SQLite منفصلتين.
+- Flutter Test الكامل: **83 اختباراً ناجحاً، واختبار واحد متجاوز عمداً**؛ اختبار Emulator يعاد تشغيله منفرداً ضمن خطوة Emulator.
+- Android Release APK: نجاح.
+- Windows Release: نجاح.
+- Android artifact: `pharmacy-android`، ID `13614917586`، SHA-256 `34f6efcab49c8a92199b488c68f8240d0f11647c0c0370ec8cac91d3f1419cbc`.
+- Windows artifact: `pharmacy-windows`، ID `13614179828`، SHA-256 `c572e24e069c49f14de85487df58050ccda10888d17410a2f5757a851f61e6b5`.
+- كلا الـ artifacts غير منتهٍ وقت التحقق، والانتهاء المسجل `2027-02-06T11:03:27Z`.
+
+### تصحيح ملاحظات التشغيل الأول
+فشل التشغيل السابق `42473856906` في اختبارات Mock REST بسبب إرجاع استجابة JSON بترميز Latin-1 مع بيانات عربية، وبسبب توقع `LOCAL` بعد أن غيّر جامع Outbox الحالة بصورة صحيحة إلى `QUEUED`. تم إصلاح ترميز UTF-8 والتوقع إلى `QUEUED`. التشغيل التالي `42474041481` نجح في جميع الاختبارات والبناء.
+
+### حدود ما تم اعتماده
+هذه المرحلة تثبت نقل سجل اختباري بين قاعدتي SQLite عبر Firestore Emulator، وإعادة الإرسال والعزل والتعافي من الفشل. لا تثبت بعد مزامنة جميع مجالات الصيدلية الإنتاجية أو جاهزية التشغيل الحي. لم يتم نشر Firebase الإنتاجي ولم تصدر Custom Claims حية، وتظل UUIDs الحالية placeholders حتى إتمام اعتماد هوية الفرع.

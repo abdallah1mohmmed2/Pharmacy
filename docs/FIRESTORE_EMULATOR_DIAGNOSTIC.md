@@ -127,11 +127,24 @@
 
 ## تثبيت خط الأساس قبل اختبار تكامل Flutter — 2026-11-08
 
-- HEAD الفرع قبل إضافة اختبار التكامل: \`3999e07a43e9a64535ec8a9b3308a532458beb5a\`.
-- آخر CI ناجح: [42469850687](https://github.com/abdallah1mohmmed2/Pharmacy/actions/runs/42469850687)، على commit \`72d309be3b6d07d7f4918ad59d3c04a983699ad8\`.
+- HEAD الفرع قبل إضافة اختبار التكامل: `3999e07a43e9a64535ec8a9b3308a532458beb5a`.
+- آخر CI ناجح: [42469850687](https://github.com/abdallah1mohmmed2/Pharmacy/actions/runs/42469850687)، على commit `72d309be3b6d07d7f4918ad59d3c04a983699ad8`.
 - نجحت اختبارات Firebase Emulator، اختبار الهوية الموقعة، Flutter Analyze، 78 اختبار Flutter، Android Release APK وWindows Release، ورُفعت حزم Android وWindows.
-- artifact IDs: Android \`13612947510\` وWindows \`13613730529\`؛ لم تكن منتهية الصلاحية وقت الفحص.
-- HEAD اللاحق \`3999e07...\` توثيقي فقط ولا يضيف كوداً وظيفياً بعد الالتزام المختبر.
+- artifact IDs: Android `13612947510` وWindows `13613730529`؛ لم تكن منتهية الصلاحية وقت الفحص.
+- HEAD اللاحق `3999e07...` توثيقي فقط ولا يضيف كوداً وظيفياً بعد الالتزام المختبر.
 - تمت إضافة اختبار تكامل Flutter جديد يستخدم قاعدتي SQLite مستقلتين، ويشغّل اختباراً إضافياً على Firestore Emulator الحقيقي من CI. يغطي النقل بين جهازين، replay/idempotency، اختلاف الفرع، انقطاع الاتصال والاستئناف، فشل الكتابة، وrollback لمعاملة Inbox.
 - **حالة التحقق من الكود الجديد: بانتظار CI؛ لا تُنسب إليه نتيجة التشغيل التاريخي 42469850687.**
 - لا نشر إلى Firebase الإنتاجي ولا إصدار Claims حية ضمن هذه المرحلة.
+
+
+## النتيجة النهائية لاختبار تكامل Flutter — 2026-11-08
+
+- التشغيل [42474041481](https://github.com/abdallah1mohmmed2/Pharmacy/actions/runs/42474041481) اكتمل بحالة `success` على SHA `3eff7c7123da7eb1d112a06b6429a16cd9e6e1b3`.
+- نجاح Firebase Emulator security tests واختبار الهوية الموقعة وFlutter Analyze.
+- اختبار Flutter المتصل فعلياً بـ Firestore Emulator: **6/6 ناجحة**.
+- اختبارات Flutter الكاملة: **83 ناجحة، و1 skipped**؛ الاختبار المتجاوز هو نسخة اختبار Emulator ضمن التشغيل العام، لأنه نُفذ منفصلاً في الخطوة السابقة.
+- Android Release APK وWindows Release نجحا، ورُفعت artifacts حديثة:
+  - Android: `13614917586` — `pharmacy-android`.
+  - Windows: `13614179828` — `pharmacy-windows`.
+- الالتزام `d3bb72f9aed189f7dade89cd0b8f11ed7478bce0` اللاحق على SHA التشغيل هو تنسيق آلي لسطر واحد في ملف الاختبار فقط، وتمت خطوة الاختبار والبناء على الشجرة المنسقة.
+- لم يحدث نشر إنتاجي أو إصدار Claims حية. اختبار Emulator يثبت دورة سجل اختباري واحدة ولا يمثل اعتماد مزامنة كل المجالات.
