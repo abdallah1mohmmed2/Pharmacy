@@ -159,13 +159,15 @@ class BranchIdentityProvisioningService {
         throw StateError('UUID المؤسسة المطلوب مستخدم مسبقاً.');
       }
 
-      final branches = await txn.query(
-        'branches',
-        where: 'is_main = 1 AND is_deleted = 0',
-        limit: 2,
-      );
-      if (branches.length != 1) {
-        throw StateError('يجب وجود فرع رئيسي واحد فقط قبل تثبيت الهوية.');
+      // This release intentionally provisions one pharmacy branch only.
+      // Do not migrate a partially multi-branch database under a single-branch manifest.
+      final branches = await txn.query('branches', limit: 2);
+      if (branches.length != 1 ||
+          branches.single['is_main'] != 1 ||
+          branches.single['is_deleted'] != 0) {
+        throw StateError(
+          'هذا الملف مخصص حالياً لمؤسسة ذات فرع واحد؛ لم يتم تغيير أي بيانات.',
+        );
       }
       final branch = branches.single;
       if (branch['uuid'] != 'branch-main' ||
