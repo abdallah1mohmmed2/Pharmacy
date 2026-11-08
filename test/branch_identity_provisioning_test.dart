@@ -227,6 +227,37 @@ void main() {
     }
   });
 
+  test('refuses identity replacement after a completed cloud sync', () async {
+    final service = BranchIdentityProvisioningService(
+      trustedPublicKeyPem: publicPem,
+    );
+    final db = await createLegacyDatabase();
+    try {
+      await db.execute('''
+        CREATE TABLE sync_queue (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          status TEXT NOT NULL
+        )
+      ''');
+      await db.insert('sync_queue', {'status': 'DONE'});
+
+      await expectLater(
+        service.installManifest(database: db, manifestBytes: manifest),
+        throwsStateError,
+      );
+      expect((await db.query('tenants')).single['uuid'], 'tenant-main');
+      expect((await db.query('branches')).single['uuid'], 'branch-main');
+      expect(
+        await db.rawQuery(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='branch_identity_provisioning'",
+        ),
+        isEmpty,
+      );
+    } finally {
+      await disposeDatabase(db);
+    }
+  });
+
   test('rejects a multi-branch database without partial changes', () async {
     final service = BranchIdentityProvisioningService(
       trustedPublicKeyPem: publicPem,
