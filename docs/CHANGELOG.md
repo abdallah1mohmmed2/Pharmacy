@@ -481,3 +481,10 @@
 - تم تشديد أداة Custom Claims لتأخذ ربط UID/branch_id/branch_role من ملف خارجي موثوق خارج Git repository، مع التحقق من UUID والدور ووجود UID في Firebase Auth.
 - أضيف تحقق Auth Emulator من تجديد refresh token واستمرار branch claims.
 - لا يوجد نشر Firebase أو إصدار claims إنتاجية. نتائج CI لهذه التغييرات لم تظهر بعد وقت هذا التوثيق.
+
+
+## Global branch identity safety gate — 2026-11-08
+- اكتشف التدقيق أن قيمة فرع البذر `branch-main` placeholder ثابتة وليست UUID عالمياً.
+- عامل Firestore يرفض الآن هوية الفرع غير القياسية، كما ترفض أداة Custom Claims قيمة غير UUID.
+- أُلغي توليد UUID عشوائي محلي لكل تثبيت؛ يجب أن تتشارك أجهزة الفرع الواحد UUID موحداً صادراً من مسار تأسيس موثوق.
+- تظل Claims الإنتاجية والمزامنة السحابية محظورتين حتى تنفيذ توزيع هوية الفرع على الأجهزة وربط UID بها.
