@@ -113,6 +113,13 @@ void main() {
       expect(await db.rawQuery('SELECT id FROM cash_accounts'), hasLength(7));
       expect(await db.rawQuery('SELECT setting_no FROM system_settings'),
           hasLength(35));
+      final tenantBranch = await db.rawQuery('''
+        SELECT t.uuid AS tenant_uuid, b.tenant_uuid AS branch_tenant_uuid
+        FROM tenants t JOIN branches b ON b.tenant_uuid=t.uuid
+      ''');
+      expect(tenantBranch, hasLength(1));
+      expect(tenantBranch.single['tenant_uuid'], 'tenant-main');
+      expect(tenantBranch.single['branch_tenant_uuid'], 'tenant-main');
 
       // Re-running the cleanup migration must remain safe and idempotent.
       await SchemaIteration9.upgrade(db);
