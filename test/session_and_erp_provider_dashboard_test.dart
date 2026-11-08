@@ -57,7 +57,8 @@ void main() {
         'branches',
         columns: ['id'],
         limit: 1,
-      )).single['id'] as int;
+      ))
+          .single['id'] as int;
       await db.delete('drugs', where: 'branch_id=?', whereArgs: [branchId]);
 
       final provider = SessionAndErpProvider(
