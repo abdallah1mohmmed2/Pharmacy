@@ -38,7 +38,8 @@ void main() {
     expect(upload.uploadedEvents, 1);
     expect(source.deviceId, isNot(target.deviceId));
     expect(
-      ((server.document!['fields'] as Map)['source_device_id'] as Map)['stringValue'],
+      ((server.document!['fields'] as Map)['source_device_id']
+          as Map)['stringValue'],
       source.deviceId,
     );
     expect((await source.db.query('sync_queue')).single['status'], 'DONE');

@@ -18,8 +18,8 @@ class FirestoreSyncWorker {
     FirestoreInboxProcessor? inbox,
     String? emulatorHost,
     Future<String> Function()? deviceIdProvider,
-  })  : _deviceIdProvider =
-            deviceIdProvider ?? DeviceIdentityService.instance.getOrCreateDeviceId,
+  })  : _deviceIdProvider = deviceIdProvider ??
+            DeviceIdentityService.instance.getOrCreateDeviceId,
         _emulatorHost = emulatorHost ??
             const String.fromEnvironment('FIRESTORE_EMULATOR_HOST'),
         _helper = helper ?? DatabaseHelper.instance,

@@ -50,8 +50,7 @@ class _S28SystemSettingsBackupScreenState
     );
     final provisioned = provisioningTable.isNotEmpty &&
         (await db.query('branch_identity_provisioning', limit: 1)).isNotEmpty;
-    final deviceId =
-        await DeviceIdentityService.instance.getOrCreateDeviceId();
+    final deviceId = await DeviceIdentityService.instance.getOrCreateDeviceId();
     return {
       'tenant_uuid': tenants.isEmpty ? 'غير متوفر' : tenants.first['uuid'],
       'tenant_name': tenants.isEmpty ? 'غير معروف' : tenants.first['name_ar'],
@@ -65,47 +64,47 @@ class _S28SystemSettingsBackupScreenState
   Widget _identityStatusCard() {
     _identityStatusFuture ??= _loadIdentityStatus();
     return FutureBuilder<Map<String, Object?>>(
-        future: _identityStatusFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Card(
-              child: ListTile(
-                leading: Icon(Icons.fingerprint),
-                title: Text('هوية المؤسسة والجهاز'),
-                subtitle: Text('جارٍ قراءة الهوية المحلية...'),
-              ),
-            );
-          }
-          if (snapshot.hasError || !snapshot.hasData) {
-            return Card(
-              child: ListTile(
-                leading: const Icon(Icons.error_outline),
-                title: const Text('تعذر قراءة الهوية المحلية'),
-                subtitle: Text(snapshot.error?.toString() ?? 'لا توجد بيانات'),
-              ),
-            );
-          }
-          final value = snapshot.data!;
-          final provisioned = value['provisioned'] == true;
-          return Card(
+      future: _identityStatusFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Card(
             child: ListTile(
-              isThreeLine: true,
-              leading: Icon(
-                provisioned ? Icons.verified_user : Icons.warning_amber,
-                color: provisioned ? Colors.green : Colors.orange,
-              ),
-              title: Text(provisioned
-                  ? 'هوية المؤسسة والفرع معتمدة على هذا الجهاز'
-                  : 'هوية مؤقتة — لم يتم التأسيس بعد'),
-              subtitle: SelectableText(
-                'المؤسسة: ${value['tenant_name']}  •  ${value['tenant_uuid']}\\n'
-                'الفرع: ${value['branch_name']}  •  ${value['branch_uuid']}\\n'
-                'معرّف هذا الجهاز: ${value['device_id']}',
-              ),
+              leading: Icon(Icons.fingerprint),
+              title: Text('هوية المؤسسة والجهاز'),
+              subtitle: Text('جارٍ قراءة الهوية المحلية...'),
             ),
           );
-        },
-      );
+        }
+        if (snapshot.hasError || !snapshot.hasData) {
+          return Card(
+            child: ListTile(
+              leading: const Icon(Icons.error_outline),
+              title: const Text('تعذر قراءة الهوية المحلية'),
+              subtitle: Text(snapshot.error?.toString() ?? 'لا توجد بيانات'),
+            ),
+          );
+        }
+        final value = snapshot.data!;
+        final provisioned = value['provisioned'] == true;
+        return Card(
+          child: ListTile(
+            isThreeLine: true,
+            leading: Icon(
+              provisioned ? Icons.verified_user : Icons.warning_amber,
+              color: provisioned ? Colors.green : Colors.orange,
+            ),
+            title: Text(provisioned
+                ? 'هوية المؤسسة والفرع معتمدة على هذا الجهاز'
+                : 'هوية مؤقتة — لم يتم التأسيس بعد'),
+            subtitle: SelectableText(
+              'المؤسسة: ${value['tenant_name']}  •  ${value['tenant_uuid']}\\n'
+              'الفرع: ${value['branch_name']}  •  ${value['branch_uuid']}\\n'
+              'معرّف هذا الجهاز: ${value['device_id']}',
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<String?> _managerPin({String title = 'تأكيد صلاحية المدير'}) =>

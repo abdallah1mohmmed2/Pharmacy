@@ -247,7 +247,8 @@ class BranchIdentityProvisioningService {
           [table],
         );
         if (exists.isNotEmpty) {
-          final rows = await txn.rawQuery('SELECT COUNT(*) AS count FROM $table');
+          final rows =
+              await txn.rawQuery('SELECT COUNT(*) AS count FROM $table');
           if ((rows.first['count'] as num) > 0) {
             throw StateError(
               'توجد بيانات مزامنة واردة؛ رُفض تغيير هوية الفرع حتى لا تنفصل البيانات عن مصدرها.',
