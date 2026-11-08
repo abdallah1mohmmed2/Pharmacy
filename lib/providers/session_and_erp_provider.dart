@@ -170,20 +170,21 @@ class SessionAndErpProvider extends ChangeNotifier {
           "SELECT COALESCE(SUM(net_total),0) total, COALESCE(SUM(total_cost),0) cost, COUNT(*) count FROM sales_invoices WHERE branch_id=? AND status='COMPLETED' AND substr(invoice_date,1,10)=?",
           [branchId, today]);
       final stock = await db.rawQuery(
-          'SELECT COUNT(*) count, SUM(CASE WHEN stock_total_units<=min_stock_units THEN 1 ELSE 0 END) low FROM drugs WHERE branch_id=? AND is_deleted=0 AND is_active=1',
+          'SELECT COUNT(*) count, COALESCE(SUM(CASE WHEN stock_total_units<=min_stock_units THEN 1 ELSE 0 END),0) low FROM drugs WHERE branch_id=? AND is_deleted=0 AND is_active=1',
           [branchId]);
       final balances = await db.rawQuery(
           'SELECT COALESCE(SUM(CASE WHEN net>0 THEN net ELSE 0 END),0) alayh, COALESCE(SUM(CASE WHEN net<0 THEN -net ELSE 0 END),0) lah FROM v_party_balance WHERE branch_id=?',
           [branchId]);
       dashboard = {
-        'sales': (sales.first['total'] as num).toDouble(),
-        'profit': ((sales.first['total'] as num) - (sales.first['cost'] as num))
+        'sales': ((sales.first['total'] as num?) ?? 0).toDouble(),
+        'profit': (((sales.first['total'] as num?) ?? 0) -
+                ((sales.first['cost'] as num?) ?? 0))
             .toDouble(),
-        'invoiceCount': (sales.first['count'] as num).toDouble(),
-        'drugCount': (stock.first['count'] as num).toDouble(),
-        'lowStock': (stock.first['low'] as num).toDouble(),
-        'totalAlayh': (balances.first['alayh'] as num).toDouble(),
-        'totalLah': (balances.first['lah'] as num).toDouble(),
+        'invoiceCount': ((sales.first['count'] as num?) ?? 0).toDouble(),
+        'drugCount': ((stock.first['count'] as num?) ?? 0).toDouble(),
+        'lowStock': ((stock.first['low'] as num?) ?? 0).toDouble(),
+        'totalAlayh': ((balances.first['alayh'] as num?) ?? 0).toDouble(),
+        'totalLah': ((balances.first['lah'] as num?) ?? 0).toDouble(),
         'cashTotal':
             cashAccounts.fold<double>(0, (s, a) => s + a.currentBalance)
       };
