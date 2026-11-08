@@ -273,3 +273,6 @@
 - التغييرات تنتظر تشغيل CI فعلي على آخر commit. لا توجد نتيجة Analyze/Test/APK/Windows جديدة معتمدة في هذه المرحلة حتى الآن.
 
 **الخطوة التالية:** تنفيذ provisioning آمن بهوية Tenant/Branch UUID ثابتة، ثم توصيل Flutter Auth/Sync إلى Emulator end-to-end على SQLite اختبارية قبل أي اتصال حي.
+
+
+**مراجعة ترحيل v15 قبل CI:** تم ضبط ترتيب التأسيس بحيث ينشئ DatabaseHelper جدول tenants قبل SeedData، ثم يعيد تنفيذ migration بعد إنشاء الفرع لربطه بالمؤسسة. أصبحت SeedData متوافقة أيضاً مع قواعد ما قبل v15 عبر التحقق من وجود جدول tenants قبل إدخال المؤسسة. أضيف اختبار ترقية قاعدة v14 يحافظ على UUID واسم الفرع ويختبر idempotency وforeign_key_check. هذه إصلاحات وقائية من مراجعة الكود؛ لا تزال بانتظار تنفيذ CI.
