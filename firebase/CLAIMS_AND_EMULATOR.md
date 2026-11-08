@@ -5,11 +5,11 @@
 - branch_id يحمل UUID العالمي للفرع، وليس رقم SQLite المحلي.
 - branch_role إحدى القيم: owner أو manager أو staff.
 - لا ينشئ تطبيق العميل Custom Claims ولا يعدلها.
-- لا تحفظ كلمة مرور Firebase في SQLite أو إعداد 35؛ يتولى Firebase Auth SDK إدارة الجلسة وتجديد ID token.
+- لا تحفظ كلمة مرور Firebase في SQLite أو إعداد 35؛ يتولى Firebase Authentication REST إدارة الجلسة وتجديد ID token.
 - يجب أن يتطابق UUID الفرع في ID token مع مسار مستندات Firestore.
 
 ## إعداد تطبيق Flutter
-إعداد 35 يحتفظ بمعرف المشروع وبيانات Firebase العامة فقط: project_id وapi_key وapp_id وmessaging_sender_id. أضيف FirebaseBranchAuthService لتكوين Firebase Auth وتسجيل الدخول بالبريد وكلمة المرور والحصول على ID token. لا تعتبر المزامنة جاهزة حتى توصيل واجهة تسجيل الدخول والخروج وحفظ حالة الجلسة واختبارها على Android وWindows.
+إعداد 35 يحتفظ بمعرف المشروع وبيانات Firebase العامة فقط: project_id وapi_key وapp_id وmessaging_sender_id. أضيف FirebaseBranchAuthService للاتصال بـFirebase Authentication REST وتسجيل الدخول بالبريد وكلمة المرور والحصول على ID token، مع حفظ refresh token في مخزن أسرار نظام التشغيل. لا تعتبر المزامنة جاهزة حتى توصيل واجهة تسجيل الدخول والخروج وحفظ حالة الجلسة واختبارها على Android وWindows.
 
 ## إصدار Claims
 من بيئة إدارية موثوقة بعد تفعيل Firebase Authentication وإنشاء المستخدم:
@@ -30,3 +30,6 @@
 
 ## حدود الاعتماد
 نجاح اختبارات Emulator لا يثبت إصدار claims في مشروع الإنتاج ولا يثبت تسجيل الدخول الفعلي بحساب منشأة. يلزم اختبار تكاملي بحساب Firebase تجريبي، وتوثيق UID/UUID mapping، ثم اختبار المزامنة end-to-end قبل الاعتماد. لا يوجد نشر أو تعديل على مشروع Firebase ضمن هذه المرحلة.
+
+
+تعمل اختبارات المصادقة على Auth Emulator أيضاً (المنفذ 9099)، وتختبر إصدار custom claims والتحقق منها بعد تسجيل الدخول. لا تستخدم هذه الاختبارات أي حساب إنتاجي.
