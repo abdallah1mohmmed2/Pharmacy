@@ -10,6 +10,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/database_helper.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration11.dart';
 import 'package:global_enterprise_pharmacy_erp/data/services/firestore_sync_worker.dart';
+import 'package:global_enterprise_pharmacy_erp/data/services/backup_and_sync_service.dart';
 
 const _branchUuid = '6a52f3a1-1e47-4a6d-9c10-5f8b2d3e4a70';
 const _rowUuid = 'a1b2c3d4-e5f6-4789-8123-456789abcdef';
@@ -18,6 +19,74 @@ void main() {
   setUpAll(() {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
+  });
+
+  test('legacy HTTP upload filters queued secrets and rejects a forbidden table', () async {
+    final source = await _Device.open();
+    addTearDown(source.dispose);
+    await source.db.execute('''CREATE TABLE audit_logs (
+      id INTEGER PRIMARY KEY, event_at TEXT, user_id INTEGER, branch_id INTEGER,
+      device_id TEXT, action TEXT, entity_type TEXT, entity_id INTEGER,
+      entity_label TEXT, old_values_json TEXT, new_values_json TEXT, reason TEXT,
+      severity TEXT, prev_hash TEXT, row_hash TEXT)''');
+    for (final table in ['drugs', 'users']) {
+      await source.db.insert('sync_queue', {
+        'table_name': table, 'row_uuid': _rowUuid, 'operation': 'UPSERT',
+        'sync_version': 1, 'status': 'PENDING',
+        'payload_json': jsonEncode({
+          'uuid': _rowUuid, 'branch_id': 1, 'trade_name_ar': 'دواء',
+          'password_hash': 'PRIVATE_SENTINEL',
+        }),
+      });
+    }
+    var requests = 0;
+    final service = BackupAndSyncService(helper: source.helper,
+      client: MockClient((request) async {
+        requests++;
+        expect(request.body, isNot(contains('PRIVATE_SENTINEL')));
+        final items = (jsonDecode(request.body) as Map)['items'] as List;
+        expect(items, hasLength(1));
+        expect((items.single as Map)['table'], 'drugs');
+        return http.Response(jsonEncode({'results': [
+          {'id': (items.single as Map)['id'], 'status': 'DONE'},
+        ]}), 200);
+      }),
+    );
+    await service.syncNow(baseUrl: 'https://example.test');
+    expect(requests, 1);
+    final rows = await source.db.query('sync_queue', orderBy: 'id');
+    expect(rows[0]['status'], 'DONE');
+    expect(rows[1]['status'], 'CONFLICT');
+    expect(rows[1]['last_error'], 'SYNC_PAYLOAD_POLICY_REJECTED');
+  });
+
+  test('outbound projection protects old queued payloads without changing local data', () async {
+    final source = await _Device.open(seedLocalItem: true);
+    final server = _FakeFirestore();
+    addTearDown(source.dispose);
+    await source.db.execute('ALTER TABLE sync_items ADD COLUMN password_hash TEXT');
+    await source.db.update('sync_items', {'password_hash': 'PRIVATE_SENTINEL'});
+    final result = await _worker(source, server).syncOnce(
+      branchId: source.branchId, projectId: 'pharmacy-emulator-test', idToken: 'test-token',
+    );
+    expect(result.uploadedEvents, 1);
+    expect(jsonEncode(server.document), isNot(contains('PRIVATE_SENTINEL')));
+    expect((await source.db.query('sync_items')).single['password_hash'], 'PRIVATE_SENTINEL');
+  });
+
+  test('structured value in allowed field is quarantined before upload', () async {
+    final source = await _Device.open(seedLocalItem: true);
+    final server = _FakeFirestore();
+    addTearDown(source.dispose);
+    await source.db.update('sync_items', {'title': '{"token":"PRIVATE_SENTINEL"}'});
+    final result = await _worker(source, server).syncOnce(
+      branchId: source.branchId, projectId: 'pharmacy-emulator-test', idToken: 'test-token',
+    );
+    expect(result.uploadedEvents, 0);
+    expect(server.document, isNull);
+    final row = (await source.db.query('sync_queue')).single;
+    expect(row['status'], 'CONFLICT');
+    expect(row['last_error'], 'SYNC_PAYLOAD_POLICY_REJECTED');
   });
 
   test('uploads from device A, receives on device B, and safely replays',
@@ -239,6 +308,7 @@ void main() {
         emulatorHost: host,
         deviceIdProvider: () async => source.deviceId,
         allowedTablesForTesting: {'sync_items'},
+      payloadFieldsForTesting: {'sync_items': {'title'}},
       ).syncOnce(
         branchId: source.branchId,
         projectId: 'pharmacy-dafb6',
@@ -252,6 +322,7 @@ void main() {
         emulatorHost: host,
         deviceIdProvider: () async => target.deviceId,
         allowedTablesForTesting: {'sync_items'},
+      payloadFieldsForTesting: {'sync_items': {'title'}},
       ).syncOnce(
         branchId: target.branchId,
         projectId: 'pharmacy-dafb6',
@@ -275,6 +346,7 @@ FirestoreSyncWorker _worker(_Device device, _FakeFirestore server) =>
       emulatorHost: 'http://127.0.0.1:8080',
       deviceIdProvider: () async => device.deviceId,
       allowedTablesForTesting: {'sync_items'},
+      payloadFieldsForTesting: {'sync_items': {'title'}},
     );
 
 class _Device {

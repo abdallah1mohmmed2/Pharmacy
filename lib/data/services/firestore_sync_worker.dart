@@ -9,6 +9,7 @@ import 'backup_and_sync_service.dart';
 import 'sync_inbox_processor.dart';
 import 'device_identity_service.dart';
 import 'sync_table_policy.dart';
+import 'sync_payload_policy.dart';
 
 /// Firestore REST worker. Authentication is deliberately injected: callers
 /// must supply a Firebase ID token issued for the signed-in branch account.
@@ -20,7 +21,9 @@ class FirestoreSyncWorker {
     String? emulatorHost,
     Future<String> Function()? deviceIdProvider,
     Set<String>? allowedTablesForTesting,
-  })  : _deviceIdProvider = deviceIdProvider ??
+    Map<String, Set<String>>? payloadFieldsForTesting,
+  })  : _payloadFieldsForTesting = payloadFieldsForTesting,
+        _deviceIdProvider = deviceIdProvider ??
             DeviceIdentityService.instance.getOrCreateDeviceId,
         _emulatorHost = emulatorHost ??
             const String.fromEnvironment('FIRESTORE_EMULATOR_HOST'),
@@ -36,6 +39,7 @@ class FirestoreSyncWorker {
   final http.Client _client;
   final FirestoreInboxProcessor _inbox;
   final Set<String> _allowedTables;
+  final Map<String, Set<String>>? _payloadFieldsForTesting;
 
   /// Reads setting 35 and executes one upload/download cycle. The caller
   /// supplies a Firebase ID token from an authenticated Firebase user.
@@ -396,14 +400,23 @@ class FirestoreSyncWorker {
       final current = row.first;
       if ((current['branch_id'] as num?)?.toInt() != branchId) continue;
       final version = (queueRow['sync_version'] as num? ?? 1).toInt();
-      final payload = Map<String, Object?>.from(
-        jsonDecode(queueRow['payload_json'] as String) as Map,
-      );
-      payload.remove('id');
+      late final Map<String, Object?> payload;
+      try {
+        payload = SyncPayloadPolicy.project(
+          table, jsonDecode(queueRow['payload_json'] as String),
+          fieldsForTesting: _payloadFieldsForTesting?[table],
+        );
+      } on FormatException {
+        await db.update('sync_queue', {
+          'status': 'CONFLICT',
+          'last_error': 'SYNC_PAYLOAD_POLICY_REJECTED',
+        }, where: 'id=?', whereArgs: [queueRow['id']]);
+        continue;
+      }
       payload['branch_id'] = branchUuid;
       payload['sync_version'] = version;
       payload['sync_status'] = 'SYNCED';
-      final relations = await _relationsForRow(db, table, current);
+      final relations = await _relationsForRow(db, table, current, payload.keys.toSet());
       payload['__relations'] = relations;
       final operation = queueRow['operation'] as String;
       final eventUuid = _hash('$table|$uuid|$version|$operation');
@@ -434,6 +447,7 @@ class FirestoreSyncWorker {
     Database db,
     String table,
     Map<String, Object?> row,
+    Set<String> allowedColumns,
   ) async {
     final result = <String, Object?>{};
     final foreignKeys = await db.rawQuery('PRAGMA foreign_key_list($table)');
@@ -444,7 +458,8 @@ class FirestoreSyncWorker {
       if (column == null ||
           parentTable == null ||
           value == null ||
-          column == 'branch_id') continue;
+          column == 'branch_id' ||
+          !allowedColumns.contains(column)) continue;
       if (!_safeIdentifier.hasMatch(parentTable)) continue;
       final parent = await db.query(parentTable,
           where: 'id=?', whereArgs: [value], limit: 1);

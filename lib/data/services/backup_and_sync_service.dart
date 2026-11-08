@@ -9,6 +9,7 @@ import 'package:sqflite/sqflite.dart';
 import '../database/database_helper.dart';
 import 'settings_and_audit_service.dart';
 import 'sync_table_policy.dart';
+import 'sync_payload_policy.dart';
 
 class BackupResult {
   const BackupResult(
@@ -264,8 +265,27 @@ class BackupAndSyncService {
         whereArgs: ['PENDING', 'FAILED'],
         orderBy: 'id',
         limit: batchSize);
-    if (pending.isEmpty) return 0;
-    final ids = pending.map((e) => e['id'] as int).toList();
+    final safePending = <Map<String, Object?>>[];
+    final payloads = <int, Map<String, Object?>>{};
+    for (final row in pending) {
+      try {
+        final table = row['table_name'] as String;
+        if (!SyncTablePolicy.allowsOutbound(table)) {
+          throw const FormatException('SYNC_PAYLOAD_POLICY_REJECTED');
+        }
+        payloads[row['id'] as int] = SyncPayloadPolicy.project(
+          table, jsonDecode(row['payload_json'] as String),
+        );
+        safePending.add(row);
+      } on FormatException {
+        await db.update('sync_queue', {
+          'status': 'CONFLICT',
+          'last_error': 'SYNC_PAYLOAD_POLICY_REJECTED',
+        }, where: 'id=?', whereArgs: [row['id']]);
+      }
+    }
+    if (safePending.isEmpty) return 0;
+    final ids = safePending.map((e) => e['id'] as int).toList();
     await db.update('sync_queue', {'status': 'SENDING'},
         where: 'id IN (' + List.filled(ids.length, '?').join(',') + ')',
         whereArgs: ids);
@@ -280,14 +300,14 @@ class BackupAndSyncService {
           .post(base.resolve('/sync/batch'),
               headers: headers,
               body: jsonEncode({
-                'items': pending
+                'items': safePending
                     .map((e) => {
                           'id': e['id'],
                           'table': e['table_name'],
                           'uuid': e['row_uuid'],
                           'operation': e['operation'],
                           'version': e['sync_version'],
-                          'payload': jsonDecode(e['payload_json'] as String)
+                          'payload': payloads[e['id']]
                         })
                     .toList()
               }))
@@ -298,14 +318,14 @@ class BackupAndSyncService {
       final results = (body['results'] as List? ?? const []);
       for (final item in results.whereType<Map>()) {
         final id = (item['id'] as num?)?.toInt();
-        if (id == null) continue;
+        if (id == null || !ids.contains(id)) continue;
         final status = switch (item['status']) {
           'DONE' => 'DONE',
           'CONFLICT' => 'CONFLICT',
           _ => 'FAILED'
         };
         final queueRow =
-            pending.firstWhere((e) => e['id'] == id, orElse: () => {});
+            safePending.firstWhere((e) => e['id'] == id, orElse: () => {});
         final attempts = ((queueRow['attempts'] as num?) ?? 0).toInt() + 1;
         await db.update(
             'sync_queue',

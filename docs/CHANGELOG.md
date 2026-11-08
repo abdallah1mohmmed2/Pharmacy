@@ -622,3 +622,9 @@
 ## استكمال اختبار تجاوب بطاقات الخزينة — 2026-11-08
 - كشف اختبار الهاتف والكمبيوتر أن صف إجمالي الوارد والصادر داخل بطاقة الحساب قد يتجاوز عرض البطاقة.
 - استبدال الصف بـ `Wrap` للحفاظ على ظهور القيمتين دون تجاوز العرض على الهاتف أو البطاقات الضيقة.
+
+## P0-02 — outbound field projection — 2026-11-09
+- Add explicit per-table scalar field contracts to Firestore and legacy HTTP uploads, including existing queued events.
+- Keep unapproved clinical/personal/free-text fields local; quarantine malformed approved values without logging their contents.
+- Filter generated relation metadata to approved columns and add projection/worker regression tests.
+- Validation pending CI on this change; P0-02 is not yet declared complete.
