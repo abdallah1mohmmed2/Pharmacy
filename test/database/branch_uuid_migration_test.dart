@@ -61,10 +61,7 @@ void main() {
       });
       await db.insert('sync_queue', {'id': 1, 'status': 'DONE'});
 
-      await expectLater(
-        SchemaIteration12.upgrade(db),
-        throwsA(isA<StateError>()),
-      );
+      await SchemaIteration12.upgrade(db);
       final branch = (await db.query('branches')).single;
       expect(branch['uuid'], 'branch-main');
     } finally {
