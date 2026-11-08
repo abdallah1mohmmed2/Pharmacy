@@ -37,7 +37,9 @@ class PharmacyErpApplication extends StatelessWidget {
                       .read<SessionAndErpProvider>()
                       .verifyManagerPin(pin),
                   verifyOwnerPin: (pin) =>
-                      context.read<SessionAndErpProvider>().verifyOwnerPin(pin))
+                      context.read<SessionAndErpProvider>().verifyOwnerPin(pin),
+                  activeBranchId: () =>
+                      context.read<SessionAndErpProvider>().branchId)
                 ..initialize()),
         ],
         child: MaterialApp(
