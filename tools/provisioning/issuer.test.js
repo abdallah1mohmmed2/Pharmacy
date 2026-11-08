@@ -11,6 +11,27 @@ const script = path.resolve(__dirname, 'issuer.js');
 function run(args) {
   return spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' });
 }
+test('issuer refuses key and manifest paths inside the repository', () => {
+  const inside = path.resolve(__dirname, '../../.identity-test-must-not-exist');
+  const keyResult = run(['init-keys', '--key-dir', inside]);
+  assert.notEqual(keyResult.status, 0);
+  assert.equal(fs.existsSync(inside), false);
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pharmacy-provision-path-'));
+  const keys = path.join(root, 'issuer');
+  try {
+    assert.equal(run(['init-keys', '--key-dir', keys]).status, 0);
+    const outputInside = path.resolve(__dirname, '../../.identity-manifest-must-not-exist.json');
+    const result = run(['issue', '--key-dir', keys, '--output', outputInside,
+      '--tenant-name-ar', 'مؤسسة اختبار', '--branch-name-ar', 'فرع اختبار']);
+    assert.notEqual(result.status, 0);
+    assert.equal(fs.existsSync(outputInside), false);
+    assert.equal(fs.existsSync(path.join(keys, 'identity-registry.json')), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('issuer creates one signed Tenant/Branch identity and refuses re-issuance', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pharmacy-provision-'));
   const keys = path.join(root, 'issuer');
