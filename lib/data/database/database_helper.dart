@@ -46,6 +46,9 @@ class DatabaseHelper {
       await database.execute('PRAGMA temp_store = MEMORY');
     }, onCreate: (database, version) async {
       await SchemaBuilder.build(database);
+      // Create the tenant table before seeding, then link the seeded branch
+      // after SeedData has inserted it.
+      await SchemaIteration12.upgrade(database);
       await SeedData.run(database);
       await SchemaIteration2.upgrade(database);
       await SchemaIteration3.upgrade(database);
