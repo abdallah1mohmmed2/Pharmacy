@@ -207,15 +207,43 @@ class BranchIdentityProvisioningService {
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='system_settings'",
       );
       if (settingsTable.isNotEmpty) {
-        final cloudSettings = await txn.query(
-          'system_settings',
-          columns: ['value_text'],
-          where: 'setting_no = ?',
-          whereArgs: [35],
-          limit: 1,
+        // Older installations may have a legacy settings value column name.
+        // Resolve the actual schema instead of assuming the newest column.
+        final settingColumns = await txn.rawQuery(
+          'PRAGMA table_info(system_settings)',
+        );
+        final availableColumns = settingColumns
+            .map((row) => row['name'] as String)
+            .toSet();
+        const valueColumnCandidates = [
+          'value_text',
+          'setting_value',
+          'value',
+          'value_json',
+          'setting_value_json',
+          'config_json',
+        ];
+        String? valueColumn;
+        for (final candidate in valueColumnCandidates) {
+          if (availableColumns.contains(candidate)) {
+            valueColumn = candidate;
+            break;
+          }
+        }
+        if (valueColumn == null) {
+          // Fail closed: without reading setting 35 we cannot prove that cloud
+          // sync is disabled, so identity replacement must not proceed.
+          throw StateError(
+            'تعذر التحقق من إعداد المزامنة السحابية: لم يُعثر على عمود قيمة معروف في system_settings. حدّث قاعدة البيانات ثم أعد المحاولة؛ لم يتم تغيير الهوية.',
+          );
+        }
+        final cloudSettings = await txn.rawQuery(
+          'SELECT "$valueColumn" AS cloud_config FROM system_settings '
+          'WHERE setting_no = ? LIMIT 1',
+          [35],
         );
         if (cloudSettings.isNotEmpty) {
-          final rawConfig = cloudSettings.first['value_text'];
+          final rawConfig = cloudSettings.first['cloud_config'];
           if (rawConfig is String && rawConfig.trim().isNotEmpty) {
             final config = jsonDecode(rawConfig);
             if (config is Map && config['enabled'] == true) {
