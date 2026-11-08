@@ -11,6 +11,8 @@ import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration7.d
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration8.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration9.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration10.dart';
+import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration11.dart';
+import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration12.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -25,7 +27,7 @@ void main() {
     final db = await databaseFactoryFfi.openDatabase(
       inMemoryDatabasePath,
       options: OpenDatabaseOptions(
-        version: 13,
+        version: 15,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
         },
@@ -41,6 +43,8 @@ void main() {
           await SchemaIteration8.upgrade(database);
           await SchemaIteration9.upgrade(database);
           await SchemaIteration10.upgrade(database);
+          await SchemaIteration11.upgrade(database);
+          await SchemaIteration12.upgrade(database);
         },
       ),
     );
@@ -64,6 +68,7 @@ void main() {
         'lah_alayh_ledger',
         'catalog_cache',
         'catalog_sync_state',
+        'tenants',
       ];
       for (final table in requiredTables) {
         final rows = await db.rawQuery(
@@ -112,6 +117,8 @@ void main() {
       // Re-running the cleanup migration must remain safe and idempotent.
       await SchemaIteration9.upgrade(db);
       await SchemaIteration10.upgrade(db);
+      await SchemaIteration11.upgrade(db);
+      await SchemaIteration12.upgrade(db);
       expect(await db.rawQuery('SELECT id FROM drugs'), isEmpty);
       expect(await db.rawQuery('SELECT id FROM batches_fefo'), isEmpty);
       expect(
