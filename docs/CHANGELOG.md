@@ -494,3 +494,8 @@
 - تسلسل طلبات تجديد ID token ومنع refresh المتزامن، مع إبطال نتائج الطلبات القديمة عند sign-out أو بدء تسجيل دخول جديد.
 - إضافة إجراء يدوي لتحديث Custom Claims فوراً عبر forced refresh token exchange.
 - توسيع Auth Emulator test للتحقق من أن تغيير branch_role يظهر في ID token الذي يصدر بعد التجديد.
+
+
+## Inbox branch isolation — 2026-11-08
+- تمرير UUID الفرع المتوقع إلى معالج Inbox والتحقق من تطابق هوية الفرع داخل كل حدث وارد.
+- إضافة اختبار يمنع إدراج حدث يحمل هوية فرع مختلف في SQLite.
