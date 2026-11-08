@@ -25,6 +25,13 @@ function required(options, key) {
   if (!options[key] || !options[key].trim()) throw new Error('Required option: --' + key);
   return options[key].trim();
 }
+function assertOutsideRepository(target, label) {
+  const repositoryRoot = path.resolve(__dirname, '../..');
+  const relative = path.relative(repositoryRoot, path.resolve(target));
+  if (relative === '' || (!relative.startsWith('..' + path.sep) && relative !== '..' && !path.isAbsolute(relative))) {
+    throw new Error(label + ' must be stored outside the Git repository');
+  }
+}
 function atomicWrite(file, data, mode = 0o600) {
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   const temp = file + '.tmp-' + process.pid;
