@@ -59,7 +59,8 @@ class FirestoreSyncWorker {
     String databaseId = '(default)',
   }) async {
     if (branchId <= 0) throw ArgumentError('معرّف الفرع غير صالح');
-    if (projectId.trim().isEmpty) throw ArgumentError('Firebase project_id مطلوب');
+    if (projectId.trim().isEmpty)
+      throw ArgumentError('Firebase project_id مطلوب');
     if (idToken.trim().isEmpty) throw ArgumentError('Firebase ID token مطلوب');
     if (batchSize < 1 || batchSize > 100) {
       throw RangeError.range(batchSize, 1, 100, 'batchSize');
@@ -76,46 +77,47 @@ class FirestoreSyncWorker {
     if (pending.isNotEmpty) {
       final batch = await _buildBatch(db, branchId, pending);
       if (batch.items.isNotEmpty) {
-      await db.transaction((txn) async {
-        final ids = batch.queueIds;
-        await txn.update('sync_queue', {'status': 'SENDING'},
-            where: 'id IN (${List.filled(ids.length, '?').join(',')})',
-            whereArgs: ids);
-      });
-      try {
-        await _createBatchDocument(
-          projectId: projectId,
-          databaseId: databaseId,
-          branchId: branchId,
-          idToken: idToken,
-          batch: batch,
-        );
         await db.transaction((txn) async {
-          for (final item in batch.items) {
-            await txn.update(
-              'sync_queue',
-              {'status': 'DONE', 'last_error': null},
-              where: 'id=?',
-              whereArgs: [item.queueId],
-            );
-            await txn.update(
-              item.tableName,
-              {'sync_status': 'SYNCED'},
-              where: 'uuid=? AND sync_version<=?',
-              whereArgs: [item.rowUuid, item.version],
-            );
-          }
+          final ids = batch.queueIds;
+          await txn.update('sync_queue', {'status': 'SENDING'},
+              where: 'id IN (${List.filled(ids.length, '?').join(',')})',
+              whereArgs: ids);
         });
-        uploaded = batch.items.length;
-      } catch (error) {
-        await db.update(
-          'sync_queue',
-          {'status': 'FAILED', 'attempts': 1, 'last_error': error.toString()},
-          where: 'id IN (${List.filled(batch.queueIds.length, '?').join(',')})',
-          whereArgs: batch.queueIds,
-        );
-        rethrow;
-      }
+        try {
+          await _createBatchDocument(
+            projectId: projectId,
+            databaseId: databaseId,
+            branchId: branchId,
+            idToken: idToken,
+            batch: batch,
+          );
+          await db.transaction((txn) async {
+            for (final item in batch.items) {
+              await txn.update(
+                'sync_queue',
+                {'status': 'DONE', 'last_error': null},
+                where: 'id=?',
+                whereArgs: [item.queueId],
+              );
+              await txn.update(
+                item.tableName,
+                {'sync_status': 'SYNCED'},
+                where: 'uuid=? AND sync_version<=?',
+                whereArgs: [item.rowUuid, item.version],
+              );
+            }
+          });
+          uploaded = batch.items.length;
+        } catch (error) {
+          await db.update(
+            'sync_queue',
+            {'status': 'FAILED', 'attempts': 1, 'last_error': error.toString()},
+            where:
+                'id IN (${List.filled(batch.queueIds.length, '?').join(',')})',
+            whereArgs: batch.queueIds,
+          );
+          rethrow;
+        }
       }
     }
 
@@ -125,7 +127,8 @@ class FirestoreSyncWorker {
       idToken: idToken,
       databaseId: databaseId,
     );
-    return FirestoreSyncResult(uploadedEvents: uploaded, receivedEvents: received);
+    return FirestoreSyncResult(
+        uploadedEvents: uploaded, receivedEvents: received);
   }
 
   Future<int> pullInbox({
@@ -147,10 +150,12 @@ class FirestoreSyncWorker {
         '/v1/projects/$projectId/databases/$databaseId/documents/pharmacy_sync_batches/$branchId/batches',
         query,
       );
-      final response = await _client.get(uri, headers: _headers(idToken))
+      final response = await _client
+          .get(uri, headers: _headers(idToken))
           .timeout(const Duration(seconds: 30));
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw HttpException('Firestore inbox HTTP ${response.statusCode}: ${response.body}');
+        throw HttpException(
+            'Firestore inbox HTTP ${response.statusCode}: ${response.body}');
       }
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       final documents = (body['documents'] as List? ?? const []);
@@ -161,13 +166,16 @@ class FirestoreSyncWorker {
             (raw['name']?.toString().split('/').last ?? '');
         final events = fields['events'];
         if (batchId.isEmpty || events is! List) continue;
-        final batchHash = fields['payload_hash']?.toString() ??
-            _hash(jsonEncode(events));
+        final batchHash =
+            fields['payload_hash']?.toString() ?? _hash(jsonEncode(events));
         await _inbox.processBatch(
           branchId: branchId,
           batchUuid: batchId,
           payloadHash: batchHash,
-          events: events.whereType<Map>().map((e) => Map<String, Object?>.from(e)).toList(),
+          events: events
+              .whereType<Map>()
+              .map((e) => Map<String, Object?>.from(e))
+              .toList(),
         );
         processed += events.length;
       }
@@ -217,9 +225,11 @@ class FirestoreSyncWorker {
       if (exists.isEmpty) continue;
       final columns = await db.rawQuery('PRAGMA table_info($table)');
       final names = columns.map((e) => e['name'].toString()).toSet();
-      if (!{'uuid', 'branch_id', 'sync_version'}.every(names.contains)) continue;
+      if (!{'uuid', 'branch_id', 'sync_version'}.every(names.contains))
+        continue;
       final uuid = queueRow['row_uuid'] as String;
-      final row = await db.query(table, where: 'uuid=?', whereArgs: [uuid], limit: 1);
+      final row =
+          await db.query(table, where: 'uuid=?', whereArgs: [uuid], limit: 1);
       if (row.isEmpty) continue;
       final current = row.first;
       if ((current['branch_id'] as num?)?.toInt() != branchId) continue;
@@ -305,22 +315,27 @@ class FirestoreSyncWorker {
     if (utf8.encode(body).length > 850000) {
       throw StateError('حجم دفعة Firestore تجاوز الحد الآمن؛ قلل batch_size');
     }
-    final response = await _client.patch(uri,
-        headers: _headers(idToken), body: body).timeout(const Duration(seconds: 30));
+    final response = await _client
+        .patch(uri, headers: _headers(idToken), body: body)
+        .timeout(const Duration(seconds: 30));
     if (response.statusCode >= 200 && response.statusCode < 300) return;
     if (response.statusCode == 409 || response.statusCode == 400) {
-      final verify = await _client.get(
-        uri.replace(queryParameters: const {}),
-        headers: _headers(idToken),
-      ).timeout(const Duration(seconds: 20));
+      final verify = await _client
+          .get(
+            uri.replace(queryParameters: const {}),
+            headers: _headers(idToken),
+          )
+          .timeout(const Duration(seconds: 20));
       if (verify.statusCode >= 200 && verify.statusCode < 300) {
         final remote = jsonDecode(verify.body) as Map<String, dynamic>;
-        final remoteFields = _decodeFields(remote['fields'] as Map? ?? const {});
+        final remoteFields =
+            _decodeFields(remote['fields'] as Map? ?? const {});
         if (remoteFields['payload_hash'] == batch.payloadHash) return;
         throw StateError('تعارض batch_uuid مع بصمة دفعة مختلفة');
       }
     }
-    throw HttpException('Firestore batch write HTTP ${response.statusCode}: ${response.body}');
+    throw HttpException(
+        'Firestore batch write HTTP ${response.statusCode}: ${response.body}');
   }
 
   Map<String, String> _headers(String token) => {
@@ -340,10 +355,14 @@ class FirestoreSyncWorker {
     if (value is num) return {'doubleValue': value.toDouble()};
     if (value is String) return {'stringValue': value};
     if (value is List) {
-      return {'arrayValue': {'values': value.map(_encodeValue).toList()}};
+      return {
+        'arrayValue': {'values': value.map(_encodeValue).toList()}
+      };
     }
     if (value is Map) {
-      return {'mapValue': {'fields': _encodeFields(Map<String, Object?>.from(value))}};
+      return {
+        'mapValue': {'fields': _encodeFields(Map<String, Object?>.from(value))}
+      };
     }
     return {'stringValue': value.toString()};
   }
@@ -353,12 +372,15 @@ class FirestoreSyncWorker {
 
   Object? _decodeValue(Map value) {
     if (value.containsKey('stringValue')) return value['stringValue'];
-    if (value.containsKey('integerValue')) return int.tryParse(value['integerValue'].toString()) ?? 0;
-    if (value.containsKey('doubleValue')) return (value['doubleValue'] as num).toDouble();
+    if (value.containsKey('integerValue'))
+      return int.tryParse(value['integerValue'].toString()) ?? 0;
+    if (value.containsKey('doubleValue'))
+      return (value['doubleValue'] as num).toDouble();
     if (value.containsKey('booleanValue')) return value['booleanValue'] == true;
     if (value.containsKey('nullValue')) return null;
     if (value.containsKey('arrayValue')) {
-      final values = (value['arrayValue'] as Map)['values'] as List? ?? const [];
+      final values =
+          (value['arrayValue'] as Map)['values'] as List? ?? const [];
       return values.map((e) => _decodeValue(e as Map)).toList();
     }
     if (value.containsKey('mapValue')) {
@@ -406,8 +428,8 @@ class _FirestoreBatch {
     required this.queueIds,
     required this.items,
   });
-  static const empty = _FirestoreBatch(
-      batchUuid: '', payloadHash: '', queueIds: [], items: []);
+  static const empty =
+      _FirestoreBatch(batchUuid: '', payloadHash: '', queueIds: [], items: []);
   final String batchUuid, payloadHash;
   final List<int> queueIds;
   final List<_FirestoreEvent> items;

@@ -173,8 +173,8 @@ class FirestoreInboxProcessor {
 
     try {
       if (_excludedTables.contains(table)) {
-        await _setInboxStatus(txn, branchId, eventUuid, 'FAILED',
-            'الجدول محظور من المزامنة');
+        await _setInboxStatus(
+            txn, branchId, eventUuid, 'FAILED', 'الجدول محظور من المزامنة');
         return 'REJECTED';
       }
       final tableRows = await txn.rawQuery(
@@ -182,16 +182,16 @@ class FirestoreInboxProcessor {
         [table],
       );
       if (tableRows.isEmpty) {
-        await _setInboxStatus(txn, branchId, eventUuid, 'FAILED',
-            'الجدول غير معروف');
+        await _setInboxStatus(
+            txn, branchId, eventUuid, 'FAILED', 'الجدول غير معروف');
         return 'REJECTED';
       }
       final columns = await txn.rawQuery('PRAGMA table_info($table)');
       final columnNames = columns.map((e) => e['name'].toString()).toSet();
       if (!{'id', 'uuid', 'branch_id', 'sync_version', 'sync_status'}
           .every(columnNames.contains)) {
-        await _setInboxStatus(txn, branchId, eventUuid, 'FAILED',
-            'الجدول لا يطابق عقد المزامنة');
+        await _setInboxStatus(
+            txn, branchId, eventUuid, 'FAILED', 'الجدول لا يطابق عقد المزامنة');
         return 'REJECTED';
       }
 
@@ -202,11 +202,13 @@ class FirestoreInboxProcessor {
         limit: 1,
       );
       if (localRows.isNotEmpty &&
-          (((localRows.first['sync_version'] as num?)?.toInt() ?? 0) > version ||
-              (((localRows.first['sync_version'] as num?)?.toInt() ?? 0) >= version &&
+          (((localRows.first['sync_version'] as num?)?.toInt() ?? 0) >
+                  version ||
+              (((localRows.first['sync_version'] as num?)?.toInt() ?? 0) >=
+                      version &&
                   localRows.first['sync_status'] != 'SYNCED'))) {
-        await _setInboxStatus(txn, branchId, eventUuid, 'IGNORED',
-            'توجد نسخة محلية أحدث');
+        await _setInboxStatus(
+            txn, branchId, eventUuid, 'IGNORED', 'توجد نسخة محلية أحدث');
         return 'REJECTED';
       }
 
@@ -245,8 +247,8 @@ class FirestoreInboxProcessor {
         final relation = relationMap[localColumn];
         if (relation == null) {
           if (values[localColumn] != null) {
-            await _setInboxStatus(txn, branchId, eventUuid,
-                'NEEDS_DEPENDENCY', 'بيانات العلاقة $localColumn غير متوفرة');
+            await _setInboxStatus(txn, branchId, eventUuid, 'NEEDS_DEPENDENCY',
+                'بيانات العلاقة $localColumn غير متوفرة');
             return 'NEEDS_DEPENDENCY';
           }
           continue;
@@ -258,11 +260,13 @@ class FirestoreInboxProcessor {
               'مرجع العلاقة $localColumn غير صالح');
           return 'REJECTED';
         }
-        final parentColumns = await txn.rawQuery('PRAGMA table_info($parentTable)');
-        final parentNames = parentColumns.map((e) => e['name'].toString()).toSet();
+        final parentColumns =
+            await txn.rawQuery('PRAGMA table_info($parentTable)');
+        final parentNames =
+            parentColumns.map((e) => e['name'].toString()).toSet();
         if (!parentNames.contains('uuid')) {
-          await _setInboxStatus(txn, branchId, eventUuid,
-              'NEEDS_DEPENDENCY', 'الجدول الأب لا يملك UUID عاماً');
+          await _setInboxStatus(txn, branchId, eventUuid, 'NEEDS_DEPENDENCY',
+              'الجدول الأب لا يملك UUID عاماً');
           return 'NEEDS_DEPENDENCY';
         }
         final parentWhere = parentNames.contains('branch_id')
@@ -277,15 +281,16 @@ class FirestoreInboxProcessor {
             whereArgs: parentArgs,
             limit: 1);
         if (parents.isEmpty) {
-          await _setInboxStatus(txn, branchId, eventUuid,
-              'NEEDS_DEPENDENCY', 'السجل الأب لم يصل بعد: $parentTable');
+          await _setInboxStatus(txn, branchId, eventUuid, 'NEEDS_DEPENDENCY',
+              'السجل الأب لم يصل بعد: $parentTable');
           return 'NEEDS_DEPENDENCY';
         }
         values[localColumn] = parents.first['id'];
       }
 
       if (localRows.isEmpty) {
-        await txn.insert(table, values, conflictAlgorithm: ConflictAlgorithm.abort);
+        await txn.insert(table, values,
+            conflictAlgorithm: ConflictAlgorithm.abort);
       } else {
         await txn.update(table, values,
             where: 'uuid=? AND branch_id=?', whereArgs: [uuid, branchId]);
@@ -293,7 +298,8 @@ class FirestoreInboxProcessor {
       await _setInboxStatus(txn, branchId, eventUuid, 'APPLIED', null);
       return 'APPLIED';
     } catch (error) {
-      await _setInboxStatus(txn, branchId, eventUuid, 'FAILED', error.toString());
+      await _setInboxStatus(
+          txn, branchId, eventUuid, 'FAILED', error.toString());
       return 'REJECTED';
     }
   }
