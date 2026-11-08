@@ -8,7 +8,7 @@ import 'package:global_enterprise_pharmacy_erp/data/services/branch_identity_pro
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  late SimpleKeyPair keyPair;
+  late KeyPair keyPair;
   late String publicPem;
   late Uint8List manifest;
 
