@@ -54,6 +54,7 @@ function canonicalPayload(payload) {
   });
 }
 function initKeys(keyDir) {
+  assertOutsideRepository(keyDir, 'Issuer key directory');
   fs.mkdirSync(keyDir, { recursive: true, mode: 0o700 });
   const privatePath = path.join(keyDir, 'provisioning-ed25519-private.pem');
   const publicPath = path.join(keyDir, 'provisioning-ed25519-public.pem');
