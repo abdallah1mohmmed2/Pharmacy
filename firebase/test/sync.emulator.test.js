@@ -2,8 +2,8 @@ const { after, before, test } = require('node:test');
 const assert = require('node:assert/strict');
 const admin = require('firebase-admin');
 
-const projectId = 'demo-pharmacy-erp';
-const branchId = 'branch-uuid-sync-01';
+const projectId = 'pharmacy-dafb6';
+const branchId = '2d91c5e0-8a42-4c10-9b33-5f4a7c8d9012';
 const email = 'sync-branch@example.test';
 const password = 'EmulatorSync-Passw0rd!';
 let uid;
