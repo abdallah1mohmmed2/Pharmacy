@@ -109,9 +109,18 @@ class _S28SystemSettingsBackupScreenState
 
   Future<String?> _managerPin({String title = 'تأكيد صلاحية المدير'}) =>
       ManagerPinDialog.show(context, title: title);
-  static const _trustedProvisioningPublicKey = String.fromEnvironment(
-    'PROVISIONING_ED25519_PUBLIC_KEY_PEM',
+  static const _trustedProvisioningPublicKeyBase64 = String.fromEnvironment(
+    'PROVISIONING_ED25519_PUBLIC_KEY_PEM_BASE64',
   );
+
+  String get _trustedProvisioningPublicKey {
+    if (_trustedProvisioningPublicKeyBase64.isEmpty) return '';
+    try {
+      return utf8.decode(base64Decode(_trustedProvisioningPublicKeyBase64));
+    } catch (_) {
+      return '';
+    }
+  }
 
   Future<void> _importBranchIdentity() async {
     if (FirebaseBranchAuthService.instance.isSignedIn) {
