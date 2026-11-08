@@ -444,7 +444,6 @@ Object? _canonicalize(Object? value) {
   return value;
 }
 
-
 http.Response _jsonResponse(String body, int statusCode) => http.Response(
       body,
       statusCode,
