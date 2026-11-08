@@ -67,6 +67,7 @@ class FirestoreSyncWorker {
     }
 
     final db = await _helper.database;
+    final branchUuid = await _branchUuid(db, branchId);
     await db.update('sync_queue', {'status': 'PENDING'},
         where: "status='SENDING'");
     await BackupAndSyncService(helper: _helper, client: _client)
@@ -123,6 +124,7 @@ class FirestoreSyncWorker {
 
     final received = await pullInbox(
       branchId: branchId,
+      branchUuid: branchUuid,
       projectId: projectId,
       idToken: idToken,
       databaseId: databaseId,
@@ -134,6 +136,7 @@ class FirestoreSyncWorker {
 
   Future<int> pullInbox({
     required int branchId,
+    required String branchUuid,
     required String projectId,
     required String idToken,
     String databaseId = '(default)',
@@ -162,7 +165,7 @@ class FirestoreSyncWorker {
           'fieldFilter': {
             'field': {'fieldPath': 'branch_id'},
             'op': 'EQUAL',
-            'value': {'stringValue': branchId.toString()},
+            'value': {'stringValue': branchUuid},
           }
         },
         'orderBy': [
@@ -188,7 +191,7 @@ class FirestoreSyncWorker {
       }
       final uri = Uri.https(
         'firestore.googleapis.com',
-        '/v1/projects/$projectId/databases/$databaseId/documents/pharmacy_sync_batches/$branchId:runQuery',
+        '/v1/projects/$projectId/databases/$databaseId/documents/pharmacy_sync_batches/$branchUuid:runQuery',
       );
       final response = await _client
           .post(uri,
@@ -208,7 +211,7 @@ class FirestoreSyncWorker {
       if (documents.isEmpty) break;
       for (final raw in documents) {
         final fields = _decodeFields(raw['fields'] as Map? ?? const {});
-        if (fields['branch_id']?.toString() != branchId.toString()) continue;
+        if (fields['branch_id']?.toString() != branchUuid) continue;
         final batchId = fields['batch_uuid']?.toString() ??
             (raw['name']?.toString().split('/').last ?? '');
         final events = fields['events'];
@@ -245,6 +248,18 @@ class FirestoreSyncWorker {
       if (documents.length < pageSize) break;
     }
     return processed;
+  }
+
+  Future<String> _branchUuid(Database db, int branchId) async {
+    final rows = await db.query('branches',
+        columns: ['uuid'],
+        where: 'id=?',
+        whereArgs: [branchId],
+        limit: 1);
+    if (rows.isEmpty || rows.first['uuid'] == null) {
+      throw StateError('لا يوجد UUID عالمي للفرع الحالي');
+    }
+    return rows.first['uuid'].toString();
   }
 
   Future<List<Map<String, Object?>>> _branchPending(
@@ -337,7 +352,7 @@ class FirestoreSyncWorker {
       final column = fk['from']?.toString();
       final parentTable = fk['table']?.toString();
       final value = column == null ? null : row[column];
-      if (column == null || parentTable == null || value == null) continue;
+      if (column == null || parentTable == null || value == null || column == 'branch_id') continue;
       if (!_safeIdentifier.hasMatch(parentTable)) continue;
       final parent = await db.query(parentTable,
           where: 'id=?', whereArgs: [value], limit: 1);
@@ -353,16 +368,17 @@ class FirestoreSyncWorker {
     required String projectId,
     required String databaseId,
     required int branchId,
+    required String branchUuid,
     required String idToken,
     required _FirestoreBatch batch,
   }) async {
     final uri = Uri.https(
       'firestore.googleapis.com',
-      '/v1/projects/$projectId/databases/$databaseId/documents/pharmacy_sync_batches/$branchId/batches/${batch.batchUuid}',
+      '/v1/projects/$projectId/databases/$databaseId/documents/pharmacy_sync_batches/$branchUuid/batches/${batch.batchUuid}',
       {'currentDocument.exists': 'false'},
     );
     final fields = <String, Object?>{
-      'branch_id': branchId.toString(),
+      'branch_id': branchUuid,
       'batch_uuid': batch.batchUuid,
       'payload_hash': batch.payloadHash,
       'schema_version': 1,
