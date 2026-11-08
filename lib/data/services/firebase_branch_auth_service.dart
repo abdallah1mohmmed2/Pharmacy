@@ -153,7 +153,6 @@ class FirebaseBranchAuthService {
     await _storage.delete(key: 'firebase_branch_uid');
     await _storage.delete(key: 'firebase_branch_email');
     await _storage.delete(key: 'firebase_branch_project_id');
-    await _storage.delete(key: 'firebase_branch_project_id');
   }
 
   Map<String, dynamic> _decodeResponse(
