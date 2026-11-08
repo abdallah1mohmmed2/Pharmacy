@@ -618,6 +618,27 @@ class _S28SystemSettingsBackupScreenState
     }
   }
 
+  Future<void> _refreshFirebaseClaims(SettingsAndSystemProvider p) async {
+    try {
+      final token =
+          await FirebaseBranchAuthService.instance.forceRefreshIdToken();
+      if (token == null || token.isEmpty) {
+        throw StateError('لا توجد جلسة Firebase قابلة للتحديث');
+      }
+      await p.refreshCloudSyncSchedule();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('تم تجديد ID token وتحديث صلاحيات Firebase'),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    }
+  }
+
   Future<void> _signOutFirebase() async {
     await FirebaseBranchAuthService.instance.signOut();
     await context.read<SettingsAndSystemProvider>().refreshCloudSyncSchedule();
@@ -641,8 +662,19 @@ class _S28SystemSettingsBackupScreenState
           subtitle: const Text(
               'بيانات الدخول تخص Firebase Auth ولا تُخزن في قاعدة بيانات الصيدلية.'),
           trailing: FirebaseBranchAuthService.instance.isSignedIn
-              ? TextButton(
-                  onPressed: _signOutFirebase, child: const Text('خروج'))
+              ? Wrap(
+                  spacing: 4,
+                  children: [
+                    TextButton(
+                      onPressed: () => _refreshFirebaseClaims(p),
+                      child: const Text('تحديث الصلاحيات'),
+                    ),
+                    TextButton(
+                      onPressed: _signOutFirebase,
+                      child: const Text('خروج'),
+                    ),
+                  ],
+                )
               : FilledButton(
                   onPressed: () => _signInFirebase(p),
                   child: const Text('تسجيل الدخول')),
