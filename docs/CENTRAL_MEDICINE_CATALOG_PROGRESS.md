@@ -217,3 +217,16 @@
 **الخطوة التالية:** راجع نتيجة CI للالتزام الحالي. إذا نجحت اختبارات القواعد، اربط حساب Firebase تجريبياً بمعرف الفرع العالمي، ثم اختبر دورة الرفع والاستقبال على Emulator قبل اعتماد المزامنة.
 
 - أضيف اختبار تكاملي على Emulator ينشئ حساب Auth تجريبياً، يصدر له Claims، يسجل الدخول للحصول على ID token، ثم يرسل Firestore REST commit ويقرأ الدفعة ويتحقق من رفض الكتابة لفرع آخر. هذا يختبر مسار المصادقة وقواعد الوصول وواجهة Firestore REST، لكنه لا يشغّل طبقة SQLite/Inbox في تطبيق Flutter داخل الاختبار نفسه.
+
+
+## مراجعة Firebase Authentication وFirestore Sync — 2026-11-08
+
+- فحص الفرع الفعلي `feature/central-medicine-catalog`؛ كان HEAD عند بدء هذه المراجعة `fc5f09af10aaa3070537004d7be87e8f25a75029`. لا تغييرات على `main` ولا نشر إلى Firebase.
+- تحققنا من أن التشغيل التاريخي `42455327371` اكتمل بنجاح على Android وWindows، بما في ذلك Firebase Emulator tests وFlutter Analyze وFlutter Test وAndroid APK Release وWindows Release. هذا التشغيل كان على commit سابق `d428dc60c15c39e08f39bcf6b56b13c39826547a`؛ لا يُعد دليلاً على HEAD الحالي.
+- أضيف تحديث لجدولة المزامنة بعد نجاح Firebase sign-in، بعد أن كان تحديث الجدولة يحدث عند sign-out فقط.
+- أضيف فحص اتصال فعلي ينفذ Firestore runQuery على مجموعة دفعات الفرع باستخدام ID token، بدلاً من الاكتفاء بوجود الرمز.
+- عند رفض refresh token من Firebase Auth (HTTP 400/401) تُمسح بيانات الجلسة المحفوظة، مع الاحتفاظ بمعرف المشروع المضبوط؛ أخطاء الشبكة لا تمسح الجلسة تلقائياً.
+- أداة إصدار Custom Claims أصبحت تستمد UID-to-branch assignment والدور من ملف JSON موثوق خارج المستودع، ولا تقبل الفرع أو الدور كوسيط من العميل. ما زال يتطلب ذلك مراجعة بشرية لمحتوى ملف الربط قبل الاستخدام.
+- أضيف اختبار Auth Emulator لتجديد refresh token والتحقق من بقاء branch_id وbranch_role في ID token الجديد.
+- **التحقق بعد هذه التعديلات:** لم تُعتمد نتائج CI بعد لهذه commits. لا يوجد اختبار إنتاجي أو إصدار Claims إنتاجية أو نشر Firebase.
+- **المتبقي:** اختبار Flutter تكاملي كامل لعامل Firestore مع SQLite/Outbox/Inbox، واختبارات جلسة Flutter بحالات refresh token المنتهي، ومراجعة دقيقة لقيود cursor وإعادة المحاولة، ثم CI جديد على آخر HEAD وتحديث النتائج الفعلية.
