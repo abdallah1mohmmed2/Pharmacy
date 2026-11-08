@@ -153,6 +153,47 @@ jobs:
           YAML
           tail -n 10 pubspec.yaml
       - run: flutter test
+      - name: Download and verify Gradle distribution through GitHub API
+        shell: bash
+        run: |
+          archive="$RUNNER_TEMP/gradle-9.3.1-bin.zip"
+          curl --fail --location --retry 3 --retry-all-errors \
+            -H "Accept: application/octet-stream" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "User-Agent: Pharmacy-Android-CI" \
+            "https://api.github.com/repos/gradle/gradle-distributions/releases/assets/347704202" \
+            --output "$archive"
+          expected="b266d5ff6b90eada6dc3b20cb090e3731302e553a27c5d3e4df1f0d76beaff06"
+          printf '%s  %s\n' "$expected" "$archive" | sha256sum --check -
+          python - "$archive" <<'PY'
+          from pathlib import Path
+          import sys
+
+          archive = Path(sys.argv[1]).resolve()
+          properties = Path("android/gradle/wrapper/gradle-wrapper.properties")
+          if not properties.is_file():
+              raise SystemExit(f"Gradle wrapper properties not found: {properties}")
+          lines = properties.read_text(encoding="utf-8").splitlines()
+          uri = archive.as_uri().replace(":", r"\\:")
+          output = []
+          found_url = False
+          found_hash = False
+          for line in lines:
+              if line.startswith("distributionUrl="):
+                  output.append(f"distributionUrl={uri}")
+                  found_url = True
+              elif line.startswith("distributionSha256Sum="):
+                  output.append("distributionSha256Sum=b266d5ff6b90eada6dc3b20cb090e3731302e553a27c5d3e4df1f0d76beaff06")
+                  found_hash = True
+              else:
+                  output.append(line)
+          if not found_url:
+              raise SystemExit("Gradle wrapper distributionUrl was not found.")
+          if not found_hash:
+              output.append("distributionSha256Sum=b266d5ff6b90eada6dc3b20cb090e3731302e553a27c5d3e4df1f0d76beaff06")
+          properties.write_text("\\n".join(output) + "\\n", encoding="utf-8")
+          print(f"Gradle wrapper configured to use verified local distribution: {archive}")
+          PY
       - name: Build Android APK with retry for transient Gradle distribution failures
         shell: bash
         run: |
