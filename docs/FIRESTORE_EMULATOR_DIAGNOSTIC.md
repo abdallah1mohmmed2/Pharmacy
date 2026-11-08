@@ -56,3 +56,10 @@
 ### حالة التحقق
 
 التغييرات أرسلت في commit `15c51d964f3bb12aee7b59280feb1a53c136a081` على `feature/central-medicine-catalog`. لم يثبت نجاح البناء بعد؛ يجب انتظار CI والتحقق من Flutter Test وAPK وWindows ورفع ZIP لكليهما.
+
+
+## متابعة CI — إعادة محاولة تنزيل PDFium على Windows (2026-11-08)
+
+أظهر التشغيل `42467518909` أن إصلاح إدراج PDFium في CMake نجح، ووصل البناء فعلياً إلى تنزيل `pdfium-win-x64.tgz` للإصدار `chromium/8138`. فشل التنزيل باستجابة GitHub HTTP 504، وليس بسبب CMake أو Visual Studio. أضيفت ثلاث محاولات لبناء Windows بفاصل 20 ثانية؛ يظل الفشل صريحاً إذا لم تنجح المحاولات. لم يتم تعطيل التحقق أو استخدام ملف PDFium غير موثوق.
+
+التعديل أرسل في commit `6c2aae033ba68146cdfb129c56fbe199d7e40b9a` على الفرع الحالي. لا تزال نتائج Linux SQLite tests وAPK وWindows build وملفات ZIP مطلوبة قبل اعتبار CI ناجحاً.
