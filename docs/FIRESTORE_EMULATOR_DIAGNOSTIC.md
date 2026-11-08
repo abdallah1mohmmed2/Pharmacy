@@ -1,37 +1,18 @@
-# Firestore Emulator diagnostic — 2026-11-08
+## متابعة تشخيص CI — عزل SQLite وبناء Windows (2026-11-08)
 
-## Scope
+### ما كشفه التشغيل 42466042748
 
-Branch: `feature/central-medicine-catalog`
+- اختبارات Firebase Emulator: نجحت جميعها، بما فيها اختبار REST commit والقراءة وعزل الفرع.
+- Flutter Analyze: نجح.
+- Flutter Test: فشل في اختبارات `branch_identity_provisioning_test.dart` لأن الاختبار فتح قاعدتي SQLite باستخدام المسار الثابت `:memory:`؛ ظهر `table tenants already exists` عند إنشاء القاعدة الثانية، وتكرر التعارض في الاختبارات اللاحقة.
+- Windows Release: فشل داخل تنزيل/تهيئة PDFium الذي يعتمد عليه plugin `printing`. لم يصل إلى إنشاء ZIP أو رفع artifact.
 
-This note records the CI failure where the REST `:commit` endpoint returned HTTP 200 but the Admin SDK did not find the written sync batch.
+### الإصلاحات
 
-## Changes made
+- استبدال قاعدة `:memory:` في اختبار تأسيس الهوية بمجلد مؤقت فريد وقاعدة ملف مستقلة لكل جهاز افتراضي، مع حذف الملفات بعد إغلاق القواعد. بقيت اختبارات التوقيع، وتطابق الهوية، ورفض إعادة التطبيق، ومنع تغيير الهوية، ورفض المؤسسة متعددة الفروع كما هي.
+- في Windows CI، تثبيت PDFium على الإصدار `8138` و`x64` في CMake قبل إضافة Flutter، وهو إصدار تحققنا من وجود حزمة Windows الخاصة به في مستودع PDFium الرسمي. أضيف تشغيل بناء Windows التفصيلي `-v` لتوفير سجل أدق عند استمرار أي فشل.
+- لم تُخفّف قواعد Firestore، ولم تتغير بيانات الإنتاج أو إعداداته.
 
-The integration test writes through Firestore REST and verifies persistence through Firebase Admin SDK. Both checks must use the same emulator endpoint, project, and database.
+### حالة التحقق
 
-The test already:
-1. Requires `FIRESTORE_EMULATOR_HOST`; if absent, it fails before Admin Firestore access rather than risking a live-project request.
-2. Explicitly configures Admin SDK Firestore with that host and `ssl: false`.
-3. Requires `FIREBASE_AUTH_EMULATOR_HOST` for Auth Emulator sign-in.
-4. Parses the REST commit response and asserts exactly one write result was acknowledged.
-5. Includes the full document resource name, emulator host, and project ID in the missing-document assertion.
-6. Keeps authenticated REST read and cross-branch write-denial checks.
-
-This follow-up sets Node's test-file concurrency explicitly to one in both `test` and `test:rules` scripts. The rules test suite calls `env.clearFirestore()`; serial execution prevents test files sharing the same emulator project from overlapping and clearing each other's data. This is a test-isolation safeguard, not yet proof that concurrency was the sole cause of the missing document.
-
-No Firestore Security Rules were changed. No production Firebase resources, users, claims, or data were modified.
-
-## Verification status
-
-- Previous Emulator run: 6 passing tests and 1 failing integration test.
-- Failure: REST `:commit` acknowledged one write, then the Admin SDK reported the document missing.
-- The next CI run must confirm whether serial test-file execution resolves the failure.
-- If it persists, inspect REST GET immediately after commit and compare it with Admin SDK using the same host, project, database, and full resource path. Do not remove either read assertion.
-- Flutter Analyze, Flutter tests, Android APK, and Windows Release must all pass in the same CI run before the broader phase is marked complete.
-
-## Safety constraints
-
-- Do not relax branch-isolation rules to make tests pass.
-- Do not issue production Custom Claims or deploy Firebase.
-- Do not merge into `main` without explicit authorization.
+التغييرات تنتظر CI جديداً. لا نعلن نجاح Flutter Test أو APK أو Windows Release حتى تظهر نتائج صريحة وملفات artifacts في التشغيل الجديد.
