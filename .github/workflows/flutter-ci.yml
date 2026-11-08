@@ -157,9 +157,29 @@ jobs:
           cache: true
       - run: flutter config --enable-windows-desktop
       - run: flutter create --platforms=windows --org com.globalpharmacy .
+      - name: Pin verified PDFium release for Windows printing
+        shell: pwsh
+        run: |
+          $path = "windows/CMakeLists.txt"
+          $content = Get-Content -Raw $path
+          $marker = "add_subdirectory(flutter)"
+          if (-not $content.Contains($marker)) {
+            throw "Could not find add_subdirectory(flutter) in generated Windows CMakeLists."
+          }
+          if ($content -notmatch 'PDFIUM_VERSION') {
+            $settings = @'
+          # Keep the printing plugin on a verified, available PDFium release.
+          set(PDFIUM_VERSION "8138" CACHE STRING "PDFium version" FORCE)
+          set(PDFIUM_ARCH "x64" CACHE STRING "PDFium architecture" FORCE)
+
+          '@
+            $content = $content.Replace($marker, $settings + $marker)
+            Set-Content -Path $path -Value $content -NoNewline
+          }
+          Select-String -Path $path -Pattern 'PDFIUM_VERSION|PDFIUM_ARCH'
       - run: flutter pub get
       - run: flutter analyze --no-fatal-infos
-      - run: flutter build windows --release
+      - run: flutter build windows --release -v
       - name: Package Windows release into one ZIP
         shell: pwsh
         run: Compress-Archive -Path "build/windows/x64/runner/Release/*" -DestinationPath "pharmacy-windows.zip" -Force
