@@ -101,33 +101,36 @@ class ClinicalAndRxProvider extends ChangeNotifier {
     final db = await _helper.database;
     await db.transaction((txn) async {
       await txn.update(
-        'patients',
-        {
-          'party_id': patient.partyId,
-          'full_name': patient.fullName,
-          'birth_date': patient.birthDate?.toIso8601String().substring(0, 10),
-          'sex': patient.sex,
-          'weight_kg': patient.weightKg,
-          'height_cm': patient.heightCm,
-          'is_pregnant': patient.isPregnant ? 1 : 0,
-          'pregnancy_status_known': patient.pregnancyStatusKnown ? 1 : 0,
-          'pregnancy_trimester': patient.pregnancyTrimester,
-          'is_lactating': patient.isLactating ? 1 : 0,
-          'serum_creatinine': patient.serumCreatinine,
-          'egfr_ml_min': patient.egfrMlMin,
-          'renal_stage': patient.renalStage,
-          'child_pugh_class': patient.childPughClass,
-          'allergies_json': patient.allergiesJson,
-          'chronic_conditions_json': patient.chronicConditionsJson,
-          'current_meds_json': patient.currentMedsJson,
-          'updated_at': DateTime.now().toIso8601String(),
-        },
-        where: 'id=?',
-        whereArgs: [patient.id]);
+          'patients',
+          {
+            'party_id': patient.partyId,
+            'full_name': patient.fullName,
+            'birth_date': patient.birthDate?.toIso8601String().substring(0, 10),
+            'sex': patient.sex,
+            'weight_kg': patient.weightKg,
+            'height_cm': patient.heightCm,
+            'is_pregnant': patient.isPregnant ? 1 : 0,
+            'pregnancy_status_known': patient.pregnancyStatusKnown ? 1 : 0,
+            'pregnancy_trimester': patient.pregnancyTrimester,
+            'is_lactating': patient.isLactating ? 1 : 0,
+            'serum_creatinine': patient.serumCreatinine,
+            'egfr_ml_min': patient.egfrMlMin,
+            'renal_stage': patient.renalStage,
+            'child_pugh_class': patient.childPughClass,
+            'allergies_json': patient.allergiesJson,
+            'chronic_conditions_json': patient.chronicConditionsJson,
+            'current_meds_json': patient.currentMedsJson,
+            'updated_at': DateTime.now().toIso8601String(),
+          },
+          where: 'id=?',
+          whereArgs: [patient.id]);
       if (patient.partyId != null) {
         await txn.update(
           'parties',
-          {'name_ar': patient.fullName.trim(), 'updated_at': DateTime.now().toIso8601String()},
+          {
+            'name_ar': patient.fullName.trim(),
+            'updated_at': DateTime.now().toIso8601String()
+          },
           where: 'id=? AND branch_id=? AND is_deleted=0',
           whereArgs: [patient.partyId, branchId],
         );

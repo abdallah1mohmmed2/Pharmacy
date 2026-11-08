@@ -110,12 +110,11 @@ class _S06PrescriptionInsuranceScreenState
     final session = context.watch<SessionAndErpProvider>();
     final selectedPatientRows =
         p.patients.where((x) => x.id == patientId).toList();
-    final selectedPatientPartyId = selectedPatientRows.isEmpty
-        ? null
-        : selectedPatientRows.first.partyId;
+    final selectedPatientPartyId =
+        selectedPatientRows.isEmpty ? null : selectedPatientRows.first.partyId;
     final policies = p.policies
-        .where((x) => x.id == policyId &&
-            x.customerPartyId == selectedPatientPartyId)
+        .where((x) =>
+            x.id == policyId && x.customerPartyId == selectedPatientPartyId)
         .toList();
     final policy = policies.isEmpty ? null : policies.first;
     final selectedRx = rxRows.where((r) => r['id'] == selectedRxId).toList();
@@ -167,18 +166,18 @@ class _S06PrescriptionInsuranceScreenState
                             value: x.id, child: Text(x.fullName)))
                         .toList(),
                     onChanged: (v) => setState(() {
-                      patientId = v;
-                      final selected = p.patients
-                          .where((patient) => patient.id == v)
-                          .toList();
-                      final partyId = selected.isEmpty
-                          ? null
-                          : selected.first.partyId;
-                      if (!p.policies.any((x) =>
-                          x.id == policyId && x.customerPartyId == partyId)) {
-                        policyId = null;
-                      }
-                    })),
+                          patientId = v;
+                          final selected = p.patients
+                              .where((patient) => patient.id == v)
+                              .toList();
+                          final partyId =
+                              selected.isEmpty ? null : selected.first.partyId;
+                          if (!p.policies.any((x) =>
+                              x.id == policyId &&
+                              x.customerPartyId == partyId)) {
+                            policyId = null;
+                          }
+                        })),
                 TextField(
                     controller: rxNo,
                     decoration: const InputDecoration(labelText: 'رقم الوصفة')),
@@ -220,7 +219,8 @@ class _S06PrescriptionInsuranceScreenState
                     decoration: const InputDecoration(
                         labelText: 'بوليصة التأمين (اختياري)'),
                     items: p.policies
-                        .where((x) => x.customerPartyId == selectedPatientPartyId)
+                        .where(
+                            (x) => x.customerPartyId == selectedPatientPartyId)
                         .map((x) {
                       final company = p.companies
                           .where((c) => c.id == x.insuranceCompanyId)
