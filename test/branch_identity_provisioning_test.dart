@@ -27,11 +27,23 @@ void main() {
     keyPair = await algorithm.newKeyPair();
     final publicKey = await keyPair.extractPublicKey();
     const spkiPrefix = <int>[
-      0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00
+      0x30,
+      0x2a,
+      0x30,
+      0x05,
+      0x06,
+      0x03,
+      0x2b,
+      0x65,
+      0x70,
+      0x03,
+      0x21,
+      0x00
     ];
     final der = <int>[...spkiPrefix, ...publicKey.bytes];
     final encoded = base64Encode(der);
-    publicPem = '-----BEGIN PUBLIC KEY-----\n$encoded\n-----END PUBLIC KEY-----';
+    publicPem =
+        '-----BEGIN PUBLIC KEY-----\n$encoded\n-----END PUBLIC KEY-----';
     final payload = <String, Object?>{
       'schema_version': 1,
       'tenant_uuid': tenantUuid,
@@ -100,7 +112,8 @@ void main() {
     return db;
   }
 
-  test('same signed manifest installs identical IDs on two independent devices', () async {
+  test('same signed manifest installs identical IDs on two independent devices',
+      () async {
     final service = BranchIdentityProvisioningService(
       trustedPublicKeyPem: publicPem,
     );
@@ -125,21 +138,39 @@ void main() {
     }
   });
 
-  test('rejects modified manifest and a signature from an untrusted key', () async {
+  test('rejects modified manifest and a signature from an untrusted key',
+      () async {
     final service = BranchIdentityProvisioningService(
       trustedPublicKeyPem: publicPem,
     );
     final decoded = jsonDecode(utf8.decode(manifest)) as Map<String, dynamic>;
     (decoded['payload'] as Map<String, dynamic>)['branch_name_ar'] = 'اسم معدل';
     await expectLater(
-      service.verifyManifestBytes(Uint8List.fromList(utf8.encode(jsonEncode(decoded)))),
+      service.verifyManifestBytes(
+          Uint8List.fromList(utf8.encode(jsonEncode(decoded)))),
       throwsFormatException,
     );
 
     final otherPair = await Ed25519().newKeyPair();
     final otherPublic = await otherPair.extractPublicKey();
     final otherPem = '-----BEGIN PUBLIC KEY-----\n'
-        '${base64Encode([...<int>[0x30,0x2a,0x30,0x05,0x06,0x03,0x2b,0x65,0x70,0x03,0x21,0x00], ...otherPublic.bytes])}'
+        '${base64Encode([
+          ...<int>[
+            0x30,
+            0x2a,
+            0x30,
+            0x05,
+            0x06,
+            0x03,
+            0x2b,
+            0x65,
+            0x70,
+            0x03,
+            0x21,
+            0x00
+          ],
+          ...otherPublic.bytes
+        ])}'
         '\n-----END PUBLIC KEY-----';
     await expectLater(
       BranchIdentityProvisioningService(trustedPublicKeyPem: otherPem)
@@ -147,8 +178,8 @@ void main() {
       throwsFormatException,
     );
 
-    final withExtraEnvelopeField = jsonDecode(utf8.decode(manifest))
-        as Map<String, dynamic>;
+    final withExtraEnvelopeField =
+        jsonDecode(utf8.decode(manifest)) as Map<String, dynamic>;
     withExtraEnvelopeField['untrusted_note'] = 'unsigned';
     await expectLater(
       service.verifyManifestBytes(
@@ -214,5 +245,4 @@ void main() {
       await db.close();
     }
   });
-
 }

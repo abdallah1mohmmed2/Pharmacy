@@ -61,7 +61,8 @@ class BranchIdentityProvisioningService {
     if (payload['tenant_uuid'] == payload['branch_uuid'] ||
         payload['tenant_uuid'] == payload['issuance_id'] ||
         payload['branch_uuid'] == payload['issuance_id']) {
-      throw const FormatException('يجب أن تكون معرفات المؤسسة والفرع والإصدار مستقلة.');
+      throw const FormatException(
+          'يجب أن تكون معرفات المؤسسة والفرع والإصدار مستقلة.');
     }
     for (final field in ['tenant_uuid', 'branch_uuid', 'issuance_id']) {
       final value = payload[field];
@@ -107,7 +108,8 @@ class BranchIdentityProvisioningService {
       signature: Signature(signatureBytes, publicKey: publicKey),
     );
     if (!valid) {
-      throw const FormatException('توقيع ملف التأسيس غير صحيح أو تم تعديل الملف.');
+      throw const FormatException(
+          'توقيع ملف التأسيس غير صحيح أو تم تعديل الملف.');
     }
 
     return ProvisioningIdentity(
@@ -149,7 +151,8 @@ class BranchIdentityProvisioningService {
         limit: 1,
       );
       if (installed.isNotEmpty) {
-        throw StateError('تم تأسيس هوية هذا الجهاز مسبقاً ولا يمكن تغييرها أو إعادة تطبيقها.');
+        throw StateError(
+            'تم تأسيس هوية هذا الجهاز مسبقاً ولا يمكن تغييرها أو إعادة تطبيقها.');
       }
 
       final tenants = await txn.query('tenants', limit: 2);
@@ -184,7 +187,8 @@ class BranchIdentityProvisioningService {
       final branch = branches.single;
       if (branch['uuid'] != 'branch-main' ||
           branch['tenant_uuid'] != oldTenantUuid) {
-        throw StateError('هوية الفرع الحالية ليست مؤقتة أو غير مرتبطة بالمؤسسة المؤقتة.');
+        throw StateError(
+            'هوية الفرع الحالية ليست مؤقتة أو غير مرتبطة بالمؤسسة المؤقتة.');
       }
       final existingBranch = await txn.query(
         'branches',
@@ -287,7 +291,18 @@ class BranchIdentityProvisioningService {
     final der = base64Decode(body);
     // SubjectPublicKeyInfo prefix for Ed25519 (RFC 8410), followed by 32 bytes.
     const prefix = <int>[
-      0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00
+      0x30,
+      0x2a,
+      0x30,
+      0x05,
+      0x06,
+      0x03,
+      0x2b,
+      0x65,
+      0x70,
+      0x03,
+      0x21,
+      0x00
     ];
     if (der.length != prefix.length + 32) {
       throw const FormatException('مفتاح Ed25519 العام غير صالح.');

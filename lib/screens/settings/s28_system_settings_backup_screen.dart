@@ -45,9 +45,11 @@ class _S28SystemSettingsBackupScreenState
   );
 
   Future<void> _importBranchIdentity() async {
-    final pin = await _managerPin(title: 'تأكيد رمز المالك لتأسيس هوية المؤسسة والفرع');
+    final pin =
+        await _managerPin(title: 'تأكيد رمز المالك لتأسيس هوية المؤسسة والفرع');
     if (pin == null || pin.isEmpty || !mounted) return;
-    final ownerVerified = await context.read<SessionAndErpProvider>().verifyOwnerPin(pin);
+    final ownerVerified =
+        await context.read<SessionAndErpProvider>().verifyOwnerPin(pin);
     if (!ownerVerified) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -87,6 +89,7 @@ class _S28SystemSettingsBackupScreenState
       );
     }
   }
+
   Future<void> _change(SettingSpec spec, Object value) async {
     final p = context.read<SettingsAndSystemProvider>();
     final session = context.read<SessionAndErpProvider>();
