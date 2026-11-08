@@ -330,7 +330,7 @@ class FirestoreSyncWorker {
     }
     if (items.isEmpty) return _FirestoreBatch.empty;
     final eventValues = items.map((e) => e.toMap()).toList();
-    final fingerprint = _hash(jsonEncode(eventValues));
+    final fingerprint = _hash(_canonicalJson(eventValues));
     final batchUuid = _hash('$branchUuid|$fingerprint');
     return _FirestoreBatch(
       batchUuid: batchUuid,
@@ -482,6 +482,17 @@ class FirestoreSyncWorker {
       return _decodeFields(fields);
     }
     return null;
+  }
+
+  String _canonicalJson(Object? value) => jsonEncode(_canonicalize(value));
+
+  Object? _canonicalize(Object? value) {
+    if (value is Map) {
+      final keys = value.keys.map((key) => key.toString()).toList()..sort();
+      return {for (final key in keys) key: _canonicalize(value[key])};
+    }
+    if (value is List) return value.map(_canonicalize).toList();
+    return value;
   }
 
   String _hash(String value) => sha256.convert(utf8.encode(value)).toString();
