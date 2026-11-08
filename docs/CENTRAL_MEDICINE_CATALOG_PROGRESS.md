@@ -165,7 +165,7 @@
 
 ### عامل الرفع إلى Firestore
 - إضافة `FirestoreSyncWorker` باستخدام Firestore REST API حتى لا نفرض إضافة FlutterFire plugins غير المدعومة بالتساوي على Android وWindows.
-- يقرأ `sync.cloud` (الإعداد 35): `enabled`, `provider=firestore`, `project_id`, `database_id`, و`batch_size` (1–100).
+- يقرأ `sync.cloud` (الإعداد 35): `enabled`, `provider=firestore`, `project_id`, `database_id`، و`batch_size` (1–100). رُبط الآن `SettingsAndSystemProvider.syncNow()` مباشرة بـ`FirestoreSyncWorker.syncConfigured()`، ويستخدم رقم الفرع الفعّال من جلسة التطبيق بدلاً من القيمة الافتراضية الثابتة.
 - يلتقط عناصر `sync_queue` للفرع الحالي فقط، ويحوّل العلاقات المحلية ذات المفاتيح الرقمية إلى مراجع UUID عامة في `relations`.
 - يستخرج UUID الفرع من سجل `branches` المحلي ويستخدمه في مسار Firestore والـcustom claim؛ لا يستخدم رقم SQLite المحلي كهوية سحابية. يكتب دفعة واحدة كوثيقة append-only في `pharmacy_sync_batches/{branchUuid}/batches/{batchUuid}`، مع بصمة SHA-256 وهوية batch ثابتة مشتقة من محتوى الأحداث. عند إعادة الإرسال بعد timeout، يتحقق من وجود الوثيقة وبصمتها قبل اعتبار العملية ناجحة.
 - لا يعلّم صفوف المصدر `SYNCED` ولا عناصر queue `DONE` إلا بعد تأكيد كتابة Firestore؛ فشل النقل يعيد الصفوف إلى `FAILED` لإعادة المحاولة.
