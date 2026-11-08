@@ -16,10 +16,10 @@ abstract final class SchemaIteration12 {
 
     final remoteHistory = await _hasRemoteHistory(db);
     if (remoteHistory) {
-      throw StateError(
-        'تعذر تغيير هوية الفرع تلقائياً: توجد آثار مزامنة سحابية سابقة. '
-        'يلزم ترحيل branch UUID بمراجعة إدارية قبل المتابعة.',
-      );
+      // Keep the desktop/mobile app usable. FirestoreSyncWorker independently
+      // refuses this legacy identifier, so cloud sync remains safely blocked
+      // until an operator performs a reviewed identity migration.
+      return;
     }
 
     for (final branch in legacy) {
