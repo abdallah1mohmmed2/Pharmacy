@@ -194,6 +194,44 @@ jobs:
           properties.write_text("\n".join(output) + "\n", encoding="utf-8")
           print(f"Gradle wrapper configured to use verified local distribution: {archive}")
           PY
+      - name: Add Maven Central mirror for Kotlin compiler artifacts
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          mirror = 'maven { url = uri("https://maven.wso2.org/nexus/content/repositories/central/") }'
+          groovy_mirror = "maven { url 'https://maven.wso2.org/nexus/content/repositories/central/' }"
+          paths = [
+              Path("android/settings.gradle.kts"),
+              Path("android/settings.gradle"),
+              Path("android/build.gradle.kts"),
+              Path("android/build.gradle"),
+              Path(os.environ["FLUTTER_ROOT"]) / "packages/flutter_tools/gradle/settings.gradle.kts",
+          ]
+          changed = []
+          for path in paths:
+              if not path.is_file():
+                  continue
+              original = path.read_text(encoding="utf-8")
+              if "maven.wso2.org/nexus/content/repositories/central" in original:
+                  continue
+              replacement = groovy_mirror if path.suffix == ".gradle" else mirror
+              updated, count = re.subn(
+                  r"(?m)^(\\s*)mavenCentral\\(\\)\\s*$",
+                  lambda match: f"{match.group(1)}{replacement}\\n{match.group(1)}mavenCentral()",
+                  original,
+              )
+              if count:
+                  path.write_text(updated, encoding="utf-8")
+                  changed.append(str(path))
+          if not changed:
+              raise SystemExit("Could not add the Maven mirror to any Gradle repository block.")
+          print("Added verified Maven Central mirror before mavenCentral() in:")
+          print("\\n".join(changed))
+          PY
       - name: Build Android APK with retry for transient Gradle distribution failures
         shell: bash
         run: |
