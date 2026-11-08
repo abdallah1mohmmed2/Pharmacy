@@ -560,9 +560,6 @@ class _S28SystemSettingsBackupScreenState
     try {
       await FirebaseBranchAuthService.instance.configure(
         apiKey: config['api_key']?.toString() ?? '',
-        appId: config['app_id']?.toString() ?? '',
-        messagingSenderId: config['messaging_sender_id']?.toString() ?? '',
-        projectId: config['project_id']?.toString() ?? '',
       );
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
