@@ -26,7 +26,11 @@ service cloud.firestore {
     // This is source metadata only; authorization still comes from trusted Auth claims.
     function validSourceDeviceId() {
       return request.resource.data.source_device_id is string
-        && request.resource.data.source_device_id.matches('^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}
+        && request.resource.data.source_device_id.matches(
+          '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+        );
+    }
+
     match /pharmacy_branches/{branchId} {
       allow get: if ownsBranch(branchId) && branchManager();
       allow list: if branchManager()
@@ -76,75 +80,6 @@ service cloud.firestore {
       allow create: if ownsBranch(branchId)
         && request.resource.data.branch_id == branchId
         && validSourceDeviceId()
-        && request.resource.data.events is list
-        && request.resource.data.events.size() <= 100
-        && request.resource.data.batch_uuid == batchUuid;
-      // Sync batches are an append-only audit/delta stream.
-      allow update, delete: if false;
-    }
-
-    // The central catalogue is hosted as static JSON. It must not consume
-    // Firestore reads or become a write path for operational pharmacy data.
-    match /catalog_meta/{documentId} {
-      allow read, write: if false;
-    }
-
-    match /{document=**} {
-      allow read, write: if false;
-    }
-  }
-}
-);
-    }
-
-    match /pharmacy_branches/{branchId} {
-      allow get: if ownsBranch(branchId) && branchManager();
-      allow list: if branchManager()
-        && resource.data.branch_id == request.auth.token.branch_id;
-      allow create: if ownsBranch(branchId)
-        && branchManager()
-        && request.resource.data.branch_id == branchId;
-      allow update: if ownsBranch(branchId)
-        && branchManager()
-        && resource.data.branch_id == branchId
-        && request.resource.data.branch_id == branchId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'last_seen_at', 'sync_status', 'client_version', 'updated_at'
-        ]);
-      allow delete: if false;
-    }
-
-    match /pharmacy_daily_dashboards/{dashboardId} {
-      allow get, list: if branchManager()
-        && resource.data.branch_id == request.auth.token.branch_id;
-      allow create, update: if branchManager()
-        && request.resource.data.branch_id == request.auth.token.branch_id;
-      allow delete: if false;
-    }
-
-    match /pharmacy_parties_snapshot/{branchId} {
-      allow get: if ownsBranch(branchId);
-      allow list: if signedIn()
-        && resource.data.branch_id == request.auth.token.branch_id;
-      allow create: if ownsBranch(branchId)
-        && branchManager()
-        && request.resource.data.branch_id == branchId
-        && validPartnerMode(request.resource.data.partner_mode);
-      allow update: if ownsBranch(branchId)
-        && branchManager()
-        && resource.data.branch_id == branchId
-        && request.resource.data.branch_id == branchId
-        && validPartnerMode(request.resource.data.partner_mode)
-        // The selected distribution mode is a permanent state lock.
-        && request.resource.data.partner_mode == resource.data.partner_mode;
-      allow delete: if false;
-    }
-
-    match /pharmacy_sync_batches/{branchId}/batches/{batchUuid} {
-      allow get, list: if ownsBranch(branchId)
-        && resource.data.branch_id == branchId;
-      allow create: if ownsBranch(branchId)
-        && request.resource.data.branch_id == branchId
         && request.resource.data.events is list
         && request.resource.data.events.size() <= 100
         && request.resource.data.batch_uuid == batchUuid;
