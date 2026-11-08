@@ -207,8 +207,45 @@ jobs:
           }
           Select-String -Path $path -Pattern 'PDFIUM_VERSION|PDFIUM_ARCH'
       - run: flutter pub get
+      - name: Download and verify PDFium through GitHub API
+        shell: pwsh
+        run: |
+          $assetUrl = "https://api.github.com/repos/bblanchon/pdfium-binaries/releases/assets/709415678"
+          $archive = Join-Path $env:RUNNER_TEMP "pdfium-win-x64.tgz"
+          $headers = @{
+            Accept = "application/octet-stream"
+            "X-GitHub-Api-Version" = "2022-11-28"
+            "User-Agent" = "Pharmacy-Windows-CI"
+          }
+          Invoke-WebRequest -Uri $assetUrl -Headers $headers -OutFile $archive
+          $actualHash = (Get-FileHash -Path $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expectedHash = "8d48973e3eb472dda0f5f2435e595ac043f9f2219dd71883392f549445afa8a5"
+          if ($actualHash -ne $expectedHash) {
+            throw "PDFium SHA-256 mismatch. Expected $expectedHash but received $actualHash."
+          }
+          $pdfiumSource = Join-Path $env:GITHUB_WORKSPACE "build/windows/x64/pdfium-src"
+          New-Item -ItemType Directory -Force -Path $pdfiumSource | Out-Null
+          tar -xzf $archive -C $pdfiumSource
+          $config = Join-Path $pdfiumSource "PDFiumConfig.cmake"
+          if (-not (Test-Path $config)) {
+            throw "Verified PDFium archive did not contain PDFiumConfig.cmake at its root."
+          }
+          $pluginCmake = "windows/flutter/ephemeral/.plugin_symlinks/printing/windows/CMakeLists.txt"
+          if (-not (Test-Path $pluginCmake)) {
+            throw "Could not find the resolved printing Windows CMakeLists."
+          }
+          $content = Get-Content -Raw $pluginCmake
+          $pattern = '(?s)include\(\.\./windows/DownloadProject\.cmake\)\s*download_project\(PROJ\s*pdfium\s*URL\s*\$\{PDFIUM_URL\}\)'
+          if ($content -notmatch $pattern) {
+            throw "Printing plugin PDFium download block changed; refusing an unsafe CMake rewrite."
+          }
+          $replacement = 'set(pdfium_SOURCE_DIR "${CMAKE_BINARY_DIR}/pdfium-src")'
+          $content = [regex]::Replace($content, $pattern, $replacement, 1)
+          Set-Content -Path $pluginCmake -Value $content -NoNewline
+          Write-Host "Verified PDFium archive SHA-256: $actualHash"
+          Write-Host "Using local verified PDFium source: $pdfiumSource"
       - run: flutter analyze --no-fatal-infos
-      - name: Build Windows release with retry for transient PDFium download failures
+      - name: Build Windows release
         shell: pwsh
         run: |
           for ($attempt = 1; $attempt -le 3; $attempt++) {
