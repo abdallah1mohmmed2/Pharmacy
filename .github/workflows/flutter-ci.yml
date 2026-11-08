@@ -205,6 +205,19 @@ jobs:
           }
           Select-String -Path $path -Pattern 'PDFIUM_VERSION|PDFIUM_ARCH'
       - run: flutter pub get
+      - name: Use Windows system SQLite for native FFI build hooks
+        shell: pwsh
+        run: |
+          @'
+          # CI Windows uses the operating system SQLite DLL to avoid untrusted
+          # proxy responses when fetching sqlite3 release binaries.
+          hooks:
+            user_defines:
+              sqlite3:
+                source: system
+                name: winsqlite3
+          '@ | Add-Content -Path pubspec.yaml
+          Get-Content pubspec.yaml -Tail 10
       - name: Download and verify PDFium through GitHub API
         shell: pwsh
         run: |
