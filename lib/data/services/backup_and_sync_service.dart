@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import '../database/database_helper.dart';
 import 'settings_and_audit_service.dart';
+import 'sync_table_policy.dart';
 
 class BackupResult {
   const BackupResult(
@@ -201,6 +202,7 @@ class BackupAndSyncService {
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('audit_logs','sync_queue','backup_log')");
     for (final tableRow in tableRows) {
       final table = tableRow['name'] as String;
+      if (!SyncTablePolicy.allowsOutbound(table)) continue;
       final columns = await db.rawQuery('PRAGMA table_info(' + table + ')');
       final names = columns.map((e) => e['name'] as String).toSet();
       if (!names.contains('uuid') ||
