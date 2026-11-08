@@ -261,3 +261,5 @@ flowchart TB
 - GitHub Actions يشغل npm test داخل firebase قبل تحليل وبناء Flutter.
 - يمكن توجيه FirestoreSyncWorker إلى emulator عبر compile-time define FIRESTORE_EMULATOR_HOST=127.0.0.1:8080. يظل endpoint الإنتاج افتراضياً عند غياب المتغير.
 - الاختبارات الحالية تتحقق من حدود قواعد Firestore؛ لا تعتبر بديلاً عن اختبار end-to-end لعامل Flutter وSQLite.
+
+- أضيف `firebase/test/sync.emulator.test.js` لاختبار تسجيل الدخول وإصدار claims ثم كتابة/قراءة دفعة عبر Firestore REST، مع إثبات منع الكتابة إلى فرع آخر. يبقى اختبار SQLite/Inbox الخاص بعامل Flutter مطلوباً كاختبار تكامل منفصل.
