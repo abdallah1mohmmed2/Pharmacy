@@ -81,10 +81,10 @@ function issue(options) {
   const payload = {
     schema_version: 1,
     tenant_uuid: crypto.randomUUID(),
-    tenant_code: 'MAIN',
+    tenant_code: required(options, 'tenant-code').toUpperCase(),
     tenant_name_ar: required(options, 'tenant-name-ar'),
     branch_uuid: crypto.randomUUID(),
-    branch_code: 'MAIN',
+    branch_code: required(options, 'branch-code').toUpperCase(),
     branch_name_ar: required(options, 'branch-name-ar'),
     issued_at: new Date().toISOString(),
     issuance_id: crypto.randomUUID(),
@@ -138,7 +138,7 @@ function main() {
   else throw new Error([
     'Usage:',
     '  node tools/provisioning/issuer.js init-keys --key-dir /secure/offline/issuer',
-    '  node tools/provisioning/issuer.js issue --key-dir /secure/offline/issuer --output /secure/distribution/pharmacy.json --tenant-name-ar "..." --branch-name-ar "..."',
+    '  node tools/provisioning/issuer.js issue --key-dir /secure/offline/issuer --output /secure/distribution/pharmacy.json --tenant-code PHARMACY --tenant-name-ar "pharmacy" --branch-code PH1 --branch-name-ar "ph1"',
     '  node tools/provisioning/issuer.js verify --manifest /path/pharmacy.json --public-key /path/provisioning-ed25519-public.pem',
   ].join('\n'));
 }
