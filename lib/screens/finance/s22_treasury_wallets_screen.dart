@@ -15,25 +15,50 @@ class S22TreasuryWalletsScreen extends StatelessWidget {
         body: RefreshIndicator(
             onRefresh: p.refresh,
             child: ListView(padding: const EdgeInsets.all(16), children: [
-              Row(children: [
-                const Expanded(
-                    child: Text('الخزينة والصناديق والمحافظ',
-                        style: TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.bold))),
-                IconButton(
-                    onPressed: () => _addAccount(context),
-                    icon: const Icon(Icons.add_card),
-                    tooltip: 'إضافة حساب'),
-                FilledButton.icon(
-                    onPressed: () => _transfer(context, p),
-                    icon: const Icon(Icons.swap_horiz),
-                    label: const Text('تحويل'))
-              ]),
+              LayoutBuilder(builder: (context, constraints) {
+                final actions = Wrap(
+                  spacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    IconButton(
+                        onPressed: () => _addAccount(context),
+                        icon: const Icon(Icons.add_card),
+                        tooltip: 'إضافة حساب'),
+                    FilledButton.icon(
+                        onPressed: () => _transfer(context, p),
+                        icon: const Icon(Icons.swap_horiz),
+                        label: const Text('تحويل'))
+                  ],
+                );
+                if (constraints.maxWidth < 520) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('الخزينة والصناديق والمحافظ',
+                          style: TextStyle(
+                              fontSize: 20, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      actions,
+                    ],
+                  );
+                }
+                return Row(children: [
+                  const Expanded(
+                      child: Text('الخزينة والصناديق والمحافظ',
+                          style: TextStyle(
+                              fontSize: 20, fontWeight: FontWeight.bold))),
+                  actions,
+                ]);
+              }),
               const SizedBox(height: 12),
               if (p.error != null)
                 Text(p.error!,
                     style: const TextStyle(color: Color(0xFFEF5350))),
-              Wrap(
+              LayoutBuilder(builder: (context, constraints) {
+                final cardWidth = constraints.maxWidth < 600
+                    ? constraints.maxWidth
+                    : 280.0;
+                return Wrap(
                   spacing: 12,
                   runSpacing: 12,
                   children: p.cashAccounts.map((a) {
@@ -50,7 +75,7 @@ class S22TreasuryWalletsScreen extends StatelessWidget {
                         .fold<double>(
                             0, (s, t) => s + (t['amount'] as num).toDouble());
                     return SizedBox(
-                        width: 280,
+                        width: cardWidth,
                         child: Card(
                             child: Padding(
                                 padding: const EdgeInsets.all(16),
@@ -104,7 +129,9 @@ class S22TreasuryWalletsScreen extends StatelessWidget {
                                                 label: const Text(
                                                     'مطابقة الرصيد الفعلي')))
                                     ]))));
-                  }).toList()),
+                  }).toList(),
+                );
+              }),
               const SizedBox(height: 20),
               const Text('دفتر حركة الصندوق والخزينة',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
