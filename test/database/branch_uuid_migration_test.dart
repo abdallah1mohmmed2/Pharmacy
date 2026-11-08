@@ -14,7 +14,7 @@ void main() {
       'CREATE TABLE branches (id INTEGER PRIMARY KEY, uuid TEXT NOT NULL UNIQUE, updated_at TEXT)',
     );
     await db.execute(
-      'CREATE TABLE sync_queue (id INTEGER PRIMARY KEY, status TEXT NOT NULL)',
+      'CREATE TABLE sync_queue (id INTEGER PRIMARY KEY, status TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0)',
     );
     await db.execute(
       'CREATE TABLE sync_inbox_batches (id INTEGER PRIMARY KEY)',
