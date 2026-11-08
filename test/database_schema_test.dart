@@ -33,6 +33,7 @@ void main() {
         },
         onCreate: (database, version) async {
           await SchemaBuilder.build(database);
+          await SchemaIteration12.upgrade(database);
           await SeedData.run(database);
           await SchemaIteration2.upgrade(database);
           await SchemaIteration3.upgrade(database);
