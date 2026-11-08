@@ -82,12 +82,16 @@ class FirestoreInboxProcessor {
         switch (outcome) {
           case 'APPLIED':
             applied++;
+            break;
           case 'DUPLICATE':
             duplicates++;
+            break;
           case 'NEEDS_DEPENDENCY':
             deferred++;
+            break;
           default:
             rejected++;
+            break;
         }
       }
       await txn.update(
@@ -148,7 +152,6 @@ class FirestoreInboxProcessor {
       }
       final status = prior.first['status'];
       if (status == 'APPLIED' || status == 'IGNORED') return 'DUPLICATE';
-      if (status == 'FAILED') return 'REJECTED';
     } else {
       await txn.insert('sync_inbox', {
         'branch_id': branchId,
@@ -197,7 +200,9 @@ class FirestoreInboxProcessor {
         limit: 1,
       );
       if (localRows.isNotEmpty &&
-          ((localRows.first['sync_version'] as num?)?.toInt() ?? 0) > version) {
+          (((localRows.first['sync_version'] as num?)?.toInt() ?? 0) > version ||
+              (((localRows.first['sync_version'] as num?)?.toInt() ?? 0) >= version &&
+                  localRows.first['sync_status'] != 'SYNCED'))) {
         await _setInboxStatus(txn, branchId, eventUuid, 'IGNORED',
             'توجد نسخة محلية أحدث');
         return 'REJECTED';
