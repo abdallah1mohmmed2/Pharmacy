@@ -86,3 +86,10 @@
 ### معالجة SQLite في Windows CI
 
 أكد سجل Windows أن PDFium تم تنزيله والتحقق من SHA-256 بنجاح، لكن Flutter build تعثر بعد ذلك في hook لحزمة `sqlite3 3.5.2` بسبب استجابة غير مطابقة عند تنزيل `sqlite3.x64.windows.dll`. أضيف إعداد مؤقت لوظيفة Windows فقط لاستخدام `winsqlite3.dll` النظامي عبر `source: system` و`name: winsqlite3`، وهو نمط موثق من الحزمة؛ لا يتغير `pubspec.yaml` الملتزم ولا يتم تجاوز hash. يقتصر هذا على CI/build؛ لا تغيير في قاعدة بيانات التطبيق أو schema.
+
+
+### معالجة تنزيل Gradle لتجهيز APK
+
+بعد نجاح Windows بالكامل (بناء Release وZIP ورفع artifact)، نجحت اختبارات Firebase و**78 اختبار Flutter** على Android runner، لكن APK تعثر لأن تنزيل `gradle-9.3.1-all.zip` أعاد HTTP 504 في المحاولات الثلاث. أضيفت خطوة تنزيل Gradle 9.3.1 `bin.zip` من GitHub Release Assets API بالمعرّف `347704202`، والتحقق من SHA-256 المنشور `b266d5ff6b90eada6dc3b20cb090e3731302e553a27c5d3e4df1f0d76beaff06`، ثم توجيه Gradle Wrapper مؤقتاً إلى النسخة المحلية المتحقق منها مع `distributionSha256Sum`. التعديل محصور في مساحة CI ولا يغير إصدار Gradle أو ملف wrapper الملتزم في المستودع.
+
+التغييرات أرسلت في commits `387a43216d2b28ec880cabb5e5800d5c918a706a` و`7fd902f9e4726d36c95c71ac65e3f94e38dcabb7`. يجب إعادة التحقق من APK وWindows بعد اكتمال التشغيل الجديد.
