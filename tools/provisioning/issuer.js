@@ -69,6 +69,8 @@ function initKeys(keyDir) {
 function issue(options) {
   const keyDir = path.resolve(required(options, 'key-dir'));
   const output = path.resolve(required(options, 'output'));
+  assertOutsideRepository(keyDir, 'Issuer key directory');
+  assertOutsideRepository(output, 'Provisioning manifest');
   const registryPath = path.join(keyDir, 'identity-registry.json');
   const privatePath = path.join(keyDir, 'provisioning-ed25519-private.pem');
   const publicPath = path.join(keyDir, 'provisioning-ed25519-public.pem');
