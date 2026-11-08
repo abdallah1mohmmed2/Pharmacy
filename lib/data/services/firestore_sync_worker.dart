@@ -76,7 +76,7 @@ class FirestoreSyncWorker {
     final pending = await _branchPending(db, branchId, batchSize);
     var uploaded = 0;
     if (pending.isNotEmpty) {
-      final batch = await _buildBatch(db, branchId, pending);
+      final batch = await _buildBatch(db, branchId, branchUuid, pending);
       if (batch.items.isNotEmpty) {
         await db.transaction((txn) async {
           final ids = batch.queueIds;
@@ -89,6 +89,7 @@ class FirestoreSyncWorker {
             projectId: projectId,
             databaseId: databaseId,
             branchId: branchId,
+            branchUuid: branchUuid,
             idToken: idToken,
             batch: batch,
           );
@@ -285,6 +286,7 @@ class FirestoreSyncWorker {
   Future<_FirestoreBatch> _buildBatch(
     Database db,
     int branchId,
+    String branchUuid,
     List<Map<String, Object?>> rows,
   ) async {
     final items = <_FirestoreEvent>[];
@@ -311,7 +313,7 @@ class FirestoreSyncWorker {
         jsonDecode(queueRow['payload_json'] as String) as Map,
       );
       payload.remove('id');
-      payload['branch_id'] = branchId;
+      payload['branch_id'] = branchUuid;
       payload['sync_version'] = version;
       payload['sync_status'] = 'SYNCED';
       final relations = await _relationsForRow(db, table, current);
@@ -332,7 +334,7 @@ class FirestoreSyncWorker {
     if (items.isEmpty) return _FirestoreBatch.empty;
     final eventValues = items.map((e) => e.toMap()).toList();
     final fingerprint = _hash(jsonEncode(eventValues));
-    final batchUuid = _hash('$branchId|$fingerprint');
+    final batchUuid = _hash('$branchUuid|$fingerprint');
     return _FirestoreBatch(
       batchUuid: batchUuid,
       payloadHash: fingerprint,
