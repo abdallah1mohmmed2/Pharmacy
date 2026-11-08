@@ -137,6 +137,23 @@ jobs:
           print("Firebase Hosting configuration JSON is valid.")
           PY
       - run: flutter analyze --no-fatal-infos
+      - name: Use runner SQLite for Linux FFI tests without release-asset download
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsqlite3-0
+          cat >> pubspec.yaml <<'YAML'
+
+          # CI Linux tests use the runner's system SQLite because GitHub release
+          # asset downloads can be replaced by proxy error pages on hosted runners.
+          hooks:
+            user_defines:
+              sqlite3:
+                source:
+                  linux: system
+                  default: sqlite3
+          YAML
+          tail -n 10 pubspec.yaml
       - run: flutter test
       - name: Build Android APK with retry for transient Gradle distribution failures
         shell: bash
@@ -176,22 +193,17 @@ jobs:
         run: |
           $path = "windows/CMakeLists.txt"
           $content = Get-Content -Raw $path
-          if ($content -notmatch '(?m)^cmake_minimum_required\\([^\\r\\n]+\\)') {
-            throw "Could not find cmake_minimum_required in generated Windows CMakeLists."
-          }
           if ($content -notmatch 'PDFIUM_VERSION') {
+            # CMake accepts cache variables before project() and before Flutter
+            # adds plugin subdirectories. Prepending avoids template-specific markers.
             $settings = @'
           # Keep the printing plugin on a verified, available PDFium release.
           set(PDFIUM_VERSION "8138" CACHE STRING "PDFium version" FORCE)
           set(PDFIUM_ARCH "x64" CACHE STRING "PDFium architecture" FORCE)
+
           '@
-            $content = [regex]::Replace(
-              $content,
-              '(?m)^(cmake_minimum_required\\([^\\r\\n]+\\))',
-              ('$1' + "`r`n" + $settings),
-              1
-            )
-            Set-Content -Path $path -Value $content -NoNewline
+            $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+            [System.IO.File]::WriteAllText($path, $settings + $content, $utf8NoBom)
           }
           Select-String -Path $path -Pattern 'PDFIUM_VERSION|PDFIUM_ARCH'
       - run: flutter pub get
