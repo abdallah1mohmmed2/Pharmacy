@@ -39,13 +39,7 @@ class _S28SystemSettingsBackupScreenState
     SettingGroup.printBackup
   ];
   String? auditUserFilter, auditActionFilter, auditSeverityFilter;
-  late Future<Map<String, Object?>> _identityStatusFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _identityStatusFuture = _loadIdentityStatus();
-  }
+  Future<Map<String, Object?>>? _identityStatusFuture;
 
   Future<Map<String, Object?>> _loadIdentityStatus() async {
     final db = await DatabaseHelper.instance.database;
@@ -68,7 +62,9 @@ class _S28SystemSettingsBackupScreenState
     };
   }
 
-  Widget _identityStatusCard() => FutureBuilder<Map<String, Object?>>(
+  Widget _identityStatusCard() {
+    _identityStatusFuture ??= _loadIdentityStatus();
+    return FutureBuilder<Map<String, Object?>>(
         future: _identityStatusFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
@@ -110,6 +106,8 @@ class _S28SystemSettingsBackupScreenState
           );
         },
       );
+  }
+
   Future<String?> _managerPin({String title = 'تأكيد صلاحية المدير'}) =>
       ManagerPinDialog.show(context, title: title);
   static const _trustedProvisioningPublicKey = String.fromEnvironment(
