@@ -36,9 +36,10 @@ void main() {
       idToken: 'test-token',
     );
     expect(upload.uploadedEvents, 1);
+    expect(source.deviceId, isNot(target.deviceId));
     expect(
       ((server.document!['fields'] as Map)['source_device_id'] as Map)['stringValue'],
-      '11111111-1111-4111-8111-111111111111',
+      source.deviceId,
     );
     expect((await source.db.query('sync_queue')).single['status'], 'DONE');
     expect(
@@ -235,7 +236,7 @@ void main() {
         helper: source.helper,
         client: sourceClient,
         emulatorHost: host,
-        deviceIdProvider: () async => '11111111-1111-4111-8111-111111111111',
+        deviceIdProvider: () async => source.deviceId,
       ).syncOnce(
         branchId: source.branchId,
         projectId: 'pharmacy-dafb6',
@@ -247,7 +248,7 @@ void main() {
         helper: target.helper,
         client: targetClient,
         emulatorHost: host,
-        deviceIdProvider: () async => '22222222-2222-4222-8222-222222222222',
+        deviceIdProvider: () async => target.deviceId,
       ).syncOnce(
         branchId: target.branchId,
         projectId: 'pharmacy-dafb6',
@@ -269,14 +270,17 @@ FirestoreSyncWorker _worker(_Device device, _FakeFirestore server) =>
       helper: device.helper,
       client: server.client(),
       emulatorHost: 'http://127.0.0.1:8080',
-      deviceIdProvider: () async => '11111111-1111-4111-8111-111111111111',
+      deviceIdProvider: () async => device.deviceId,
     );
 
 class _Device {
-  _Device(this.directory, this.db) : helper = DatabaseHelper.forTesting(db);
+  _Device(this.directory, this.db, this.deviceId)
+      : helper = DatabaseHelper.forTesting(db);
 
+  static int _nextDeviceNumber = 0;
   final Directory directory;
   final Database db;
+  final String deviceId;
   final DatabaseHelper helper;
   int get branchId => 1;
 
@@ -328,7 +332,9 @@ class _Device {
         'title': 'سجل صادر من الجهاز الأول',
       });
     }
-    return _Device(directory, db);
+    final serial = (++_nextDeviceNumber).toString().padLeft(12, '0');
+    final deviceId = '00000000-0000-4000-8000-$serial';
+    return _Device(directory, db, deviceId);
   }
 
   Future<void> dispose() async {
