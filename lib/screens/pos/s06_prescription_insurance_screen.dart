@@ -108,7 +108,15 @@ class _S06PrescriptionInsuranceScreenState
     final p = context.watch<ClinicalAndRxProvider>();
     final pos = context.watch<PosAndDrugsProvider>();
     final session = context.watch<SessionAndErpProvider>();
-    final policies = p.policies.where((x) => x.id == policyId).toList();
+    final selectedPatientRows =
+        p.patients.where((x) => x.id == patientId).toList();
+    final selectedPatientPartyId = selectedPatientRows.isEmpty
+        ? null
+        : selectedPatientRows.first.partyId;
+    final policies = p.policies
+        .where((x) => x.id == policyId &&
+            x.customerPartyId == selectedPatientPartyId)
+        .toList();
     final policy = policies.isEmpty ? null : policies.first;
     final selectedRx = rxRows.where((r) => r['id'] == selectedRxId).toList();
     var availableCoverage = policy?.remainingLimit ?? 0.0;
@@ -158,7 +166,19 @@ class _S06PrescriptionInsuranceScreenState
                         .map((x) => DropdownMenuItem(
                             value: x.id, child: Text(x.fullName)))
                         .toList(),
-                    onChanged: (v) => setState(() => patientId = v)),
+                    onChanged: (v) => setState(() {
+                      patientId = v;
+                      final selected = p.patients
+                          .where((patient) => patient.id == v)
+                          .toList();
+                      final partyId = selected.isEmpty
+                          ? null
+                          : selected.first.partyId;
+                      if (!p.policies.any((x) =>
+                          x.id == policyId && x.customerPartyId == partyId)) {
+                        policyId = null;
+                      }
+                    })),
                 TextField(
                     controller: rxNo,
                     decoration: const InputDecoration(labelText: 'رقم الوصفة')),
@@ -199,7 +219,9 @@ class _S06PrescriptionInsuranceScreenState
                     value: policyId,
                     decoration: const InputDecoration(
                         labelText: 'بوليصة التأمين (اختياري)'),
-                    items: p.policies.map((x) {
+                    items: p.policies
+                        .where((x) => x.customerPartyId == selectedPatientPartyId)
+                        .map((x) {
                       final company = p.companies
                           .where((c) => c.id == x.insuranceCompanyId)
                           .toList();
