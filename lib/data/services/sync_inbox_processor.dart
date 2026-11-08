@@ -57,6 +57,7 @@ class FirestoreInboxProcessor {
     required String batchUuid,
     required String payloadHash,
     required List<Map<String, Object?>> events,
+    String? expectedBranchUuid,
   }) async {
     if (branchId <= 0 || batchUuid.isEmpty || payloadHash.isEmpty) {
       throw ArgumentError('بيانات دفعة Inbox غير مكتملة');
@@ -94,7 +95,13 @@ class FirestoreInboxProcessor {
       }
 
       for (final event in events) {
-        final outcome = await _processEvent(txn, branchId, batchUuid, event);
+        final outcome = await _processEvent(
+          txn,
+          branchId,
+          batchUuid,
+          event,
+          expectedBranchUuid: expectedBranchUuid,
+        );
         switch (outcome) {
           case 'APPLIED':
             applied++;
@@ -170,8 +177,9 @@ class FirestoreInboxProcessor {
     Transaction txn,
     int branchId,
     String batchUuid,
-    Map<String, Object?> event,
-  ) async {
+    Map<String, Object?> event, {
+    String? expectedBranchUuid,
+  }) async {
     final table = event['table']?.toString() ?? '';
     final uuid = event['uuid']?.toString() ?? '';
     final operation = event['operation']?.toString() ?? '';
@@ -227,6 +235,17 @@ class FirestoreInboxProcessor {
     }
 
     try {
+      if (expectedBranchUuid != null &&
+          payloadMap['branch_id']?.toString() != expectedBranchUuid) {
+        await _setInboxStatus(
+          txn,
+          branchId,
+          eventUuid,
+          'FAILED',
+          'هوية الفرع داخل الحدث لا تطابق فرع جلسة Firestore',
+        );
+        return 'REJECTED';
+      }
       if (_excludedTables.contains(table)) {
         await _setInboxStatus(
             txn, branchId, eventUuid, 'FAILED', 'الجدول محظور من المزامنة');
