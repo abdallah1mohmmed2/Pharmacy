@@ -37,6 +37,11 @@ class BranchIdentityProvisioningService {
     if (decoded is! Map<String, dynamic>) {
       throw const FormatException('ملف التأسيس غير صالح.');
     }
+    const envelopeFields = {'payload', 'signature', 'signature_algorithm'};
+    if (decoded.keys.toSet().difference(envelopeFields).isNotEmpty ||
+        envelopeFields.difference(decoded.keys.toSet()).isNotEmpty) {
+      throw const FormatException('حقول غلاف ملف التأسيس غير مطابقة.');
+    }
     final payload = decoded['payload'];
     if (payload is! Map<String, dynamic>) {
       throw const FormatException('بيانات الهوية غير موجودة.');
@@ -53,6 +58,11 @@ class BranchIdentityProvisioningService {
       throw const FormatException('إصدار ملف التأسيس غير مدعوم.');
     }
 
+    if (payload['tenant_uuid'] == payload['branch_uuid'] ||
+        payload['tenant_uuid'] == payload['issuance_id'] ||
+        payload['branch_uuid'] == payload['issuance_id']) {
+      throw const FormatException('يجب أن تكون معرفات المؤسسة والفرع والإصدار مستقلة.');
+    }
     for (final field in ['tenant_uuid', 'branch_uuid', 'issuance_id']) {
       final value = payload[field];
       if (value is! String || !RegExp(_uuidPattern).hasMatch(value)) {
