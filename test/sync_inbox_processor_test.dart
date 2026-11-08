@@ -158,6 +158,61 @@ void main() {
     expect(childRow['parent_id'], parentId);
   });
 
+  test('retries a deferred child after its parent arrives', () async {
+    final child = event(
+      table: 'sync_children',
+      uuid: 'child-waiting',
+      version: 1,
+      payload: {
+        'uuid': 'child-waiting',
+        'branch_id': 7,
+        'sync_version': 1,
+        'sync_status': 'SYNCED',
+        'parent_id': 555,
+        'title': 'waiting child',
+      },
+      relations: {
+        'parent_id': {'table': 'sync_parents', 'uuid': 'parent-late'},
+      },
+    );
+    final firstPass = await processor.processBatch(
+      branchId: 7,
+      batchUuid: 'batch-waiting-child',
+      payloadHash: batchFingerprint([child]),
+      events: [child],
+    );
+    expect(firstPass.deferred, 1);
+
+    final parent = event(
+      table: 'sync_parents',
+      uuid: 'parent-late',
+      version: 1,
+      payload: {
+        'uuid': 'parent-late',
+        'branch_id': 7,
+        'sync_version': 1,
+        'sync_status': 'SYNCED',
+        'name': 'late parent',
+      },
+    );
+    await processor.processBatch(
+      branchId: 7,
+      batchUuid: 'batch-late-parent',
+      payloadHash: batchFingerprint([parent]),
+      events: [parent],
+    );
+    expect(await processor.retryDeferred(7), 1);
+    final parentId = (await db.query('sync_parents')).single['id'];
+    final childRow = (await db.query('sync_children')).single;
+    expect(childRow['parent_id'], parentId);
+    expect(
+      (await db.query('sync_inbox',
+              where: 'event_uuid=?', whereArgs: [child['event_uuid']]))
+          .single['status'],
+      'APPLIED',
+    );
+  });
+
   test('does not overwrite a newer unsynchronized local edit', () async {
     await db.insert('sync_items', {
       'uuid': 'item-local',
