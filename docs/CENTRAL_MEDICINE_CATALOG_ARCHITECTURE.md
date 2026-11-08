@@ -249,7 +249,7 @@ flowchart TB
 
 - يعتمد التطبيق على Firebase Auth email/password من خلال FirebaseBranchAuthService.
 - بيانات Firebase العامة المطلوبة في إعداد 35: project_id وapi_key وapp_id وmessaging_sender_id.
-- كلمة مرور Firebase لا تحفظ في SQLite أو JSON الإعدادات؛ Firebase Auth SDK يدير الجلسة والـ ID token.
+- كلمة مرور Firebase لا تحفظ في SQLite أو JSON الإعدادات؛ Firebase Authentication REST يدير الجلسة والـ ID token.
 - Claims المسموح بها: branch_id = UUID العالمي للفرع، وbranch_role = owner أو manager أو staff.
 - إصدار Claims عملية إدارية فقط باستخدام Firebase Admin SDK من بيئة موثوقة. الأداة موجودة في firebase/scripts/set-branch-claims.js.
 - لا تستخدم رقم الفرع المحلي في claims ولا تقبل branch_id من payload العميل بديلاً عن claim.
