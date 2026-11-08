@@ -8,15 +8,18 @@ abstract final class SeedData {
       "SELECT 1 FROM sqlite_master WHERE type='table' AND name='tenants'",
     );
     if (tenantTable.isNotEmpty) {
-      await db.insert('tenants', {
-        'uuid': 'tenant-main',
-        'code': 'MAIN',
-        'name_ar': 'المؤسسة الرئيسية',
-        'name_en': 'Main Organization',
-        'is_active': 1,
-        'created_at': _now,
-        'updated_at': _now,
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      await db.insert(
+          'tenants',
+          {
+            'uuid': 'tenant-main',
+            'code': 'MAIN',
+            'name_ar': 'المؤسسة الرئيسية',
+            'name_en': 'Main Organization',
+            'is_active': 1,
+            'created_at': _now,
+            'updated_at': _now,
+          },
+          conflictAlgorithm: ConflictAlgorithm.ignore);
     }
     // Legacy placeholder only. Secure provisioning must replace this with
     // one operator-issued UUID shared by every device in this pharmacy.
