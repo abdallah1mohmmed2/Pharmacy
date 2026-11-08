@@ -247,12 +247,7 @@ void main() {
       );
       expect((await db.query('tenants')).single['uuid'], 'tenant-main');
       expect((await db.query('branches')).single['uuid'], 'branch-main');
-      expect(
-        await db.rawQuery(
-          "SELECT name FROM sqlite_master WHERE type='table' AND name='branch_identity_provisioning'",
-        ),
-        isEmpty,
-      );
+      expect(await db.query('branch_identity_provisioning'), isEmpty);
     } finally {
       await disposeDatabase(db);
     }
@@ -334,6 +329,7 @@ void main() {
         throwsStateError,
       );
       expect((await db.query('tenants')).single['uuid'], 'tenant-main');
+      expect(await db.query('branch_identity_provisioning'), isEmpty);
     } finally {
       await disposeDatabase(db);
     }
