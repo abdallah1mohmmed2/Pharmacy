@@ -62,10 +62,8 @@ class FirebaseBranchAuthService {
     }
     _apiKey = apiKey.trim();
     _projectId = projectId.trim();
-    await _storage.write(
-        key: 'firebase_branch_project_id', value: _projectId);
-    _refreshToken ??=
-        await _storage.read(key: 'firebase_branch_refresh_token');
+    await _storage.write(key: 'firebase_branch_project_id', value: _projectId);
+    _refreshToken ??= await _storage.read(key: 'firebase_branch_refresh_token');
     _uid ??= await _storage.read(key: 'firebase_branch_uid');
     _email ??= await _storage.read(key: 'firebase_branch_email');
   }
