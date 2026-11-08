@@ -19,22 +19,28 @@ class ShiftAndTreasuryService {
           orderBy: 'id');
   Future<List<Map<String, Object?>>> transactions(int branchId,
       {int? accountId, String? from, String? to}) async {
-    final clauses = <String>['branch_id=?'];
+    // All filters belong to the transaction row; qualify them because both
+    // joined tables expose branch_id and other similarly named columns.
+    final clauses = <String>['t.branch_id=?'];
     final args = <Object?>[branchId];
     if (accountId != null) {
-      clauses.add('cash_account_id=?');
+      clauses.add('t.cash_account_id=?');
       args.add(accountId);
     }
     if (from != null) {
-      clauses.add('date(tx_date)>=date(?)');
+      clauses.add('date(t.tx_date)>=date(?)');
       args.add(from);
     }
     if (to != null) {
-      clauses.add('date(tx_date)<=date(?)');
+      clauses.add('date(t.tx_date)<=date(?)');
       args.add(to);
     }
     return _helper.rawQuery(
-        'SELECT t.*,c.name_ar AS account_name FROM cash_transactions t JOIN cash_accounts c ON c.id=t.cash_account_id WHERE ${clauses.join(' AND ')} ORDER BY t.tx_date DESC,t.id DESC',
+        'SELECT t.*,c.name_ar AS account_name '
+        'FROM cash_transactions t '
+        'JOIN cash_accounts c ON c.id=t.cash_account_id AND c.branch_id=t.branch_id '
+        'WHERE ${clauses.join(' AND ')} '
+        'ORDER BY t.tx_date DESC,t.id DESC',
         args);
   }
 
