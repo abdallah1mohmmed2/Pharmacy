@@ -23,10 +23,15 @@ class BackupResult {
 }
 
 class BackupAndSyncService {
-  BackupAndSyncService({DatabaseHelper? helper, http.Client? client})
-      : _helper = helper ?? DatabaseHelper.instance,
-        _client = client ?? http.Client();
+  BackupAndSyncService({
+    DatabaseHelper? helper,
+    http.Client? client,
+    Set<String>? allowedTablesForTesting,
+  })  : _helper = helper ?? DatabaseHelper.instance,
+        _client = client ?? http.Client(),
+        _allowedTables = allowedTablesForTesting ?? SyncTablePolicy.outboundTables;
   final DatabaseHelper _helper;
+  final Set<String> _allowedTables;
   final http.Client _client;
   Future<BackupResult> createBackup(
       {String triggerType = 'MANUAL',
@@ -202,7 +207,7 @@ class BackupAndSyncService {
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('audit_logs','sync_queue','backup_log')");
     for (final tableRow in tableRows) {
       final table = tableRow['name'] as String;
-      if (!SyncTablePolicy.allowsOutbound(table)) continue;
+      if (!_allowedTables.contains(table)) continue;
       final columns = await db.rawQuery('PRAGMA table_info(' + table + ')');
       final names = columns.map((e) => e['name'] as String).toSet();
       if (!names.contains('uuid') ||
