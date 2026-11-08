@@ -525,57 +525,7 @@ class FirestoreSyncWorker {
     'payroll_runs',
   };
 
-  static final _safeIdentifier = RegExp(r'^[A-Za-z_][A-Za-z0-9_]*
-}
-
-class _FirestoreEvent {
-  const _FirestoreEvent({
-    required this.queueId,
-    required this.tableName,
-    required this.rowUuid,
-    required this.operation,
-    required this.version,
-    required this.eventUuid,
-    required this.payload,
-    required this.relations,
-  });
-  final int queueId;
-  final String tableName, rowUuid, operation, eventUuid;
-  final int version;
-  final Map<String, Object?> payload, relations;
-  Map<String, Object?> toMap() => {
-        'event_uuid': eventUuid,
-        'table': tableName,
-        'uuid': rowUuid,
-        'operation': operation,
-        'version': version,
-        'payload': payload,
-        'relations': relations,
-      };
-}
-
-class _FirestoreBatch {
-  const _FirestoreBatch({
-    required this.batchUuid,
-    required this.payloadHash,
-    required this.queueIds,
-    required this.items,
-  });
-  static const empty =
-      _FirestoreBatch(batchUuid: '', payloadHash: '', queueIds: [], items: []);
-  final String batchUuid, payloadHash;
-  final List<int> queueIds;
-  final List<_FirestoreEvent> items;
-}
-
-class FirestoreSyncResult {
-  const FirestoreSyncResult({
-    required this.uploadedEvents,
-    required this.receivedEvents,
-  });
-  final int uploadedEvents, receivedEvents;
-}
-);
+  static final _safeIdentifier = RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$');
 }
 
 class _FirestoreEvent {
