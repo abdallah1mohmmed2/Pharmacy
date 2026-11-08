@@ -138,7 +138,21 @@ jobs:
           PY
       - run: flutter analyze --no-fatal-infos
       - run: flutter test
-      - run: flutter build apk --release
+      - name: Build Android APK with retry for transient Gradle distribution failures
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            echo "Android release build attempt $attempt/3"
+            if flutter build apk --release; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Build failed; waiting 20 seconds before retrying transient dependency downloads."
+              sleep 20
+            fi
+          done
+          echo "Android release build failed after three attempts."
+          exit 1
       - name: Package Android APK into one ZIP
         run: zip -j pharmacy-android.zip build/app/outputs/flutter-apk/app-release.apk
       - name: Upload Android ZIP
@@ -162,18 +176,21 @@ jobs:
         run: |
           $path = "windows/CMakeLists.txt"
           $content = Get-Content -Raw $path
-          $marker = "add_subdirectory(flutter)"
-          if (-not $content.Contains($marker)) {
-            throw "Could not find add_subdirectory(flutter) in generated Windows CMakeLists."
+          if ($content -notmatch '(?m)^cmake_minimum_required\\([^\\r\\n]+\\)') {
+            throw "Could not find cmake_minimum_required in generated Windows CMakeLists."
           }
           if ($content -notmatch 'PDFIUM_VERSION') {
             $settings = @'
           # Keep the printing plugin on a verified, available PDFium release.
           set(PDFIUM_VERSION "8138" CACHE STRING "PDFium version" FORCE)
           set(PDFIUM_ARCH "x64" CACHE STRING "PDFium architecture" FORCE)
-
           '@
-            $content = $content.Replace($marker, $settings + $marker)
+            $content = [regex]::Replace(
+              $content,
+              '(?m)^(cmake_minimum_required\\([^\\r\\n]+\\))',
+              ('$1' + "`r`n" + $settings),
+              1
+            )
             Set-Content -Path $path -Value $content -NoNewline
           }
           Select-String -Path $path -Pattern 'PDFIUM_VERSION|PDFIUM_ARCH'
