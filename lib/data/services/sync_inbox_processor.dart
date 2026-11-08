@@ -13,11 +13,10 @@ class FirestoreInboxProcessor {
     Database? database,
     Set<String>? allowedTablesForTesting,
     Map<String, Set<String>>? payloadFieldsForTesting,
-  })  : _helper = helper ?? DatabaseHelper.instance,
-        _database = database,
-        _allowedTables =
-            allowedTablesForTesting ?? SyncTablePolicy.inboundTables,
-        _payloadFieldsForTesting = payloadFieldsForTesting;
+  }) : _helper = helper ?? DatabaseHelper.instance,
+       _database = database,
+       _allowedTables = allowedTablesForTesting ?? SyncTablePolicy.inboundTables,
+       _payloadFieldsForTesting = payloadFieldsForTesting;
 
   final DatabaseHelper _helper;
   final Database? _database;
@@ -138,6 +137,7 @@ class FirestoreInboxProcessor {
           branchId,
           row['batch_uuid'] as String,
           event,
+          retrying: true,
         );
         if (outcome == 'APPLIED') applied++;
       });
@@ -151,6 +151,7 @@ class FirestoreInboxProcessor {
     String batchUuid,
     Map<String, Object?> event, {
     String? expectedBranchUuid,
+    bool retrying = false,
   }) async {
     final table = event['table']?.toString() ?? '';
     final uuid = event['uuid']?.toString() ?? '';
@@ -183,41 +184,37 @@ class FirestoreInboxProcessor {
       final embeddedRelations = scalarPayload.remove('__relations');
       if (payload.containsKey('__relations') &&
           (embeddedRelations is! Map ||
-              _canonicalJson(embeddedRelations) != _canonicalJson(relations))) {
+           _canonicalJson(embeddedRelations) != _canonicalJson(relations))) {
         throw const FormatException('SYNC_PAYLOAD_POLICY_REJECTED');
       }
       payloadMap = SyncPayloadPolicy.validateIncoming(table, scalarPayload,
           fieldsForTesting: _payloadFieldsForTesting?[table]);
       if ((payloadMap.containsKey('uuid') && payloadMap['uuid'] != uuid) ||
-          (payloadMap.containsKey('sync_version') &&
-              payloadMap['sync_version'] != version)) {
+          (payloadMap.containsKey('sync_version') && payloadMap['sync_version'] != version)) {
         throw const FormatException('SYNC_PAYLOAD_POLICY_REJECTED');
       }
       relationMap = Map<String, Object?>.from(relations);
       final foreignKeys = await txn.rawQuery('PRAGMA foreign_key_list($table)');
       final fields = _payloadFieldsForTesting?[table] ??
-          SyncPayloadPolicy.fieldsByTable[table] ??
-          const <String>{};
+          SyncPayloadPolicy.fieldsByTable[table] ?? const <String>{};
       for (final entry in relationMap.entries) {
         final matching = foreignKeys.where((fk) => fk['from'] == entry.key);
         final relation = entry.value;
-        if (!fields.contains(entry.key) ||
-            matching.length != 1 ||
-            relation is! Map ||
-            relation.length != 2 ||
-            !relation.containsKey('table') ||
-            !relation.containsKey('uuid') ||
+        if (!fields.contains(entry.key) || matching.length != 1 ||
+            relation is! Map || relation.length != 2 ||
+            !relation.containsKey('table') || !relation.containsKey('uuid') ||
             relation['table'] != matching.single['table'] ||
             !_allowedTables.contains(relation['table']) ||
-            relation['uuid'] is! String ||
-            (relation['uuid'] as String).isEmpty) {
+            relation['uuid'] is! String || (relation['uuid'] as String).isEmpty) {
           throw const FormatException('SYNC_PAYLOAD_POLICY_REJECTED');
         }
       }
     } on FormatException {
       // Also quarantine previously deferred events after a policy change.
-      await _setInboxStatus(
-          txn, branchId, eventUuid, 'FAILED', 'SYNC_PAYLOAD_POLICY_REJECTED');
+      if (retrying) {
+        await _setInboxStatus(txn, branchId, eventUuid, 'FAILED',
+            'SYNC_PAYLOAD_POLICY_REJECTED');
+      }
       return 'REJECTED';
     }
     final payloadHash = _hash(_canonicalJson({
