@@ -113,7 +113,7 @@ class _S19S20S21PartiesAndVouchersScreenState
                       ),
                       details: [
                         Text(type == 'CUSTOMER'
-                            ? 'حساب عميل'
+                            ? (party.isPatient ? 'عميل • ملف طبي نشط' : 'حساب عميل')
                             : 'حساب مورد / مذخر'),
                         if (party.address.isNotEmpty)
                           Text('العنوان: ${party.address}'),
@@ -393,6 +393,7 @@ class _S19S20S21PartiesAndVouchersScreenState
         text: 'PTY-' + DateTime.now().millisecondsSinceEpoch.toString());
     final opening = TextEditingController();
     String type = 'CUSTOMER';
+    bool createPatient = false;
     String side = 'ALAYH';
     await showDialog<void>(
         context: context,
@@ -410,7 +411,18 @@ class _S19S20S21PartiesAndVouchersScreenState
                             DropdownMenuItem(
                                 value: 'SUPPLIER', child: Text('مورد / مذخر'))
                           ],
-                          onChanged: (v) => set(() => type = v ?? type)),
+                          onChanged: (v) => set(() {
+                            type = v ?? type;
+                            if (type != 'CUSTOMER') createPatient = false;
+                          })),
+                      if (type == 'CUSTOMER')
+                        CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          value: createPatient,
+                          title: const Text('تفعيل الملف الطبي لهذا العميل'),
+                          subtitle: const Text('سيظهر في اختيار المرضى للوصفات والرقابة السريرية والتأمين.'),
+                          onChanged: (value) => set(() => createPatient = value ?? false),
+                        ),
                       TextField(
                           controller: code,
                           decoration:
@@ -454,7 +466,8 @@ class _S19S20S21PartiesAndVouchersScreenState
                                         nameAr: name.text,
                                         phone: phone.text),
                                     openingAlayh: side == 'ALAYH' ? v : 0,
-                                    openingLah: side == 'LAH' ? v : 0);
+                                    openingLah: side == 'LAH' ? v : 0,
+                                    createPatient: createPatient);
                             if (ctx.mounted) Navigator.pop(ctx);
                           },
                           child: const Text('حفظ'))
