@@ -562,7 +562,9 @@ class _S28SystemSettingsBackupScreenState
         apiKey: config['api_key']?.toString() ?? '',
       );
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
       return;
     }
     final email = TextEditingController();
@@ -572,41 +574,75 @@ class _S28SystemSettingsBackupScreenState
       builder: (ctx) => AlertDialog(
         title: const Text('تسجيل الدخول إلى Firebase'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'البريد الإلكتروني')),
-          TextField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'كلمة مرور Firebase')),
+          TextField(
+              controller: email,
+              keyboardType: TextInputType.emailAddress,
+              decoration:
+                  const InputDecoration(labelText: 'البريد الإلكتروني')),
+          TextField(
+              controller: password,
+              obscureText: true,
+              decoration:
+                  const InputDecoration(labelText: 'كلمة مرور Firebase')),
         ]),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, [email.text, password.text]), child: const Text('دخول')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, [email.text, password.text]),
+              child: const Text('دخول')),
         ],
       ),
     );
-    if (values == null) { email.dispose(); password.dispose(); return; }
+    if (values == null) {
+      email.dispose();
+      password.dispose();
+      return;
+    }
     try {
-      await FirebaseBranchAuthService.instance.signIn(email: values[0], password: values[1]);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم تسجيل الدخول إلى Firebase: ' + (FirebaseBranchAuthService.instance.email ?? ''))));
+      await FirebaseBranchAuthService.instance
+          .signIn(email: values[0], password: values[1]);
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('تم تسجيل الدخول إلى Firebase: ' +
+                (FirebaseBranchAuthService.instance.email ?? ''))));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر تسجيل الدخول إلى Firebase: $e')));
-    } finally { email.dispose(); password.dispose(); }
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('تعذر تسجيل الدخول إلى Firebase: $e')));
+    } finally {
+      email.dispose();
+      password.dispose();
+    }
   }
 
   Future<void> _signOutFirebase() async {
     await FirebaseBranchAuthService.instance.signOut();
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تسجيل الخروج من Firebase')));
+    if (mounted)
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم تسجيل الخروج من Firebase')));
   }
 
   Widget _syncTab(SettingsAndSystemProvider p) =>
       ListView(padding: const EdgeInsets.all(12), children: [
         _settingTile(SettingKeys.byKey(SettingKey.cloudSync), p),
-        Card(child: ListTile(
-          leading: Icon(FirebaseBranchAuthService.instance.isSignedIn ? Icons.verified_user : Icons.no_accounts),
+        Card(
+            child: ListTile(
+          leading: Icon(FirebaseBranchAuthService.instance.isSignedIn
+              ? Icons.verified_user
+              : Icons.no_accounts),
           title: Text(FirebaseBranchAuthService.instance.isSignedIn
-              ? 'حساب Firebase: ' + (FirebaseBranchAuthService.instance.email ?? '')
+              ? 'حساب Firebase: ' +
+                  (FirebaseBranchAuthService.instance.email ?? '')
               : 'حساب Firebase غير مسجل الدخول'),
-          subtitle: const Text('بيانات الدخول تخص Firebase Auth ولا تُخزن في قاعدة بيانات الصيدلية.'),
+          subtitle: const Text(
+              'بيانات الدخول تخص Firebase Auth ولا تُخزن في قاعدة بيانات الصيدلية.'),
           trailing: FirebaseBranchAuthService.instance.isSignedIn
-              ? TextButton(onPressed: _signOutFirebase, child: const Text('خروج'))
-              : FilledButton(onPressed: () => _signInFirebase(p), child: const Text('تسجيل الدخول')),
+              ? TextButton(
+                  onPressed: _signOutFirebase, child: const Text('خروج'))
+              : FilledButton(
+                  onPressed: () => _signInFirebase(p),
+                  child: const Text('تسجيل الدخول')),
         )),
         if (p.cloudSyncStatus != null)
           Card(

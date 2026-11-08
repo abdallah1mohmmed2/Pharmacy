@@ -15,7 +15,8 @@ class FirestoreSyncWorker {
     http.Client? client,
     FirestoreInboxProcessor? inbox,
     String? emulatorHost,
-  })  : _emulatorHost = emulatorHost ?? const String.fromEnvironment('FIRESTORE_EMULATOR_HOST'),
+  })  : _emulatorHost = emulatorHost ??
+            const String.fromEnvironment('FIRESTORE_EMULATOR_HOST'),
         _helper = helper ?? DatabaseHelper.instance,
         _client = client ?? http.Client(),
         _inbox = inbox ?? FirestoreInboxProcessor(helper: helper);

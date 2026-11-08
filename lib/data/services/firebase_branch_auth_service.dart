@@ -8,7 +8,8 @@ import 'package:http/http.dart' as http;
 /// Only the refresh token is persisted, in OS-backed secure storage. Passwords
 /// are sent directly to Firebase Auth and are never persisted by this class.
 class FirebaseBranchAuthService {
-  FirebaseBranchAuthService({http.Client? client, FlutterSecureStorage? storage})
+  FirebaseBranchAuthService(
+      {http.Client? client, FlutterSecureStorage? storage})
       : _client = client ?? http.Client(),
         _storage = storage ?? const FlutterSecureStorage();
 
@@ -47,7 +48,8 @@ class FirebaseBranchAuthService {
   }
 
   Future<void> configure({required String apiKey}) async {
-    if (apiKey.trim().isEmpty) throw StateError('أدخل Firebase api_key في إعداد 35');
+    if (apiKey.trim().isEmpty)
+      throw StateError('أدخل Firebase api_key في إعداد 35');
     _apiKey = apiKey.trim();
     _refreshToken ??= await _storage.read(key: 'firebase_branch_refresh_token');
     _uid ??= await _storage.read(key: 'firebase_branch_uid');
@@ -61,27 +63,32 @@ class FirebaseBranchAuthService {
   Future<void> signIn({required String email, required String password}) async {
     final key = _apiKey;
     if (key == null) throw StateError('يجب إعداد Firebase أولاً');
-    final response = await _client.post(
-      _identityUri('accounts:signInWithPassword').replace(queryParameters: {'key': key}),
-      headers: const {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'email': email.trim(),
-        'password': password,
-        'returnSecureToken': true,
-      }),
-    ).timeout(const Duration(seconds: 20));
+    final response = await _client
+        .post(
+          _identityUri('accounts:signInWithPassword')
+              .replace(queryParameters: {'key': key}),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'email': email.trim(),
+            'password': password,
+            'returnSecureToken': true,
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
     final data = _decodeResponse(response, 'Firebase Auth sign-in');
     _idToken = data['idToken']?.toString();
     _refreshToken = data['refreshToken']?.toString();
     _uid = data['localId']?.toString();
     _email = data['email']?.toString();
     _expiresAt = DateTime.now().add(
-      Duration(seconds: int.tryParse(data['expiresIn']?.toString() ?? '') ?? 3600),
+      Duration(
+          seconds: int.tryParse(data['expiresIn']?.toString() ?? '') ?? 3600),
     );
     if (_idToken == null || _refreshToken == null || _uid == null) {
       throw StateError('استجابة Firebase Auth لا تحتوي بيانات الجلسة المطلوبة');
     }
-    await _storage.write(key: 'firebase_branch_refresh_token', value: _refreshToken);
+    await _storage.write(
+        key: 'firebase_branch_refresh_token', value: _refreshToken);
     await _storage.write(key: 'firebase_branch_uid', value: _uid);
     await _storage.write(key: 'firebase_branch_email', value: _email);
   }
@@ -91,7 +98,8 @@ class FirebaseBranchAuthService {
       _refreshToken = await _storage.read(key: 'firebase_branch_refresh_token');
     }
     if (_refreshToken == null) return _idToken;
-    if (_idToken != null && _expiresAt != null &&
+    if (_idToken != null &&
+        _expiresAt != null &&
         _expiresAt!.isAfter(DateTime.now().add(const Duration(minutes: 2)))) {
       return _idToken;
     }
@@ -110,11 +118,14 @@ class FirebaseBranchAuthService {
     _refreshToken = data['refresh_token']?.toString() ?? _refreshToken;
     _uid = data['user_id']?.toString() ?? _uid;
     _expiresAt = DateTime.now().add(
-      Duration(seconds: int.tryParse(data['expires_in']?.toString() ?? '') ?? 3600),
+      Duration(
+          seconds: int.tryParse(data['expires_in']?.toString() ?? '') ?? 3600),
     );
     if (_idToken == null) throw StateError('لم يصدر Firebase ID token');
-    await _storage.write(key: 'firebase_branch_refresh_token', value: _refreshToken);
-    if (_uid != null) await _storage.write(key: 'firebase_branch_uid', value: _uid);
+    await _storage.write(
+        key: 'firebase_branch_refresh_token', value: _refreshToken);
+    if (_uid != null)
+      await _storage.write(key: 'firebase_branch_uid', value: _uid);
     return _idToken;
   }
 
@@ -129,14 +140,17 @@ class FirebaseBranchAuthService {
     await _storage.delete(key: 'firebase_branch_email');
   }
 
-  Map<String, dynamic> _decodeResponse(http.Response response, String operation) {
-    final decoded = response.body.isEmpty ? <String, dynamic>{} :
-        jsonDecode(response.body) as Map<String, dynamic>;
+  Map<String, dynamic> _decodeResponse(
+      http.Response response, String operation) {
+    final decoded = response.body.isEmpty
+        ? <String, dynamic>{}
+        : jsonDecode(response.body) as Map<String, dynamic>;
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final message = decoded['error'] is Map
           ? (decoded['error']['message'] ?? 'unknown').toString()
           : response.body;
-      throw StateError('$operation failed (HTTP ${response.statusCode}): $message');
+      throw StateError(
+          '$operation failed (HTTP ${response.statusCode}): $message');
     }
     return decoded;
   }
