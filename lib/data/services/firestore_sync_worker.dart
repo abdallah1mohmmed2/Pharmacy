@@ -22,6 +22,35 @@ class FirestoreSyncWorker {
   final http.Client _client;
   final FirestoreInboxProcessor _inbox;
 
+  /// Reads setting 35 and executes one upload/download cycle. The caller
+  /// supplies a Firebase ID token from an authenticated Firebase user.
+  Future<FirestoreSyncResult> syncConfigured({
+    required int branchId,
+    required String idToken,
+  }) async {
+    final rows = await _helper.query('system_settings',
+        where: 'setting_no=?', whereArgs: [35], limit: 1);
+    if (rows.isEmpty) throw StateError('إعداد المزامنة رقم 35 غير موجود');
+    final config = jsonDecode(rows.first['setting_value'] as String);
+    if (config is! Map || config['enabled'] != true) {
+      throw StateError('المزامنة السحابية غير مفعّلة في الإعداد 35');
+    }
+    if ((config['provider'] ?? 'firestore') != 'firestore') {
+      throw StateError('مزود المزامنة المحدد غير مدعوم');
+    }
+    final projectId = config['project_id']?.toString().trim() ?? '';
+    if (projectId.isEmpty) {
+      throw StateError('أدخل Firebase project_id في الإعداد 35');
+    }
+    return syncOnce(
+      branchId: branchId,
+      projectId: projectId,
+      databaseId: config['database_id']?.toString() ?? '(default)',
+      batchSize: (config['batch_size'] as num?)?.toInt() ?? 100,
+      idToken: idToken,
+    );
+  }
+
   Future<FirestoreSyncResult> syncOnce({
     required int branchId,
     required String projectId,
