@@ -138,4 +138,49 @@ void main() {
       await db.close();
     }
   });
+  test('version 14 database upgrades its existing branch into the first tenant',
+      () async {
+    final db = await databaseFactoryFfi.openDatabase(
+      inMemoryDatabasePath,
+      options: OpenDatabaseOptions(
+        version: 14,
+        onConfigure: (database) async {
+          await database.execute('PRAGMA foreign_keys = ON');
+        },
+        onCreate: (database, version) async {
+          await SchemaBuilder.build(database);
+          await SeedData.run(database);
+          await SchemaIteration2.upgrade(database);
+          await SchemaIteration3.upgrade(database);
+          await SchemaIteration4.upgrade(database);
+          await SchemaIteration5.upgrade(database);
+          await SchemaIteration6.upgrade(database);
+          await SchemaIteration7.upgrade(database);
+          await SchemaIteration8.upgrade(database);
+          await SchemaIteration9.upgrade(database);
+          await SchemaIteration10.upgrade(database);
+          await SchemaIteration11.upgrade(database);
+        },
+      ),
+    );
+
+    try {
+      final before = (await db.query('branches')).single;
+      expect(before['uuid'], 'branch-main');
+      expect(before.containsKey('tenant_uuid'), isFalse);
+
+      await SchemaIteration12.upgrade(db);
+      await SchemaIteration12.upgrade(db);
+
+      final after = (await db.query('branches')).single;
+      expect(after['uuid'], before['uuid']);
+      expect(after['name_ar'], before['name_ar']);
+      expect(after['tenant_uuid'], 'tenant-main');
+      expect(await db.query('tenants'), hasLength(1));
+      expect(await db.rawQuery('PRAGMA foreign_key_check'), isEmpty);
+    } finally {
+      await db.close();
+    }
+  });
+
 }
