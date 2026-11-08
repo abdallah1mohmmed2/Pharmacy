@@ -123,6 +123,16 @@ class FirebaseBranchAuthService {
     }
   }
 
+  /// Forces a refresh-token exchange so newly issued Custom Claims become
+  /// visible immediately instead of waiting for the current ID token to expire.
+  Future<String?> forceRefreshIdToken() async {
+    final activeRefresh = _tokenRefresh;
+    if (activeRefresh != null) await activeRefresh;
+    _idToken = null;
+    _expiresAt = null;
+    return idToken();
+  }
+
   Future<String?> _loadOrRefreshIdToken() async {
     final generation = _sessionGeneration;
     if (_refreshToken == null) {
