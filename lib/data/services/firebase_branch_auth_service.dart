@@ -24,6 +24,8 @@ class FirebaseBranchAuthService {
   String? _uid;
   String? _email;
   DateTime? _expiresAt;
+  Future<String?>? _tokenRefresh;
+  int _sessionGeneration = 0;
 
   String get _authEmulatorHost =>
       const String.fromEnvironment('FIREBASE_AUTH_EMULATOR_HOST');
@@ -73,6 +75,7 @@ class FirebaseBranchAuthService {
   String? get email => _email;
 
   Future<void> signIn({required String email, required String password}) async {
+    final generation = ++_sessionGeneration;
     final key = _apiKey;
     if (key == null) throw StateError('يجب إعداد Firebase أولاً');
     final response = await _client
@@ -88,6 +91,9 @@ class FirebaseBranchAuthService {
         )
         .timeout(const Duration(seconds: 20));
     final data = _decodeResponse(response, 'Firebase Auth sign-in');
+    if (generation != _sessionGeneration) {
+      throw StateError('تم إلغاء محاولة تسجيل الدخول بسبب تغيير الجلسة');
+    }
     _idToken = data['idToken']?.toString();
     _refreshToken = data['refreshToken']?.toString();
     _uid = data['localId']?.toString();
@@ -106,9 +112,23 @@ class FirebaseBranchAuthService {
   }
 
   Future<String?> idToken() async {
+    final activeRefresh = _tokenRefresh;
+    if (activeRefresh != null) return activeRefresh;
+    final pending = _loadOrRefreshIdToken();
+    _tokenRefresh = pending;
+    try {
+      return await pending;
+    } finally {
+      if (identical(_tokenRefresh, pending)) _tokenRefresh = null;
+    }
+  }
+
+  Future<String?> _loadOrRefreshIdToken() async {
+    final generation = _sessionGeneration;
     if (_refreshToken == null) {
       _refreshToken = await _storage.read(key: 'firebase_branch_refresh_token');
     }
+    if (generation != _sessionGeneration) return null;
     if (_refreshToken == null) return _idToken;
     if (_idToken != null &&
         _expiresAt != null &&
@@ -125,12 +145,14 @@ class FirebaseBranchAuthService {
         'refresh_token': _refreshToken!,
       },
     ).timeout(const Duration(seconds: 20));
+    if (generation != _sessionGeneration) return null;
     if (response.statusCode == 400 || response.statusCode == 401) {
       // A rejected refresh token is no longer a usable session. Clear only
       // authentication material; keep the configured project identifier.
       await _clearSession();
     }
     final data = _decodeResponse(response, 'Firebase token refresh');
+    if (generation != _sessionGeneration) return null;
     _idToken = data['id_token']?.toString();
     _refreshToken = data['refresh_token']?.toString() ?? _refreshToken;
     _uid = data['user_id']?.toString() ?? _uid;
@@ -141,12 +163,14 @@ class FirebaseBranchAuthService {
     if (_idToken == null) throw StateError('لم يصدر Firebase ID token');
     await _storage.write(
         key: 'firebase_branch_refresh_token', value: _refreshToken);
-    if (_uid != null)
+    if (_uid != null) {
       await _storage.write(key: 'firebase_branch_uid', value: _uid);
+    }
     return _idToken;
   }
 
   Future<void> _clearSession({bool clearProject = false}) async {
+    _sessionGeneration++;
     _idToken = null;
     _refreshToken = null;
     _uid = null;
