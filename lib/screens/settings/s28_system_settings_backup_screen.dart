@@ -557,6 +557,21 @@ class _S28SystemSettingsBackupScreenState
   Widget _syncTab(SettingsAndSystemProvider p) =>
       ListView(padding: const EdgeInsets.all(12), children: [
         _settingTile(SettingKeys.byKey(SettingKey.cloudSync), p),
+        if (p.cloudSyncStatus != null)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Icon(p.cloudSyncRunning
+                      ? Icons.sync
+                      : Icons.cloud_sync_outlined),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(p.cloudSyncStatus!)),
+                ],
+              ),
+            ),
+          ),
         Wrap(spacing: 8, children: [
           OutlinedButton.icon(
               onPressed: () async {
@@ -568,7 +583,7 @@ class _S28SystemSettingsBackupScreenState
                           : 'تعذر الاتصال بالخادم')));
               },
               icon: const Icon(Icons.wifi),
-              label: const Text('اختبار الاتصال')),
+              label: const Text('فحص إعدادات الربط')),
           FilledButton.icon(
               onPressed: () async {
                 try {
