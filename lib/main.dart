@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'core/theme/enterprise_dark_theme.dart';
+import 'core/constants/setting_keys.dart';
+import 'data/services/firebase_branch_auth_service.dart';
 import 'data/database/database_helper.dart';
 import 'providers/session_and_erp_provider.dart';
 import 'providers/pos_and_drugs_provider.dart';
@@ -39,7 +41,18 @@ class PharmacyErpApplication extends StatelessWidget {
                   verifyOwnerPin: (pin) =>
                       context.read<SessionAndErpProvider>().verifyOwnerPin(pin),
                   activeBranchId: () =>
-                      context.read<SessionAndErpProvider>().branchId)
+                      context.read<SessionAndErpProvider>().branchId,
+                  firebaseIdTokenProvider: () async {
+                    final config = context.read<SettingsAndSystemProvider>()
+                        .settings.getJson(SettingKey.cloudSync);
+                    await FirebaseBranchAuthService.instance.configure(
+                      apiKey: config['api_key']?.toString() ?? '',
+                      appId: config['app_id']?.toString() ?? '',
+                      messagingSenderId: config['messaging_sender_id']?.toString() ?? '',
+                      projectId: config['project_id']?.toString() ?? '',
+                    );
+                    return FirebaseBranchAuthService.instance.idToken();
+                  })
                 ..initialize()),
         ],
         child: MaterialApp(
