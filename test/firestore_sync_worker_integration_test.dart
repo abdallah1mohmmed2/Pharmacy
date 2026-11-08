@@ -238,6 +238,7 @@ void main() {
         client: sourceClient,
         emulatorHost: host,
         deviceIdProvider: () async => source.deviceId,
+        allowedTablesForTesting: {'sync_items'},
       ).syncOnce(
         branchId: source.branchId,
         projectId: 'pharmacy-dafb6',
@@ -250,6 +251,7 @@ void main() {
         client: targetClient,
         emulatorHost: host,
         deviceIdProvider: () async => target.deviceId,
+        allowedTablesForTesting: {'sync_items'},
       ).syncOnce(
         branchId: target.branchId,
         projectId: 'pharmacy-dafb6',
@@ -272,6 +274,7 @@ FirestoreSyncWorker _worker(_Device device, _FakeFirestore server) =>
       client: server.client(),
       emulatorHost: 'http://127.0.0.1:8080',
       deviceIdProvider: () async => device.deviceId,
+      allowedTablesForTesting: {'sync_items'},
     );
 
 class _Device {
