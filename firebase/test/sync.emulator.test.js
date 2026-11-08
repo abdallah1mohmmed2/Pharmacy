@@ -8,18 +8,31 @@ const email = 'sync-branch@example.test';
 const password = 'EmulatorSync-Passw0rd!';
 let uid;
 let idToken;
+let firestore;
 
 before(async () => {
+  const firestoreHost = process.env.FIRESTORE_EMULATOR_HOST;
+  assert.ok(
+    firestoreHost,
+    'FIRESTORE_EMULATOR_HOST must be set; refusing to run Admin SDK checks against a live Firestore project',
+  );
+
   admin.initializeApp({ projectId });
+  firestore = admin.firestore();
+  // Bind the Admin SDK explicitly to the same local emulator used by REST.
+  // This prevents an Admin SDK read from silently targeting another endpoint.
+  firestore.settings({ host: firestoreHost, ssl: false });
+
   const user = await admin.auth().createUser({ email, password });
   uid = user.uid;
   await admin.auth().setCustomUserClaims(uid, {
     branch_id: branchId,
     branch_role: 'manager',
   });
-  const host = process.env.FIREBASE_AUTH_EMULATOR_HOST || '127.0.0.1:9099';
+  const authHost = process.env.FIREBASE_AUTH_EMULATOR_HOST;
+  assert.ok(authHost, 'FIREBASE_AUTH_EMULATOR_HOST must be set for Auth Emulator tests');
   const response = await fetch(
-    'http://' + host + '/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=emulator-api-key',
+    'http://' + authHost + '/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=emulator-api-key',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -38,11 +51,11 @@ before(async () => {
 
 after(async () => {
   if (uid) await admin.auth().deleteUser(uid);
-  await admin.app().delete();
+  if (admin.apps.length) await admin.app().delete();
 });
 
 test('authenticated branch sync commits and reads its Firestore batch; cross-branch write is denied', async () => {
-  const host = process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080';
+  const host = process.env.FIRESTORE_EMULATOR_HOST;
   const base = 'http://' + host + '/v1/projects/' + projectId +
     '/databases/(default)/documents';
   const batchId = 'batch-emulator-001';
@@ -69,15 +82,25 @@ test('authenticated branch sync commits and reads its Firestore batch; cross-bra
   });
   const commitBody = await commit.text();
   assert.equal(commit.status, 200, commitBody);
+  const commitResult = JSON.parse(commitBody);
+  assert.equal(
+    commitResult.writeResults?.length,
+    1,
+    'Firestore commit must acknowledge exactly one write: ' + commitBody,
+  );
 
-  // Verify the commit reached the emulator database independently of the
-  // authenticated REST read. This distinguishes a missing document from a
-  // Security Rules/custom-claims rejection.
-  const adminSnapshot = await admin.firestore()
+  // Verify the commit reached the exact same emulator endpoint used by REST.
+  // The Admin SDK bypasses Security Rules, so this isolates persistence/path
+  // problems from authenticated client authorization problems.
+  const adminSnapshot = await firestore
     .doc('pharmacy_sync_batches/' + branchId + '/batches/' + batchId)
     .get();
-  assert.equal(adminSnapshot.exists, true,
-    'Firestore commit returned 200 but the batch document is missing');
+  assert.equal(
+    adminSnapshot.exists,
+    true,
+    'Firestore commit acknowledged one write but Admin SDK found no document at ' +
+      documentName + ' (emulator=' + host + ', project=' + projectId + ')',
+  );
   assert.equal(adminSnapshot.get('branch_id'), branchId);
 
   const read = await fetch(base + '/pharmacy_sync_batches/' + branchId +
