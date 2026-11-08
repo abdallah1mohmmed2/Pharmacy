@@ -282,6 +282,7 @@ class FirestoreInboxProcessor {
         final parentTable = fk['table']?.toString();
         if (localColumn == null ||
             parentTable == null ||
+            localColumn == 'branch_id' ||
             !columnNames.contains(localColumn)) continue;
         final relation = relationMap[localColumn];
         if (relation == null) {
