@@ -115,7 +115,7 @@ class BranchIdentityProvisioningService {
   /// Installs a previously verified identity in one SQLite transaction.
   /// The database-level triggers installed here make the identity immutable.
   Future<void> installManifest({
-    required DatabaseExecutor database,
+    required Database database,
     required Uint8List manifestBytes,
   }) async {
     final identity = await verifyManifestBytes(manifestBytes);
