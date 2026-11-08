@@ -98,7 +98,9 @@ class ClinicalAndRxProvider extends ChangeNotifier {
 
   Future<void> updatePatient(PatientClinicalModel patient) async {
     if (patient.id == null) throw ArgumentError('معرف المريض مطلوب');
-    await _helper.update(
+    final db = await _helper.database;
+    await db.transaction((txn) async {
+      await txn.update(
         'patients',
         {
           'party_id': patient.partyId,
@@ -122,6 +124,15 @@ class ClinicalAndRxProvider extends ChangeNotifier {
         },
         where: 'id=?',
         whereArgs: [patient.id]);
+      if (patient.partyId != null) {
+        await txn.update(
+          'parties',
+          {'name_ar': patient.fullName.trim(), 'updated_at': DateTime.now().toIso8601String()},
+          where: 'id=? AND branch_id=? AND is_deleted=0',
+          whereArgs: [patient.partyId, branchId],
+        );
+      }
+    });
     await loadAll();
     currentPatient = patients.firstWhere((p) => p.id == patient.id);
     notifyListeners();
