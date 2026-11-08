@@ -189,6 +189,17 @@ abstract final class SyncPayloadPolicy {
     },
   };
 
+  /// Incoming events must already match the outbound projection. Reject an
+  /// entire event rather than silently applying a partially untrusted record.
+  static Map<String, Object?> validateIncoming(String table, Map source,
+      {Set<String>? fieldsForTesting}) {
+    final projected = project(table, source, fieldsForTesting: fieldsForTesting);
+    if (source.keys.any((key) => key is! String || !projected.containsKey(key))) {
+      throw const FormatException('SYNC_PAYLOAD_POLICY_REJECTED');
+    }
+    return projected;
+  }
+
   static Map<String, Object?> project(String table, Object? source,
       {Set<String>? fieldsForTesting}) {
     final fields = fieldsForTesting ?? fieldsByTable[table];

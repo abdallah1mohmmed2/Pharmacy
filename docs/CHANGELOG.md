@@ -628,3 +628,8 @@
 - Keep unapproved clinical/personal/free-text fields local; quarantine malformed approved values without logging their contents.
 - Filter generated relation metadata to approved columns and add projection/worker regression tests.
 - Validated by GitHub Actions 42526486517 on functional commit 9005a9b3952817b2b86dbaedbb82d7bf87188441 (CI formatting commit e659406fb4e27aa2f889b005f05f6d2ee64d6a98): Analyze, 105 Flutter tests (1 intentionally skipped), 9 emulator integration tests, Android/Windows release builds and both artifacts passed. P0-02 closed; P0-03 remains next.
+
+## P0-03 — shared inbound/outbound contracts — 2026-11-09
+- Apply shared table and scalar-field contracts before retaining/applying incoming events; reject unknown fields and tables rather than partially applying them.
+- Validate FK metadata, embedded/envelope agreement and payload identity; revalidate deferred events while preserving accepted replay hashes.
+- Add production-policy round-trip and adversarial inbound regression coverage; CI validation pending.

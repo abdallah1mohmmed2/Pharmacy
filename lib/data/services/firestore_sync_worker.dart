@@ -29,7 +29,11 @@ class FirestoreSyncWorker {
             const String.fromEnvironment('FIRESTORE_EMULATOR_HOST'),
         _helper = helper ?? DatabaseHelper.instance,
         _client = client ?? http.Client(),
-        _inbox = inbox ?? FirestoreInboxProcessor(helper: helper),
+        _inbox = inbox ?? FirestoreInboxProcessor(
+          helper: helper,
+          allowedTablesForTesting: allowedTablesForTesting,
+          payloadFieldsForTesting: payloadFieldsForTesting,
+        ),
         _allowedTables =
             allowedTablesForTesting ?? SyncTablePolicy.outboundTables;
 
@@ -466,10 +470,14 @@ class FirestoreSyncWorker {
           value == null ||
           column == 'branch_id' ||
           !allowedColumns.contains(column)) continue;
-      if (!_safeIdentifier.hasMatch(parentTable)) continue;
+      if (!_safeIdentifier.hasMatch(parentTable) ||
+          !_allowedTables.contains(parentTable)) {
+        throw const FormatException('SYNC_PAYLOAD_POLICY_REJECTED');
+      }
       final parent = await db.query(parentTable,
           where: 'id=?', whereArgs: [value], limit: 1);
-      if (parent.isEmpty || parent.first['uuid'] == null) {
+      if (parent.isEmpty || parent.first['uuid'] is! String ||
+          (parent.first['uuid'] as String).isEmpty) {
         throw StateError('تعذر تحويل العلاقة $table.$column إلى UUID');
       }
       result[column] = {'table': parentTable, 'uuid': parent.first['uuid']};

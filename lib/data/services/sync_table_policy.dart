@@ -1,4 +1,4 @@
-/// Explicit outbound synchronization allowlist.
+/// Shared inbound/outbound synchronization allowlist.
 ///
 /// Financial documents, personal/clinical data, identity, security, audit and
 /// device-local state remain disabled until their dedicated contracts are
@@ -25,6 +25,11 @@ abstract final class SyncTablePolicy {
     'stock_transfer_items',
     'price_history',
   };
+
+  static const inboundTables = outboundTables;
+
+  static bool allowsInbound(String tableName) =>
+      inboundTables.contains(tableName);
 
   static bool allowsOutbound(String tableName) =>
       outboundTables.contains(tableName);

@@ -2,55 +2,26 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:sqflite/sqflite.dart';
 import '../database/database_helper.dart';
+import 'sync_table_policy.dart';
+import 'sync_payload_policy.dart';
 
 /// Applies remote deltas once, inside the same SQLite transaction that records
 /// their idempotency keys. Unknown or unsafe tables are never written.
 class FirestoreInboxProcessor {
-  FirestoreInboxProcessor({DatabaseHelper? helper, Database? database})
-      : _helper = helper ?? DatabaseHelper.instance,
-        _database = database;
+  FirestoreInboxProcessor({
+    DatabaseHelper? helper,
+    Database? database,
+    Set<String>? allowedTablesForTesting,
+    Map<String, Set<String>>? payloadFieldsForTesting,
+  }) : _helper = helper ?? DatabaseHelper.instance,
+       _database = database,
+       _allowedTables = allowedTablesForTesting ?? SyncTablePolicy.inboundTables,
+       _payloadFieldsForTesting = payloadFieldsForTesting;
 
   final DatabaseHelper _helper;
   final Database? _database;
-
-  static const _excludedTables = <String>{
-    'branches',
-    'users',
-    'parties',
-    'patients',
-    'clinical_alert_logs',
-    'controlled_drug_log',
-    'prescriptions',
-    'prescription_items',
-    'insurance_policies',
-    'insurance_companies',
-    'employees',
-    'employee_attendance',
-    'payroll_runs',
-    'system_settings',
-    'audit_logs',
-    'backup_log',
-    'sync_queue',
-    'sync_inbox',
-    'sync_inbox_batches',
-    'sync_inbox_cursors',
-    'catalog_cache',
-    'catalog_sync_state',
-    'import_jobs',
-    'roles',
-    'role_permissions',
-    'user_permissions',
-    'app_settings',
-  };
-
-  static const _sensitiveColumns = <String>{
-    'password_hash',
-    'manager_pin_hash',
-    'api_key',
-    'secret',
-    'access_token',
-    'refresh_token',
-  };
+  final Set<String> _allowedTables;
+  final Map<String, Set<String>>? _payloadFieldsForTesting;
 
   Future<InboxBatchResult> processBatch({
     required int branchId,
@@ -183,7 +154,8 @@ class FirestoreInboxProcessor {
     final table = event['table']?.toString() ?? '';
     final uuid = event['uuid']?.toString() ?? '';
     final operation = event['operation']?.toString() ?? '';
-    final version = (event['version'] as num?)?.toInt() ?? 0;
+    final rawVersion = event['version'];
+    final version = rawVersion is int ? rawVersion : 0;
     final eventUuid = event['event_uuid']?.toString() ?? '';
     final payload = event['payload'];
     final relations = event['relations'];
@@ -197,10 +169,52 @@ class FirestoreInboxProcessor {
       return 'REJECTED';
     }
 
-    final payloadMap = Map<String, Object?>.from(payload);
-    final relationMap = Map<String, Object?>.from(relations);
+    // Validate before retaining untrusted payloads in Inbox or resolving FKs.
+    late final Map<String, Object?> payloadMap;
+    late final Map<String, Object?> relationMap;
+    try {
+      if (!_allowedTables.contains(table) ||
+          payload.keys.any((key) => key is! String) ||
+          relations.keys.any((key) => key is! String)) {
+        throw const FormatException('SYNC_PAYLOAD_POLICY_REJECTED');
+      }
+      final scalarPayload = Map<String, Object?>.from(payload);
+      final embeddedRelations = scalarPayload.remove('__relations');
+      if (payload.containsKey('__relations') &&
+          (embeddedRelations is! Map ||
+           _canonicalJson(embeddedRelations) != _canonicalJson(relations))) {
+        throw const FormatException('SYNC_PAYLOAD_POLICY_REJECTED');
+      }
+      payloadMap = SyncPayloadPolicy.validateIncoming(table, scalarPayload,
+          fieldsForTesting: _payloadFieldsForTesting?[table]);
+      if ((payloadMap.containsKey('uuid') && payloadMap['uuid'] != uuid) ||
+          (payloadMap.containsKey('sync_version') && payloadMap['sync_version'] != version)) {
+        throw const FormatException('SYNC_PAYLOAD_POLICY_REJECTED');
+      }
+      relationMap = Map<String, Object?>.from(relations);
+      final foreignKeys = await txn.rawQuery('PRAGMA foreign_key_list($table)');
+      final fields = _payloadFieldsForTesting?[table] ??
+          SyncPayloadPolicy.fieldsByTable[table] ?? const <String>{};
+      for (final entry in relationMap.entries) {
+        final matching = foreignKeys.where((fk) => fk['from'] == entry.key);
+        final relation = entry.value;
+        if (!fields.contains(entry.key) || matching.length != 1 ||
+            relation is! Map || relation.length != 2 ||
+            !relation.containsKey('table') || !relation.containsKey('uuid') ||
+            relation['table'] != matching.single['table'] ||
+            !_allowedTables.contains(relation['table']) ||
+            relation['uuid'] is! String || (relation['uuid'] as String).isEmpty) {
+          throw const FormatException('SYNC_PAYLOAD_POLICY_REJECTED');
+        }
+      }
+    } on FormatException {
+      // Also quarantine previously deferred events after a policy change.
+      await _setInboxStatus(txn, branchId, eventUuid, 'FAILED',
+          'SYNC_PAYLOAD_POLICY_REJECTED');
+      return 'REJECTED';
+    }
     final payloadHash = _hash(_canonicalJson({
-      'payload': payloadMap,
+      'payload': payload,
       'relations': relationMap,
       'operation': operation,
       'version': version,
@@ -226,7 +240,7 @@ class FirestoreInboxProcessor {
         'row_uuid': uuid,
         'operation': operation,
         'remote_version': version,
-        'payload_json': jsonEncode(payloadMap),
+        'payload_json': jsonEncode(payload),
         'relations_json': jsonEncode(relationMap),
         'payload_hash': payloadHash,
         'status': 'RECEIVED',
@@ -244,11 +258,6 @@ class FirestoreInboxProcessor {
           'FAILED',
           'هوية الفرع داخل الحدث لا تطابق فرع جلسة Firestore',
         );
-        return 'REJECTED';
-      }
-      if (_excludedTables.contains(table)) {
-        await _setInboxStatus(
-            txn, branchId, eventUuid, 'FAILED', 'الجدول محظور من المزامنة');
         return 'REJECTED';
       }
       final tableRows = await txn.rawQuery(
@@ -292,7 +301,6 @@ class FirestoreInboxProcessor {
         if (key == 'id' ||
             key == 'branch_id' ||
             key == '__relations' ||
-            _sensitiveColumns.contains(key) ||
             !columnNames.contains(key)) {
           continue;
         }
