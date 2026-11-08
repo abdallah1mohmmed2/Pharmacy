@@ -184,7 +184,7 @@ class FirestoreSyncWorker {
       if (lastCreatedAt.isNotEmpty && lastDocumentName.isNotEmpty) {
         structuredQuery['startAt'] = {
           'values': [
-            {'stringValue': lastCreatedAt},
+            {'timestampValue': lastCreatedAt},
             {'referenceValue': lastDocumentName},
           ],
           'before': false,
@@ -374,33 +374,50 @@ class FirestoreSyncWorker {
     required String idToken,
     required _FirestoreBatch batch,
   }) async {
+    final documentName =
+        'projects/$projectId/databases/$databaseId/documents/pharmacy_sync_batches/$branchUuid/batches/${batch.batchUuid}';
     final uri = Uri.https(
       'firestore.googleapis.com',
-      '/v1/projects/$projectId/databases/$databaseId/documents/pharmacy_sync_batches/$branchUuid/batches/${batch.batchUuid}',
-      {'currentDocument.exists': 'false'},
+      '/v1/projects/$projectId/databases/$databaseId/documents:commit',
     );
     final fields = <String, Object?>{
       'branch_id': branchUuid,
       'batch_uuid': batch.batchUuid,
       'payload_hash': batch.payloadHash,
       'schema_version': 1,
-      'created_at': DateTime.now().toUtc().toIso8601String(),
       'events': batch.items.map((e) => e.toMap()).toList(),
     };
-    final body = jsonEncode({'fields': _encodeFields(fields)});
+    final body = jsonEncode({
+      'writes': [
+        {
+          'update': {
+            'name': documentName,
+            'fields': _encodeFields(fields),
+          },
+          'updateTransforms': [
+            {
+              'fieldPath': 'created_at',
+              'setToServerValue': 'REQUEST_TIME',
+            }
+          ],
+          'currentDocument': {'exists': false},
+        }
+      ]
+    });
     if (utf8.encode(body).length > 850000) {
       throw StateError('حجم دفعة Firestore تجاوز الحد الآمن؛ قلل batch_size');
     }
     final response = await _client
-        .patch(uri, headers: _headers(idToken), body: body)
+        .post(uri, headers: _headers(idToken), body: body)
         .timeout(const Duration(seconds: 30));
     if (response.statusCode >= 200 && response.statusCode < 300) return;
     if (response.statusCode == 409 || response.statusCode == 400) {
+      final documentUri = Uri.https(
+        'firestore.googleapis.com',
+        '/v1/$documentName',
+      );
       final verify = await _client
-          .get(
-            uri.replace(queryParameters: const {}),
-            headers: _headers(idToken),
-          )
+          .get(documentUri, headers: _headers(idToken))
           .timeout(const Duration(seconds: 20));
       if (verify.statusCode >= 200 && verify.statusCode < 300) {
         final remote = jsonDecode(verify.body) as Map<String, dynamic>;
@@ -448,6 +465,7 @@ class FirestoreSyncWorker {
 
   Object? _decodeValue(Map value) {
     if (value.containsKey('stringValue')) return value['stringValue'];
+    if (value.containsKey('timestampValue')) return value['timestampValue'];
     if (value.containsKey('integerValue'))
       return int.tryParse(value['integerValue'].toString()) ?? 0;
     if (value.containsKey('doubleValue'))
