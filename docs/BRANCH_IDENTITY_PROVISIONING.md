@@ -70,8 +70,13 @@ node tools/provisioning/issuer.js verify \
 بعد إنشاء المفتاح خارج المستودع، مرر محتوى `provisioning-ed25519-public.pem` إلى Flutter وقت البناء، مثلاً في بيئة Bash:
 
 ```sh
-flutter build apk --release \\
-  --dart-define="PROVISIONING_ED25519_PUBLIC_KEY_PEM=$(cat /secure/offline/pharmacy-issuer/provisioning-ed25519-public.pem)"
+احسب قيمة المتغير العام في GitHub باسم PROVISIONING_ED25519_PUBLIC_KEY_PEM_BASE64 باستخدام الأمر التالي، ثم مررها في إعدادات Actions Variables:
+
+```sh
+base64 -w0 /secure/offline/pharmacy-issuer/provisioning-ed25519-public.pem
+```
+
+يقرأ Workflow هذه القيمة ويضمّنها في Android وWindows Release. المفتاح عام ويمكن وضعه في Repository Variable؛ المفتاح الخاص لا يُرفع إلى GitHub مطلقاً.
 ```
 
 المفتاح العام ليس سراً، لكن يجب تثبيت المفتاح الصحيح في إصدار التطبيق من قناة بناء موثوقة. لا تستخدم المفتاح الخاص في Flutter أو GitHub أو أجهزة الفروع. بناء CI العام لا يتضمن المفتاح ولذلك تبقى واجهة الاستيراد معطلة فيه إلى أن يمرر المفتاح العام المعتمد.
