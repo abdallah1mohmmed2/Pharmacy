@@ -53,6 +53,9 @@ class FirestoreInboxProcessor {
     if (events.isEmpty || events.length > 100) {
       throw RangeError('دفعة Inbox يجب أن تحتوي من 1 إلى 100 حدث');
     }
+    if (_hash(_canonicalJson(events)) != payloadHash) {
+      throw StateError('بصمة دفعة Inbox لا تطابق محتوى الأحداث');
+    }
     final db = _database ?? await _helper.database;
     var applied = 0;
     var duplicates = 0;
@@ -139,13 +142,15 @@ class FirestoreInboxProcessor {
         'payload': jsonDecode(row['payload_json'] as String),
         'relations': jsonDecode(row['relations_json'] as String),
       };
-      final result = await processBatch(
-        branchId: branchId,
-        batchUuid: row['batch_uuid'] as String,
-        payloadHash: batches.first['payload_hash'] as String,
-        events: [event],
-      );
-      applied += result.applied;
+      await db.transaction((txn) async {
+        final outcome = await _processEvent(
+          txn,
+          branchId,
+          row['batch_uuid'] as String,
+          event,
+        );
+        if (outcome == 'APPLIED') applied++;
+      });
     }
     return applied;
   }
