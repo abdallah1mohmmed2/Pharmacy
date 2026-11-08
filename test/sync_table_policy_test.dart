@@ -49,7 +49,8 @@ void main() {
       }
     });
 
-    test('keeps financial records disabled pending the atomic finance contract', () {
+    test('keeps financial records disabled pending the atomic finance contract',
+        () {
       for (final table in [
         'journal_entries',
         'journal_lines',

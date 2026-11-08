@@ -27,7 +27,8 @@ class FirestoreSyncWorker {
         _helper = helper ?? DatabaseHelper.instance,
         _client = client ?? http.Client(),
         _inbox = inbox ?? FirestoreInboxProcessor(helper: helper),
-        _allowedTables = allowedTablesForTesting ?? SyncTablePolicy.outboundTables;
+        _allowedTables =
+            allowedTablesForTesting ?? SyncTablePolicy.outboundTables;
 
   final Future<String> Function() _deviceIdProvider;
   final String _emulatorHost;
@@ -374,8 +375,7 @@ class FirestoreSyncWorker {
           'sync_queue',
           {
             'status': 'CONFLICT',
-            'last_error':
-                'الجدول غير موجود في قائمة السماح للمزامنة الصادرة',
+            'last_error': 'الجدول غير موجود في قائمة السماح للمزامنة الصادرة',
           },
           where: 'id=?',
           whereArgs: [queueRow['id']],
