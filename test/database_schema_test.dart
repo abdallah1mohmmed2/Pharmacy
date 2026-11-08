@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_builder.dart';
+import 'package:global_enterprise_pharmacy_erp/data/database/global_uuid.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/seed_data.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration2.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration3.dart';
@@ -102,6 +103,10 @@ void main() {
 
       expect(await db.rawQuery('SELECT id FROM warehouses'), hasLength(6));
       expect(await db.rawQuery('SELECT id FROM shelf_locations'), hasLength(6));
+      final branchRows = await db.query('branches', columns: ['uuid']);
+      expect(branchRows, hasLength(1));
+      expect(GlobalUuid.isValid(branchRows.single['uuid'].toString()), isTrue);
+
       expect(await db.rawQuery('SELECT id FROM users'), hasLength(1));
       expect(await db.rawQuery('SELECT id FROM chart_of_accounts'),
           hasLength(greaterThanOrEqualTo(30)));
