@@ -232,7 +232,7 @@ flowchart TB
 ### متطلبات قبل تفعيل المزامنة الحية
 
 1. إعداد Firebase Authentication وإصدار custom claim موثوق `branch_id` بعد التحقق من اشتراك وهوية الفرع.
-2. عامل Firestore REST موجود في `lib/data/services/firestore_sync_worker.dart`: يرفع queue كوثيقة append-only بحد 100 حدث وبصمة ثابتة، ثم يسحب وثائق الفرع للـInbox. يتطلب ID token وcustom claim موثوقاً؛ لم يربط بعد بمزود Firebase Authentication أو جدولة التشغيل.
+2. عامل Firestore REST موجود في `lib/data/services/firestore_sync_worker.dart`: يرفع queue كوثيقة append-only بحد 100 حدث وبصمة ثابتة، ثم يسحب وثائق الفرع للـInbox باستعلام incremental ذي cursor زمني محفوظ محلياً، ويعيد محاولة الأحداث المؤجلة التي تنتظر التبعيات. يتطلب ID token وcustom claim موثوقاً؛ لم يربط بعد بمزود Firebase Authentication أو جدولة التشغيل.
 3. لا تُعلّم صفوف SQLite كـSYNCED ولا عناصر queue كـDONE إلا بعد تأكيد كتابة Firestore؛ إعادة المحاولة تستخدم batch UUID ثابتاً وتتحقق من البصمة.
 4. أضيف `sync_inbox` و`sync_inbox_batches` في schema v14، ومعالج `FirestoreInboxProcessor` يسجل event UUID وبصمة المحتوى ويطبق التغيير ضمن معاملة واحدة، ويربط FK عبر UUID الأب ويؤجل السجلات التي لم تصل تبعياتها. اختبارات idempotency وFK والتعارض المحلي مضافة؛ ما زال Emulator واختبار انقطاع الشبكة end-to-end مطلوبين.
 5. تحديد سياسة ping، الاحتفاظ بالدفعات، حذف/أرشفة البيانات، التشفير والنسخ الاحتياطي ومراقبة ميزانية Spark قبل الإنتاج.
