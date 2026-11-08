@@ -300,7 +300,8 @@ class FirestoreSyncWorker {
           'sync_queue',
           {
             'status': 'CONFLICT',
-            'last_error': 'يحتاج هذا المجال إلى تشفير وحوكمة بيانات قبل المزامنة',
+            'last_error':
+                'يحتاج هذا المجال إلى تشفير وحوكمة بيانات قبل المزامنة',
           },
           where: 'id=?',
           whereArgs: [queueRow['id']],
