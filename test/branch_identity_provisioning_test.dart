@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
@@ -67,7 +68,13 @@ void main() {
   });
 
   Future<Database> createLegacyDatabase() async {
-    final db = await databaseFactoryFfi.openDatabase(inMemoryDatabasePath);
+    // Each simulated device must own a physically separate SQLite database.
+    // Reusing the literal ':memory:' path can make independent opens collide.
+    final directory =
+        await Directory.systemTemp.createTemp('pharmacy-branch-identity-');
+    final db = await databaseFactoryFfi.openDatabase(
+      '${directory.path}/identity.db',
+    );
     await db.execute('PRAGMA foreign_keys = ON');
     await db.execute('''
       CREATE TABLE tenants (
@@ -111,6 +118,12 @@ void main() {
     return db;
   }
 
+  Future<void> disposeDatabase(Database db) async {
+    final path = db.path;
+    await db.close();
+    await File(path).parent.delete(recursive: true);
+  }
+
   test('same signed manifest installs identical IDs on two independent devices',
       () async {
     final service = BranchIdentityProvisioningService(
@@ -132,8 +145,8 @@ void main() {
         expect(await db.rawQuery('PRAGMA foreign_key_check'), isEmpty);
       }
     } finally {
-      await first.close();
-      await second.close();
+      await disposeDatabase(first);
+      await disposeDatabase(second);
     }
   });
 
@@ -210,9 +223,10 @@ void main() {
       await expectLater(db.delete('tenants'), throwsA(anything));
       await expectLater(db.delete('branches'), throwsA(anything));
     } finally {
-      await db.close();
+      await disposeDatabase(db);
     }
   });
+
   test('rejects a multi-branch database without partial changes', () async {
     final service = BranchIdentityProvisioningService(
       trustedPublicKeyPem: publicPem,
@@ -241,7 +255,7 @@ void main() {
       );
       expect(await db.rawQuery('PRAGMA foreign_key_check'), isEmpty);
     } finally {
-      await db.close();
+      await disposeDatabase(db);
     }
   });
 }
