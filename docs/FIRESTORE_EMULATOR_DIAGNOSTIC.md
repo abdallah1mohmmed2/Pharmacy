@@ -105,3 +105,19 @@
 ### استقرار تنزيل الأصول عبر GitHub API
 
 أظهر التشغيل `42469642051` أن تنزيل PDFium عبر GitHub API غير الموثق تجاوز حد الطلبات العام المشترك (HTTP 403 rate limit). تم ربط تنزيل PDFium وGradle برمز `GITHUB_TOKEN` المؤقت الذي ينشئه GitHub Actions تلقائياً، مع عدم طباعة الرمز أو حفظه، وإضافة إعادة محاولة لتنزيل PDFium. لا يتطلب ذلك إضافة سر يدوي ولا يمنح الرمز صلاحيات خارج صلاحيات workflow المحددة.
+
+
+## نتيجة التحقق النهائي — نجاح CI (2026-11-08)
+
+اكتمل التشغيل `42469850687` على commit `72d309be3b6d07d7f4918ad59d3c04a983699ad8` بحالة **success**.
+
+- Firebase Emulator security tests: نجاح.
+- اختبار تأسيس الهوية الموقعة: نجاح.
+- Flutter Analyze: نجاح.
+- Flutter Test: **78 اختباراً ناجحاً**.
+- Android Release APK: نجاح.
+- حزمة Android ZIP: رُفعت بنجاح باسم `pharmacy-android`.
+- Windows Release: نجاح.
+- حزمة Windows ZIP: رُفعت بنجاح باسم `pharmacy-windows`.
+
+لم يتم تعديل `main`، ولم يحدث نشر إلى Firebase أو إصدار Custom Claims حية. ملفات البناء محفوظة كـ GitHub Actions artifacts في التشغيل أعلاه.
