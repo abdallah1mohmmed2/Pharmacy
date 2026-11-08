@@ -125,6 +125,11 @@ class FirebaseBranchAuthService {
         'refresh_token': _refreshToken!,
       },
     ).timeout(const Duration(seconds: 20));
+    if (response.statusCode == 400 || response.statusCode == 401) {
+      // A rejected refresh token is no longer a usable session. Clear only
+      // authentication material; keep the configured project identifier.
+      await _clearSession();
+    }
     final data = _decodeResponse(response, 'Firebase token refresh');
     _idToken = data['id_token']?.toString();
     _refreshToken = data['refresh_token']?.toString() ?? _refreshToken;
@@ -141,7 +146,7 @@ class FirebaseBranchAuthService {
     return _idToken;
   }
 
-  Future<void> signOut() async {
+  Future<void> _clearSession({bool clearProject = false}) async {
     _idToken = null;
     _refreshToken = null;
     _uid = null;
@@ -150,8 +155,12 @@ class FirebaseBranchAuthService {
     await _storage.delete(key: 'firebase_branch_refresh_token');
     await _storage.delete(key: 'firebase_branch_uid');
     await _storage.delete(key: 'firebase_branch_email');
-    await _storage.delete(key: 'firebase_branch_project_id');
+    if (clearProject) {
+      await _storage.delete(key: 'firebase_branch_project_id');
+    }
   }
+
+  Future<void> signOut() => _clearSession(clearProject: true);
 
   Map<String, dynamic> _decodeResponse(
       http.Response response, String operation) {
