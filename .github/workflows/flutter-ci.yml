@@ -208,7 +208,21 @@ jobs:
           Select-String -Path $path -Pattern 'PDFIUM_VERSION|PDFIUM_ARCH'
       - run: flutter pub get
       - run: flutter analyze --no-fatal-infos
-      - run: flutter build windows --release -v
+      - name: Build Windows release with retry for transient PDFium download failures
+        shell: pwsh
+        run: |
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            Write-Host "Windows release build attempt $attempt/3"
+            flutter build windows --release -v
+            if ($LASTEXITCODE -eq 0) {
+              exit 0
+            }
+            if ($attempt -lt 3) {
+              Write-Warning "Build failed; waiting 20 seconds before retrying dependency downloads."
+              Start-Sleep -Seconds 20
+            }
+          }
+          throw "Windows release build failed after three attempts."
       - name: Package Windows release into one ZIP
         shell: pwsh
         run: Compress-Archive -Path "build/windows/x64/runner/Release/*" -DestinationPath "pharmacy-windows.zip" -Force
