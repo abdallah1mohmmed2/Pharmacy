@@ -1,5 +1,6 @@
 // lib/providers/settings_and_system_provider.dart
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../core/constants/setting_keys.dart';
 import '../data/database/database_helper.dart';
@@ -7,13 +8,16 @@ import '../data/models/settings_audit_sync_models.dart';
 import '../data/services/settings_and_audit_service.dart';
 import '../data/services/drug_import_export_service.dart';
 import '../data/services/backup_and_sync_service.dart';
+import '../data/services/firestore_sync_worker.dart';
 import '../data/services/security_hash_service.dart';
 
 class SettingsAndSystemProvider extends ChangeNotifier {
   SettingsAndSystemProvider(
       {required Future<bool> Function(String) verifyManagerPin,
       required Future<bool> Function(String) verifyOwnerPin,
-      DatabaseHelper? helper})
+      DatabaseHelper? helper,
+      Future<String?> Function()? firebaseIdTokenProvider,
+      int Function()? activeBranchId})
       : _helper = helper ?? DatabaseHelper.instance,
         settings = SettingsService(
             helper: helper,
@@ -21,12 +25,18 @@ class SettingsAndSystemProvider extends ChangeNotifier {
             verifyOwnerPin: verifyOwnerPin),
         importer = DrugImportExportService(helper: helper),
         backup = BackupAndSyncService(helper: helper),
+        firestoreSync = FirestoreSyncWorker(helper: helper),
+        _firebaseIdTokenProvider = firebaseIdTokenProvider,
+        _activeBranchId = activeBranchId ?? (() => 1),
         audit = AuditService(helper: helper),
         periods = PeriodGuard(helper: helper);
   final DatabaseHelper _helper;
   final SettingsService settings;
   final DrugImportExportService importer;
   final BackupAndSyncService backup;
+  final FirestoreSyncWorker firestoreSync;
+  final Future<String?> Function()? _firebaseIdTokenProvider;
+  final int Function() _activeBranchId;
   final AuditService audit;
   final PeriodGuard periods;
   bool loading = false, busy = false;
@@ -42,6 +52,9 @@ class SettingsAndSystemProvider extends ChangeNotifier {
   ImportDryRunResult? dryRunResult;
   ImportExecutionResult? importResult;
   int importProgress = 0, importTotal = 0;
+  Timer? _cloudSyncTimer;
+  bool cloudSyncRunning = false;
+  String? cloudSyncStatus;
 
   Future<void> initialize() async {
     loading = true;
@@ -50,6 +63,7 @@ class SettingsAndSystemProvider extends ChangeNotifier {
     try {
       await settings.load();
       await refreshSystemData();
+      _configureCloudSyncTimer();
     } catch (e) {
       error = e.toString();
     }
@@ -85,6 +99,7 @@ class SettingsAndSystemProvider extends ChangeNotifier {
         userId: userId,
         branchId: branchId,
         reason: reason);
+    if (key == SettingKey.cloudSync) _configureCloudSyncTimer();
     notifyListeners();
   }
 
@@ -154,22 +169,91 @@ class SettingsAndSystemProvider extends ChangeNotifier {
     await initialize();
   }
 
+  void _configureCloudSyncTimer() {
+    _cloudSyncTimer?.cancel();
+    _cloudSyncTimer = null;
+    if (settings.getJson(SettingKey.cloudSync)['enabled'] != true) {
+      cloudSyncStatus = 'المزامنة متوقفة';
+      return;
+    }
+    if (_firebaseIdTokenProvider == null) {
+      cloudSyncStatus = 'بانتظار ربط حساب Firebase';
+      return;
+    }
+    _cloudSyncTimer = Timer.periodic(const Duration(minutes: 2), (_) async {
+      if (cloudSyncRunning) return;
+      try {
+        await syncNow();
+      } catch (error) {
+        cloudSyncStatus = error.toString();
+        notifyListeners();
+      }
+    });
+    cloudSyncStatus = 'المزامنة التلقائية مفعّلة';
+  }
+
   Future<bool> testCloudConnection() async {
     final cfg = settings.getJson(SettingKey.cloudSync);
-    return backup.ping((cfg['base_url'] ?? '').toString(),
-        apiKey: cfg['api_key']?.toString());
+    if ((cfg['project_id']?.toString().trim() ?? '').isEmpty) {
+      cloudSyncStatus = 'أدخل Firebase project_id أولاً';
+      notifyListeners();
+      return false;
+    }
+    final tokenProvider = _firebaseIdTokenProvider;
+    if (tokenProvider == null) {
+      cloudSyncStatus = 'لم يتم ربط Firebase Authentication بعد';
+      notifyListeners();
+      return false;
+    }
+    final token = await tokenProvider();
+    if (token == null || token.isEmpty) {
+      cloudSyncStatus = 'لا يوجد Firebase ID token لحساب الفرع';
+      notifyListeners();
+      return false;
+    }
+    return true;
   }
 
   Future<int> syncNow() async {
+    if (cloudSyncRunning) return 0;
     final cfg = settings.getJson(SettingKey.cloudSync);
-    if (cfg['enabled'] != true)
-      throw StateError('فعّل المزامنة السحابية من إعدادات النظام أولاً');
-    final count = await backup.syncNow(
-        baseUrl: (cfg['base_url'] ?? '').toString(),
-        apiKey: cfg['api_key']?.toString(),
-        batchSize: (cfg['batch_size'] as num?)?.toInt() ?? 100);
-    await refreshSystemData();
-    return count;
+    if (cfg['enabled'] != true) {
+      throw StateError('فعّل المزامنة السحابية من الإعداد رقم 35 أولاً');
+    }
+    final tokenProvider = _firebaseIdTokenProvider;
+    if (tokenProvider == null) {
+      throw StateError(
+          'الإعداد 35 محفوظ، لكن Firebase Authentication غير مربوط بالتطبيق. لا يمكن استخدام تسجيل الدخول المحلي كبديل عن Firebase.');
+    }
+    final idToken = await tokenProvider();
+    if (idToken == null || idToken.isEmpty) {
+      throw StateError('سجّل الدخول إلى حساب Firebase الخاص بهذا الفرع أولاً');
+    }
+    cloudSyncRunning = true;
+    cloudSyncStatus = 'جارٍ رفع واستقبال التغييرات...';
+    notifyListeners();
+    try {
+      final result = await firestoreSync.syncConfigured(
+        branchId: _activeBranchId(),
+        idToken: idToken,
+      );
+      await refreshSystemData();
+      cloudSyncStatus =
+          'اكتملت المزامنة: رفع ${result.uploadedEvents} واستقبال ${result.receivedEvents}';
+      return result.uploadedEvents + result.receivedEvents;
+    } catch (error) {
+      cloudSyncStatus = 'فشلت المزامنة: $error';
+      rethrow;
+    } finally {
+      cloudSyncRunning = false;
+      notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _cloudSyncTimer?.cancel();
+    super.dispose();
   }
 
   Future<ChainVerificationResult> verifyAuditChain() async {
