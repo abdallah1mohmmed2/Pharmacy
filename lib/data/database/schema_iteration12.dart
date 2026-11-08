@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:sqflite/sqflite.dart';
 import 'global_uuid.dart';
 
@@ -36,9 +38,40 @@ abstract final class SchemaIteration12 {
   static Future<bool> _hasRemoteHistory(DatabaseExecutor db) async {
     final tables = await db.rawQuery(
       "SELECT name FROM sqlite_master WHERE type='table' "
-      "AND name IN ('sync_queue','sync_inbox_batches','sync_inbox_cursors')",
+      "AND name IN ('sync_queue','sync_inbox_batches','sync_inbox_cursors','system_settings')",
     );
     final available = tables.map((row) => row['name'].toString()).toSet();
+
+    // An enabled cloud configuration may already be associated with a remote
+    // branch identity even when this device has not yet received any batches.
+    if (available.contains('system_settings')) {
+      final columns = await db.rawQuery('PRAGMA table_info(system_settings)');
+      final names = columns.map((row) => row['name'].toString()).toSet();
+      final valueColumn = names.contains('setting_value')
+          ? 'setting_value'
+          : names.contains('value_text')
+              ? 'value_text'
+              : null;
+      if (valueColumn != null && names.contains('setting_no')) {
+        final settings = await db.query(
+          'system_settings',
+          columns: [valueColumn],
+          where: 'setting_no=?',
+          whereArgs: [35],
+          limit: 1,
+        );
+        if (settings.isNotEmpty) {
+          final raw = settings.first[valueColumn]?.toString() ?? '';
+          try {
+            final config = jsonDecode(raw);
+            if (config is Map && config['enabled'] == true) return true;
+          } catch (_) {
+            // A malformed setting is not proof that cloud sync is disabled.
+            if (raw.isNotEmpty) return true;
+          }
+        }
+      }
+    }
 
     if (available.contains('sync_queue')) {
       final rows = await db.rawQuery(
