@@ -62,10 +62,12 @@ void main() {
   String canonicalJson(Object? value) {
     if (value is Map) {
       final keys = value.keys.map((key) => key.toString()).toList()..sort();
-      return jsonEncode({for (final key in keys) key: jsonDecode(canonicalJson(value[key]))});
+      return jsonEncode(
+          {for (final key in keys) key: jsonDecode(canonicalJson(value[key]))});
     }
     if (value is List) {
-      return jsonEncode(value.map((item) => jsonDecode(canonicalJson(item))).toList());
+      return jsonEncode(
+          value.map((item) => jsonDecode(canonicalJson(item))).toList());
     }
     return jsonEncode(value);
   }
