@@ -200,6 +200,62 @@ class BranchIdentityProvisioningService {
         throw StateError('UUID الفرع المطلوب مستخدم مسبقاً.');
       }
 
+      // Identity must be installed before any cloud sync has been enabled
+      // or acknowledged. Re-keying an already-synced branch would orphan its
+      // existing Firestore namespace and is therefore rejected.
+      final settingsTable = await txn.rawQuery(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='system_settings'",
+      );
+      if (settingsTable.isNotEmpty) {
+        final cloudSettings = await txn.query(
+          'system_settings',
+          columns: ['value_text'],
+          where: 'setting_no = ?',
+          whereArgs: [35],
+          limit: 1,
+        );
+        if (cloudSettings.isNotEmpty) {
+          final rawConfig = cloudSettings.first['value_text'];
+          if (rawConfig is String && rawConfig.trim().isNotEmpty) {
+            final config = jsonDecode(rawConfig);
+            if (config is Map && config['enabled'] == true) {
+              throw StateError(
+                'أوقف المزامنة السحابية قبل تأسيس الهوية؛ لا يمكن تغيير مساحة فرع سبق تفعيلها.',
+              );
+            }
+          }
+        }
+      }
+
+      final syncQueueTable = await txn.rawQuery(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='sync_queue'",
+      );
+      if (syncQueueTable.isNotEmpty) {
+        final completed = await txn.rawQuery(
+          "SELECT COUNT(*) AS count FROM sync_queue WHERE upper(status) IN ('DONE','SYNCED')",
+        );
+        if ((completed.first['count'] as num) > 0) {
+          throw StateError(
+            'توجد عمليات مزامنة مكتملة؛ رُفض تغيير هوية الفرع لحماية بيانات Firestore الموجودة.',
+          );
+        }
+      }
+
+      for (final table in ['sync_inbox', 'sync_inbox_batches']) {
+        final exists = await txn.rawQuery(
+          "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+          [table],
+        );
+        if (exists.isNotEmpty) {
+          final rows = await txn.rawQuery('SELECT COUNT(*) AS count FROM $table');
+          if ((rows.first['count'] as num) > 0) {
+            throw StateError(
+              'توجد بيانات مزامنة واردة؛ رُفض تغيير هوية الفرع حتى لا تنفصل البيانات عن مصدرها.',
+            );
+          }
+        }
+      }
+
       final now = DateTime.now().toUtc().toIso8601String();
       await txn.update(
         'tenants',
