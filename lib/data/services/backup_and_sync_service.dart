@@ -29,7 +29,8 @@ class BackupAndSyncService {
     Set<String>? allowedTablesForTesting,
   })  : _helper = helper ?? DatabaseHelper.instance,
         _client = client ?? http.Client(),
-        _allowedTables = allowedTablesForTesting ?? SyncTablePolicy.outboundTables;
+        _allowedTables =
+            allowedTablesForTesting ?? SyncTablePolicy.outboundTables;
   final DatabaseHelper _helper;
   final Set<String> _allowedTables;
   final http.Client _client;
