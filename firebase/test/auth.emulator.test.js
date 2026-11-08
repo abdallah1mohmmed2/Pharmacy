@@ -63,4 +63,28 @@ test('Firebase Auth Emulator signs in user and returns branch custom claims', as
   assert.equal(refreshedClaims.uid, user.uid);
   assert.equal(refreshedClaims.branch_id, 'branch-uuid-0001');
   assert.equal(refreshedClaims.branch_role, 'manager');
+
+  // Updating claims does not mutate an already-issued ID token. A subsequent
+  // refresh-token exchange must expose the newly assigned role.
+  await admin.auth().setCustomUserClaims(user.uid, {
+    branch_id: 'branch-uuid-0001',
+    branch_role: 'staff',
+  });
+  const claimsRefreshResponse = await fetch(
+    'http://' + host + '/securetoken.googleapis.com/v1/token?key=emulator-api-key',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshed.refresh_token,
+      }),
+    },
+  );
+  const claimsRefreshBody = await claimsRefreshResponse.text();
+  assert.equal(claimsRefreshResponse.status, 200, claimsRefreshBody);
+  const claimsRefreshed = JSON.parse(claimsRefreshBody);
+  const updatedClaims = await admin.auth().verifyIdToken(claimsRefreshed.id_token);
+  assert.equal(updatedClaims.branch_id, 'branch-uuid-0001');
+  assert.equal(updatedClaims.branch_role, 'staff');
 });
