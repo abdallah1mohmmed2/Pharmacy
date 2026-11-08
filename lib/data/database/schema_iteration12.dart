@@ -76,7 +76,7 @@ abstract final class SchemaIteration12 {
     if (available.contains('sync_queue')) {
       final rows = await db.rawQuery(
         "SELECT COUNT(*) AS total FROM sync_queue "
-        "WHERE status IN ('DONE','SYNCED')",
+        "WHERE status IN ('DONE','SYNCED','SENDING') OR attempts>0",
       );
       if ((rows.first['total'] as num).toInt() > 0) return true;
     }
