@@ -195,3 +195,23 @@
 | التاريخ | المرحلة | التغيير | التحقق | الحالة |
 |---|---|---|---|---|
 | 2026-11-08 | 6 | Firestore REST batch worker + SQLite Inbox v14 + UUID FK resolver + اختبارات idempotency | نجح Android Analyze وFlutter Test؛ Android/Windows Release ما زالا قيد التشغيل في GitHub Actions، وFirebase Emulator غير منفذ | قيد التحقق |
+
+
+## المرحلة 4 — Firebase Authentication وCustom Claims وEmulator
+
+- أضيف Firebase Auth SDK dependencies وFirebaseBranchAuthService؛ يعتمد على بيانات تطبيق Firebase العامة من إعداد 35، ويسجل الدخول بالبريد وكلمة المرور دون نسخ كلمة المرور إلى SQLite أو إعدادات ERP.
+- أضيفت واجهة تسجيل الدخول والخروج من تبويب المزامنة السحابية.
+- رُبط token provider في main.dart بعامل Firestore. يحصل العامل على ID token من FirebaseAuth SDK الذي يتولى تجديده.
+- أضيف دعم endpoint اختباري لـFirestore Emulator عبر FIRESTORE_EMULATOR_HOST، مع إبقاء Google Firestore endpoint افتراضياً.
+- أضيفت اختبارات Firestore Rules Unit Testing لمنع الوصول دون مصادقة، ومنع الكتابة بين الفروع، وفرض append-only لدفعات المزامنة، ومنع الموظف العادي من قراءة لوحة المدير.
+- أضيفت أداة إدارية لإصدار branch_id وbranch_role باستخدام Firebase Admin SDK من بيئة موثوقة، دون تضمين service-account credentials في المستودع.
+- أضيف تشغيل اختبارات Emulator إلى GitHub Actions على فرع العمل.
+
+### ما لم يُعتمد بعد
+- لم يتم إصدار claims لأي حساب حقيقي؛ لا يوجد حتى الآن UID موثق مربوط بكل branch UUID.
+- لا يمكن إكمال تسجيل الدخول الفعلي قبل إدخال project_id وapi_key وapp_id وmessaging_sender_id الصحيحة في إعداد 35، وإنشاء حساب Firebase Auth للفرع.
+- اختبار Emulator لم يُشغّل بعد؛ يجب انتظار CI الجديد وقراءة سجل emulator والاختبارات.
+- اختبارات قواعد Firestore ليست بعد اختبار مزامنة end-to-end كامل لعامل Flutter مع بيانات SQLite حقيقية؛ يلزم اختبار تكاملي لاحق للرفع والاستقبال وإعادة الإرسال.
+- لم يتم نشر أي قواعد أو وظائف إلى Firebase ولم يتم استخدام بيانات اعتماد إنتاجية.
+
+**الخطوة التالية:** راجع نتيجة CI للالتزام الحالي. إذا نجحت اختبارات القواعد، اربط حساب Firebase تجريبياً بمعرف الفرع العالمي، ثم اختبر دورة الرفع والاستقبال على Emulator قبل اعتماد المزامنة.
