@@ -49,6 +49,7 @@ class PharmacyErpApplication extends StatelessWidget {
                         .getJson(SettingKey.cloudSync);
                     await FirebaseBranchAuthService.instance.configure(
                       apiKey: config['api_key']?.toString() ?? '',
+                      projectId: config['project_id']?.toString() ?? '',
                     );
                     return FirebaseBranchAuthService.instance.idToken();
                   })
