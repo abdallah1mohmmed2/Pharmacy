@@ -253,10 +253,7 @@ class FirestoreSyncWorker {
 
   Future<String> _branchUuid(Database db, int branchId) async {
     final rows = await db.query('branches',
-        columns: ['uuid'],
-        where: 'id=?',
-        whereArgs: [branchId],
-        limit: 1);
+        columns: ['uuid'], where: 'id=?', whereArgs: [branchId], limit: 1);
     if (rows.isEmpty || rows.first['uuid'] == null) {
       throw StateError('لا يوجد UUID عالمي للفرع الحالي');
     }
@@ -354,7 +351,10 @@ class FirestoreSyncWorker {
       final column = fk['from']?.toString();
       final parentTable = fk['table']?.toString();
       final value = column == null ? null : row[column];
-      if (column == null || parentTable == null || value == null || column == 'branch_id') continue;
+      if (column == null ||
+          parentTable == null ||
+          value == null ||
+          column == 'branch_id') continue;
       if (!_safeIdentifier.hasMatch(parentTable)) continue;
       final parent = await db.query(parentTable,
           where: 'id=?', whereArgs: [value], limit: 1);
