@@ -19,6 +19,7 @@ class PartyModel {
       this.creditLimit = 0,
       this.paymentTermsDays = 0,
       this.isChronicPatient = false,
+      this.isPatient = false,
       this.isBlocked = false,
       this.openingAlayh = 0,
       this.openingLah = 0,
@@ -29,7 +30,7 @@ class PartyModel {
       this.balanceAbs = 0});
   final int? id, branchId, paymentTermsDays, syncVersion;
   final String? uuid, createdAt, updatedAt;
-  final bool isDeleted, isChronicPatient, isBlocked;
+  final bool isDeleted, isChronicPatient, isPatient, isBlocked;
   final String syncStatus,
       partyType,
       code,
@@ -63,6 +64,7 @@ class PartyModel {
       creditLimit: (m['credit_limit'] as num? ?? 0).toDouble(),
       paymentTermsDays: m['payment_terms_days'] as int? ?? 0,
       isChronicPatient: (m['is_chronic_patient'] as int? ?? 0) == 1,
+      isPatient: (m['is_patient'] as int? ?? 0) == 1,
       isBlocked: (m['is_blocked'] as int? ?? 0) == 1,
       openingAlayh: (m['opening_alayh'] as num? ?? 0).toDouble(),
       openingLah: (m['opening_lah'] as num? ?? 0).toDouble(),
