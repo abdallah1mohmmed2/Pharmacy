@@ -618,6 +618,7 @@ class _S28SystemSettingsBackupScreenState
 
   Future<void> _signOutFirebase() async {
     await FirebaseBranchAuthService.instance.signOut();
+    await context.read<SettingsAndSystemProvider>().refreshCloudSyncSchedule();
     if (mounted)
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('تم تسجيل الخروج من Firebase')));
