@@ -193,8 +193,10 @@ abstract final class SyncPayloadPolicy {
   /// entire event rather than silently applying a partially untrusted record.
   static Map<String, Object?> validateIncoming(String table, Map source,
       {Set<String>? fieldsForTesting}) {
-    final projected = project(table, source, fieldsForTesting: fieldsForTesting);
-    if (source.keys.any((key) => key is! String || !projected.containsKey(key))) {
+    final projected =
+        project(table, source, fieldsForTesting: fieldsForTesting);
+    if (source.keys
+        .any((key) => key is! String || !projected.containsKey(key))) {
       throw const FormatException('SYNC_PAYLOAD_POLICY_REJECTED');
     }
     return projected;

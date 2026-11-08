@@ -8,12 +8,15 @@ void main() {
     expect(SyncTablePolicy.inboundTables, SyncTablePolicy.outboundTables);
     for (final table in SyncTablePolicy.outboundTables) {
       final source = <String, Object?>{
-        for (final field in SyncPayloadPolicy.fieldsByTable[table]!) field: null,
-        'uuid': 'example', 'password_hash': 'PRIVATE_SENTINEL',
+        for (final field in SyncPayloadPolicy.fieldsByTable[table]!)
+          field: null,
+        'uuid': 'example',
+        'password_hash': 'PRIVATE_SENTINEL',
       };
       final projected = SyncPayloadPolicy.project(table, source);
       expect(SyncPayloadPolicy.validateIncoming(table, projected), projected);
-      expect(() => SyncPayloadPolicy.validateIncoming(table, source), throwsFormatException);
+      expect(() => SyncPayloadPolicy.validateIncoming(table, source),
+          throwsFormatException);
     }
   });
 

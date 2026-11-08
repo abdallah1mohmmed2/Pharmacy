@@ -21,11 +21,15 @@ void main() {
     databaseFactory = databaseFactoryFfi;
   });
 
-  test('production outbound projection is accepted by production inbox policy', () async {
+  test('production outbound projection is accepted by production inbox policy',
+      () async {
     final source = await _Device.open();
     final target = await _Device.open();
     final server = _FakeFirestore();
-    addTearDown(() async { await source.dispose(); await target.dispose(); });
+    addTearDown(() async {
+      await source.dispose();
+      await target.dispose();
+    });
     for (final device in [source, target]) {
       await device.db.execute('''CREATE TABLE drug_categories (
         id INTEGER PRIMARY KEY, uuid TEXT NOT NULL UNIQUE, branch_id INTEGER NOT NULL,
@@ -33,18 +37,28 @@ void main() {
         is_deleted INTEGER NOT NULL DEFAULT 0, code TEXT NOT NULL, name_ar TEXT NOT NULL,
         private_note TEXT)''');
     }
-    await source.db.insert('drug_categories', {'uuid': _rowUuid, 'branch_id': 1,
-      'code': 'C1', 'name_ar': 'تصنيف', 'private_note': 'PRIVATE_SENTINEL'});
+    await source.db.insert('drug_categories', {
+      'uuid': _rowUuid,
+      'branch_id': 1,
+      'code': 'C1',
+      'name_ar': 'تصنيف',
+      'private_note': 'PRIVATE_SENTINEL'
+    });
     FirestoreSyncWorker productionWorker(_Device device) => FirestoreSyncWorker(
-      helper: device.helper, client: server.client(),
-      deviceIdProvider: () async => device.deviceId);
-    final upload = await productionWorker(source).syncOnce(branchId: 1,
-      projectId: 'pharmacy-emulator-test', idToken: 'test-token');
+        helper: device.helper,
+        client: server.client(),
+        deviceIdProvider: () async => device.deviceId);
+    final upload = await productionWorker(source).syncOnce(
+        branchId: 1,
+        projectId: 'pharmacy-emulator-test',
+        idToken: 'test-token');
     expect(upload.uploadedEvents, 1);
     expect(jsonEncode(server.document), isNot(contains('PRIVATE_SENTINEL')));
     server.serveDocuments = true;
-    final download = await productionWorker(target).syncOnce(branchId: 1,
-      projectId: 'pharmacy-emulator-test', idToken: 'test-token');
+    final download = await productionWorker(target).syncOnce(
+        branchId: 1,
+        projectId: 'pharmacy-emulator-test',
+        idToken: 'test-token');
     expect(download.receivedEvents, 1);
     final row = (await target.db.query('drug_categories')).single;
     expect(row['name_ar'], 'تصنيف');
