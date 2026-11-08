@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:sqflite/sqflite.dart';
 import '../database/database_helper.dart';
+import '../database/global_uuid.dart';
 import 'backup_and_sync_service.dart';
 import 'sync_inbox_processor.dart';
 
@@ -309,7 +310,13 @@ class FirestoreSyncWorker {
     if (rows.isEmpty || rows.first['uuid'] == null) {
       throw StateError('لا يوجد UUID عالمي للفرع الحالي');
     }
-    return rows.first['uuid'].toString();
+    final uuid = rows.first['uuid'].toString();
+    if (!GlobalUuid.isValid(uuid)) {
+      throw StateError(
+        'هوية الفرع ليست UUID عالمياً صالحاً؛ أوقف المزامنة حتى اكتمال ترحيل الهوية.',
+      );
+    }
+    return uuid;
   }
 
   Future<List<Map<String, Object?>>> _branchPending(
