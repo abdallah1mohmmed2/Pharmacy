@@ -1,11 +1,12 @@
 import '../services/security_hash_service.dart';
+import 'global_uuid.dart';
 import 'package:sqflite/sqflite.dart';
 
 abstract final class SeedData {
   static const _now = '2026-11-05T00:00:00.000';
   static Future<void> run(DatabaseExecutor db) async {
     final branchId = await db.insert('branches', {
-      'uuid': 'branch-main',
+      'uuid': GlobalUuid.generateV4(),
       'branch_id': 1,
       'created_at': _now,
       'updated_at': _now,
