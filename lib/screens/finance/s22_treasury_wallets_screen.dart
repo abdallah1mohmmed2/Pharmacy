@@ -104,19 +104,22 @@ class S22TreasuryWalletsScreen extends StatelessWidget {
                                       if (a['wallet_phone'] != null)
                                         Text('الهاتف: ${a['wallet_phone']}'),
                                       const Divider(),
-                                      Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text(
-                                                'وارد اليوم: ${incoming.toStringAsFixed(2)}',
-                                                style: const TextStyle(
-                                                    color: Color(0xFF66BB6A))),
-                                            Text(
-                                                'صادر: ${outgoing.toStringAsFixed(2)}',
-                                                style: const TextStyle(
-                                                    color: Color(0xFFEF5350)))
-                                          ]),
+                                      Wrap(
+                                        spacing: 12,
+                                        runSpacing: 6,
+                                        children: [
+                                          Text(
+                                            'وارد اليوم: ${incoming.toStringAsFixed(2)}',
+                                            style: const TextStyle(
+                                                color: Color(0xFF66BB6A)),
+                                          ),
+                                          Text(
+                                            'صادر: ${outgoing.toStringAsFixed(2)}',
+                                            style: const TextStyle(
+                                                color: Color(0xFFEF5350)),
+                                          ),
+                                        ],
+                                      ),
                                       if (a['account_kind'] == 'WALLET')
                                         Align(
                                             alignment: Alignment.centerLeft,
