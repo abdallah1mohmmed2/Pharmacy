@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -16,6 +17,7 @@ import '../../providers/clinical_and_rx_provider.dart';
 import '../../providers/treasury_hr_partner_provider.dart';
 import '../../data/database/database_helper.dart';
 import '../../data/services/firebase_branch_auth_service.dart';
+import '../../data/services/branch_identity_provisioning_service.dart';
 import '../../core/widgets/manager_pin_dialog.dart';
 
 class S28SystemSettingsBackupScreen extends StatefulWidget {
@@ -38,6 +40,44 @@ class _S28SystemSettingsBackupScreenState
   String? auditUserFilter, auditActionFilter, auditSeverityFilter;
   Future<String?> _managerPin({String title = 'تأكيد صلاحية المدير'}) =>
       ManagerPinDialog.show(context, title: title);
+  static const _trustedProvisioningPublicKey = String.fromEnvironment(
+    'PROVISIONING_ED25519_PUBLIC_KEY_PEM',
+  );
+
+  Future<void> _importBranchIdentity() async {
+    final pin = await _managerPin(title: 'اعتماد تأسيس هوية المؤسسة والفرع');
+    if (pin == null || pin.isEmpty || !mounted) return;
+    try {
+      final selection = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+        withData: true,
+      );
+      if (selection == null || selection.files.isEmpty) return;
+      final file = selection.files.single;
+      final bytes = file.bytes ??
+          (file.path == null ? null : await File(file.path!).readAsBytes());
+      if (bytes == null) {
+        throw StateError('تعذر قراءة ملف التأسيس المحدد.');
+      }
+      final service = BranchIdentityProvisioningService(
+        trustedPublicKeyPem: _trustedProvisioningPublicKey,
+      );
+      await service.installManifest(
+        database: await DatabaseHelper.instance.database,
+        manifestBytes: bytes,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('تم اعتماد هوية المؤسسة والفرع على هذا الجهاز بنجاح.'),
+      ));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذر تأسيس الهوية: $error')),
+      );
+    }
+  }
   Future<void> _change(SettingSpec spec, Object value) async {
     final p = context.read<SettingsAndSystemProvider>();
     final session = context.read<SessionAndErpProvider>();
@@ -650,6 +690,24 @@ class _S28SystemSettingsBackupScreenState
   Widget _syncTab(SettingsAndSystemProvider p) =>
       ListView(padding: const EdgeInsets.all(12), children: [
         _settingTile(SettingKeys.byKey(SettingKey.cloudSync), p),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.verified_user_outlined),
+            title: const Text('تأسيس هوية المؤسسة والفرع'),
+            subtitle: Text(
+              _trustedProvisioningPublicKey.isEmpty
+                  ? 'مفتاح التحقق الموثوق غير مضمّن في هذا الإصدار؛ لن يتم قبول أي ملف.'
+                  : 'استيراد ملف تأسيس موقع. العملية لمرة واحدة ولا يمكن تغيير الهوية بعد اعتمادها.',
+            ),
+            trailing: FilledButton.tonalIcon(
+              onPressed: _trustedProvisioningPublicKey.isEmpty
+                  ? null
+                  : _importBranchIdentity,
+              icon: const Icon(Icons.file_open),
+              label: const Text('استيراد ملف'),
+            ),
+          ),
+        ),
         Card(
             child: ListTile(
           leading: Icon(FirebaseBranchAuthService.instance.isSignedIn
