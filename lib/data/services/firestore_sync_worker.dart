@@ -8,6 +8,7 @@ import '../database/global_uuid.dart';
 import 'backup_and_sync_service.dart';
 import 'sync_inbox_processor.dart';
 import 'device_identity_service.dart';
+import 'sync_table_policy.dart';
 
 /// Firestore REST worker. Authentication is deliberately injected: callers
 /// must supply a Firebase ID token issued for the signed-in branch account.
@@ -18,19 +19,22 @@ class FirestoreSyncWorker {
     FirestoreInboxProcessor? inbox,
     String? emulatorHost,
     Future<String> Function()? deviceIdProvider,
+    Set<String>? allowedTablesForTesting,
   })  : _deviceIdProvider = deviceIdProvider ??
             DeviceIdentityService.instance.getOrCreateDeviceId,
         _emulatorHost = emulatorHost ??
             const String.fromEnvironment('FIRESTORE_EMULATOR_HOST'),
         _helper = helper ?? DatabaseHelper.instance,
         _client = client ?? http.Client(),
-        _inbox = inbox ?? FirestoreInboxProcessor(helper: helper);
+        _inbox = inbox ?? FirestoreInboxProcessor(helper: helper),
+        _allowedTables = allowedTablesForTesting ?? SyncTablePolicy.outboundTables;
 
   final Future<String> Function() _deviceIdProvider;
   final String _emulatorHost;
   final DatabaseHelper _helper;
   final http.Client _client;
   final FirestoreInboxProcessor _inbox;
+  final Set<String> _allowedTables;
 
   /// Reads setting 35 and executes one upload/download cycle. The caller
   /// supplies a Firebase ID token from an authenticated Firebase user.
@@ -365,19 +369,17 @@ class FirestoreSyncWorker {
         [table],
       );
       if (exists.isEmpty) continue;
-      if (_blockedTables.contains(table)) {
+      if (!_allowedTables.contains(table)) {
         await db.update(
           'sync_queue',
           {
             'status': 'CONFLICT',
             'last_error':
-                'يحتاج هذا المجال إلى تشفير وحوكمة بيانات قبل المزامنة',
+                'الجدول غير موجود في قائمة السماح للمزامنة الصادرة',
           },
           where: 'id=?',
           whereArgs: [queueRow['id']],
         );
-        await db.update(table, {'sync_status': 'BLOCKED'},
-            where: 'uuid=?', whereArgs: [queueRow['row_uuid']]);
         continue;
       }
       final columns = await db.rawQuery('PRAGMA table_info($table)');
@@ -592,20 +594,6 @@ class FirestoreSyncWorker {
   }
 
   String _hash(String value) => sha256.convert(utf8.encode(value)).toString();
-
-  static const _blockedTables = <String>{
-    'parties',
-    'patients',
-    'clinical_alert_logs',
-    'controlled_drug_log',
-    'prescriptions',
-    'prescription_items',
-    'insurance_policies',
-    'insurance_companies',
-    'employees',
-    'employee_attendance',
-    'payroll_runs',
-  };
 
   static final _safeIdentifier = RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$');
 }
