@@ -1,3 +1,5 @@
+- إصلاح CI لبناء Android: إضافة `pluginManagement.resolutionStrategy` لتوجيه `org.jetbrains.kotlin.android` مباشرة إلى `org.jetbrains.kotlin:kotlin-gradle-plugin` بدلاً من الاعتماد على plugin-marker الذي فشل Gradle في حله على runner رغم نشر إصدار Kotlin 2.4.0. يطبق التعديل على ملفات Android التي ينشئها `flutter create` أثناء CI.
+- لم يُعلن نجاح البناء بعد؛ يلزم انتظار تشغيل Flutter CI الجديد والتحقق من Android Analyze/Tests/APK وWindows.
 ## ربط ملف المريض بسجل العميل — 2026-11-08
 - إضافة خيار «تفعيل الملف الطبي لهذا العميل» عند إنشاء العميل من شاشة الأطراف؛ لا يظهر الخيار للمورد.
 - إنشاء سجل `patients` مرتبط بمعرّف الطرف داخل معاملة إنشاء العميل نفسها، وبذلك لا يمكن إنشاء عميل دون ملفه الطبي أو العكس عند تفعيل الخيار.
