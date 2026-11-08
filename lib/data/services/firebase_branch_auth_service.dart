@@ -94,17 +94,22 @@ class FirebaseBranchAuthService {
     if (generation != _sessionGeneration) {
       throw StateError('تم إلغاء محاولة تسجيل الدخول بسبب تغيير الجلسة');
     }
-    _idToken = data['idToken']?.toString();
-    _refreshToken = data['refreshToken']?.toString();
-    _uid = data['localId']?.toString();
+    final issuedIdToken = data['idToken']?.toString();
+    final issuedRefreshToken = data['refreshToken']?.toString();
+    final issuedUid = data['localId']?.toString();
+    if (issuedIdToken == null ||
+        issuedRefreshToken == null ||
+        issuedUid == null) {
+      throw StateError('استجابة Firebase Auth لا تحتوي بيانات الجلسة المطلوبة');
+    }
+    _idToken = issuedIdToken;
+    _refreshToken = issuedRefreshToken;
+    _uid = issuedUid;
     _email = data['email']?.toString();
     _expiresAt = DateTime.now().add(
       Duration(
           seconds: int.tryParse(data['expiresIn']?.toString() ?? '') ?? 3600),
     );
-    if (_idToken == null || _refreshToken == null || _uid == null) {
-      throw StateError('استجابة Firebase Auth لا تحتوي بيانات الجلسة المطلوبة');
-    }
     await _storage.write(
         key: 'firebase_branch_refresh_token', value: _refreshToken);
     await _storage.write(key: 'firebase_branch_uid', value: _uid);
@@ -139,7 +144,14 @@ class FirebaseBranchAuthService {
       _refreshToken = await _storage.read(key: 'firebase_branch_refresh_token');
     }
     if (generation != _sessionGeneration) return null;
-    if (_refreshToken == null) return _idToken;
+    if (_refreshToken == null) {
+      if (_idToken != null &&
+          _expiresAt != null &&
+          _expiresAt!.isAfter(DateTime.now().add(const Duration(minutes: 2)))) {
+        return _idToken;
+      }
+      return null;
+    }
     if (_idToken != null &&
         _expiresAt != null &&
         _expiresAt!.isAfter(DateTime.now().add(const Duration(minutes: 2)))) {
