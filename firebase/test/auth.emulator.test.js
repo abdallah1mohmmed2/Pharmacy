@@ -2,7 +2,7 @@ const { after, before, test } = require('node:test');
 const assert = require('node:assert/strict');
 const admin = require('firebase-admin');
 
-const projectId = 'demo-pharmacy-erp';
+const projectId = 'pharmacy-dafb6';
 const email = 'branch-manager@example.test';
 const password = 'EmulatorOnly-Passw0rd!';
 
@@ -20,7 +20,7 @@ after(async () => {
 test('Firebase Auth Emulator signs in user and returns branch custom claims', async () => {
   const user = await admin.auth().createUser({ email, password });
   await admin.auth().setCustomUserClaims(user.uid, {
-    branch_id: 'branch-uuid-0001',
+    branch_id: '2d91c5e0-8a42-4c10-9b33-5f4a7c8d9012',
     branch_role: 'manager',
   });
 
@@ -39,7 +39,7 @@ test('Firebase Auth Emulator signs in user and returns branch custom claims', as
   assert.ok(payload.idToken);
   const decoded = await admin.auth().verifyIdToken(payload.idToken);
   assert.equal(decoded.uid, user.uid);
-  assert.equal(decoded.branch_id, 'branch-uuid-0001');
+  assert.equal(decoded.branch_id, '2d91c5e0-8a42-4c10-9b33-5f4a7c8d9012');
   assert.equal(decoded.branch_role, 'manager');
 
   // A refresh-token exchange must issue a fresh ID token carrying the same
@@ -61,13 +61,13 @@ test('Firebase Auth Emulator signs in user and returns branch custom claims', as
   assert.ok(refreshed.id_token);
   const refreshedClaims = await admin.auth().verifyIdToken(refreshed.id_token);
   assert.equal(refreshedClaims.uid, user.uid);
-  assert.equal(refreshedClaims.branch_id, 'branch-uuid-0001');
+  assert.equal(refreshedClaims.branch_id, '2d91c5e0-8a42-4c10-9b33-5f4a7c8d9012');
   assert.equal(refreshedClaims.branch_role, 'manager');
 
   // Updating claims does not mutate an already-issued ID token. A subsequent
   // refresh-token exchange must expose the newly assigned role.
   await admin.auth().setCustomUserClaims(user.uid, {
-    branch_id: 'branch-uuid-0001',
+    branch_id: '2d91c5e0-8a42-4c10-9b33-5f4a7c8d9012',
     branch_role: 'staff',
   });
   const claimsRefreshResponse = await fetch(
@@ -85,6 +85,6 @@ test('Firebase Auth Emulator signs in user and returns branch custom claims', as
   assert.equal(claimsRefreshResponse.status, 200, claimsRefreshBody);
   const claimsRefreshed = JSON.parse(claimsRefreshBody);
   const updatedClaims = await admin.auth().verifyIdToken(claimsRefreshed.id_token);
-  assert.equal(updatedClaims.branch_id, 'branch-uuid-0001');
+  assert.equal(updatedClaims.branch_id, '2d91c5e0-8a42-4c10-9b33-5f4a7c8d9012');
   assert.equal(updatedClaims.branch_role, 'staff');
 });
