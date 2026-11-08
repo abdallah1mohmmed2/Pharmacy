@@ -403,20 +403,26 @@ class FirestoreSyncWorker {
       late final Map<String, Object?> payload;
       try {
         payload = SyncPayloadPolicy.project(
-          table, jsonDecode(queueRow['payload_json'] as String),
+          table,
+          jsonDecode(queueRow['payload_json'] as String),
           fieldsForTesting: _payloadFieldsForTesting?[table],
         );
       } on FormatException {
-        await db.update('sync_queue', {
-          'status': 'CONFLICT',
-          'last_error': 'SYNC_PAYLOAD_POLICY_REJECTED',
-        }, where: 'id=?', whereArgs: [queueRow['id']]);
+        await db.update(
+            'sync_queue',
+            {
+              'status': 'CONFLICT',
+              'last_error': 'SYNC_PAYLOAD_POLICY_REJECTED',
+            },
+            where: 'id=?',
+            whereArgs: [queueRow['id']]);
         continue;
       }
       payload['branch_id'] = branchUuid;
       payload['sync_version'] = version;
       payload['sync_status'] = 'SYNCED';
-      final relations = await _relationsForRow(db, table, current, payload.keys.toSet());
+      final relations =
+          await _relationsForRow(db, table, current, payload.keys.toSet());
       payload['__relations'] = relations;
       final operation = queueRow['operation'] as String;
       final eventUuid = _hash('$table|$uuid|$version|$operation');

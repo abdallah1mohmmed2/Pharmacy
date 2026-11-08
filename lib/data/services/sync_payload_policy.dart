@@ -5,8 +5,13 @@ import 'dart:convert';
 /// are deliberately not part of this contract. Local rows remain unchanged.
 abstract final class SyncPayloadPolicy {
   static const commonFields = <String>{
-    'uuid', 'branch_id', 'created_at', 'updated_at', 'is_deleted',
-    'sync_status', 'sync_version',
+    'uuid',
+    'branch_id',
+    'created_at',
+    'updated_at',
+    'is_deleted',
+    'sync_status',
+    'sync_version',
   };
 
   static const fieldsByTable = <String, Set<String>>{
@@ -197,7 +202,10 @@ abstract final class SyncPayloadPolicy {
       if (!commonFields.contains(key) && !fields.contains(key)) continue;
       final value = entry.value;
       // No nested objects or opaque JSON blobs cross this scalar contract.
-      if (value != null && value is! String && value is! num && value is! bool) {
+      if (value != null &&
+          value is! String &&
+          value is! num &&
+          value is! bool) {
         throw const FormatException('SYNC_PAYLOAD_POLICY_REJECTED');
       }
       if (value is num && !value.isFinite) {
@@ -205,7 +213,9 @@ abstract final class SyncPayloadPolicy {
       }
       if (value is String) {
         Object? decoded;
-        try { decoded = jsonDecode(value); } on FormatException { /* plain text */ }
+        try {
+          decoded = jsonDecode(value);
+        } on FormatException {/* plain text */}
         if (decoded is Map || decoded is List) {
           throw const FormatException('SYNC_PAYLOAD_POLICY_REJECTED');
         }

@@ -274,14 +274,19 @@ class BackupAndSyncService {
           throw const FormatException('SYNC_PAYLOAD_POLICY_REJECTED');
         }
         payloads[row['id'] as int] = SyncPayloadPolicy.project(
-          table, jsonDecode(row['payload_json'] as String),
+          table,
+          jsonDecode(row['payload_json'] as String),
         );
         safePending.add(row);
       } on FormatException {
-        await db.update('sync_queue', {
-          'status': 'CONFLICT',
-          'last_error': 'SYNC_PAYLOAD_POLICY_REJECTED',
-        }, where: 'id=?', whereArgs: [row['id']]);
+        await db.update(
+            'sync_queue',
+            {
+              'status': 'CONFLICT',
+              'last_error': 'SYNC_PAYLOAD_POLICY_REJECTED',
+            },
+            where: 'id=?',
+            whereArgs: [row['id']]);
       }
     }
     if (safePending.isEmpty) return 0;
