@@ -14,10 +14,13 @@ class FirestoreSyncWorker {
     DatabaseHelper? helper,
     http.Client? client,
     FirestoreInboxProcessor? inbox,
-  })  : _helper = helper ?? DatabaseHelper.instance,
+    String? emulatorHost,
+  })  : _emulatorHost = emulatorHost ?? const String.fromEnvironment('FIRESTORE_EMULATOR_HOST'),
+        _helper = helper ?? DatabaseHelper.instance,
         _client = client ?? http.Client(),
         _inbox = inbox ?? FirestoreInboxProcessor(helper: helper);
 
+  final String _emulatorHost;
   final DatabaseHelper _helper;
   final http.Client _client;
   final FirestoreInboxProcessor _inbox;
@@ -190,8 +193,7 @@ class FirestoreSyncWorker {
           'before': false,
         };
       }
-      final uri = Uri.https(
-        'firestore.googleapis.com',
+      final uri = _firestoreUri(
         '/v1/projects/$projectId/databases/$databaseId/documents/pharmacy_sync_batches/$branchUuid:runQuery',
       );
       final response = await _client
@@ -391,8 +393,7 @@ class FirestoreSyncWorker {
   }) async {
     final documentName =
         'projects/$projectId/databases/$databaseId/documents/pharmacy_sync_batches/$branchUuid/batches/${batch.batchUuid}';
-    final uri = Uri.https(
-      'firestore.googleapis.com',
+    final uri = _firestoreUri(
       '/v1/projects/$projectId/databases/$databaseId/documents:commit',
     );
     final fields = <String, Object?>{
@@ -427,10 +428,7 @@ class FirestoreSyncWorker {
         .timeout(const Duration(seconds: 30));
     if (response.statusCode >= 200 && response.statusCode < 300) return;
     if (response.statusCode == 409 || response.statusCode == 400) {
-      final documentUri = Uri.https(
-        'firestore.googleapis.com',
-        '/v1/$documentName',
-      );
+      final documentUri = _firestoreUri('/v1/$documentName');
       final verify = await _client
           .get(documentUri, headers: _headers(idToken))
           .timeout(const Duration(seconds: 20));
@@ -444,6 +442,144 @@ class FirestoreSyncWorker {
     }
     throw HttpException(
         'Firestore batch write HTTP ${response.statusCode}: ${response.body}');
+  }
+
+  Uri _firestoreUri(String path) {
+    if (_emulatorHost.isNotEmpty) {
+      final host = _emulatorHost.contains('://') ? _emulatorHost : 'http://$_emulatorHost';
+      return Uri.parse('${host.replaceFirst(RegExp(r'/\
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
+
+  Map<String, Object?> _encodeFields(Map<String, Object?> fields) =>
+      fields.map((key, value) => MapEntry(key, _encodeValue(value)));
+
+  Map<String, Object?> _encodeValue(Object? value) {
+    if (value == null) return {'nullValue': null};
+    if (value is bool) return {'booleanValue': value};
+    if (value is int) return {'integerValue': value.toString()};
+    if (value is double) return {'doubleValue': value};
+    if (value is num) return {'doubleValue': value.toDouble()};
+    if (value is String) return {'stringValue': value};
+    if (value is List) {
+      return {
+        'arrayValue': {'values': value.map(_encodeValue).toList()}
+      };
+    }
+    if (value is Map) {
+      return {
+        'mapValue': {'fields': _encodeFields(Map<String, Object?>.from(value))}
+      };
+    }
+    return {'stringValue': value.toString()};
+  }
+
+  Map<String, Object?> _decodeFields(Map fields) => fields.map(
+      (key, value) => MapEntry(key.toString(), _decodeValue(value as Map)));
+
+  Object? _decodeValue(Map value) {
+    if (value.containsKey('stringValue')) return value['stringValue'];
+    if (value.containsKey('timestampValue')) return value['timestampValue'];
+    if (value.containsKey('integerValue'))
+      return int.tryParse(value['integerValue'].toString()) ?? 0;
+    if (value.containsKey('doubleValue'))
+      return (value['doubleValue'] as num).toDouble();
+    if (value.containsKey('booleanValue')) return value['booleanValue'] == true;
+    if (value.containsKey('nullValue')) return null;
+    if (value.containsKey('arrayValue')) {
+      final values =
+          (value['arrayValue'] as Map)['values'] as List? ?? const [];
+      return values.map((e) => _decodeValue(e as Map)).toList();
+    }
+    if (value.containsKey('mapValue')) {
+      final fields = (value['mapValue'] as Map)['fields'] as Map? ?? const {};
+      return _decodeFields(fields);
+    }
+    return null;
+  }
+
+  String _canonicalJson(Object? value) => jsonEncode(_canonicalize(value));
+
+  Object? _canonicalize(Object? value) {
+    if (value is Map) {
+      final keys = value.keys.map((key) => key.toString()).toList()..sort();
+      return {for (final key in keys) key: _canonicalize(value[key])};
+    }
+    if (value is List) return value.map(_canonicalize).toList();
+    return value;
+  }
+
+  String _hash(String value) => sha256.convert(utf8.encode(value)).toString();
+
+  static const _blockedTables = <String>{
+    'parties',
+    'patients',
+    'clinical_alert_logs',
+    'controlled_drug_log',
+    'prescriptions',
+    'prescription_items',
+    'insurance_policies',
+    'insurance_companies',
+    'employees',
+    'employee_attendance',
+    'payroll_runs',
+  };
+
+  static final _safeIdentifier = RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$');
+}
+
+class _FirestoreEvent {
+  const _FirestoreEvent({
+    required this.queueId,
+    required this.tableName,
+    required this.rowUuid,
+    required this.operation,
+    required this.version,
+    required this.eventUuid,
+    required this.payload,
+    required this.relations,
+  });
+  final int queueId;
+  final String tableName, rowUuid, operation, eventUuid;
+  final int version;
+  final Map<String, Object?> payload, relations;
+  Map<String, Object?> toMap() => {
+        'event_uuid': eventUuid,
+        'table': tableName,
+        'uuid': rowUuid,
+        'operation': operation,
+        'version': version,
+        'payload': payload,
+        'relations': relations,
+      };
+}
+
+class _FirestoreBatch {
+  const _FirestoreBatch({
+    required this.batchUuid,
+    required this.payloadHash,
+    required this.queueIds,
+    required this.items,
+  });
+  static const empty =
+      _FirestoreBatch(batchUuid: '', payloadHash: '', queueIds: [], items: []);
+  final String batchUuid, payloadHash;
+  final List<int> queueIds;
+  final List<_FirestoreEvent> items;
+}
+
+class FirestoreSyncResult {
+  const FirestoreSyncResult({
+    required this.uploadedEvents,
+    required this.receivedEvents,
+  });
+  final int uploadedEvents, receivedEvents;
+}
+), '')}$path');
+    }
+    return Uri.https('firestore.googleapis.com', path);
   }
 
   Map<String, String> _headers(String token) => {
