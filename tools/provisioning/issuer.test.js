@@ -7,7 +7,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const crypto = require('node:crypto');
 
-const script = path.resolve(__dirname, '../../tools/provisioning/issuer.js');
+const script = path.resolve(__dirname, 'issuer.js');
 function run(args) {
   return spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' });
 }
