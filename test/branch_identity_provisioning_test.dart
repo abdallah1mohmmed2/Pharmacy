@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:global_enterprise_pharmacy_erp/data/services/branch_identity_provisioning_service.dart';
 
@@ -25,7 +24,7 @@ void main() {
   setUp(() async {
     final algorithm = Ed25519();
     keyPair = await algorithm.newKeyPair();
-    final publicKey = await keyPair.extractPublicKey();
+    final publicKey = await keyPair.extractPublicKey() as SimplePublicKey;
     const spkiPrefix = <int>[
       0x30,
       0x2a,
@@ -152,7 +151,7 @@ void main() {
     );
 
     final otherPair = await Ed25519().newKeyPair();
-    final otherPublic = await otherPair.extractPublicKey();
+    final otherPublic = await otherPair.extractPublicKey() as SimplePublicKey;
     final otherPem = '-----BEGIN PUBLIC KEY-----\n'
         '${base64Encode([
           ...<int>[
