@@ -627,4 +627,4 @@
 - Add explicit per-table scalar field contracts to Firestore and legacy HTTP uploads, including existing queued events.
 - Keep unapproved clinical/personal/free-text fields local; quarantine malformed approved values without logging their contents.
 - Filter generated relation metadata to approved columns and add projection/worker regression tests.
-- Validation pending CI on this change; P0-02 is not yet declared complete.
+- Validated by GitHub Actions 42526486517 on functional commit 9005a9b3952817b2b86dbaedbb82d7bf87188441 (CI formatting commit e659406fb4e27aa2f889b005f05f6d2ee64d6a98): Analyze, 105 Flutter tests (1 intentionally skipped), 9 emulator integration tests, Android/Windows release builds and both artifacts passed. P0-02 closed; P0-03 remains next.
