@@ -120,6 +120,8 @@ class BranchIdentityProvisioningService {
   }) async {
     final identity = await verifyManifestBytes(manifestBytes);
     await database.transaction((txn) async {
+      // Defer tenant foreign-key validation until both parent and branch references are updated.
+      await txn.execute('PRAGMA defer_foreign_keys = ON');
       await txn.execute('''
         CREATE TABLE IF NOT EXISTS branch_identity_provisioning (
           id INTEGER PRIMARY KEY CHECK(id = 1),
@@ -239,6 +241,22 @@ class BranchIdentityProvisioningService {
         BEFORE UPDATE ON branch_identity_provisioning
         BEGIN
           SELECT RAISE(ABORT, 'provisioning record is immutable');
+        END
+      ''');
+      await txn.execute('''
+        CREATE TRIGGER IF NOT EXISTS trg_tenant_identity_immutable_delete
+        BEFORE DELETE ON tenants
+        WHEN EXISTS (SELECT 1 FROM branch_identity_provisioning WHERE id = 1)
+        BEGIN
+          SELECT RAISE(ABORT, 'tenant identity cannot be deleted after provisioning');
+        END
+      ''');
+      await txn.execute('''
+        CREATE TRIGGER IF NOT EXISTS trg_branch_identity_immutable_delete
+        BEFORE DELETE ON branches
+        WHEN EXISTS (SELECT 1 FROM branch_identity_provisioning WHERE id = 1)
+        BEGIN
+          SELECT RAISE(ABORT, 'branch identity cannot be deleted after provisioning');
         END
       ''');
       await txn.execute('''
