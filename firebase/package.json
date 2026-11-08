@@ -2,7 +2,7 @@
   "name": "pharmacy-firebase-security-tests",
   "private": true,
   "scripts": {
-    "test:rules": "firebase emulators:exec --only firestore --project demo-pharmacy-erp \"node --test test/firestore.rules.test.js\"",
+    "test:rules": "firebase emulators:exec --config firebase.emulator.json --only firestore --project demo-pharmacy-erp \"node --test test/firestore.rules.test.js\"",
     "test": "npm run test:rules"
   },
   "devDependencies": {
