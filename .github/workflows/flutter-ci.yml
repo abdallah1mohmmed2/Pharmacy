@@ -243,10 +243,12 @@ jobs:
           PY
       - name: Build Android APK with retry for transient Gradle distribution failures
         shell: bash
+        env:
+          PROVISIONING_ED25519_PUBLIC_KEY_PEM_BASE64: ${{ vars.PROVISIONING_ED25519_PUBLIC_KEY_PEM_BASE64 }}
         run: |
           for attempt in 1 2 3; do
             echo "Android release build attempt $attempt/3"
-            if flutter build apk --release; then
+            if flutter build apk --release --dart-define="PROVISIONING_ED25519_PUBLIC_KEY_PEM_BASE64=$PROVISIONING_ED25519_PUBLIC_KEY_PEM_BASE64"; then
               exit 0
             fi
             if [ "$attempt" -lt 3 ]; then
@@ -362,10 +364,12 @@ jobs:
       - run: flutter analyze --no-fatal-infos
       - name: Build Windows release
         shell: pwsh
+        env:
+          PROVISIONING_ED25519_PUBLIC_KEY_PEM_BASE64: ${{ vars.PROVISIONING_ED25519_PUBLIC_KEY_PEM_BASE64 }}
         run: |
           for ($attempt = 1; $attempt -le 3; $attempt++) {
             Write-Host "Windows release build attempt $attempt/3"
-            flutter build windows --release -v
+            flutter build windows --release -v "--dart-define=PROVISIONING_ED25519_PUBLIC_KEY_PEM_BASE64=$env:PROVISIONING_ED25519_PUBLIC_KEY_PEM_BASE64"
             if ($LASTEXITCODE -eq 0) {
               exit 0
             }
