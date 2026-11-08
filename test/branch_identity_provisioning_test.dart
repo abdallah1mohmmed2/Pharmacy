@@ -289,4 +289,53 @@ void main() {
       await disposeDatabase(db);
     }
   });
+
+  test('reads cloud sync setting from a legacy setting_value column', () async {
+    final service = BranchIdentityProvisioningService(
+      trustedPublicKeyPem: publicPem,
+    );
+    final db = await createLegacyDatabase();
+    try {
+      await db.execute(
+        'CREATE TABLE system_settings (setting_no INTEGER, setting_value TEXT)',
+      );
+      await db.insert('system_settings', {
+        'setting_no': 35,
+        'setting_value': '{"enabled":true}',
+      });
+      await expectLater(
+        service.installManifest(database: db, manifestBytes: manifest),
+        throwsStateError,
+      );
+      expect((await db.query('tenants')).single['uuid'], 'tenant-main');
+      expect(
+        await db.rawQuery(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='branch_identity_provisioning'",
+        ),
+        isEmpty,
+      );
+    } finally {
+      await disposeDatabase(db);
+    }
+  });
+
+  test('fails closed when cloud sync setting value cannot be inspected', () async {
+    final service = BranchIdentityProvisioningService(
+      trustedPublicKeyPem: publicPem,
+    );
+    final db = await createLegacyDatabase();
+    try {
+      await db.execute(
+        'CREATE TABLE system_settings (setting_no INTEGER)',
+      );
+      await db.insert('system_settings', {'setting_no': 35});
+      await expectLater(
+        service.installManifest(database: db, manifestBytes: manifest),
+        throwsStateError,
+      );
+      expect((await db.query('tenants')).single['uuid'], 'tenant-main');
+    } finally {
+      await disposeDatabase(db);
+    }
+  });
 }
