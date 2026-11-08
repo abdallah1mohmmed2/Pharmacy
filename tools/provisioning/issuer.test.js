@@ -39,11 +39,16 @@ test('issuer creates one signed Tenant/Branch identity and refuses re-issuance',
   try {
     assert.equal(run(['init-keys', '--key-dir', keys]).status, 0);
     assert.equal(run(['issue', '--key-dir', keys, '--output', manifest,
-      '--tenant-name-ar', 'المؤسسة التجريبية', '--branch-name-ar', 'الصيدلية الرئيسية']).status, 0);
+      '--tenant-code', 'pharmacy', '--tenant-name-ar', 'pharmacy',
+      '--branch-code', 'ph1', '--branch-name-ar', 'ph1']).status, 0);
     const bundle = JSON.parse(fs.readFileSync(manifest, 'utf8'));
     assert.match(bundle.payload.tenant_uuid, /^[0-9a-f-]{36}$/i);
     assert.match(bundle.payload.branch_uuid, /^[0-9a-f-]{36}$/i);
     assert.notEqual(bundle.payload.tenant_uuid, bundle.payload.branch_uuid);
+    assert.equal(bundle.payload.tenant_code, 'PHARMACY');
+    assert.equal(bundle.payload.tenant_name_ar, 'pharmacy');
+    assert.equal(bundle.payload.branch_code, 'PH1');
+    assert.equal(bundle.payload.branch_name_ar, 'ph1');
     const pub = crypto.createPublicKey(fs.readFileSync(path.join(keys, 'provisioning-ed25519-public.pem')));
     const canonical = JSON.stringify({
       schema_version: bundle.payload.schema_version,
