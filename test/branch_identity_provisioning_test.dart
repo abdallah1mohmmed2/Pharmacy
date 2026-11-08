@@ -151,7 +151,7 @@ void main() {
     );
 
     final otherPair = await Ed25519().newKeyPair();
-    final otherPublic = await otherPair.extractPublicKey() as SimplePublicKey;
+    final otherPublic = await otherPair.extractPublicKey();
     final otherPem = '-----BEGIN PUBLIC KEY-----\n'
         '${base64Encode([
           ...<int>[
