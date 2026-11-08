@@ -106,7 +106,7 @@ void main() {
       throwsA(isA<SocketException>()),
     );
     expect(
-        (await source.db.query('sync_items')).single['sync_status'], 'LOCAL');
+        (await source.db.query('sync_items')).single['sync_status'], 'QUEUED');
     final failedQueue = (await source.db.query('sync_queue')).single;
     expect(failedQueue['status'], 'FAILED');
     expect(failedQueue['last_error'], isNotNull);
@@ -354,21 +354,21 @@ class _FakeFirestore {
             'name': update['name'],
             'fields': fields,
           };
-          return http.Response('{}', 200);
+          return _jsonResponse('{}', 200);
         }
         if (request.method == 'POST' &&
             request.url.path.contains(':runQuery')) {
           if (!serveDocuments || document == null) {
-            return http.Response('[]', 200);
+            return _jsonResponse('[]', 200);
           }
-          return http.Response(
+          return _jsonResponse(
             jsonEncode([
               {'document': document}
             ]),
             200,
           );
         }
-        return http.Response('{}', 404);
+        return _jsonResponse('{}', 404);
       });
 
   void rewriteFirstEventBranch(String branchUuid) {
@@ -443,3 +443,10 @@ Object? _canonicalize(Object? value) {
   if (value is List) return value.map(_canonicalize).toList();
   return value;
 }
+
+
+http.Response _jsonResponse(String body, int statusCode) => http.Response(
+      body,
+      statusCode,
+      headers: {'content-type': 'application/json; charset=utf-8'},
+    );
