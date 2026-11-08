@@ -472,3 +472,12 @@
 - إضافة اختبارات قواعد Firestore على Emulator تغطي المصادقة، وعزل الفروع، ومنع تعديل دفعات المزامنة، وصلاحيات لوحة المدير.
 - إضافة تشغيل اختبارات Emulator إلى GitHub Actions، ودعم FIRESTORE_EMULATOR_HOST في FirestoreSyncWorker للاختبارات المحلية.
 - لم تصدر claims إنتاجية ولم ينشر أي مورد Firebase. اعتماد المزامنة ينتظر CI واختبار دورة end-to-end فعلية بحساب تجريبي.
+
+
+## Firebase Auth & Firestore sync hardening — 2026-11-08
+- بعد مراجعة الفرع `feature/central-medicine-catalog`، تم تحديث جدولة المزامنة لتبدأ مجدداً بعد نجاح تسجيل الدخول إلى Firebase Auth.
+- أصبح زر فحص الاتصال ينفذ Firestore runQuery فعلياً على مجموعة دفعات الفرع باستخدام ID token، ويتحقق من صلاحية Security Rules بدلاً من فحص وجود الرمز فقط.
+- عند رفض refresh token (HTTP 400/401) تُنظف بيانات جلسة Firebase المخزنة؛ لا يتم مسحها عند أخطاء الشبكة العابرة.
+- تم تشديد أداة Custom Claims لتأخذ ربط UID/branch_id/branch_role من ملف خارجي موثوق خارج Git repository، مع التحقق من UUID والدور ووجود UID في Firebase Auth.
+- أضيف تحقق Auth Emulator من تجديد refresh token واستمرار branch claims.
+- لا يوجد نشر Firebase أو إصدار claims إنتاجية. نتائج CI لهذه التغييرات لم تظهر بعد وقت هذا التوثيق.
