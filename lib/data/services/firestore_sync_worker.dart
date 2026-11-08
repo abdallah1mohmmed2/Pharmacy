@@ -139,27 +139,73 @@ class FirestoreSyncWorker {
     int pageSize = 100,
   }) async {
     final db = await _helper.database;
-    var pageToken = '';
+    final cursorRows = await db.query(
+      'sync_inbox_cursors',
+      where: 'branch_id=?',
+      whereArgs: [branchId],
+      limit: 1,
+    );
+    var lastCreatedAt = cursorRows.isEmpty
+        ? ''
+        : cursorRows.first['page_token']?.toString() ?? '';
+    var lastDocumentName = cursorRows.isEmpty
+        ? ''
+        : cursorRows.first['last_document_name']?.toString() ?? '';
     var processed = 0;
-    final seenTokens = <String>{};
-    do {
-      final query = <String, String>{'pageSize': '$pageSize'};
-      if (pageToken.isNotEmpty) query['pageToken'] = pageToken;
+    while (true) {
+      final structuredQuery = <String, Object?>{
+        'from': [
+          {'collectionId': 'batches'}
+        ],
+        'where': {
+          'fieldFilter': {
+            'field': {'fieldPath': 'branch_id'},
+            'op': 'EQUAL',
+            'value': {'stringValue': branchId.toString()},
+          }
+        },
+        'orderBy': [
+          {
+            'field': {'fieldPath': 'created_at'},
+            'direction': 'ASCENDING'
+          },
+          {
+            'field': {'fieldPath': '__name__'},
+            'direction': 'ASCENDING'
+          }
+        ],
+        'limit': pageSize,
+      };
+      if (lastCreatedAt.isNotEmpty && lastDocumentName.isNotEmpty) {
+        structuredQuery['startAt'] = {
+          'values': [
+            {'stringValue': lastCreatedAt},
+            {'referenceValue': lastDocumentName},
+          ],
+          'before': false,
+        };
+      }
       final uri = Uri.https(
         'firestore.googleapis.com',
-        '/v1/projects/$projectId/databases/$databaseId/documents/pharmacy_sync_batches/$branchId/batches',
-        query,
+        '/v1/projects/$projectId/databases/$databaseId/documents/pharmacy_sync_batches/$branchId:runQuery',
       );
       final response = await _client
-          .get(uri, headers: _headers(idToken))
+          .post(uri,
+              headers: _headers(idToken),
+              body: jsonEncode({'structuredQuery': structuredQuery}))
           .timeout(const Duration(seconds: 30));
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw HttpException(
             'Firestore inbox HTTP ${response.statusCode}: ${response.body}');
       }
-      final body = jsonDecode(response.body) as Map<String, dynamic>;
-      final documents = (body['documents'] as List? ?? const []);
-      for (final raw in documents.whereType<Map>()) {
+      final rawResults = jsonDecode(response.body) as List;
+      final documents = rawResults
+          .whereType<Map>()
+          .map((entry) => entry['document'])
+          .whereType<Map>()
+          .toList();
+      if (documents.isEmpty) break;
+      for (final raw in documents) {
         final fields = _decodeFields(raw['fields'] as Map? ?? const {});
         if (fields['branch_id']?.toString() != branchId.toString()) continue;
         final batchId = fields['batch_uuid']?.toString() ??
@@ -178,14 +224,25 @@ class FirestoreSyncWorker {
               .toList(),
         );
         processed += events.length;
+        final createdAt = fields['created_at']?.toString() ?? '';
+        final documentName = raw['name']?.toString() ?? '';
+        if (createdAt.isNotEmpty && documentName.isNotEmpty) {
+          lastCreatedAt = createdAt;
+          lastDocumentName = documentName;
+          await db.insert(
+            'sync_inbox_cursors',
+            {
+              'branch_id': branchId,
+              'page_token': lastCreatedAt,
+              'last_document_name': lastDocumentName,
+              'updated_at': DateTime.now().toUtc().toIso8601String(),
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
       }
-      final next = body['nextPageToken']?.toString() ?? '';
-      if (next.isEmpty || !seenTokens.add(next)) {
-        pageToken = '';
-      } else {
-        pageToken = next;
-      }
-    } while (pageToken.isNotEmpty);
+      if (documents.length < pageSize) break;
+    }
     return processed;
   }
 
