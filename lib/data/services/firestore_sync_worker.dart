@@ -138,8 +138,11 @@ class FirestoreSyncWorker {
     }
     await db.update('sync_queue', {'status': 'PENDING'},
         where: "status='SENDING'");
-    await BackupAndSyncService(helper: _helper, client: _client)
-        .collectLocalChanges(maxRows: batchSize * 10);
+    await BackupAndSyncService(
+      helper: _helper,
+      client: _client,
+      allowedTablesForTesting: _allowedTables,
+    ).collectLocalChanges(maxRows: batchSize * 10);
 
     final pending = await _branchPending(db, branchId, batchSize);
     var uploaded = 0;
