@@ -113,7 +113,9 @@ class _S19S20S21PartiesAndVouchersScreenState
                       ),
                       details: [
                         Text(type == 'CUSTOMER'
-                            ? (party.isPatient ? 'عميل • ملف طبي نشط' : 'حساب عميل')
+                            ? (party.isPatient
+                                ? 'عميل • ملف طبي نشط'
+                                : 'حساب عميل')
                             : 'حساب مورد / مذخر'),
                         if (party.address.isNotEmpty)
                           Text('العنوان: ${party.address}'),
@@ -412,16 +414,18 @@ class _S19S20S21PartiesAndVouchersScreenState
                                 value: 'SUPPLIER', child: Text('مورد / مذخر'))
                           ],
                           onChanged: (v) => set(() {
-                            type = v ?? type;
-                            if (type != 'CUSTOMER') createPatient = false;
-                          })),
+                                type = v ?? type;
+                                if (type != 'CUSTOMER') createPatient = false;
+                              })),
                       if (type == 'CUSTOMER')
                         CheckboxListTile(
                           contentPadding: EdgeInsets.zero,
                           value: createPatient,
                           title: const Text('تفعيل الملف الطبي لهذا العميل'),
-                          subtitle: const Text('سيظهر في اختيار المرضى للوصفات والرقابة السريرية والتأمين.'),
-                          onChanged: (value) => set(() => createPatient = value ?? false),
+                          subtitle: const Text(
+                              'سيظهر في اختيار المرضى للوصفات والرقابة السريرية والتأمين.'),
+                          onChanged: (value) =>
+                              set(() => createPatient = value ?? false),
                         ),
                       TextField(
                           controller: code,
