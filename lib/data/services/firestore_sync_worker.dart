@@ -75,9 +75,7 @@ class FirestoreSyncWorker {
     var uploaded = 0;
     if (pending.isNotEmpty) {
       final batch = await _buildBatch(db, branchId, pending);
-      if (batch.items.isEmpty) {
-        return FirestoreSyncResult(uploadedEvents: 0, receivedEvents: 0);
-      }
+      if (batch.items.isNotEmpty) {
       await db.transaction((txn) async {
         final ids = batch.queueIds;
         await txn.update('sync_queue', {'status': 'SENDING'},
@@ -117,6 +115,7 @@ class FirestoreSyncWorker {
           whereArgs: batch.queueIds,
         );
         rethrow;
+      }
       }
     }
 
