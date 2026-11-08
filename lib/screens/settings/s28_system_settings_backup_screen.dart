@@ -603,6 +603,7 @@ class _S28SystemSettingsBackupScreenState
     try {
       await FirebaseBranchAuthService.instance
           .signIn(email: values[0], password: values[1]);
+      await p.refreshCloudSyncSchedule();
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text('تم تسجيل الدخول إلى Firebase: ' +
