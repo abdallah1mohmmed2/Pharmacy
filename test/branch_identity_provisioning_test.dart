@@ -314,7 +314,8 @@ void main() {
     }
   });
 
-  test('fails closed when cloud sync setting value cannot be inspected', () async {
+  test('fails closed when cloud sync setting value cannot be inspected',
+      () async {
     final service = BranchIdentityProvisioningService(
       trustedPublicKeyPem: publicPem,
     );

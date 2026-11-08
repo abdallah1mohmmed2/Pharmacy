@@ -212,9 +212,8 @@ class BranchIdentityProvisioningService {
         final settingColumns = await txn.rawQuery(
           'PRAGMA table_info(system_settings)',
         );
-        final availableColumns = settingColumns
-            .map((row) => row['name'] as String)
-            .toSet();
+        final availableColumns =
+            settingColumns.map((row) => row['name'] as String).toSet();
         const valueColumnCandidates = [
           'value_text',
           'setting_value',
