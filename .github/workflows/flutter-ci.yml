@@ -174,7 +174,7 @@ jobs:
           if not properties.is_file():
               raise SystemExit(f"Gradle wrapper properties not found: {properties}")
           lines = properties.read_text(encoding="utf-8").splitlines()
-          uri = archive.as_uri().replace(":", r"\\:")
+          uri = archive.as_uri().replace(":", r"\:")
           output = []
           found_url = False
           found_hash = False
@@ -191,7 +191,7 @@ jobs:
               raise SystemExit("Gradle wrapper distributionUrl was not found.")
           if not found_hash:
               output.append("distributionSha256Sum=b266d5ff6b90eada6dc3b20cb090e3731302e553a27c5d3e4df1f0d76beaff06")
-          properties.write_text("\\n".join(output) + "\\n", encoding="utf-8")
+          properties.write_text("\n".join(output) + "\n", encoding="utf-8")
           print(f"Gradle wrapper configured to use verified local distribution: {archive}")
           PY
       - name: Build Android APK with retry for transient Gradle distribution failures
