@@ -115,6 +115,12 @@ class _S28SystemSettingsBackupScreenState
   );
 
   Future<void> _importBranchIdentity() async {
+    if (FirebaseBranchAuthService.instance.isSignedIn) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('سجّل الخروج من Firebase قبل تأسيس هوية هذا الجهاز.'),
+      ));
+      return;
+    }
     final pin =
         await _managerPin(title: 'تأكيد رمز المالك لتأسيس هوية المؤسسة والفرع');
     if (pin == null || pin.isEmpty || !mounted) return;
