@@ -105,6 +105,21 @@ jobs:
           fi
       - name: Verify Dart formatting across the repository
         run: dart format --output=none --set-exit-if-changed .
+      - name: Set up Node.js for Firebase Emulator tests
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Set up Java for Firebase Emulator
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Install Firebase security test dependencies
+        working-directory: firebase
+        run: npm install --no-audit --no-fund
+      - name: Run Firestore Emulator security tests
+        working-directory: firebase
+        run: npm test
       - name: Validate Firebase deployment JSON
         shell: bash
         run: |
