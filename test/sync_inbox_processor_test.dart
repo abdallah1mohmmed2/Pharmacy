@@ -99,7 +99,7 @@ void main() {
     final replay = await processor.processBatch(
       branchId: 7,
       batchUuid: 'batch-1',
-      payloadHash: 'fingerprint-1',
+      payloadHash: batchFingerprint([incoming]),
       events: [incoming],
     );
 
