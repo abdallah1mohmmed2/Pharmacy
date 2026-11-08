@@ -33,8 +33,9 @@ test('Firebase Auth Emulator signs in user and returns branch custom claims', as
       body: JSON.stringify({ email, password, returnSecureToken: true }),
     },
   );
-  assert.equal(response.status, 200, await response.text());
-  const payload = await response.json();
+  const rawResponse = await response.text();
+  assert.equal(response.status, 200, rawResponse);
+  const payload = JSON.parse(rawResponse);
   assert.ok(payload.idToken);
   const decoded = await admin.auth().verifyIdToken(payload.idToken);
   assert.equal(decoded.uid, user.uid);
