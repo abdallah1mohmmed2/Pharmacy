@@ -243,3 +243,21 @@ flowchart TB
 - يرفض Inbox أي batch لا تطابق بصمته canonical محتوى قائمة الأحداث؛ كما يرفض اختلاف المحتوى مع event UUID أو batch UUID سبق تسجيله.
 - يستخدم عامل الرفع Server Timestamp حتى لا يعتمد ترتيب cursor على ساعة جهاز الفرع.
 - جداول الأطراف والمرضى والوصفات والقرارات السريرية وسجلات الأدوية المراقبة والموظفين والرواتب محظورة مؤقتاً في الاتجاهين. تبقى عناصر Outbox الخاصة بها بحالة CONFLICT حتى تُضاف طبقة تشفير وإدارة مفاتيح ومراجعة صلاحيات مناسبة؛ لا تُرفع بياناتها الشخصية خاماً إلى Firestore.
+
+
+## 10. Firebase Authentication وClaims
+
+- يعتمد التطبيق على Firebase Auth email/password من خلال FirebaseBranchAuthService.
+- بيانات Firebase العامة المطلوبة في إعداد 35: project_id وapi_key وapp_id وmessaging_sender_id.
+- كلمة مرور Firebase لا تحفظ في SQLite أو JSON الإعدادات؛ Firebase Auth SDK يدير الجلسة والـ ID token.
+- Claims المسموح بها: branch_id = UUID العالمي للفرع، وbranch_role = owner أو manager أو staff.
+- إصدار Claims عملية إدارية فقط باستخدام Firebase Admin SDK من بيئة موثوقة. الأداة موجودة في firebase/scripts/set-branch-claims.js.
+- لا تستخدم رقم الفرع المحلي في claims ولا تقبل branch_id من payload العميل بديلاً عن claim.
+
+## 11. Emulator
+
+- Firestore Emulator مهيأ في firebase/firebase.json.
+- اختبارات قواعد الوصول في firebase/test/firestore.rules.test.js.
+- GitHub Actions يشغل npm test داخل firebase قبل تحليل وبناء Flutter.
+- يمكن توجيه FirestoreSyncWorker إلى emulator عبر compile-time define FIRESTORE_EMULATOR_HOST=127.0.0.1:8080. يظل endpoint الإنتاج افتراضياً عند غياب المتغير.
+- الاختبارات الحالية تتحقق من حدود قواعد Firestore؛ لا تعتبر بديلاً عن اختبار end-to-end لعامل Flutter وSQLite.
