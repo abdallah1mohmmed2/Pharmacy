@@ -41,7 +41,7 @@ void main() {
       branch_id INTEGER NOT NULL, sync_version INTEGER NOT NULL DEFAULT 1,
       sync_status TEXT NOT NULL DEFAULT 'LOCAL', parent_id INTEGER NOT NULL,
       title TEXT NOT NULL, FOREIGN KEY(parent_id) REFERENCES sync_parents(id))''');
-    processor = FirestoreInboxProcessor();
+    processor = FirestoreInboxProcessor(database: db);
   });
 
   tearDown(() async {
