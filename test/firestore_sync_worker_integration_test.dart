@@ -20,7 +20,8 @@ void main() {
     databaseFactory = databaseFactoryFfi;
   });
 
-  test('uploads from device A, receives on device B, and safely replays', () async {
+  test('uploads from device A, receives on device B, and safely replays',
+      () async {
     final source = await _Device.open(seedLocalItem: true);
     final target = await _Device.open();
     final server = _FakeFirestore();
@@ -36,7 +37,8 @@ void main() {
     );
     expect(upload.uploadedEvents, 1);
     expect((await source.db.query('sync_queue')).single['status'], 'DONE');
-    expect((await source.db.query('sync_items')).single['sync_status'], 'SYNCED');
+    expect(
+        (await source.db.query('sync_items')).single['sync_status'], 'SYNCED');
 
     server.serveDocuments = true;
     final receive = await _worker(target, server).syncOnce(
@@ -89,7 +91,8 @@ void main() {
     expect((await target.db.query('sync_inbox')).single['status'], 'FAILED');
   });
 
-  test('retains the local outbox row through a network outage and resumes', () async {
+  test('retains the local outbox row through a network outage and resumes',
+      () async {
     final source = await _Device.open(seedLocalItem: true);
     final server = _FakeFirestore()..offline = true;
     addTearDown(source.dispose);
@@ -102,7 +105,8 @@ void main() {
       ),
       throwsA(isA<SocketException>()),
     );
-    expect((await source.db.query('sync_items')).single['sync_status'], 'LOCAL');
+    expect(
+        (await source.db.query('sync_items')).single['sync_status'], 'LOCAL');
     final failedQueue = (await source.db.query('sync_queue')).single;
     expect(failedQueue['status'], 'FAILED');
     expect(failedQueue['last_error'], isNotNull);
@@ -115,10 +119,12 @@ void main() {
     );
     expect(resumed.uploadedEvents, 1);
     expect((await source.db.query('sync_queue')).single['status'], 'DONE');
-    expect((await source.db.query('sync_items')).single['sync_status'], 'SYNCED');
+    expect(
+        (await source.db.query('sync_items')).single['sync_status'], 'SYNCED');
   });
 
-  test('retries a failed local SQLite write without losing the remote event', () async {
+  test('retries a failed local SQLite write without losing the remote event',
+      () async {
     final source = await _Device.open(seedLocalItem: true);
     final target = await _Device.open();
     final server = _FakeFirestore();
@@ -159,7 +165,9 @@ void main() {
     expect(await target.db.query('sync_inbox_batches'), hasLength(1));
   });
 
-  test('rolls back a failed inbox transaction and replays the untouched remote batch', () async {
+  test(
+      'rolls back a failed inbox transaction and replays the untouched remote batch',
+      () async {
     final source = await _Device.open(seedLocalItem: true);
     final target = await _Device.open();
     final server = _FakeFirestore();
@@ -258,8 +266,7 @@ FirestoreSyncWorker _worker(_Device device, _FakeFirestore server) =>
     );
 
 class _Device {
-  _Device(this.directory, this.db)
-      : helper = DatabaseHelper.forTesting(db);
+  _Device(this.directory, this.db) : helper = DatabaseHelper.forTesting(db);
 
   final Directory directory;
   final Database db;
