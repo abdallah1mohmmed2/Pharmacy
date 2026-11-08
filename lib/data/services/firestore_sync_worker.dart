@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:sqflite/sqflite.dart';
@@ -45,6 +46,9 @@ class FirestoreSyncWorker {
     var uploaded = 0;
     if (pending.isNotEmpty) {
       final batch = await _buildBatch(db, branchId, pending);
+      if (batch.items.isEmpty) {
+        return FirestoreSyncResult(uploadedEvents: 0, receivedEvents: 0);
+      }
       await db.transaction((txn) async {
         final ids = batch.queueIds;
         await txn.update('sync_queue', {'status': 'SENDING'},
