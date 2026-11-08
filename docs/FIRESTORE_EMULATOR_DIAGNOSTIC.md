@@ -121,3 +121,17 @@
 - حزمة Windows ZIP: رُفعت بنجاح باسم `pharmacy-windows`.
 
 لم يتم تعديل `main`، ولم يحدث نشر إلى Firebase أو إصدار Custom Claims حية. ملفات البناء محفوظة كـ GitHub Actions artifacts في التشغيل أعلاه.
+
+
+---
+
+## تثبيت خط الأساس قبل اختبار تكامل Flutter — 2026-11-08
+
+- HEAD الفرع قبل إضافة اختبار التكامل: \`3999e07a43e9a64535ec8a9b3308a532458beb5a\`.
+- آخر CI ناجح: [42469850687](https://github.com/abdallah1mohmmed2/Pharmacy/actions/runs/42469850687)، على commit \`72d309be3b6d07d7f4918ad59d3c04a983699ad8\`.
+- نجحت اختبارات Firebase Emulator، اختبار الهوية الموقعة، Flutter Analyze، 78 اختبار Flutter، Android Release APK وWindows Release، ورُفعت حزم Android وWindows.
+- artifact IDs: Android \`13612947510\` وWindows \`13613730529\`؛ لم تكن منتهية الصلاحية وقت الفحص.
+- HEAD اللاحق \`3999e07...\` توثيقي فقط ولا يضيف كوداً وظيفياً بعد الالتزام المختبر.
+- تمت إضافة اختبار تكامل Flutter جديد يستخدم قاعدتي SQLite مستقلتين، ويشغّل اختباراً إضافياً على Firestore Emulator الحقيقي من CI. يغطي النقل بين جهازين، replay/idempotency، اختلاف الفرع، انقطاع الاتصال والاستئناف، فشل الكتابة، وrollback لمعاملة Inbox.
+- **حالة التحقق من الكود الجديد: بانتظار CI؛ لا تُنسب إليه نتيجة التشغيل التاريخي 42469850687.**
+- لا نشر إلى Firebase الإنتاجي ولا إصدار Claims حية ضمن هذه المرحلة.

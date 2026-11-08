@@ -18,6 +18,10 @@ import 'schema_iteration12.dart';
 
 class DatabaseHelper {
   DatabaseHelper._();
+
+  /// Injects an isolated SQLite connection for deterministic integration tests.
+  /// Production code must use [DatabaseHelper.instance].
+  DatabaseHelper.forTesting(Database database) : _db = database;
   static final DatabaseHelper instance = DatabaseHelper._();
   Database? _db;
   String? _openedPath;

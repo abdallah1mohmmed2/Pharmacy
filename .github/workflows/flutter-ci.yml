@@ -152,6 +152,12 @@ jobs:
                 source: system
           YAML
           tail -n 10 pubspec.yaml
+      - name: Run Flutter sync integration against Firestore Emulator
+        working-directory: firebase
+        env:
+          FIRESTORE_EMULATOR_HOST: 127.0.0.1:8080
+        run: |
+          npx firebase emulators:exec --config firebase.emulator.json --only firestore --project pharmacy-dafb6 "cd .. && FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 flutter test test/firestore_sync_worker_integration_test.dart"
       - run: flutter test
       - name: Download and verify Gradle distribution through GitHub API
         shell: bash
