@@ -18,6 +18,7 @@ import '../../providers/treasury_hr_partner_provider.dart';
 import '../../data/database/database_helper.dart';
 import '../../data/services/firebase_branch_auth_service.dart';
 import '../../data/services/branch_identity_provisioning_service.dart';
+import '../../data/services/device_identity_service.dart';
 import '../../core/widgets/manager_pin_dialog.dart';
 
 class S28SystemSettingsBackupScreen extends StatefulWidget {
@@ -38,6 +39,77 @@ class _S28SystemSettingsBackupScreenState
     SettingGroup.printBackup
   ];
   String? auditUserFilter, auditActionFilter, auditSeverityFilter;
+  late Future<Map<String, Object?>> _identityStatusFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _identityStatusFuture = _loadIdentityStatus();
+  }
+
+  Future<Map<String, Object?>> _loadIdentityStatus() async {
+    final db = await DatabaseHelper.instance.database;
+    final tenants = await db.query('tenants', limit: 1);
+    final branches = await db.query('branches', limit: 1);
+    final provisioningTable = await db.rawQuery(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='branch_identity_provisioning'",
+    );
+    final provisioned = provisioningTable.isNotEmpty &&
+        (await db.query('branch_identity_provisioning', limit: 1)).isNotEmpty;
+    final deviceId =
+        await DeviceIdentityService.instance.getOrCreateDeviceId();
+    return {
+      'tenant_uuid': tenants.isEmpty ? 'غير متوفر' : tenants.first['uuid'],
+      'tenant_name': tenants.isEmpty ? 'غير معروف' : tenants.first['name_ar'],
+      'branch_uuid': branches.isEmpty ? 'غير متوفر' : branches.first['uuid'],
+      'branch_name': branches.isEmpty ? 'غير معروف' : branches.first['name_ar'],
+      'provisioned': provisioned,
+      'device_id': deviceId,
+    };
+  }
+
+  Widget _identityStatusCard() => FutureBuilder<Map<String, Object?>>(
+        future: _identityStatusFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Card(
+              child: ListTile(
+                leading: Icon(Icons.fingerprint),
+                title: Text('هوية المؤسسة والجهاز'),
+                subtitle: Text('جارٍ قراءة الهوية المحلية...'),
+              ),
+            );
+          }
+          if (snapshot.hasError || !snapshot.hasData) {
+            return Card(
+              child: ListTile(
+                leading: const Icon(Icons.error_outline),
+                title: const Text('تعذر قراءة الهوية المحلية'),
+                subtitle: Text(snapshot.error?.toString() ?? 'لا توجد بيانات'),
+              ),
+            );
+          }
+          final value = snapshot.data!;
+          final provisioned = value['provisioned'] == true;
+          return Card(
+            child: ListTile(
+              isThreeLine: true,
+              leading: Icon(
+                provisioned ? Icons.verified_user : Icons.warning_amber,
+                color: provisioned ? Colors.green : Colors.orange,
+              ),
+              title: Text(provisioned
+                  ? 'هوية المؤسسة والفرع معتمدة على هذا الجهاز'
+                  : 'هوية مؤقتة — لم يتم التأسيس بعد'),
+              subtitle: SelectableText(
+                'المؤسسة: ${value['tenant_name']}  •  ${value['tenant_uuid']}\\n'
+                'الفرع: ${value['branch_name']}  •  ${value['branch_uuid']}\\n'
+                'معرّف هذا الجهاز: ${value['device_id']}',
+              ),
+            ),
+          );
+        },
+      );
   Future<String?> _managerPin({String title = 'تأكيد صلاحية المدير'}) =>
       ManagerPinDialog.show(context, title: title);
   static const _trustedProvisioningPublicKey = String.fromEnvironment(
@@ -79,6 +151,9 @@ class _S28SystemSettingsBackupScreenState
         manifestBytes: bytes,
       );
       if (!mounted) return;
+      setState(() {
+        _identityStatusFuture = _loadIdentityStatus();
+      });
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('تم اعتماد هوية المؤسسة والفرع على هذا الجهاز بنجاح.'),
       ));
@@ -701,6 +776,7 @@ class _S28SystemSettingsBackupScreenState
 
   Widget _syncTab(SettingsAndSystemProvider p) =>
       ListView(padding: const EdgeInsets.all(12), children: [
+        _identityStatusCard(),
         _settingTile(SettingKeys.byKey(SettingKey.cloudSync), p),
         Card(
           child: ListTile(
