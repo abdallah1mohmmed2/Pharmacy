@@ -111,6 +111,45 @@ class FirestoreInboxProcessor {
     );
   }
 
+  /// Retries events whose parent UUID had not arrived during the first pass.
+  Future<int> retryDeferred(int branchId) async {
+    final db = _database ?? await _helper.database;
+    final pending = await db.query(
+      'sync_inbox',
+      where: "branch_id=? AND status='NEEDS_DEPENDENCY'",
+      whereArgs: [branchId],
+      orderBy: 'received_at,id',
+      limit: 500,
+    );
+    var applied = 0;
+    for (final row in pending) {
+      final batches = await db.query(
+        'sync_inbox_batches',
+        where: 'branch_id=? AND batch_uuid=?',
+        whereArgs: [branchId, row['batch_uuid']],
+        limit: 1,
+      );
+      if (batches.isEmpty) continue;
+      final event = <String, Object?>{
+        'event_uuid': row['event_uuid'],
+        'table': row['table_name'],
+        'uuid': row['row_uuid'],
+        'operation': row['operation'],
+        'version': row['remote_version'],
+        'payload': jsonDecode(row['payload_json'] as String),
+        'relations': jsonDecode(row['relations_json'] as String),
+      };
+      final result = await processBatch(
+        branchId: branchId,
+        batchUuid: row['batch_uuid'] as String,
+        payloadHash: batches.first['payload_hash'] as String,
+        events: [event],
+      );
+      applied += result.applied;
+    }
+    return applied;
+  }
+
   Future<String> _processEvent(
     Transaction txn,
     int branchId,
