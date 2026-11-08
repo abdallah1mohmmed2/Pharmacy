@@ -41,4 +41,26 @@ test('Firebase Auth Emulator signs in user and returns branch custom claims', as
   assert.equal(decoded.uid, user.uid);
   assert.equal(decoded.branch_id, 'branch-uuid-0001');
   assert.equal(decoded.branch_role, 'manager');
+
+  // A refresh-token exchange must issue a fresh ID token carrying the same
+  // trusted branch claims, matching the Flutter client's renewal flow.
+  const refreshResponse = await fetch(
+    'http://' + host + '/securetoken.googleapis.com/v1/token?key=emulator-api-key',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: payload.refreshToken,
+      }),
+    },
+  );
+  const refreshBody = await refreshResponse.text();
+  assert.equal(refreshResponse.status, 200, refreshBody);
+  const refreshed = JSON.parse(refreshBody);
+  assert.ok(refreshed.id_token);
+  const refreshedClaims = await admin.auth().verifyIdToken(refreshed.id_token);
+  assert.equal(refreshedClaims.uid, user.uid);
+  assert.equal(refreshedClaims.branch_id, 'branch-uuid-0001');
+  assert.equal(refreshedClaims.branch_role, 'manager');
 });
