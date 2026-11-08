@@ -199,7 +199,7 @@
 
 ## المرحلة 4 — Firebase Authentication وCustom Claims وEmulator
 
-- أضيف Firebase Auth SDK dependencies وFirebaseBranchAuthService؛ يعتمد على بيانات تطبيق Firebase العامة من إعداد 35، ويسجل الدخول بالبريد وكلمة المرور دون نسخ كلمة المرور إلى SQLite أو إعدادات ERP.
+- أضيف Firebase Authentication REST dependencies وFirebaseBranchAuthService؛ يعتمد على بيانات تطبيق Firebase العامة من إعداد 35، ويسجل الدخول بالبريد وكلمة المرور دون نسخ كلمة المرور إلى SQLite أو إعدادات ERP.
 - أضيفت واجهة تسجيل الدخول والخروج من تبويب المزامنة السحابية.
 - رُبط token provider في main.dart بعامل Firestore. يحصل العامل على ID token من FirebaseAuth SDK الذي يتولى تجديده.
 - أضيف دعم endpoint اختباري لـFirestore Emulator عبر FIRESTORE_EMULATOR_HOST، مع إبقاء Google Firestore endpoint افتراضياً.
