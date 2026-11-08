@@ -45,8 +45,17 @@ class _S28SystemSettingsBackupScreenState
   );
 
   Future<void> _importBranchIdentity() async {
-    final pin = await _managerPin(title: 'اعتماد تأسيس هوية المؤسسة والفرع');
+    final pin = await _managerPin(title: 'تأكيد رمز المالك لتأسيس هوية المؤسسة والفرع');
     if (pin == null || pin.isEmpty || !mounted) return;
+    final ownerVerified = await context.read<SessionAndErpProvider>().verifyOwnerPin(pin);
+    if (!ownerVerified) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('رمز المالك غير صحيح؛ لم يتم استيراد الملف.'),
+        ));
+      }
+      return;
+    }
     try {
       final selection = await FilePicker.platform.pickFiles(
         type: FileType.custom,
