@@ -177,7 +177,8 @@
 - يطبّق كل حدث وتسجيل حالة Inbox ضمن معاملة SQLite واحدة.
 - يرفض الجداول الحساسة/المحلية مثل users وsystem_settings وaudit_logs وsync_queue، ولا يقبل إلا جداول تملك uuid وbranch_id وsync_version وsync_status.
 - يعيد ربط المفاتيح الأجنبية عبر UUID الأب بدلاً من افتراض تطابق أرقام SQLite بين الأجهزة، مع استثناء `branch_id` الذي يظل محلياً؛ ويؤجل الحدث بحالة `NEEDS_DEPENDENCY` إذا لم يصل الأب بعد، ثم يعيد محاولة المؤجل بعد كل سحب.
-- يمنع تحديث سجل محلي أحدث أو غير متزامن حتى لا يطمس تعديلاً محلياً؛ ويعيّن السجلات الواردة `SYNCED` لمنع إعادة إرسالها كأحداث محلية.
+- يمنع تحديث سجل محلي أحدث أو غير متزامن حتى لا يطمس تعديلاً محلياً؛ ويعيّن السجلات الواردة `SYNCED` لمنع إعادة إرسالها كأحداث محلية. تُرفض إعادة استخدام event UUID أو batch UUID ببصمة مختلفة.
+- يمنع العامل رفع جداول الأطراف والمرضى والوصفات والبيانات السريرية والموظفين الحساسة، ويضع عناصرها في `CONFLICT` حتى تتوفر طبقة تشفير وإدارة مفاتيح معتمدة؛ كما يرفضها Inbox الوارد.
 
 ### الحدود المتبقية قبل التشغيل الحي
 - العامل يتطلب Firebase ID token صالحاً من حساب موثق، ويحمل custom claim موثوقاً `branch_id` مطابقاً لمعرف الفرع. لا يحتوي التطبيق بعد على Firebase Authentication أو جهة إصدار custom claims؛ لم نستخدم كلمة مرور SQLite المحلية كهوية سحابية ولم نخزن service-account secret في التطبيق.
@@ -193,4 +194,4 @@
 
 | التاريخ | المرحلة | التغيير | التحقق | الحالة |
 |---|---|---|---|---|
-| 2026-11-08 | 6 | Firestore REST batch worker + SQLite Inbox v14 + UUID FK resolver + اختبارات idempotency | ينتظر GitHub Actions وFirebase Emulator | قيد التحقق |
+| 2026-11-08 | 6 | Firestore REST batch worker + SQLite Inbox v14 + UUID FK resolver + اختبارات idempotency | نجح Android Analyze وFlutter Test؛ Android/Windows Release ما زالا قيد التشغيل في GitHub Actions، وFirebase Emulator غير منفذ | قيد التحقق |
