@@ -463,3 +463,12 @@
 - تمرير رقم الفرع النشط من جلسة التطبيق، وإضافة حالة مرئية للمزامنة وجدولة دورية كل دقيقتين بعد توفر مزوّد Firebase ID token.
 - إضافة واجهة حقن آمنة لمزوّد ID token؛ لم يتم تمرير كلمة مرور المستخدم المحلي أو PIN إلى Firestore.
 - **قيد غير مكتمل:** لا يوجد في التطبيق حالياً تسجيل دخول Firebase Authentication ولا مصدر ID token موصول؛ لذلك لا تزال المزامنة الحقيقية متوقفة حتى إعداد Firebase Auth وإصدار Custom Claims للفرع. لا يُعلن نجاح اتصال أو مزامنة قبل ذلك.
+
+
+## Firebase Authentication وFirestore Emulator — 2026-11-08
+- إضافة Firebase Auth SDK وخدمة FirebaseBranchAuthService لتسجيل دخول حساب الفرع والحصول على ID token، مع عدم تخزين كلمات مرور Firebase في قاعدة ERP.
+- إضافة واجهة تسجيل الدخول والخروج في تبويب المزامنة، وربط ID token provider بعامل Firestore.
+- إضافة أداة Firebase Admin SDK لإسناد branch_id وbranch_role لحساب موجود من بيئة إدارية موثوقة فقط.
+- إضافة اختبارات قواعد Firestore على Emulator تغطي المصادقة، وعزل الفروع، ومنع تعديل دفعات المزامنة، وصلاحيات لوحة المدير.
+- إضافة تشغيل اختبارات Emulator إلى GitHub Actions، ودعم FIRESTORE_EMULATOR_HOST في FirestoreSyncWorker للاختبارات المحلية.
+- لم تصدر claims إنتاجية ولم ينشر أي مورد Firebase. اعتماد المزامنة ينتظر CI واختبار دورة end-to-end فعلية بحساب تجريبي.
