@@ -127,6 +127,7 @@ class FirestoreSyncWorker {
       idToken: idToken,
       databaseId: databaseId,
     );
+    await _inbox.retryDeferred(branchId);
     return FirestoreSyncResult(
         uploadedEvents: uploaded, receivedEvents: received);
   }
