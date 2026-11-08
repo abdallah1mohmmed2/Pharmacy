@@ -4,15 +4,20 @@ import 'package:sqflite/sqflite.dart';
 abstract final class SeedData {
   static const _now = '2026-11-05T00:00:00.000';
   static Future<void> run(DatabaseExecutor db) async {
-    await db.insert('tenants', {
-      'uuid': 'tenant-main',
-      'code': 'MAIN',
-      'name_ar': 'المؤسسة الرئيسية',
-      'name_en': 'Main Organization',
-      'is_active': 1,
-      'created_at': _now,
-      'updated_at': _now,
-    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    final tenantTable = await db.rawQuery(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='tenants'",
+    );
+    if (tenantTable.isNotEmpty) {
+      await db.insert('tenants', {
+        'uuid': 'tenant-main',
+        'code': 'MAIN',
+        'name_ar': 'المؤسسة الرئيسية',
+        'name_en': 'Main Organization',
+        'is_active': 1,
+        'created_at': _now,
+        'updated_at': _now,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    }
     // Legacy placeholder only. Secure provisioning must replace this with
     // one operator-issued UUID shared by every device in this pharmacy.
     final branchId = await db.insert('branches', {
