@@ -48,11 +48,24 @@ class FirebaseBranchAuthService {
     return Uri.https('securetoken.googleapis.com', '/v1/token');
   }
 
-  Future<void> configure({required String apiKey}) async {
-    if (apiKey.trim().isEmpty)
-      throw StateError('أدخل Firebase api_key في إعداد 35');
+  Future<void> configure({
+    required String apiKey,
+    required String projectId,
+  }) async {
+    if (apiKey.trim().isEmpty || projectId.trim().isEmpty) {
+      throw StateError('أدخل Firebase project_id وapi_key في إعداد 35');
+    }
+    final persistedProject =
+        await _storage.read(key: 'firebase_branch_project_id');
+    if (persistedProject != null && persistedProject != projectId.trim()) {
+      await signOut();
+    }
     _apiKey = apiKey.trim();
-    _refreshToken ??= await _storage.read(key: 'firebase_branch_refresh_token');
+    _projectId = projectId.trim();
+    await _storage.write(
+        key: 'firebase_branch_project_id', value: _projectId);
+    _refreshToken ??=
+        await _storage.read(key: 'firebase_branch_refresh_token');
     _uid ??= await _storage.read(key: 'firebase_branch_uid');
     _email ??= await _storage.read(key: 'firebase_branch_email');
   }
@@ -139,6 +152,7 @@ class FirebaseBranchAuthService {
     await _storage.delete(key: 'firebase_branch_refresh_token');
     await _storage.delete(key: 'firebase_branch_uid');
     await _storage.delete(key: 'firebase_branch_email');
+    await _storage.delete(key: 'firebase_branch_project_id');
     await _storage.delete(key: 'firebase_branch_project_id');
   }
 
