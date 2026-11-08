@@ -72,6 +72,7 @@ test('authenticated branch sync commits and reads its Firestore batch; cross-bra
           name: documentName,
           fields: {
             branch_id: { stringValue: branchId },
+            source_device_id: { stringValue: '11111111-1111-4111-8111-111111111111' },
             batch_uuid: { stringValue: batchId },
             events: { arrayValue: { values: [] } },
           },
@@ -120,6 +121,7 @@ test('authenticated branch sync commits and reads its Firestore batch; cross-bra
           name: foreignPath,
           fields: {
             branch_id: { stringValue: 'other-branch' },
+            source_device_id: { stringValue: '11111111-1111-4111-8111-111111111111' },
             batch_uuid: { stringValue: 'foreign-batch' },
             events: { arrayValue: { values: [] } },
           },
