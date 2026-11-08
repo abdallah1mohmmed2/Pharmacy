@@ -220,7 +220,7 @@ jobs:
                   continue
               replacement = groovy_mirror if path.suffix == ".gradle" else mirror
               updated, count = re.subn(
-                  r"(?m)^(s*)mavenCentral()s*$",
+                  r"(?m)^([ ]*)mavenCentral[(][)][ ]*$",
                   lambda match: f"{match.group(1)}{replacement}\n{match.group(1)}mavenCentral()",
                   original,
               )
