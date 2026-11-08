@@ -17,9 +17,20 @@
     cd firebase
     npm install firebase-admin
     export GOOGLE_APPLICATION_CREDENTIALS=/secure/path/service-account.json
-    node scripts/set-branch-claims.js <AUTH_UID> <BRANCH_UUID> manager
+    export BRANCH_UID_MAP_FILE=/secure/path/branch-uid-map.json
+    node scripts/set-branch-claims.js <AUTH_UID>
 
-لا ترفع ملف service-account إلى GitHub ولا تضفه إلى إعدادات التطبيق أو artifacts. بعد تحديث claims يجب تجديد ID token (getIdToken(true)) حتى تظهر المطالبات الجديدة. تحقق من UID والفرع والدور قبل تشغيل الأمر.
+يحتوي ملف الربط الخارجي (ولا يوضع في المستودع) على تعيين يراجعه مسؤول موثوق:
+```json
+{
+  "FIREBASE_AUTH_UID": {
+    "branch_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "branch_role": "manager"
+  }
+}
+```
+
+الأداة لا تقبل branch_id أو branch_role من سطر الأوامر؛ بل تستمدهما من ملف الربط الخارجي، وترفض الملف الموجود داخل المستودع، وتتحقق من UUID والدور، ثم تتأكد من وجود UID في Firebase Authentication قبل تحديث claims. تعتمد المصادقة الإدارية على Application Default Credentials. لا ترفع ملف service-account أو ملف الربط إلى GitHub ولا تضفهما إلى إعدادات التطبيق أو artifacts. بعد تحديث claims يجب تجديد ID token (في هذا التطبيق يتم ذلك عبر تبادل refresh token عند الحاجة). اختبر أولاً على Auth Emulator؛ لا تشغّل الأداة على مشروع إنتاجي دون موافقة صريحة ومراجعة UID/UUID mapping.
 
 ## اختبار محلي
     cd firebase
