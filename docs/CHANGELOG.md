@@ -435,3 +435,14 @@
 - Added `firebase/firebase.json` for Hosting from `firebase_public`, with cache and CORS headers for `/v1/catalog/**`. Firebase Hosting supplies HTTP ETag; the content ETag is also embedded in generated JSON.
 - Expanded the central catalog architecture and progress docs with the two-path Mermaid diagram, 100-event batch design, owner dashboard/party snapshot model, Spark usage caveats, and launch prerequisites.
 - **Scope note:** this commit adds Firebase configuration, security rules, and architecture documentation only. It does not implement the SQLite sync worker, inbox/idempotent receiver, setting 35 integration, Firebase Authentication/custom-claim issuer, or deploy Firebase resources. Emulator and live Firebase validation remain required.
+
+
+## Firestore outbound sync worker and idempotent Inbox — 2026-11-08
+- إضافة `FirestoreSyncWorker` عبر Firestore REST API، مع قراءة إعداد 35 ودعم مشروع/قاعدة بيانات وحجم دفعة قابل للضبط حتى 100 حدث.
+- كتابة الأحداث كوثيقة واحدة append-only تحت `pharmacy_sync_batches/{branchId}/batches/{batchUuid}`، مع event UUID وbatch UUID ثابتين وبصمات SHA-256، والتحقق من بصمة الوثيقة عند إعادة الإرسال بعد نتيجة شبكة ملتبسة.
+- حصر queue بالفرع الحالي وعدم تعليم المصدر `SYNCED` أو queue `DONE` قبل تأكيد الكتابة.
+- إضافة استخراج علاقات FK وتحويلها إلى UUID للأب لتجنب نقل أرقام SQLite المحلية بين الأجهزة.
+- ترقية قاعدة البيانات إلى v14 وإضافة Inbox دائم مع مفاتيح idempotency فريدة لكل فرع/حدث، وبصمة تمنع إعادة استخدام الهوية بمحتوى مختلف.
+- إضافة معالج Inbox معاملاتي يرفض الجداول الحساسة، يحل العلاقات بواسطة UUID، يؤجل التبعيات المفقودة، ولا يطمس التعديلات المحلية الأحدث أو غير المتزامنة.
+- إضافة اختبارات لتكرار الحدث، وربط FK، وحماية التعديلات المحلية، ومنع إعادة استخدام batch UUID ببصمة مختلفة.
+- **قيد تشغيل مهم:** يحتاج العامل Firebase ID token صالحاً يحمل custom claim `branch_id` موثوقاً. لم يضف هذا التغيير Firebase Authentication أو جهة إصدار claims، ولم يربط العامل بعد بدورة الدخول/التشغيل التلقائي. لم يتم نشر Firebase أو تشغيل Emulator؛ يجب عدم تمكين الإعداد 35 قبل إكمال ذلك.
