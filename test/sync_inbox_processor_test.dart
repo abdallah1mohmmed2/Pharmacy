@@ -30,10 +30,12 @@ void main() {
       branch_id INTEGER NOT NULL, sync_version INTEGER NOT NULL DEFAULT 1,
       sync_status TEXT NOT NULL DEFAULT 'LOCAL', parent_id INTEGER NOT NULL,
       title TEXT NOT NULL, FOREIGN KEY(parent_id) REFERENCES sync_parents(id))''');
-    processor = FirestoreInboxProcessor(database: db,
+    processor = FirestoreInboxProcessor(
+      database: db,
       allowedTablesForTesting: {'sync_items', 'sync_parents', 'sync_children'},
       payloadFieldsForTesting: {
-        'sync_items': {'title'}, 'sync_parents': {'name'},
+        'sync_items': {'title'},
+        'sync_parents': {'name'},
         'sync_children': {'parent_id', 'title'},
       },
     );
@@ -82,81 +84,138 @@ void main() {
       sha256.convert(utf8.encode(canonicalJson(events))).toString();
 
   Future<InboxBatchResult> receive(Map<String, Object?> incoming,
-      {FirestoreInboxProcessor? using, String batch = 'policy-batch'}) =>
-    (using ?? processor).processBatch(branchId: 7, batchUuid: batch,
-      payloadHash: batchFingerprint([incoming]), events: [incoming]);
+          {FirestoreInboxProcessor? using, String batch = 'policy-batch'}) =>
+      (using ?? processor).processBatch(
+          branchId: 7,
+          batchUuid: batch,
+          payloadHash: batchFingerprint([incoming]),
+          events: [incoming]);
 
-  test('production policy rejects an existing unlisted table before storing payload', () async {
-    final incoming = event(table: 'sync_items', uuid: 'blocked', version: 1,
-      payload: {'title': 'PRIVATE_SENTINEL'});
-    final result = await receive(incoming, using: FirestoreInboxProcessor(database: db));
+  test(
+      'production policy rejects an existing unlisted table before storing payload',
+      () async {
+    final incoming = event(
+        table: 'sync_items',
+        uuid: 'blocked',
+        version: 1,
+        payload: {'title': 'PRIVATE_SENTINEL'});
+    final result =
+        await receive(incoming, using: FirestoreInboxProcessor(database: db));
     expect(result.rejected, 1);
     expect(await db.query('sync_items'), isEmpty);
     expect(await db.query('sync_inbox'), isEmpty);
   });
 
-  test('unknown and sensitive fields reject entire event without retaining values', () async {
+  test(
+      'unknown and sensitive fields reject entire event without retaining values',
+      () async {
     await db.execute('ALTER TABLE sync_items ADD COLUMN password_hash TEXT');
     for (final field in ['password_hash', 'future_field', 'id']) {
-      final incoming = event(table: 'sync_items', uuid: field, version: 1,
-        payload: {'title': 'valid', field: 'PRIVATE_SENTINEL'});
+      final incoming = event(
+          table: 'sync_items',
+          uuid: field,
+          version: 1,
+          payload: {'title': 'valid', field: 'PRIVATE_SENTINEL'});
       expect((await receive(incoming, batch: field)).rejected, 1);
     }
     expect(await db.query('sync_items'), isEmpty);
     expect(await db.query('sync_inbox'), isEmpty);
   });
 
-  test('approved field rejects nested payloads and mismatched identity', () async {
+  test('approved field rejects nested payloads and mismatched identity',
+      () async {
     final payloads = <Map<String, Object?>>[
-      {'title': {'token': 'PRIVATE_SENTINEL'}},
+      {
+        'title': {'token': 'PRIVATE_SENTINEL'}
+      },
       {'title': '{"patient":"PRIVATE_SENTINEL"}'},
       {'title': 'ok', 'uuid': 'wrong'},
       {'title': 'ok', 'sync_version': 99},
     ];
     for (var i = 0; i < payloads.length; i++) {
-      final incoming = event(table: 'sync_items', uuid: 'item-$i', version: 1,
-        payload: payloads[i]);
+      final incoming = event(
+          table: 'sync_items',
+          uuid: 'item-$i',
+          version: 1,
+          payload: payloads[i]);
       expect((await receive(incoming, batch: 'invalid-$i')).rejected, 1);
     }
     expect(await db.query('sync_items'), isEmpty);
     expect(await db.query('sync_inbox'), isEmpty);
   });
 
-  test('relation metadata cannot inject unapproved columns or parent tables', () async {
-    await db.execute('ALTER TABLE sync_children ADD COLUMN private_owner_id INTEGER REFERENCES sync_parents(id)');
+  test('relation metadata cannot inject unapproved columns or parent tables',
+      () async {
+    await db.execute(
+        'ALTER TABLE sync_children ADD COLUMN private_owner_id INTEGER REFERENCES sync_parents(id)');
     final relations = <Map<String, Object?>>[
-      {'private_owner_id': {'table': 'sync_parents', 'uuid': 'p'}},
-      {'title': {'table': 'sync_parents', 'uuid': 'p'}},
-      {'branch_id': {'table': 'sync_parents', 'uuid': 'p'}},
-      {'parent_id': {'table': 'users', 'uuid': 'p'}},
-      {'parent_id': {'table': 'sync_parents', 'uuid': 'p', 'secret': 'PRIVATE_SENTINEL'}},
-      {'parent_id': {'table': 'sync_parents', 'uuid': 123}},
+      {
+        'private_owner_id': {'table': 'sync_parents', 'uuid': 'p'}
+      },
+      {
+        'title': {'table': 'sync_parents', 'uuid': 'p'}
+      },
+      {
+        'branch_id': {'table': 'sync_parents', 'uuid': 'p'}
+      },
+      {
+        'parent_id': {'table': 'users', 'uuid': 'p'}
+      },
+      {
+        'parent_id': {
+          'table': 'sync_parents',
+          'uuid': 'p',
+          'secret': 'PRIVATE_SENTINEL'
+        }
+      },
+      {
+        'parent_id': {'table': 'sync_parents', 'uuid': 123}
+      },
     ];
     for (var i = 0; i < relations.length; i++) {
-      final incoming = event(table: 'sync_children', uuid: 'c-$i', version: 1,
-        payload: {'title': 'child', 'parent_id': 42}, relations: relations[i]);
+      final incoming = event(
+          table: 'sync_children',
+          uuid: 'c-$i',
+          version: 1,
+          payload: {'title': 'child', 'parent_id': 42},
+          relations: relations[i]);
       expect((await receive(incoming, batch: 'relations-$i')).rejected, 1);
     }
     expect(await db.query('sync_children'), isEmpty);
     expect(await db.query('sync_inbox'), isEmpty);
   });
 
-  test('embedded relations must match envelope and valid replays stay idempotent', () async {
-    final invalid = event(table: 'sync_items', uuid: 'invalid', version: 1,
-      payload: {'title': 'bad', '__relations': {'secret': 'PRIVATE_SENTINEL'}});
+  test(
+      'embedded relations must match envelope and valid replays stay idempotent',
+      () async {
+    final invalid =
+        event(table: 'sync_items', uuid: 'invalid', version: 1, payload: {
+      'title': 'bad',
+      '__relations': {'secret': 'PRIVATE_SENTINEL'}
+    });
     expect((await receive(invalid)).rejected, 1);
-    final valid = event(table: 'sync_items', uuid: 'valid', version: 1,
-      payload: {'title': 'ok', '__relations': {}});
+    final valid = event(
+        table: 'sync_items',
+        uuid: 'valid',
+        version: 1,
+        payload: {'title': 'ok', '__relations': {}});
     expect((await receive(valid, batch: 'valid-batch')).applied, 1);
     expect((await receive(valid, batch: 'valid-batch')).duplicates, 1);
   });
 
-  test('invalid replay cannot change an already applied inbox record', () async {
-    final valid = event(table: 'sync_items', uuid: 'same', version: 1,
-      payload: {'title': 'valid'});
+  test('invalid replay cannot change an already applied inbox record',
+      () async {
+    final valid = event(
+        table: 'sync_items',
+        uuid: 'same',
+        version: 1,
+        payload: {'title': 'valid'});
     expect((await receive(valid, batch: 'original')).applied, 1);
-    final forged = event(table: 'sync_items', uuid: 'same', version: 1,
-      payload: {'title': 'forged', 'password_hash': 'PRIVATE_SENTINEL'});
+    final forged = event(
+        table: 'sync_items',
+        uuid: 'same',
+        version: 1,
+        payload: {'title': 'forged', 'password_hash': 'PRIVATE_SENTINEL'});
     expect((await receive(forged, batch: 'forged')).rejected, 1);
     expect((await db.query('sync_inbox')).single['status'], 'APPLIED');
     expect((await db.query('sync_items')).single['title'], 'valid');
@@ -164,14 +223,27 @@ void main() {
 
   test('update and soft delete keep excluded local fields unchanged', () async {
     await db.execute('ALTER TABLE sync_items ADD COLUMN private_note TEXT');
-    await db.insert('sync_items', {'uuid': 'local', 'branch_id': 7,
-      'sync_version': 1, 'sync_status': 'SYNCED', 'title': 'old',
-      'private_note': 'LOCAL_ONLY'});
-    final update = event(table: 'sync_items', uuid: 'local', version: 2,
-      operation: 'UPDATE', payload: {'title': 'new'});
+    await db.insert('sync_items', {
+      'uuid': 'local',
+      'branch_id': 7,
+      'sync_version': 1,
+      'sync_status': 'SYNCED',
+      'title': 'old',
+      'private_note': 'LOCAL_ONLY'
+    });
+    final update = event(
+        table: 'sync_items',
+        uuid: 'local',
+        version: 2,
+        operation: 'UPDATE',
+        payload: {'title': 'new'});
     expect((await receive(update)).applied, 1);
-    final deletion = event(table: 'sync_items', uuid: 'local', version: 3,
-      operation: 'SOFT_DELETE', payload: {});
+    final deletion = event(
+        table: 'sync_items',
+        uuid: 'local',
+        version: 3,
+        operation: 'SOFT_DELETE',
+        payload: {});
     expect((await receive(deletion, batch: 'delete')).applied, 1);
     final row = (await db.query('sync_items')).single;
     expect(row['private_note'], 'LOCAL_ONLY');
@@ -180,13 +252,18 @@ void main() {
   });
 
   test('deferred events are revalidated when policy changes', () async {
-    final incoming = event(table: 'sync_children', uuid: 'child', version: 1,
-      payload: {'title': 'child', 'parent_id': 3},
-      relations: {'parent_id': {'table': 'sync_parents', 'uuid': 'missing'}});
+    final incoming =
+        event(table: 'sync_children', uuid: 'child', version: 1, payload: {
+      'title': 'child',
+      'parent_id': 3
+    }, relations: {
+      'parent_id': {'table': 'sync_parents', 'uuid': 'missing'}
+    });
     expect((await receive(incoming)).deferred, 1);
     expect(await FirestoreInboxProcessor(database: db).retryDeferred(7), 0);
     expect((await db.query('sync_inbox')).single['status'], 'FAILED');
-    expect((await db.query('sync_inbox')).single['error_text'], 'SYNC_PAYLOAD_POLICY_REJECTED');
+    expect((await db.query('sync_inbox')).single['error_text'],
+        'SYNC_PAYLOAD_POLICY_REJECTED');
   });
 
   test('applies an event once and treats a replay as a duplicate', () async {
