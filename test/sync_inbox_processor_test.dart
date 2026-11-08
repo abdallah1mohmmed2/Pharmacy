@@ -59,6 +59,20 @@ void main() {
     };
   }
 
+  String canonicalJson(Object? value) {
+    if (value is Map) {
+      final keys = value.keys.map((key) => key.toString()).toList()..sort();
+      return jsonEncode({for (final key in keys) key: jsonDecode(canonicalJson(value[key]))});
+    }
+    if (value is List) {
+      return jsonEncode(value.map((item) => jsonDecode(canonicalJson(item))).toList());
+    }
+    return jsonEncode(value);
+  }
+
+  String batchFingerprint(List<Map<String, Object?>> events) =>
+      sha256.convert(utf8.encode(canonicalJson(events))).toString();
+
   test('applies an event once and treats a replay as a duplicate', () async {
     final incoming = event(
       table: 'sync_items',
@@ -77,7 +91,7 @@ void main() {
     final first = await processor.processBatch(
       branchId: 7,
       batchUuid: 'batch-1',
-      payloadHash: 'fingerprint-1',
+      payloadHash: batchFingerprint([incoming]),
       events: [incoming],
     );
     final replay = await processor.processBatch(
@@ -128,13 +142,13 @@ void main() {
     await processor.processBatch(
       branchId: 7,
       batchUuid: 'batch-parent',
-      payloadHash: 'parent-fingerprint',
+      payloadHash: batchFingerprint([parent]),
       events: [parent],
     );
     final result = await processor.processBatch(
       branchId: 7,
       batchUuid: 'batch-child',
-      payloadHash: 'child-fingerprint',
+      payloadHash: batchFingerprint([child]),
       events: [child],
     );
 
@@ -170,7 +184,7 @@ void main() {
     final result = await processor.processBatch(
       branchId: 7,
       batchUuid: 'batch-stale',
-      payloadHash: 'stale-fingerprint',
+      payloadHash: batchFingerprint([incoming]),
       events: [incoming],
     );
 
@@ -182,47 +196,45 @@ void main() {
   });
 
   test('rejects reuse of a batch UUID with a different fingerprint', () async {
+    final original = event(
+      table: 'sync_items',
+      uuid: 'item-2',
+      version: 1,
+      payload: {
+        'uuid': 'item-2',
+        'branch_id': 7,
+        'sync_version': 1,
+        'sync_status': 'SYNCED',
+        'is_deleted': 0,
+        'title': 'one',
+      },
+    );
+    final tampered = event(
+      table: 'sync_items',
+      uuid: 'item-3',
+      version: 1,
+      payload: {
+        'uuid': 'item-3',
+        'branch_id': 7,
+        'sync_version': 1,
+        'sync_status': 'SYNCED',
+        'is_deleted': 0,
+        'title': 'two',
+      },
+    );
     await processor.processBatch(
       branchId: 7,
       batchUuid: 'batch-fixed',
-      payloadHash: 'original',
-      events: [
-        event(
-          table: 'sync_items',
-          uuid: 'item-2',
-          version: 1,
-          payload: {
-            'uuid': 'item-2',
-            'branch_id': 7,
-            'sync_version': 1,
-            'sync_status': 'SYNCED',
-            'is_deleted': 0,
-            'title': 'one',
-          },
-        ),
-      ],
+      payloadHash: batchFingerprint([original]),
+      events: [original],
     );
 
     expect(
       () => processor.processBatch(
         branchId: 7,
         batchUuid: 'batch-fixed',
-        payloadHash: 'tampered',
-        events: [
-          event(
-            table: 'sync_items',
-            uuid: 'item-3',
-            version: 1,
-            payload: {
-              'uuid': 'item-3',
-              'branch_id': 7,
-              'sync_version': 1,
-              'sync_status': 'SYNCED',
-              'is_deleted': 0,
-              'title': 'two',
-            },
-          ),
-        ],
+        payloadHash: batchFingerprint([tampered]),
+        events: [tampered],
       ),
       throwsStateError,
     );
