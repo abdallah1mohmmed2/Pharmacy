@@ -212,7 +212,8 @@ class SettingsAndSystemProvider extends ChangeNotifier {
 
   Future<bool> testCloudConnection() async {
     final cfg = settings.getJson(SettingKey.cloudSync);
-    if ((cfg['project_id']?.toString().trim() ?? '').isEmpty) {
+    final projectId = cfg['project_id']?.toString().trim() ?? '';
+    if (projectId.isEmpty) {
       cloudSyncStatus = 'أدخل Firebase project_id أولاً';
       notifyListeners();
       return false;
@@ -223,13 +224,27 @@ class SettingsAndSystemProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     }
-    final token = await tokenProvider();
-    if (token == null || token.isEmpty) {
-      cloudSyncStatus = 'لا يوجد Firebase ID token لحساب الفرع';
+    try {
+      final token = await tokenProvider();
+      if (token == null || token.isEmpty) {
+        cloudSyncStatus = 'لا يوجد Firebase ID token لحساب الفرع';
+        notifyListeners();
+        return false;
+      }
+      await firestoreSync.testConnection(
+        branchId: _activeBranchId(),
+        projectId: projectId,
+        databaseId: cfg['database_id']?.toString() ?? '(default)',
+        idToken: token,
+      );
+      cloudSyncStatus = 'اتصال Firestore ناجح وتم التحقق من صلاحية الوصول للفرع';
+      notifyListeners();
+      return true;
+    } catch (error) {
+      cloudSyncStatus = 'فشل فحص اتصال Firestore: $error';
       notifyListeners();
       return false;
     }
-    return true;
   }
 
   Future<int> syncNow() async {
