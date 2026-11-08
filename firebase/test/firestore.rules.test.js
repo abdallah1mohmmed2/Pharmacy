@@ -4,7 +4,7 @@ const { after, before, beforeEach, test } = require('node:test');
 const { initializeTestEnvironment, assertSucceeds, assertFails } = require('@firebase/rules-unit-testing');
 const { doc, setDoc, getDoc } = require('firebase/firestore');
 
-const projectId = 'demo-pharmacy-erp';
+const projectId = 'pharmacy-dafb6';
 let env;
 
 before(async () => {
