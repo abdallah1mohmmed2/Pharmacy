@@ -1,8 +1,8 @@
-import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:global_enterprise_pharmacy_erp/data/services/sync_inbox_processor.dart';
+import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration11.dart';
 
 void main() {
   late Database db;
@@ -14,19 +14,7 @@ void main() {
 
   setUp(() async {
     db = await databaseFactoryFfi.openDatabase(inMemoryDatabasePath);
-    await db.execute('''CREATE TABLE sync_inbox(
-      id INTEGER PRIMARY KEY AUTOINCREMENT, branch_id INTEGER NOT NULL,
-      event_uuid TEXT NOT NULL, batch_uuid TEXT NOT NULL, table_name TEXT NOT NULL,
-      row_uuid TEXT NOT NULL, operation TEXT NOT NULL, remote_version INTEGER NOT NULL,
-      payload_json TEXT NOT NULL, relations_json TEXT NOT NULL DEFAULT '{}',
-      payload_hash TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'RECEIVED',
-      error_text TEXT, received_at TEXT NOT NULL, applied_at TEXT,
-      UNIQUE(branch_id,event_uuid))''');
-    await db.execute('''CREATE TABLE sync_inbox_batches(
-      id INTEGER PRIMARY KEY AUTOINCREMENT, branch_id INTEGER NOT NULL,
-      batch_uuid TEXT NOT NULL, payload_hash TEXT NOT NULL, received_at TEXT NOT NULL,
-      processed_at TEXT, event_count INTEGER NOT NULL DEFAULT 0,
-      UNIQUE(branch_id,batch_uuid))''');
+    await SchemaIteration11.upgrade(db);
     await db.execute('''CREATE TABLE sync_items(
       id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT NOT NULL UNIQUE,
       branch_id INTEGER NOT NULL, sync_version INTEGER NOT NULL DEFAULT 1,
