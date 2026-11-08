@@ -18,6 +18,7 @@ class FirebaseBranchAuthService {
   final http.Client _client;
   final FlutterSecureStorage _storage;
   String? _apiKey;
+  String? _projectId;
   String? _idToken;
   String? _refreshToken;
   String? _uid;
@@ -138,6 +139,7 @@ class FirebaseBranchAuthService {
     await _storage.delete(key: 'firebase_branch_refresh_token');
     await _storage.delete(key: 'firebase_branch_uid');
     await _storage.delete(key: 'firebase_branch_email');
+    await _storage.delete(key: 'firebase_branch_project_id');
   }
 
   Map<String, dynamic> _decodeResponse(
