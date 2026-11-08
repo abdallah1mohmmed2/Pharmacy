@@ -335,11 +335,13 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
                 ),
               ),
             ],
-            onChanged: (id) => clinical.selectPatient(
-              id == null
+            onChanged: (id) {
+              final patient = id == null
                   ? null
-                  : clinical.patients.firstWhere((patient) => patient.id == id),
-            ),
+                  : clinical.patients.firstWhere((item) => item.id == id);
+              clinical.selectPatient(patient);
+              setState(() => customerId = patient?.partyId);
+            },
           ),
           const SizedBox(height: 12),
           const Text('الحالات السريعة',
@@ -481,11 +483,13 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
           ),
         ),
       ],
-      onChanged: (id) => clinical.selectPatient(
-        id == null
+      onChanged: (id) {
+        final patient = id == null
             ? null
-            : clinical.patients.firstWhere((patient) => patient.id == id),
-      ),
+            : clinical.patients.firstWhere((item) => item.id == id);
+        clinical.selectPatient(patient);
+        setState(() => customerId = patient?.partyId);
+      },
     );
   }
 
