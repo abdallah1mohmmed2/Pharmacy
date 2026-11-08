@@ -63,7 +63,7 @@ class SettingsAndSystemProvider extends ChangeNotifier {
     try {
       await settings.load();
       await refreshSystemData();
-      _configureCloudSyncTimer();
+      await _configureCloudSyncTimer();
     } catch (e) {
       error = e.toString();
     }
@@ -99,7 +99,7 @@ class SettingsAndSystemProvider extends ChangeNotifier {
         userId: userId,
         branchId: branchId,
         reason: reason);
-    if (key == SettingKey.cloudSync) _configureCloudSyncTimer();
+    if (key == SettingKey.cloudSync) await _configureCloudSyncTimer();
     notifyListeners();
   }
 
@@ -169,15 +169,30 @@ class SettingsAndSystemProvider extends ChangeNotifier {
     await initialize();
   }
 
-  void _configureCloudSyncTimer() {
+  Future<void> _configureCloudSyncTimer() async {
     _cloudSyncTimer?.cancel();
     _cloudSyncTimer = null;
     if (settings.getJson(SettingKey.cloudSync)['enabled'] != true) {
       cloudSyncStatus = 'المزامنة متوقفة';
+      notifyListeners();
       return;
     }
-    if (_firebaseIdTokenProvider == null) {
-      cloudSyncStatus = 'بانتظار ربط حساب Firebase';
+    final tokenProvider = _firebaseIdTokenProvider;
+    if (tokenProvider == null) {
+      cloudSyncStatus = 'بانتظار ربط Firebase Authentication';
+      notifyListeners();
+      return;
+    }
+    try {
+      final token = await tokenProvider();
+      if (token == null || token.isEmpty) {
+        cloudSyncStatus = 'بانتظار تسجيل الدخول إلى حساب Firebase الخاص بالفرع';
+        notifyListeners();
+        return;
+      }
+    } catch (error) {
+      cloudSyncStatus = 'تعذر تهيئة Firebase Authentication: $error';
+      notifyListeners();
       return;
     }
     _cloudSyncTimer = Timer.periodic(const Duration(minutes: 2), (_) async {
@@ -190,7 +205,10 @@ class SettingsAndSystemProvider extends ChangeNotifier {
       }
     });
     cloudSyncStatus = 'المزامنة التلقائية مفعّلة';
+    notifyListeners();
   }
+
+  Future<void> refreshCloudSyncSchedule() => _configureCloudSyncTimer();
 
   Future<bool> testCloudConnection() async {
     final cfg = settings.getJson(SettingKey.cloudSync);
