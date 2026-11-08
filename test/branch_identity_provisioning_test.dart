@@ -146,6 +146,16 @@ void main() {
           .verifyManifestBytes(manifest),
       throwsFormatException,
     );
+
+    final withExtraEnvelopeField = jsonDecode(utf8.decode(manifest))
+        as Map<String, dynamic>;
+    withExtraEnvelopeField['untrusted_note'] = 'unsigned';
+    await expectLater(
+      service.verifyManifestBytes(
+        Uint8List.fromList(utf8.encode(jsonEncode(withExtraEnvelopeField))),
+      ),
+      throwsFormatException,
+    );
   });
 
   test('rejects reapplication and database-level identity mutation', () async {
@@ -167,8 +177,42 @@ void main() {
         db.delete('branch_identity_provisioning'),
         throwsA(anything),
       );
+      await expectLater(db.delete('tenants'), throwsA(anything));
+      await expectLater(db.delete('branches'), throwsA(anything));
     } finally {
       await db.close();
     }
   });
+  test('rejects a multi-branch database without partial changes', () async {
+    final service = BranchIdentityProvisioningService(
+      trustedPublicKeyPem: publicPem,
+    );
+    final db = await createLegacyDatabase();
+    try {
+      await db.insert('branches', {
+        'uuid': 'branch-secondary',
+        'tenant_uuid': 'tenant-main',
+        'code': 'SECONDARY',
+        'name_ar': 'فرع إضافي',
+        'is_main': 0,
+        'updated_at': '2026-11-08',
+      });
+      await expectLater(
+        service.installManifest(database: db, manifestBytes: manifest),
+        throwsStateError,
+      );
+      expect((await db.query('tenants')).single['uuid'], 'tenant-main');
+      expect(await db.query('branches'), hasLength(2));
+      expect(
+        await db.rawQuery(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='branch_identity_provisioning'",
+        ),
+        isEmpty,
+      );
+      expect(await db.rawQuery('PRAGMA foreign_key_check'), isEmpty);
+    } finally {
+      await db.close();
+    }
+  });
+
 }
