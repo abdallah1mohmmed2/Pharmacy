@@ -4,11 +4,16 @@ import '../database/database_helper.dart';
 import '../models/erp_models.dart';
 import '../models/clinical_and_rx_models.dart';
 import 'fefo_allocator_service.dart';
+import 'financial_voucher_operation.dart';
 
 class PostingAndSalesService {
-  PostingAndSalesService({DatabaseHelper? helper})
-      : _helper = helper ?? DatabaseHelper.instance;
+  PostingAndSalesService({DatabaseHelper? helper, int? financialSyncFractionDigits})
+      : _helper = helper ?? DatabaseHelper.instance,
+        _financialSyncFractionDigits = financialSyncFractionDigits;
   final DatabaseHelper _helper;
+  // Null by default: no financial capture until a trusted currency/identity
+  // configuration is approved by the caller. The normal posting is unchanged.
+  final int? _financialSyncFractionDigits;
   final FefoAllocator _fefo = FefoAllocator();
   // RFC 4122 v4 identifiers for NEW postings only. Historical local IDs
   // remain untouched until a reviewed identity-mapping migration exists.
@@ -485,6 +490,7 @@ class PostingAndSalesService {
             whereArgs: [cashId],
             limit: 1);
         await txn.insert('cash_transactions', {
+          'uuid': _uuid(),
           'cash_account_id': cashId,
           'tx_date': now,
           'direction': isReceipt ? 'IN' : 'OUT',
@@ -539,6 +545,17 @@ class PostingAndSalesService {
           lines: lines);
       await txn.update('vouchers', {'journal_entry_id': entryId},
           where: 'id=?', whereArgs: [voucherId]);
+      // P0-06: only explicitly configured CASH vouchers emit the complete
+      // immutable outbox envelope inside the SAME business transaction.
+      // Invalid provisioned identities or unbalanced docs abort the posting.
+      if (_financialSyncFractionDigits != null && method == 'CASH') {
+        await FinancialVoucherOperation.capturePostedCashVoucher(
+          txn,
+          branchId: branchId,
+          voucherId: voucherId,
+          fractionDigits: _financialSyncFractionDigits!,
+        );
+      }
       return voucherId;
     });
   }
