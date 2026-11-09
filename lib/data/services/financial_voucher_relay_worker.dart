@@ -6,6 +6,7 @@ import 'package:sqflite/sqflite.dart';
 import '../database/database_helper.dart';
 import '../database/global_uuid.dart';
 import 'financial_voucher_operation.dart';
+import 'financial_minor_units.dart';
 
 /// HTTP transport for complete P0-06 financial envelopes.
 ///
@@ -75,6 +76,13 @@ class FinancialVoucherRelayWorker {
     for (final row in await FinancialVoucherOperation.pending(db, branchId,
         limit: pageSize)) {
       final json = row['payload_json'] as String;
+      final payload = jsonDecode(json);
+      if (payload is! Map ||
+          payload['schema_version'] != FinancialVoucherOperation.schemaVersion ||
+          payload['currency_code'] != FinancialMinorUnits.currencyCode ||
+          payload['fraction_digits'] != FinancialMinorUnits.currencyFractionDigits) {
+        throw const FinancialVoucherSyncException('CURRENCY_POLICY_MISMATCH');
+      }
       final body = jsonEncode({
         'operation_uuid': row['operation_uuid'],
         'branch_uuid': branchUuid,
@@ -104,7 +112,7 @@ class FinancialVoucherRelayWorker {
 
     // Cursor is a trusted relay sequence, never a local SQLite row ID or
     // random UUID. Persist only AFTER all events in the page are applied.
-    final key = 'financial.v1.cursor.$branchUuid';
+    final key = 'financial.v2.yer.cursor.$branchUuid';
     final prior = await db
         .query('app_settings', where: 'setting_key=?', whereArgs: [key]);
     var cursor = prior.isEmpty ? '' : prior.single['value_text'] as String;
