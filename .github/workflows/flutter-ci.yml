@@ -395,7 +395,9 @@ jobs:
           $content = Get-Content -Raw $pluginCmake
           $pattern = '(?s)include\(\.\./windows/DownloadProject\.cmake\)\s*download_project\(PROJ\s*pdfium\s*URL\s*\$\{PDFIUM_URL\}\)'
           if ($content -notmatch $pattern) {
-            throw "Printing plugin PDFium download block changed; refusing an unsafe CMake rewrite."
+            Write-Host '=== Current printing plugin CMake download declaration ==='
+          Write-Host $content
+          throw "Printing plugin PDFium download block changed; refusing an unsafe CMake rewrite."
           }
           $replacement = 'set(pdfium_SOURCE_DIR "${CMAKE_BINARY_DIR}/pdfium-src")'
           $content = [regex]::Replace($content, $pattern, $replacement, 1)
