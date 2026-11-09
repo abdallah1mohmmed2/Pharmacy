@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pharmacy/data/services/financial_minor_units.dart';
+import 'package:global_enterprise_pharmacy_erp/data/services/financial_minor_units.dart';
 
 void main() {
   group('F03 exact minor-unit decimal contract', () {
