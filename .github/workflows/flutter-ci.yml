@@ -410,8 +410,25 @@ jobs:
           if (-not $content.Contains('include(${pdfium_SOURCE_DIR}/PDFiumConfig.cmake)')) {
             throw "Printing plugin no longer includes verified local PDFiumConfig.cmake."
           }
+          # Some printing releases invoke download_project even after we
+          # verified the PDFium archive. Replace ONLY the known upstream CMake
+          # download block with our SHA-256 verified local directory. Abort on
+          # unfamiliar download instructions rather than allowing a second,
+          # unverified dependency download during compilation.
           if ($content.Contains('download_project(')) {
-            throw "Printing plugin unexpectedly downloads PDFium at build time."
+            $knownDownload = '(?m)^\s*# Download pdfium\r?\n\s*include\(\.\./windows/DownloadProject\.cmake\)\r?\n\s*download_project\(\s*PROJ\s+pdfium\s+URL\s+\$\{PDFIUM_URL\}\s*\)'
+            $regex = [regex]::new($knownDownload)
+            if ($regex.Matches($content).Count -ne 1) {
+              throw "Unknown printing plugin PDFium download instructions."
+            }
+            $verifiedPath = $pdfiumSource.Replace('\', '/')
+            $replacement = 'set(pdfium_SOURCE_DIR "' + $verifiedPath + '")'
+            $content = $regex.Replace($content, $replacement)
+            if ($content.Contains('download_project(')) {
+              throw "Unverified PDFium download remains in printing plugin."
+            }
+            Set-Content -Path $pluginCmake -Value $content
+            Write-Host "Redirected recognized PDFium download to verified local archive."
           }
           Write-Host "Verified PDFium archive SHA-256: $actualHash"
           Write-Host "Using local verified PDFium source: $pdfiumSource"
