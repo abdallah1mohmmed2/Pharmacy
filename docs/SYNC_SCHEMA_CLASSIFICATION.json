@@ -1,6 +1,6 @@
 {
-  "schema_version": 15,
-  "reviewed_commit": "cdf596a57fe2daee0e96453cafb89f64eadf85e1",
+  "schema_version": 16,
+  "reviewed_commit": "3dd6ec22e335d544ba4869e7e9597e836c129a73",
   "objects": {
     "active_ingredients": {
       "classification": "syncable",
@@ -192,6 +192,18 @@
       "classification": "sensitive",
       "sync_allowed": false,
       "reason_ar": "مصروفات وجهة الصرف ومرفقاتها؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "financial_operation_inbox": {
+      "classification": "local",
+      "sync_allowed": false,
+      "reason_ar": "إيصال منع تطبيق السند المالي مرتين على هذا الجهاز؛ محلي وممنوع في المزامنة العامة.",
+      "lifecycle": "schema"
+    },
+    "financial_operation_outbox": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "غلاف عملية سند مالي يحتوي مراجع وأرصدة مالية؛ لا يمر عبر المزامنة العامة ولا يرسل قبل تحقق موثوق.",
       "lifecycle": "schema"
     },
     "fiscal_periods": {
