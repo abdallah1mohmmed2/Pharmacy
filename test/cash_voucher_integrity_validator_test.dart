@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:global_enterprise_pharmacy_erp/data/services/cash_voucher_integrity_validator.dart';
@@ -121,6 +123,19 @@ Future<CashVoucherIntegrityResult> verify(Database db,
         voucherId: 10 + offset,
         fractionDigits: fractionDigits);
 
+/// A distinct physical database avoids FFI's shared in-memory connection.
+Future<void> withSeparateDatabase(Future<void> Function(Database) callback) async {
+  final directory = await Directory.systemTemp.createTemp('pharmacy-voucher-');
+  Database? other;
+  try {
+    other = await databaseFactoryFfi.openDatabase('${directory.path}/second.db');
+    await callback(other);
+  } finally {
+    if (other != null) await other.close();
+    await directory.delete(recursive: true);
+  }
+}
+
 void main() {
   setUpAll(sqfliteFfiInit);
 
@@ -139,28 +154,22 @@ void main() {
   });
 
   test('payment uses inverse debit and credit sides', () async {
-    final other = await databaseFactoryFfi.openDatabase(inMemoryDatabasePath);
-    try {
+    await withSeparateDatabase((other) async {
       await createFixture(other, receipt: false);
       expect((await verify(other)).amountMinor, 12525);
-    } finally {
-      await other.close();
-    }
+    });
   });
 
   test('local row IDs can differ without changing global document UUIDs',
       () async {
-    final other = await databaseFactoryFfi.openDatabase(inMemoryDatabasePath);
-    try {
+    await withSeparateDatabase((other) async {
       await createFixture(other, offset: 100);
       final first = await verify(db);
       final second = await verify(other, offset: 100);
       expect(second.voucherUuid, first.voucherUuid);
       expect(second.journalUuid, first.journalUuid);
       expect(second.amountMinor, first.amountMinor);
-    } finally {
-      await other.close();
-    }
+    });
   });
 
   test('missing journal line rejects an incomplete document', () async {
