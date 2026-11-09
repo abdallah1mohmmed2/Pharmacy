@@ -24,8 +24,7 @@ void main() {
   });
 
   test('F10-F16 rejects unknown types and repeated members', () {
-    expect(
-        () => FinancialDomainGate.requireTransportApproved('UNKNOWN'),
+    expect(() => FinancialDomainGate.requireTransportApproved('UNKNOWN'),
         throwsA(isA<StateError>()));
     expect(
         () => FinancialDomainGate.validateMemberNames('UNKNOWN', ['voucher']),
