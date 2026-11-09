@@ -63,17 +63,21 @@ void main() {
       final schemaObjects = await db.rawQuery(
         "SELECT name,type FROM sqlite_master WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%'",
       );
-      final actualNames = schemaObjects.map((row) => row['name'] as String).toSet();
+      final actualNames =
+          schemaObjects.map((row) => row['name'] as String).toSet();
       expect(actualNames.difference(inventory.keys.toSet()), isEmpty,
           reason: 'Runtime objects need an explicit sync classification');
       final requiredNames = inventory.entries
           .where((entry) => (entry.value as Map)['lifecycle'] == 'schema')
-          .map((entry) => entry.key).toSet();
+          .map((entry) => entry.key)
+          .toSet();
       expect(requiredNames.difference(actualNames), isEmpty,
-          reason: 'Schema inventory claims objects missing from a fresh database');
+          reason:
+              'Schema inventory claims objects missing from a fresh database');
       final allowedNames = inventory.entries
           .where((entry) => (entry.value as Map)['sync_allowed'] == true)
-          .map((entry) => entry.key).toSet();
+          .map((entry) => entry.key)
+          .toSet();
       expect(allowedNames, SyncTablePolicy.outboundTables);
       expect(allowedNames, SyncTablePolicy.inboundTables);
       final requiredTables = [
