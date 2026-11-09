@@ -53,7 +53,7 @@ class FakeFirestore {
     for(const write of writes)write();
     return value;
   }
-  approve(parties=[party],fractionDigits=2,cashGlUuid=cashGl){
+  approve(parties=[party],fractionDigits=0,cashGlUuid=cashGl){
     this.docs.set('financial_operation_registries/'+branch,{
       enabled:true,fraction_digits:fractionDigits,
       party_uuids:parties,cash_accounts:{[cash]:cashGlUuid},
@@ -64,7 +64,7 @@ class FakeFirestore {
 function operation(){
   return {
     operationUuid:operationId, branchUuid:branch,payloadHash:'a'.repeat(64),
-    fractionDigits:2,
+    fractionDigits:0,
     envelope:{
       voucher:{type:'RECEIPT',party_uuid:party,cash_uuid:cash},
       lines:[
@@ -83,11 +83,11 @@ test('relay refuses unprovisioned branch financial references',async()=>{
 });
 test('relay refuses unauthorized party, wrong account mapping and precision',async()=>{
   const db=new FakeFirestore(),store=new FirestoreFinanceStore(db);
-  db.approve([],2);
+  db.approve([],0);
   await assert.rejects(store.commit(operation(),audit),e=>e.code==='FINANCIAL_PARTY_NOT_APPROVED');
-  db.approve([party],0);
+  db.approve([party],2);
   await assert.rejects(store.commit(operation(),audit),e=>e.code==='FINANCIAL_CURRENCY_POLICY_MISMATCH');
-  db.approve([party],2,partyGl);
+  db.approve([party],0,partyGl);
   await assert.rejects(store.commit(operation(),audit),e=>e.code==='FINANCIAL_ACCOUNTS_NOT_APPROVED');
   assert.equal(db.docs.has('financial_operation_streams/'+branch),false);
 });
