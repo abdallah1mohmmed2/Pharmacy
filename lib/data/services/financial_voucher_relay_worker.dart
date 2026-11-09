@@ -85,6 +85,15 @@ class FinancialVoucherRelayWorker {
               FinancialMinorUnits.currencyFractionDigits) {
         throw const FinancialVoucherSyncException('CURRENCY_POLICY_MISMATCH');
       }
+      if (payload is! Map ||
+          payload['operation_uuid'] != row['operation_uuid'] ||
+          payload['voucher'] is! Map ||
+          payload['journal'] is! Map ||
+          payload['lines'] is! List ||
+          payload['ledger'] is! Map ||
+          payload['cash'] is! Map) {
+        throw const FinancialVoucherSyncException('UNSUPPORTED_FINANCIAL_DOMAIN');
+      }
       final body = jsonEncode({
         'operation_uuid': row['operation_uuid'],
         'branch_uuid': branchUuid,
