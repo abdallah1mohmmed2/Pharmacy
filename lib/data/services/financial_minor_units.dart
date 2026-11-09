@@ -5,6 +5,23 @@
 abstract final class FinancialMinorUnits {
   static const int maxMinor = 999999999999;
 
+  /// Approved deployment currency. YER has zero ISO 4217 minor units.
+  static const String currencyCode = 'YER';
+  static const int currencyFractionDigits = 0;
+
+  static void requireYerPolicy({
+    required Object? code,
+    required Object? fractionDigits,
+  }) {
+    if (code != currencyCode || fractionDigits != currencyFractionDigits) {
+      throw const FormatException('CURRENCY_POLICY_MISMATCH');
+    }
+  }
+
+  static int parseYer(String value) =>
+      parseDecimal(value, fractionDigits: currencyFractionDigits);
+
+
   static int parseDecimal(String value, {required int fractionDigits}) {
     if (fractionDigits < 0 || fractionDigits > 3) {
       throw const FormatException('UNAPPROVED_FRACTION_DIGITS');
