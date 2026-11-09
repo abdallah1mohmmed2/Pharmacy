@@ -615,6 +615,49 @@ void main() {
     expect(await target.db.query('financial_operation_inbox'), hasLength(1));
   });
 
+  test('F09 cursor survives restart and never advances on failed page',
+      () async {
+    final relay = FakeTrustedFinanceRelay();
+    await source.post();
+    expect(
+        (await workerFor(source, relay)
+                .syncOnce(branchId: 1, idToken: 'test-token'))
+            .sent,
+        1);
+    final key = 'financial.v2.yer.cursor.$branchUuid';
+    await target.db.execute('''CREATE TRIGGER f09_fail_cash
+      BEFORE INSERT ON cash_transactions
+      BEGIN SELECT RAISE(ABORT,'f09 simulated failure'); END''');
+    await expectLater(
+        workerFor(target, relay).syncOnce(branchId: 1, idToken: 'test-token'),
+        throwsA(anything));
+    expect(
+        await target.db.query('app_settings',
+            where: 'setting_key=?', whereArgs: [key]),
+        isEmpty);
+    expect(await target.db.query('financial_operation_inbox'), isEmpty);
+    await target.db.execute('DROP TRIGGER f09_fail_cash');
+    expect(
+        (await workerFor(target, relay)
+                .syncOnce(branchId: 1, idToken: 'test-token'))
+            .applied,
+        1);
+    final saved = (await target.db.query('app_settings',
+        where: 'setting_key=?', whereArgs: [key])).single['value_text'];
+    expect(saved, '1');
+    expect(
+        (await workerFor(target, relay)
+                .syncOnce(branchId: 1, idToken: 'test-token'))
+            .applied,
+        0);
+    expect(
+        (await target.db.query('app_settings',
+            where: 'setting_key=?', whereArgs: [key])).single['value_text'],
+        saved);
+    expect(await target.db.query('vouchers'), hasLength(1));
+    expect(await target.db.query('financial_operation_inbox'), hasLength(1));
+  });
+
   test('offline relay retains pending envelope for retry', () async {
     final relay = FakeTrustedFinanceRelay()..offline = true;
     await source.post();
