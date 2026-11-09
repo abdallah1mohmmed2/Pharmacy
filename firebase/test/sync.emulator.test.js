@@ -81,6 +81,7 @@ test('authenticated branch sync commits and reads its Firestore batch; cross-bra
             } } }] } },
           },
         },
+        updateTransforms: [{ fieldPath: 'created_at', setToServerValue: 'REQUEST_TIME' }],
         currentDocument: { exists: false },
       }],
     }),
