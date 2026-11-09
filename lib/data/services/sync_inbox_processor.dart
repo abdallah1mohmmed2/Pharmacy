@@ -37,9 +37,13 @@ class FirestoreInboxProcessor {
     if (batchUuid.startsWith(_atomicPrefix)) {
       throw const AtomicInboxBatchException('RESERVED_BATCH_NAMESPACE');
     }
-    return _processBatch(branchId: branchId, batchUuid: batchUuid,
-        payloadHash: payloadHash, events: events,
-        expectedBranchUuid: expectedBranchUuid, requireAtomic: false);
+    return _processBatch(
+        branchId: branchId,
+        batchUuid: batchUuid,
+        payloadHash: payloadHash,
+        events: events,
+        expectedBranchUuid: expectedBranchUuid,
+        requireAtomic: false);
   }
 
   /// Local application boundary for a future complete operation envelope.
@@ -60,10 +64,13 @@ class FirestoreInboxProcessor {
     if (ids.length != events.length) {
       throw const AtomicInboxBatchException('DUPLICATE_OPERATION_MEMBER');
     }
-    return _processBatch(branchId: branchId,
+    return _processBatch(
+        branchId: branchId,
         batchUuid: '$_atomicPrefix${operationUuid.toLowerCase()}',
-        payloadHash: payloadHash, events: events,
-        expectedBranchUuid: expectedBranchUuid, requireAtomic: true);
+        payloadHash: payloadHash,
+        events: events,
+        expectedBranchUuid: expectedBranchUuid,
+        requireAtomic: true);
   }
 
   Future<InboxBatchResult> _processBatch({
@@ -102,7 +109,7 @@ class FirestoreInboxProcessor {
       if (requireAtomic) {
         if (existingBatch.isNotEmpty &&
             (existingBatch.first['processed_at'] == null ||
-             existingBatch.first['event_count'] != events.length)) {
+                existingBatch.first['event_count'] != events.length)) {
           throw const AtomicInboxBatchException('INCOMPLETE_OPERATION_RECEIPT');
         }
         for (final event in events) {
@@ -112,14 +119,18 @@ class FirestoreInboxProcessor {
           }
           final prior = await txn.query('sync_inbox',
               where: 'branch_id=? AND event_uuid=?',
-              whereArgs: [branchId, event['event_uuid']], limit: 1);
+              whereArgs: [branchId, event['event_uuid']],
+              limit: 1);
           if (existingBatch.isEmpty && prior.isNotEmpty) {
-            throw const AtomicInboxBatchException('PREEXISTING_OPERATION_MEMBER');
+            throw const AtomicInboxBatchException(
+                'PREEXISTING_OPERATION_MEMBER');
           }
           if (existingBatch.isNotEmpty &&
-              (prior.isEmpty || prior.first['batch_uuid'] != batchUuid ||
-               prior.first['status'] != 'APPLIED')) {
-            throw const AtomicInboxBatchException('INCOMPLETE_OPERATION_RECEIPT');
+              (prior.isEmpty ||
+                  prior.first['batch_uuid'] != batchUuid ||
+                  prior.first['status'] != 'APPLIED')) {
+            throw const AtomicInboxBatchException(
+                'INCOMPLETE_OPERATION_RECEIPT');
           }
         }
       }
@@ -142,8 +153,9 @@ class FirestoreInboxProcessor {
           expectedBranchUuid: expectedBranchUuid,
         );
         if (requireAtomic && outcome != 'APPLIED' && outcome != 'DUPLICATE') {
-          throw AtomicInboxBatchException(
-              outcome == 'NEEDS_DEPENDENCY' ? 'MISSING_DEPENDENCY' : 'MEMBER_REJECTED');
+          throw AtomicInboxBatchException(outcome == 'NEEDS_DEPENDENCY'
+              ? 'MISSING_DEPENDENCY'
+              : 'MEMBER_REJECTED');
         }
         switch (outcome) {
           case 'APPLIED':

@@ -94,17 +94,28 @@ void main() {
   const operationUuid = 'a1234567-1234-4123-8123-123456789abc';
   const branchUuid = 'b1234567-1234-4123-8123-123456789abc';
   Map<String, Object?> atomicEvent(String uuid,
-      {String table = 'sync_items', int version = 1,
-       String operation = 'INSERT', Map<String, Object?> fields = const {},
-       Map<String, Object?> relations = const {}}) => event(
-    table: table, uuid: uuid, version: version, operation: operation,
-    payload: {'branch_id': branchUuid, ...fields}, relations: relations);
+          {String table = 'sync_items',
+          int version = 1,
+          String operation = 'INSERT',
+          Map<String, Object?> fields = const {},
+          Map<String, Object?> relations = const {}}) =>
+      event(
+          table: table,
+          uuid: uuid,
+          version: version,
+          operation: operation,
+          payload: {'branch_id': branchUuid, ...fields},
+          relations: relations);
 
   Future<InboxBatchResult> receiveAtomic(List<Map<String, Object?>> events,
-      {FirestoreInboxProcessor? using, String operationId = operationUuid}) =>
-    (using ?? processor).processAtomicBatch(branchId: 7,
-      operationUuid: operationId, expectedBranchUuid: branchUuid,
-      payloadHash: batchFingerprint(events), events: events);
+          {FirestoreInboxProcessor? using,
+          String operationId = operationUuid}) =>
+      (using ?? processor).processAtomicBatch(
+          branchId: 7,
+          operationUuid: operationId,
+          expectedBranchUuid: branchUuid,
+          payloadHash: batchFingerprint(events),
+          events: events);
 
   Future<void> expectAtomicRollback() async {
     expect(await db.query('sync_items'), isEmpty);
@@ -113,30 +124,43 @@ void main() {
     expect(await db.query('sync_inbox_batches'), isEmpty);
   }
 
-  test('atomic operation rejects invalid identity and mismatched branch', () async {
-    final events = [atomicEvent('one', fields: {'title': 'one'})];
+  test('atomic operation rejects invalid identity and mismatched branch',
+      () async {
+    final events = [
+      atomicEvent('one', fields: {'title': 'one'})
+    ];
     expect(() => receiveAtomic(events, operationId: 'local-1'),
-      throwsA(isA<AtomicInboxBatchException>()));
+        throwsA(isA<AtomicInboxBatchException>()));
     await receiveAtomic(events);
-    await expectLater(processor.processAtomicBatch(branchId: 7,
-      operationUuid: operationUuid,
-      expectedBranchUuid: 'c1234567-1234-4123-8123-123456789abc',
-      payloadHash: batchFingerprint(events), events: events),
-      throwsA(isA<AtomicInboxBatchException>()));
+    await expectLater(
+        processor.processAtomicBatch(
+            branchId: 7,
+            operationUuid: operationUuid,
+            expectedBranchUuid: 'c1234567-1234-4123-8123-123456789abc',
+            payloadHash: batchFingerprint(events),
+            events: events),
+        throwsA(isA<AtomicInboxBatchException>()));
     expect(await db.query('sync_items'), hasLength(1));
   });
 
-  test('atomic replay rejects a receipt whose member is no longer APPLIED', () async {
-    final events = [atomicEvent('one', fields: {'title': 'one'})];
+  test('atomic replay rejects a receipt whose member is no longer APPLIED',
+      () async {
+    final events = [
+      atomicEvent('one', fields: {'title': 'one'})
+    ];
     await receiveAtomic(events);
     await db.update('sync_inbox', {'status': 'IGNORED'});
-    await expectLater(receiveAtomic(events), throwsA(isA<AtomicInboxBatchException>()));
+    await expectLater(
+        receiveAtomic(events), throwsA(isA<AtomicInboxBatchException>()));
     expect(await db.query('sync_items'), hasLength(1));
   });
 
-  test('atomic operation commits once and replay does not repeat inserts', () async {
-    final events = [atomicEvent('one', fields: {'title': 'one'}),
-      atomicEvent('two', fields: {'title': 'two'})];
+  test('atomic operation commits once and replay does not repeat inserts',
+      () async {
+    final events = [
+      atomicEvent('one', fields: {'title': 'one'}),
+      atomicEvent('two', fields: {'title': 'two'})
+    ];
     expect((await receiveAtomic(events)).applied, 2);
     expect((await receiveAtomic(events)).duplicates, 2);
     expect(await db.query('sync_items'), hasLength(2));
@@ -144,87 +168,136 @@ void main() {
     expect(await db.query('sync_inbox_batches'), hasLength(1));
   });
 
-  test('atomic operation rolls back earlier valid members when a field is rejected', () async {
-    final events = [atomicEvent('one', fields: {'title': 'one'}),
-      atomicEvent('two', fields: {'title': 'two', 'password_hash': 'secret'})];
-    await expectLater(receiveAtomic(events), throwsA(isA<AtomicInboxBatchException>()));
+  test(
+      'atomic operation rolls back earlier valid members when a field is rejected',
+      () async {
+    final events = [
+      atomicEvent('one', fields: {'title': 'one'}),
+      atomicEvent('two', fields: {'title': 'two', 'password_hash': 'secret'})
+    ];
+    await expectLater(
+        receiveAtomic(events), throwsA(isA<AtomicInboxBatchException>()));
     await expectAtomicRollback();
   });
 
-  test('atomic SQLite failure rolls back data and receipts then retries as a whole', () async {
-    await db.execute("CREATE TRIGGER fail_second BEFORE INSERT ON sync_items WHEN NEW.title='two' BEGIN SELECT RAISE(ABORT, 'test failure'); END");
-    final events = [atomicEvent('one', fields: {'title': 'one'}),
-      atomicEvent('two', fields: {'title': 'two'})];
-    await expectLater(receiveAtomic(events), throwsA(isA<AtomicInboxBatchException>()));
+  test(
+      'atomic SQLite failure rolls back data and receipts then retries as a whole',
+      () async {
+    await db.execute(
+        "CREATE TRIGGER fail_second BEFORE INSERT ON sync_items WHEN NEW.title='two' BEGIN SELECT RAISE(ABORT, 'test failure'); END");
+    final events = [
+      atomicEvent('one', fields: {'title': 'one'}),
+      atomicEvent('two', fields: {'title': 'two'})
+    ];
+    await expectLater(
+        receiveAtomic(events), throwsA(isA<AtomicInboxBatchException>()));
     await expectAtomicRollback();
     await db.execute('DROP TRIGGER fail_second');
     expect((await receiveAtomic(events)).applied, 2);
   });
 
-  test('missing dependency leaves no partial operation or deferred single member', () async {
-    final events = [atomicEvent('one', fields: {'title': 'one'}),
-      atomicEvent('child', table: 'sync_children',
-        fields: {'title': 'child', 'parent_id': 99},
-        relations: {'parent_id': {'table': 'sync_parents', 'uuid': 'parent'}})];
-    await expectLater(receiveAtomic(events), throwsA(isA<AtomicInboxBatchException>()));
+  test(
+      'missing dependency leaves no partial operation or deferred single member',
+      () async {
+    final events = [
+      atomicEvent('one', fields: {'title': 'one'}),
+      atomicEvent('child', table: 'sync_children', fields: {
+        'title': 'child',
+        'parent_id': 99
+      }, relations: {
+        'parent_id': {'table': 'sync_parents', 'uuid': 'parent'}
+      })
+    ];
+    await expectLater(
+        receiveAtomic(events), throwsA(isA<AtomicInboxBatchException>()));
     await expectAtomicRollback();
     expect(await processor.retryDeferred(7), 0);
-    await db.insert('sync_parents', {'uuid': 'parent', 'branch_id': 7, 'name': 'parent'});
+    await db.insert(
+        'sync_parents', {'uuid': 'parent', 'branch_id': 7, 'name': 'parent'});
     expect((await receiveAtomic(events)).applied, 2);
   });
 
-  test('atomic conflict keeps local edit and rolls back other members', () async {
-    await db.insert('sync_items', {'uuid': 'local', 'branch_id': 7,
-      'title': 'newer local', 'sync_version': 2, 'sync_status': 'LOCAL'});
-    final events = [atomicEvent('one', fields: {'title': 'one'}),
-      atomicEvent('local', fields: {'title': 'remote'})];
-    await expectLater(receiveAtomic(events), throwsA(isA<AtomicInboxBatchException>()));
+  test('atomic conflict keeps local edit and rolls back other members',
+      () async {
+    await db.insert('sync_items', {
+      'uuid': 'local',
+      'branch_id': 7,
+      'title': 'newer local',
+      'sync_version': 2,
+      'sync_status': 'LOCAL'
+    });
+    final events = [
+      atomicEvent('one', fields: {'title': 'one'}),
+      atomicEvent('local', fields: {'title': 'remote'})
+    ];
+    await expectLater(
+        receiveAtomic(events), throwsA(isA<AtomicInboxBatchException>()));
     expect((await db.query('sync_items')).single['title'], 'newer local');
     expect(await db.query('sync_inbox'), isEmpty);
     expect(await db.query('sync_inbox_batches'), isEmpty);
   });
 
   test('operation identity cannot be reused with changed content', () async {
-    final original = [atomicEvent('one', fields: {'title': 'one'})];
+    final original = [
+      atomicEvent('one', fields: {'title': 'one'})
+    ];
     await receiveAtomic(original);
-    final modified = [atomicEvent('one', fields: {'title': 'changed'})];
+    final modified = [
+      atomicEvent('one', fields: {'title': 'changed'})
+    ];
     await expectLater(receiveAtomic(modified), throwsStateError);
     expect((await db.query('sync_items')).single['title'], 'one');
   });
 
-  test('atomic group cannot adopt members previously applied independently', () async {
+  test('atomic group cannot adopt members previously applied independently',
+      () async {
     final first = atomicEvent('one', fields: {'title': 'one'});
     await receive(first);
-    final events = [first, atomicEvent('two', fields: {'title': 'two'})];
-    await expectLater(receiveAtomic(events), throwsA(isA<AtomicInboxBatchException>()));
+    final events = [
+      first,
+      atomicEvent('two', fields: {'title': 'two'})
+    ];
+    await expectLater(
+        receiveAtomic(events), throwsA(isA<AtomicInboxBatchException>()));
     expect(await db.query('sync_items'), hasLength(1));
     expect(await db.query('sync_inbox_batches'), hasLength(1));
   });
 
   test('duplicate members and reserved namespace are rejected', () async {
     final first = atomicEvent('one', fields: {'title': 'one'});
-    expect(() => receiveAtomic([first, first]), throwsA(isA<AtomicInboxBatchException>()));
-    expect(() => processor.processBatch(branchId: 7,
-      batchUuid: 'atomic-v1:$operationUuid', payloadHash: batchFingerprint([first]),
-      events: [first]), throwsA(isA<AtomicInboxBatchException>()));
+    expect(() => receiveAtomic([first, first]),
+        throwsA(isA<AtomicInboxBatchException>()));
+    expect(
+        () => processor.processBatch(
+            branchId: 7,
+            batchUuid: 'atomic-v1:$operationUuid',
+            payloadHash: batchFingerprint([first]),
+            events: [first]),
+        throwsA(isA<AtomicInboxBatchException>()));
     await expectAtomicRollback();
   });
 
   test('atomic mode does not enable production financial tables', () async {
-    final events = [atomicEvent('journal', table: 'journal_entries', fields: {})];
-    await expectLater(receiveAtomic(events,
-      using: FirestoreInboxProcessor(database: db)),
-      throwsA(isA<AtomicInboxBatchException>()));
+    final events = [
+      atomicEvent('journal', table: 'journal_entries', fields: {})
+    ];
+    await expectLater(
+        receiveAtomic(events, using: FirestoreInboxProcessor(database: db)),
+        throwsA(isA<AtomicInboxBatchException>()));
     await expectAtomicRollback();
   });
 
-  test('missing receipt member is not reinserted during atomic replay', () async {
-    final events = [atomicEvent('one', fields: {'title': 'one'}),
-      atomicEvent('two', fields: {'title': 'two'})];
+  test('missing receipt member is not reinserted during atomic replay',
+      () async {
+    final events = [
+      atomicEvent('one', fields: {'title': 'one'}),
+      atomicEvent('two', fields: {'title': 'two'})
+    ];
     await receiveAtomic(events);
     await db.delete('sync_inbox', where: 'row_uuid=?', whereArgs: ['two']);
     await db.delete('sync_items', where: 'uuid=?', whereArgs: ['two']);
-    await expectLater(receiveAtomic(events), throwsA(isA<AtomicInboxBatchException>()));
+    await expectLater(
+        receiveAtomic(events), throwsA(isA<AtomicInboxBatchException>()));
     expect(await db.query('sync_items'), hasLength(1));
     expect(await db.query('sync_inbox'), hasLength(1));
   });
