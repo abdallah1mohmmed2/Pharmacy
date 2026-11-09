@@ -9,7 +9,7 @@ const party='22222222-2222-4222-8222-222222222222';
 const cash='33333333-3333-4333-8333-333333333333';
 const id='44444444-4444-4444-8444-444444444444';
 function envelope(){
-  return {schema_version:1,operation_uuid:id,branch_uuid:branch,fraction_digits:2,
+  return {schema_version:2,operation_uuid:id,branch_uuid:branch,fraction_digits:0,currency_code:'YER',
     voucher:{uuid:id,type:'RECEIPT',date:'2026-11-09T00:00:00.000',party_uuid:party,cash_uuid:cash,amount_minor:12525},
     journal:{uuid:'55555555-5555-4555-8555-555555555555',date:'2026-11-09T00:00:00.000'},
     lines:[
@@ -57,7 +57,7 @@ test('rejects missing or corrupt accounting members',()=>{
     e=>{e.lines[0].account_uuid=e.lines[1].account_uuid;}
   ]){const en=envelope();mutation(en);assert.throws(()=>validateOperation(operation(en),branch),RelayError);}
 });
-test('hash mismatch and branch mismatch never persist',async()=>{
+test('rejects obsolete v1, wrong currency and fractional YER',()=>{\n  for (const mutation of [\n    e=>{e.schema_version=1;},\n    e=>{e.currency_code='USD';},\n    e=>{e.fraction_digits=2;},\n    e=>{delete e.currency_code;}\n  ]) {\n    const en=envelope(); mutation(en);\n    assert.throws(()=>validateOperation(operation(en),branch),RelayError);\n  }\n});\ntest('hash mismatch and branch mismatch never persist',async()=>{
   const store=mockStore(),h=handler(store);
   assert.equal((await invoke(h,{body:{...operation(),payload_hash:'f'.repeat(64)}})).status,400);
   assert.equal(store.saved.length,0);
