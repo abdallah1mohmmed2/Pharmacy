@@ -41,7 +41,7 @@ class FinancialRelayClient {
   Future<Map<String, Object?>> _request(
       String method, Uri uri, Object? payload) async {
     final token = await _idTokenProvider();
-    if (token.trim().isEmpty || token.contains(RegExp(r'\\s'))) {
+    if (token.trim().isEmpty || token.contains(RegExp(r'\s'))) {
       throw const FinancialRelayException('AUTH_TOKEN_REQUIRED');
     }
     final headers = <String, String>{
