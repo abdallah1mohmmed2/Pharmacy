@@ -274,6 +274,24 @@ abstract final class FinancialVoucherOperation {
         }
         return const FinancialVoucherApplyResult.duplicate();
       }
+      // F04: every member identity must be unused before the first insert.
+      // Historical rows with NULL UUID remain local and are never rewritten.
+      for (final member in <(String, String)>[
+        ('journal_entries', journalUuid),
+        ('lah_alayh_ledger', ledgerUuid),
+        ('cash_transactions', movementUuid),
+        for (final line in lines)
+          ('journal_lines', line['uuid'] as String),
+      ]) {
+        if ((await txn.query(member.$1,
+                columns: ['id'],
+                where: 'uuid=?',
+                whereArgs: [member.$2],
+                limit: 1))
+            .isNotEmpty) {
+          throw const FinancialVoucherSyncException('MEMBER_UUID_CONFLICT');
+        }
+      }
       if ((await txn
               .query('vouchers', where: 'uuid=?', whereArgs: [operationUuid]))
           .isNotEmpty) {
