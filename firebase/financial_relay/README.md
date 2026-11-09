@@ -20,3 +20,7 @@ This module complements the existing `FinancialVoucherOperation` source transact
 **This module has not been deployed. It is not enabled in production and is not yet automatically connected to the app's financial sync schedule.** Master-data registry registration and real Firebase Custom Claims provisioning, actual HTTPS endpoint/credential deployment, authenticated two-device acceptance, independent server operation-audit review, load testing and privacy review all remain prerequisites. The voucher contract covers only `RECEIPT/PAYMENT + CASH`; all other financial operations (sales, purchases, returns, payroll, partners, wallet, bank, settlement) remain unapproved.
 
 Do not expand `SyncTablePolicy` or allow generic Firestore row events for financial documents. Use the dedicated immutable envelope and trusted relay only. No deployment or modification of `main` is authorized by these tests.
+
+## Contract compatibility — CASH v2 / YER
+
+The relay validator now accepts only the Dart financial CASH voucher schema version `2`, with `currency_code: YER` and `fraction_digits: 0`. Legacy v1 and non-YER envelopes fail closed. Provisioned branch registries must use `fraction_digits: 0`. This does not authorize other financial domains or enable production relay deployment.
