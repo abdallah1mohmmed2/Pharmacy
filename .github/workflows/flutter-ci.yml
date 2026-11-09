@@ -11,6 +11,17 @@ concurrency:
   group: pharmacy-ci-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  finance-relay-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Verify trusted financial relay contract and authorization
+        run: node --test firebase/financial_relay/relay.test.js
   android:
     runs-on: ubuntu-latest
     steps:
