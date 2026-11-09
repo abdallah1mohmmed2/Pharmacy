@@ -317,6 +317,60 @@ void main() {
     expect(await target.db.query('vouchers'), hasLength(1));
   });
 
+  test('F04 historical cash UUID stays NULL; new movement uses stable UUID',
+      () async {
+    await target.db.insert('cash_transactions', {
+      'cash_account_id': target.cashId,
+      'tx_date': '2026-11-09',
+      'direction': 'IN',
+      'amount': 1,
+      'tx_type': 'OPENING',
+      'branch_id': 1,
+    });
+    await source.post();
+    final row = await source.outbox();
+    final movementUuid =
+        (envelopeOf(row)['cash'] as Map)['uuid'] as String;
+    expect((await importInto(target, row)).applied, isTrue);
+    final movements = await target.db.query('cash_transactions',
+        orderBy: 'id');
+    expect(movements.first['uuid'], isNull);
+    expect(movements.last['uuid'], movementUuid);
+    final voucherId = (await target.db.query('vouchers')).single['id'];
+    expect(movements.last['doc_id'], voucherId);
+    expect((await target.db.query('journal_entries')).single['source_id'],
+        voucherId);
+    expect((await target.db.query('lah_alayh_ledger')).single['doc_id'],
+        voucherId);
+    expect((await importInto(target, row)).applied, isFalse);
+    expect(await target.db.query('cash_transactions'), hasLength(2));
+  });
+
+  test('F04 conflicting member UUID aborts before any financial writes',
+      () async {
+    await source.post();
+    final row = await source.outbox();
+    final movementUuid =
+        (envelopeOf(row)['cash'] as Map)['uuid'] as String;
+    await target.db.insert('cash_transactions', {
+      'uuid': movementUuid,
+      'cash_account_id': target.cashId,
+      'tx_date': '2026-11-09',
+      'direction': 'IN',
+      'amount': 1,
+      'tx_type': 'OPENING',
+      'branch_id': 1,
+    });
+    await expectLater(
+        importInto(target, row),
+        throwsA(isA<FinancialVoucherSyncException>().having(
+            (e) => e.code, 'code', 'MEMBER_UUID_CONFLICT')));
+    expect(await target.db.query('vouchers'), isEmpty);
+    expect(await target.db.query('journal_entries'), isEmpty);
+    expect(await target.db.query('financial_operation_inbox'), isEmpty);
+    expect(await target.db.query('cash_transactions'), hasLength(1));
+  });
+
   test('missing parent blocks whole receipt until dependency is inserted',
       () async {
     await source.post();
