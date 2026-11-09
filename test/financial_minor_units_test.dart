@@ -5,7 +5,8 @@ void main() {
   group('F03 exact minor-unit decimal contract', () {
     test('zero-decimal currency and canonical output', () {
       expect(FinancialMinorUnits.parseDecimal('123', fractionDigits: 0), 123);
-      expect(FinancialMinorUnits.parseDecimal('123.000', fractionDigits: 0), 123);
+      expect(
+          FinancialMinorUnits.parseDecimal('123.000', fractionDigits: 0), 123);
       expect(FinancialMinorUnits.toDecimal(123, fractionDigits: 0), '123');
     });
 
@@ -23,17 +24,18 @@ void main() {
 
     test('leading and trailing zeros are exact, no hidden rounding', () {
       expect(FinancialMinorUnits.parseDecimal('0.01', fractionDigits: 2), 1);
-      expect(FinancialMinorUnits.parseDecimal('1.2300', fractionDigits: 2), 123);
+      expect(
+          FinancialMinorUnits.parseDecimal('1.2300', fractionDigits: 2), 123);
       expect(FinancialMinorUnits.parseDecimal('1.000', fractionDigits: 0), 1);
       expect(
           () => FinancialMinorUnits.parseDecimal('1.2301', fractionDigits: 2),
           throwsFormatException);
-      expect(
-          () => FinancialMinorUnits.parseDecimal('0.001', fractionDigits: 2),
+      expect(() => FinancialMinorUnits.parseDecimal('0.001', fractionDigits: 2),
           throwsFormatException);
     });
 
-    test('reject negative, exponential, locale, NaN, Infinity and whitespace', () {
+    test('reject negative, exponential, locale, NaN, Infinity and whitespace',
+        () {
       for (final raw in [
         '-1',
         '+1',
@@ -48,8 +50,7 @@ void main() {
         '1.',
         ''
       ]) {
-        expect(
-            () => FinancialMinorUnits.parseDecimal(raw, fractionDigits: 2),
+        expect(() => FinancialMinorUnits.parseDecimal(raw, fractionDigits: 2),
             throwsFormatException,
             reason: raw);
       }
@@ -65,23 +66,19 @@ void main() {
           throwsFormatException);
       for (final digits in [-1, 4]) {
         expect(
-            () => FinancialMinorUnits.parseDecimal('1',
-                fractionDigits: digits),
+            () => FinancialMinorUnits.parseDecimal('1', fractionDigits: digits),
             throwsFormatException);
-        expect(
-            () => FinancialMinorUnits.toDecimal(1, fractionDigits: digits),
+        expect(() => FinancialMinorUnits.toDecimal(1, fractionDigits: digits),
             throwsFormatException);
       }
     });
 
     test('wire minor amounts require integers within supported range', () {
       expect(FinancialMinorUnits.checkedMinor(0, fractionDigits: 2), 0);
-      expect(
-          FinancialMinorUnits.checkedMinor(999999999999, fractionDigits: 3),
+      expect(FinancialMinorUnits.checkedMinor(999999999999, fractionDigits: 3),
           999999999999);
       for (final raw in [null, 1.0, '1', -1, 1000000000000]) {
-        expect(
-            () => FinancialMinorUnits.checkedMinor(raw, fractionDigits: 2),
+        expect(() => FinancialMinorUnits.checkedMinor(raw, fractionDigits: 2),
             throwsFormatException);
       }
     });

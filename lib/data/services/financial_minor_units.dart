@@ -19,10 +19,11 @@ abstract final class FinancialMinorUnits {
       throw const FormatException('EXCESS_DECIMAL_PRECISION');
     }
     final normalized = fractional.padRight(fractionDigits, '0');
-    final minor = BigInt.parse(parts.first) * BigInt.from(10).pow(fractionDigits) +
-        (fractionDigits == 0
-            ? BigInt.zero
-            : BigInt.parse(normalized.substring(0, fractionDigits)));
+    final minor =
+        BigInt.parse(parts.first) * BigInt.from(10).pow(fractionDigits) +
+            (fractionDigits == 0
+                ? BigInt.zero
+                : BigInt.parse(normalized.substring(0, fractionDigits)));
     if (minor < BigInt.zero || minor > BigInt.from(maxMinor)) {
       throw const FormatException('AMOUNT_OUT_OF_RANGE');
     }
