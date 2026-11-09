@@ -15,6 +15,7 @@ import 'schema_iteration9.dart';
 import 'schema_iteration10.dart';
 import 'schema_iteration11.dart';
 import 'schema_iteration12.dart';
+import 'schema_iteration13.dart';
 
 class DatabaseHelper {
   DatabaseHelper._();
@@ -41,7 +42,7 @@ class DatabaseHelper {
         : await getDatabasesPath();
     await Directory(directory).create(recursive: true);
     _openedPath = p.join(directory, 'global_pharmacy_erp.db');
-    final db = await openDatabase(_openedPath!, version: 15,
+    final db = await openDatabase(_openedPath!, version: 16,
         onConfigure: (database) async {
       await database.execute('PRAGMA foreign_keys = ON');
       await database.execute('PRAGMA journal_mode = WAL');
@@ -65,6 +66,7 @@ class DatabaseHelper {
       await SchemaIteration10.upgrade(database);
       await SchemaIteration11.upgrade(database);
       await SchemaIteration12.upgrade(database);
+      await SchemaIteration13.upgrade(database);
     }, onUpgrade: (database, oldVersion, newVersion) async {
       if (oldVersion < 4) await SchemaIteration2.upgrade(database);
       if (oldVersion < 5) await SchemaIteration3.upgrade(database);
@@ -77,6 +79,7 @@ class DatabaseHelper {
       if (oldVersion < 13) await SchemaIteration10.upgrade(database);
       if (oldVersion < 14) await SchemaIteration11.upgrade(database);
       if (oldVersion < 15) await SchemaIteration12.upgrade(database);
+      if (oldVersion < 16) await SchemaIteration13.upgrade(database);
     });
     await db.execute('PRAGMA foreign_keys = ON');
     await db.execute('PRAGMA busy_timeout = 5000');
