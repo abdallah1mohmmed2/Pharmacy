@@ -1,6 +1,6 @@
 'use strict';
 
-const { RelayError } = require('./contract');
+const { RelayError, uuid } = require('./contract');
 
 // Backend-only Firestore documents; direct client reads/writes stay denied by
 // firestore.rules. A branch-wide serial is assigned atomically per operation.
@@ -10,8 +10,40 @@ class FirestoreFinanceStore {
   async commit(operation,audit) {
     const stream=this.firestore.collection('financial_operation_streams').doc(operation.branchUuid);
     const record=stream.collection('operations').doc(operation.operationUuid);
+    const registry=this.firestore.collection('financial_operation_registries').doc(operation.branchUuid);
     await this.firestore.runTransaction(async tx=>{
       const current=await tx.get(record);
+      const reference=await tx.get(registry);
+      // Admin-provisioned authoritative mapping. A legitimate Firebase login
+      // alone cannot invent master UUIDs or select arbitrary ledger accounts.
+      if (!reference.exists || reference.data().enabled !== true) {
+        throw new RelayError('FINANCIAL_REFERENCES_NOT_APPROVED',403);
+      }
+      const approved=reference.data();
+      if (approved.fraction_digits!==operation.fractionDigits) {
+        throw new RelayError('FINANCIAL_CURRENCY_POLICY_MISMATCH',403);
+      }
+      const voucher=operation.envelope.voucher;
+      if (!Array.isArray(approved.party_uuids) ||
+          !approved.party_uuids.includes(voucher.party_uuid)) {
+        throw new RelayError('FINANCIAL_PARTY_NOT_APPROVED',403);
+      }
+      const cashAccounts=approved.cash_accounts;
+      const accountGl=cashAccounts && typeof cashAccounts==='object'
+        ? cashAccounts[voucher.cash_uuid] : null;
+      const partyGl=approved.party_gl && approved.party_gl[voucher.type];
+      if (typeof accountGl!=='string' || typeof partyGl!=='string' ||
+          uuid(accountGl)===uuid(partyGl)) {
+        throw new RelayError('FINANCIAL_ACCOUNTS_NOT_APPROVED',403);
+      }
+      const lines=operation.envelope.lines;
+      const cashLine=lines.find(line=>line.party_uuid===null);
+      const partyLine=lines.find(line=>line.party_uuid!==null);
+      if (!cashLine || !partyLine ||
+          cashLine.account_uuid!==accountGl ||
+          partyLine.account_uuid!==partyGl) {
+        throw new RelayError('FINANCIAL_GL_MAPPING_MISMATCH',403);
+      }
       if (current.exists) {
         const stored=current.data();
         if (stored.payload_hash!==operation.payloadHash || stored.branch_uuid!==operation.branchUuid) {
