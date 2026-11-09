@@ -269,6 +269,48 @@ void main() {
         posted['id']);
   });
 
+  test('F06 complete real CASH posting maps all financial references across DBs',
+      () async {
+    await source.post();
+    final original = (await source.db.query('vouchers')).single;
+    final outbox = await source.outbox();
+    final payload = envelopeOf(outbox);
+    expect(payload['operation_uuid'], original['uuid']);
+    expect(payload['currency_code'], 'YER');
+    expect((payload['lines'] as List), hasLength(2));
+
+    final result = await importInto(target, outbox);
+    expect(result.applied, isTrue);
+    final received = (await target.db.query('vouchers')).single;
+    final voucherId = received['id'] as int;
+    final journalId = received['journal_entry_id'] as int;
+    expect(received['uuid'], original['uuid']);
+    expect(received['party_id'], target.partyId);
+    expect(received['cash_account_id'], target.cashId);
+    expect((await target.db.query('journal_entries')).single['source_id'],
+        voucherId);
+    expect((await target.db.query('journal_entries')).single['id'], journalId);
+    final lines = await target.db.query('journal_lines');
+    expect(lines, hasLength(2));
+    expect(lines.every((line) => line['journal_entry_id'] == journalId), isTrue);
+    expect((await target.db.query('lah_alayh_ledger')).single['doc_id'],
+        voucherId);
+    expect((await target.db.query('cash_transactions')).single['doc_id'],
+        voucherId);
+    expect((await target.db.query('financial_operation_inbox')).single[
+        'operation_uuid'], outbox['operation_uuid']);
+    final integrity = await CashVoucherIntegrityValidator.validate(
+        database: target.db,
+        branchId: 1,
+        voucherId: voucherId,
+        fractionDigits: 0);
+    expect(integrity.amountMinor, 125);
+    expect(await target.db.rawQuery('PRAGMA foreign_key_check'), isEmpty);
+    expect(await target.db.query('vouchers'), hasLength(1));
+    expect(await target.db.query('journal_entries'), hasLength(1));
+    expect(await target.db.query('cash_transactions'), hasLength(1));
+  });
+
   test('payment transfers with inverse journal sides', () async {
     await source.post('PAYMENT');
     expect((await importInto(target, await source.outbox())).applied, isTrue);
