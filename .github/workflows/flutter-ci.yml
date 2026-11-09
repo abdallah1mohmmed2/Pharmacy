@@ -393,15 +393,15 @@ jobs:
             throw "Could not find the resolved printing Windows CMakeLists."
           }
           $content = Get-Content -Raw $pluginCmake
-          $pattern = '(?s)include\(\.\./windows/DownloadProject\.cmake\)\s*download_project\(PROJ\s*pdfium\s*URL\s*\$\{PDFIUM_URL\}\)'
-          if ($content -notmatch $pattern) {
-            Write-Host '=== Current printing plugin CMake download declaration ==='
-          Write-Host $content
-          throw "Printing plugin PDFium download block changed; refusing an unsafe CMake rewrite."
+          # The installed printing plugin already includes the local
+          # PDFiumConfig.cmake. Keep that declaration intact; only reject
+          # unexpected network download instructions, never rewrite CMake.
+          if ($content -notmatch 'include\\(\\$\\{pdfium_SOURCE_DIR\\}/PDFiumConfig\\.cmake\\)') {
+            throw "Printing plugin no longer includes verified local PDFiumConfig.cmake."
           }
-          $replacement = 'set(pdfium_SOURCE_DIR "${CMAKE_BINARY_DIR}/pdfium-src")'
-          $content = [regex]::Replace($content, $pattern, $replacement, 1)
-          Set-Content -Path $pluginCmake -Value $content -NoNewline
+          if ($content -match 'download_project\\(') {
+            throw "Printing plugin unexpectedly downloads PDFium at build time."
+          }
           Write-Host "Verified PDFium archive SHA-256: $actualHash"
           Write-Host "Using local verified PDFium source: $pdfiumSource"
       - run: flutter analyze --no-fatal-infos
