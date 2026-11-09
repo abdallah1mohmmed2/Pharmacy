@@ -43,8 +43,8 @@ void main() {
       await database.update('chart_of_accounts', {'uuid': entry.value},
           where: 'code=?', whereArgs: [entry.key]);
     }
-    await database.update('cash_accounts',
-        {'uuid': '44444444-4444-4444-8444-444444444444'},
+    await database.update(
+        'cash_accounts', {'uuid': '44444444-4444-4444-8444-444444444444'},
         where: 'code=?', whereArgs: ['CASH-DRAWER']);
   }
 
@@ -94,10 +94,10 @@ void main() {
       'name_ar': 'اختبار سند',
     });
     cashId = (await database.query('cash_accounts',
-        columns: ['id'],
-        where: 'code=?',
-        whereArgs: ['CASH-DRAWER'])).single['id'] as int;
-    posting = PostingAndSalesService(helper: DatabaseHelper.forTesting(database));
+            columns: ['id'], where: 'code=?', whereArgs: ['CASH-DRAWER']))
+        .single['id'] as int;
+    posting =
+        PostingAndSalesService(helper: DatabaseHelper.forTesting(database));
   });
 
   tearDown(() => database.close());
@@ -112,7 +112,8 @@ void main() {
       expect(GlobalUuid.isValid(result.voucherUuid), isTrue);
       expect(GlobalUuid.isValid(result.journalUuid), isTrue);
       final rows = await database.query('journal_lines',
-          where: 'journal_entry_id=(SELECT journal_entry_id FROM vouchers WHERE id=?)',
+          where:
+              'journal_entry_id=(SELECT journal_entry_id FROM vouchers WHERE id=?)',
           whereArgs: [id]);
       expect(rows, hasLength(2));
       for (final row in rows) {
@@ -138,11 +139,13 @@ void main() {
     expect(await database.query('vouchers'), isEmpty);
     expect(await database.query('journal_entries'), isEmpty);
     expect(await database.query('cash_transactions'), isEmpty);
-    final drawer = (await database.query('cash_accounts',
-        where: 'id=?', whereArgs: [cashId])).single;
+    final drawer = (await database
+            .query('cash_accounts', where: 'id=?', whereArgs: [cashId]))
+        .single;
     expect((drawer['current_balance'] as num).toDouble(), 0);
     final seq = (await database.query('number_sequences',
-        where: 'doc_type=?', whereArgs: ['VOUCHER'])).single;
+            where: 'doc_type=?', whereArgs: ['VOUCHER']))
+        .single;
     expect(seq['last_no'], 0);
   });
 }

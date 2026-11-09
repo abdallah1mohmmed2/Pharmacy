@@ -19,13 +19,13 @@ abstract final class CashVoucherIntegrityValidator {
       throw const CashVoucherIntegrityException('INVALID_LOCAL_ID');
     }
     if (fractionDigits < 0 || fractionDigits > 3) {
-      throw const CashVoucherIntegrityException('CURRENCY_PRECISION_UNAPPROVED');
+      throw const CashVoucherIntegrityException(
+          'CURRENCY_PRECISION_UNAPPROVED');
     }
 
     final voucher = _one(
       await database.query('vouchers',
-          where: 'id=? AND branch_id=?',
-          whereArgs: [voucherId, branchId]),
+          where: 'id=? AND branch_id=?', whereArgs: [voucherId, branchId]),
       'VOUCHER_MISSING',
     );
     final voucherUuid = _uuid(voucher);
@@ -48,15 +48,13 @@ abstract final class CashVoucherIntegrityValidator {
     }
     final party = _one(
       await database.query('parties',
-          where: 'id=? AND branch_id=?',
-          whereArgs: [partyId, branchId]),
+          where: 'id=? AND branch_id=?', whereArgs: [partyId, branchId]),
       'PARTY_MISSING',
     );
     _uuid(party);
     final cash = _one(
       await database.query('cash_accounts',
-          where: 'id=? AND branch_id=?',
-          whereArgs: [cashId, branchId]),
+          where: 'id=? AND branch_id=?', whereArgs: [cashId, branchId]),
       'CASH_ACCOUNT_MISSING',
     );
     _uuid(cash);
@@ -70,16 +68,14 @@ abstract final class CashVoucherIntegrityValidator {
     final partyGlCode = type == 'RECEIPT' ? '1201' : '2101';
     final partyGl = _one(
       await database.query('chart_of_accounts',
-          where: 'code=? AND branch_id=?',
-          whereArgs: [partyGlCode, branchId]),
+          where: 'code=? AND branch_id=?', whereArgs: [partyGlCode, branchId]),
       'PARTY_GL_MISSING',
     );
     final glPartyId = partyGl['id'];
     _uuid(partyGl);
     final cashGl = _one(
       await database.query('chart_of_accounts',
-          where: 'id=? AND branch_id=?',
-          whereArgs: [glCashId, branchId]),
+          where: 'id=? AND branch_id=?', whereArgs: [glCashId, branchId]),
       'CASH_GL_MISSING',
     );
     _uuid(cashGl);
@@ -89,8 +85,7 @@ abstract final class CashVoucherIntegrityValidator {
 
     final journal = _one(
       await database.query('journal_entries',
-          where: 'id=? AND branch_id=?',
-          whereArgs: [entryId, branchId]),
+          where: 'id=? AND branch_id=?', whereArgs: [entryId, branchId]),
       'JOURNAL_MISSING',
     );
     final journalUuid = _uuid(journal);
@@ -107,8 +102,8 @@ abstract final class CashVoucherIntegrityValidator {
       throw const CashVoucherIntegrityException('JOURNAL_MEMBER_COUNT_INVALID');
     }
     final isReceipt = type == 'RECEIPT';
-    final cashLines = lines.where((line) =>
-        line['account_id'] == glCashId && line['party_id'] == null);
+    final cashLines = lines.where(
+        (line) => line['account_id'] == glCashId && line['party_id'] == null);
     final partyLines = lines.where((line) =>
         line['account_id'] == glPartyId && line['party_id'] == partyId);
     if (cashLines.length != 1 || partyLines.length != 1) {
@@ -117,8 +112,7 @@ abstract final class CashVoucherIntegrityValidator {
     for (final line in lines) {
       _uuid(line);
     }
-    _checkSide(cashLines.single, amount, fractionDigits,
-        debitSide: isReceipt);
+    _checkSide(cashLines.single, amount, fractionDigits, debitSide: isReceipt);
     _checkSide(partyLines.single, amount, fractionDigits,
         debitSide: !isReceipt);
 
@@ -133,10 +127,10 @@ abstract final class CashVoucherIntegrityValidator {
         ledger['is_deleted'] == 1) {
       throw const CashVoucherIntegrityException('PARTY_LEDGER_LINK_INVALID');
     }
-    _checkAmount(ledger[isReceipt ? 'lah_amount' : 'alayh_amount'],
-        amount, fractionDigits);
-    _checkAmount(ledger[isReceipt ? 'alayh_amount' : 'lah_amount'],
-        0, fractionDigits);
+    _checkAmount(ledger[isReceipt ? 'lah_amount' : 'alayh_amount'], amount,
+        fractionDigits);
+    _checkAmount(
+        ledger[isReceipt ? 'alayh_amount' : 'lah_amount'], 0, fractionDigits);
 
     final cashTxs = await database.query('cash_transactions',
         where: "doc_type='VOUCHER' AND doc_id=? AND branch_id=?",
@@ -184,9 +178,8 @@ abstract final class CashVoucherIntegrityValidator {
       throw const CashVoucherIntegrityException('AMOUNT_NOT_DECIMAL');
     }
     final parts = value.split('.');
-    final fractional = parts.length == 2
-        ? parts[1].replaceFirst(RegExp(r'0+$'), '')
-        : '';
+    final fractional =
+        parts.length == 2 ? parts[1].replaceFirst(RegExp(r'0+$'), '') : '';
     if (fractional.length > fractionDigits) {
       throw const CashVoucherIntegrityException('AMOUNT_PRECISION_INVALID');
     }
