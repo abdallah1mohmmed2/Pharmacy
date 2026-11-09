@@ -21,7 +21,6 @@ abstract final class FinancialMinorUnits {
   static int parseYer(String value) =>
       parseDecimal(value, fractionDigits: currencyFractionDigits);
 
-
   static int parseDecimal(String value, {required int fractionDigits}) {
     if (fractionDigits < 0 || fractionDigits > 3) {
       throw const FormatException('UNAPPROVED_FRACTION_DIGITS');

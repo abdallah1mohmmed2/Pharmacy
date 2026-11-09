@@ -3,15 +3,23 @@ import 'package:global_enterprise_pharmacy_erp/data/services/financial_minor_uni
 
 void main() {
   group('F03 exact minor-unit decimal contract', () {
-    test('YER policy rejects wrong currency, fraction and nonzero decimals', () {
+    test('YER policy rejects wrong currency, fraction and nonzero decimals',
+        () {
       expect(FinancialMinorUnits.currencyCode, 'YER');
       expect(FinancialMinorUnits.currencyFractionDigits, 0);
       FinancialMinorUnits.requireYerPolicy(code: 'YER', fractionDigits: 0);
       expect(FinancialMinorUnits.parseYer('125'), 125);
       expect(FinancialMinorUnits.parseYer('125.000'), 125);
-      expect(() => FinancialMinorUnits.parseYer('125.01'), throwsFormatException);
-      expect(() => FinancialMinorUnits.requireYerPolicy(code: 'USD', fractionDigits: 0), throwsFormatException);
-      expect(() => FinancialMinorUnits.requireYerPolicy(code: 'YER', fractionDigits: 2), throwsFormatException);
+      expect(
+          () => FinancialMinorUnits.parseYer('125.01'), throwsFormatException);
+      expect(
+          () => FinancialMinorUnits.requireYerPolicy(
+              code: 'USD', fractionDigits: 0),
+          throwsFormatException);
+      expect(
+          () => FinancialMinorUnits.requireYerPolicy(
+              code: 'YER', fractionDigits: 2),
+          throwsFormatException);
     });
     test('zero-decimal currency and canonical output', () {
       expect(FinancialMinorUnits.parseDecimal('123', fractionDigits: 0), 123);
