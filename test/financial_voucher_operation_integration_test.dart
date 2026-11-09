@@ -699,8 +699,8 @@ void main() {
     await expectLater(
         const FinancialSyncConfiguration().syncOnce(
             helper: source.helper, client: relay.client(), branchId: 1),
-        throwsA(isA<FinancialVoucherSyncException>().having(
-            (e) => e.code, 'code', 'FINANCIAL_SYNC_DISABLED')));
+        throwsA(isA<FinancialVoucherSyncException>()
+            .having((e) => e.code, 'code', 'FINANCIAL_SYNC_DISABLED')));
     await expectLater(
         FinancialSyncConfiguration(
                 enabled: true,
@@ -709,25 +709,26 @@ void main() {
                 idTokenProvider: () async => 'test-token')
             .syncOnce(
                 helper: source.helper, client: relay.client(), branchId: 1),
-        throwsA(isA<FinancialVoucherSyncException>().having(
-            (e) => e.code, 'code', 'FINANCIAL_BRANCH_NOT_AUTHORIZED')));
+        throwsA(isA<FinancialVoucherSyncException>()
+            .having((e) => e.code, 'code', 'FINANCIAL_BRANCH_NOT_AUTHORIZED')));
     await expectLater(
         FinancialSyncConfiguration(
                 enabled: true, endpoint: endpoint, authorizedBranchId: 1)
             .syncOnce(
                 helper: source.helper, client: relay.client(), branchId: 1),
-        throwsA(isA<FinancialVoucherSyncException>().having(
-            (e) => e.code, 'code', 'FINANCIAL_AUTH_REQUIRED')));
+        throwsA(isA<FinancialVoucherSyncException>()
+            .having((e) => e.code, 'code', 'FINANCIAL_AUTH_REQUIRED')));
     await expectLater(
         FinancialSyncConfiguration(
-                enabled: true,
-                endpoint: Uri.parse('http://finance-relay.example.test/v1/operations'),
-                authorizedBranchId: 1,
-                idTokenProvider: () async => 'test-token')
-            .syncOnce(
-                helper: source.helper, client: relay.client(), branchId: 1),
-        throwsA(isA<FinancialVoucherSyncException>().having(
-            (e) => e.code, 'code', 'INVALID_FINANCIAL_ENDPOINT')));
+            enabled: true,
+            endpoint:
+                Uri.parse('http://finance-relay.example.test/v1/operations'),
+            authorizedBranchId: 1,
+            idTokenProvider: () async =>
+                'test-token').syncOnce(
+            helper: source.helper, client: relay.client(), branchId: 1),
+        throwsA(isA<FinancialVoucherSyncException>()
+            .having((e) => e.code, 'code', 'INVALID_FINANCIAL_ENDPOINT')));
     expect(relay.operations, isEmpty);
     expect((await source.outbox())['status'], 'PENDING');
   });

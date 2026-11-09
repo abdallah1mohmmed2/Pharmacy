@@ -29,7 +29,8 @@ class FinancialSyncConfiguration {
       throw const FinancialVoucherSyncException('FINANCIAL_SYNC_DISABLED');
     }
     if (authorizedBranchId == null || authorizedBranchId != branchId) {
-      throw const FinancialVoucherSyncException('FINANCIAL_BRANCH_NOT_AUTHORIZED');
+      throw const FinancialVoucherSyncException(
+          'FINANCIAL_BRANCH_NOT_AUTHORIZED');
     }
     final uri = endpoint;
     if (uri == null ||
