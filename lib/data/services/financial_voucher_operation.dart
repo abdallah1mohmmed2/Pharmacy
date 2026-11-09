@@ -5,6 +5,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../database/global_uuid.dart';
 import 'cash_voucher_integrity_validator.dart';
+import 'financial_minor_units.dart';
 
 /// Strict local wire contract for a posted CASH receipt/payment voucher.
 ///
@@ -13,12 +14,13 @@ import 'cash_voucher_integrity_validator.dart';
 /// guards idempotency/integrity, not the authenticity of a remote sender.
 /// Only a trusted, authenticated financial relay may call [applyVerified].
 abstract final class FinancialVoucherOperation {
-  static const int schemaVersion = 1;
+  static const int schemaVersion = 2;
   static const _rootFields = <String>{
     'schema_version',
     'operation_uuid',
     'branch_uuid',
     'fraction_digits',
+    'currency_code',
     'voucher',
     'journal',
     'lines',
@@ -35,6 +37,9 @@ abstract final class FinancialVoucherOperation {
     required int voucherId,
     required int fractionDigits,
   }) async {
+    if (fractionDigits != FinancialMinorUnits.currencyFractionDigits) {
+      throw const FinancialVoucherSyncException('CURRENCY_POLICY_MISMATCH');
+    }
     final validated = await CashVoucherIntegrityValidator.validate(
         database: txn,
         branchId: branchId,
@@ -102,7 +107,8 @@ abstract final class FinancialVoucherOperation {
       'schema_version': schemaVersion,
       'operation_uuid': operationUuid,
       'branch_uuid': branchUuid,
-      'fraction_digits': fractionDigits,
+      'fraction_digits': FinancialMinorUnits.currencyFractionDigits,
+      'currency_code': FinancialMinorUnits.currencyCode,
       'voucher': <String, Object?>{
         'uuid': validated.voucherUuid,
         'type': voucher['voucher_type'],
@@ -181,8 +187,12 @@ abstract final class FinancialVoucherOperation {
     if (!isReceipt && voucher['type'] != 'PAYMENT') {
       throw const FinancialVoucherSyncException('UNSUPPORTED_FINANCIAL_TYPE');
     }
-    final digits = _integer(envelope['fraction_digits'], 0, 3);
-    final scale = [1, 10, 100, 1000][digits];
+    if (envelope['currency_code'] != FinancialMinorUnits.currencyCode ||
+        envelope['fraction_digits'] != FinancialMinorUnits.currencyFractionDigits) {
+      throw const FinancialVoucherSyncException('CURRENCY_POLICY_MISMATCH');
+    }
+    const digits = FinancialMinorUnits.currencyFractionDigits;
+    const scale = 1;
     final amountMinor = _integer(voucher['amount_minor'], 1, 999999999999);
     final amount = amountMinor / scale;
     final voucherDate = _date(voucher['date']);
