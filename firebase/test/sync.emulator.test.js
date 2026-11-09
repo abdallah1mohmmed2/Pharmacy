@@ -58,7 +58,7 @@ test('authenticated branch sync commits and reads its Firestore batch; cross-bra
   const host = process.env.FIRESTORE_EMULATOR_HOST;
   const base = 'http://' + host + '/v1/projects/' + projectId +
     '/databases/(default)/documents';
-  const batchId = 'batch-emulator-001';
+  const batchId = 'a'.repeat(64);
   const documentName = 'projects/' + projectId +
     '/databases/(default)/documents/pharmacy_sync_batches/' +
     branchId + '/batches/' + batchId;
@@ -74,7 +74,11 @@ test('authenticated branch sync commits and reads its Firestore batch; cross-bra
             branch_id: { stringValue: branchId },
             source_device_id: { stringValue: '11111111-1111-4111-8111-111111111111' },
             batch_uuid: { stringValue: batchId },
-            events: { arrayValue: { values: [] } },
+            payload_hash: { stringValue: 'b'.repeat(64) },
+            schema_version: { integerValue: '1' },
+            events: { arrayValue: { values: [{ mapValue: { fields: {
+              uuid: { stringValue: 'test-event-uuid' },
+            } } }] } },
           },
         },
         currentDocument: { exists: false },
