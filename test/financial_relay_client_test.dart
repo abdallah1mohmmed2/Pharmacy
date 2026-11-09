@@ -3,9 +3,26 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:global_enterprise_pharmacy_erp/data/services/financial_relay_client.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  });
+
+  late Database database;
+  setUp(() async {
+    // A real SQLite handle is required even when a page has no operations.
+    // Avoid null-as-dynamic: Dart rejects it before receivePage is entered.
+    database = await databaseFactoryFfi.openDatabase(inMemoryDatabasePath);
+  });
+  tearDown(() async {
+    await database.close();
+  });
+
   test('financial transport refuses unencrypted remote endpoint', () {
     expect(
       () => FinancialRelayClient(
@@ -39,12 +56,12 @@ void main() {
     );
     // Invalid arguments are rejected before accessing the SQLite connection.
     await expectLater(
-      client.receivePage(null as dynamic,
+      client.receivePage(database,
           branchId: 1, branchUuid: 'invalid', afterCursor: '0'),
       throwsA(isA<FinancialRelayException>()),
     );
     await expectLater(
-      client.receivePage(null as dynamic,
+      client.receivePage(database,
           branchId: 1,
           branchUuid: 'd1111111-1111-4111-8111-111111111111',
           afterCursor: '-1'),
@@ -71,7 +88,7 @@ void main() {
             headers: {'content-type': 'application/json'});
       }),
     );
-    final cursor = await client.receivePage(null as dynamic,
+    final cursor = await client.receivePage(database,
         branchId: 1,
         branchUuid: 'd1111111-1111-4111-8111-111111111111',
         afterCursor: '0');
@@ -88,7 +105,7 @@ void main() {
           jsonEncode({'error': 'FINANCIAL_REFERENCES_NOT_APPROVED'}), 403)),
     );
     await expectLater(
-      client.receivePage(null as dynamic,
+      client.receivePage(database,
           branchId: 1,
           branchUuid: 'd1111111-1111-4111-8111-111111111111',
           afterCursor: '0'),
