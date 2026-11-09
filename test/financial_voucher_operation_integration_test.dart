@@ -632,8 +632,8 @@ void main() {
         workerFor(target, relay).syncOnce(branchId: 1, idToken: 'test-token'),
         throwsA(anything));
     expect(
-        await target.db.query('app_settings',
-            where: 'setting_key=?', whereArgs: [key]),
+        await target.db
+            .query('app_settings', where: 'setting_key=?', whereArgs: [key]),
         isEmpty);
     expect(await target.db.query('financial_operation_inbox'), isEmpty);
     await target.db.execute('DROP TRIGGER f09_fail_cash');
@@ -642,8 +642,9 @@ void main() {
                 .syncOnce(branchId: 1, idToken: 'test-token'))
             .applied,
         1);
-    final saved = (await target.db.query('app_settings',
-        where: 'setting_key=?', whereArgs: [key])).single['value_text'];
+    final saved = (await target.db
+            .query('app_settings', where: 'setting_key=?', whereArgs: [key]))
+        .single['value_text'];
     expect(saved, '1');
     expect(
         (await workerFor(target, relay)
@@ -652,7 +653,8 @@ void main() {
         0);
     expect(
         (await target.db.query('app_settings',
-            where: 'setting_key=?', whereArgs: [key])).single['value_text'],
+                where: 'setting_key=?', whereArgs: [key]))
+            .single['value_text'],
         saved);
     expect(await target.db.query('vouchers'), hasLength(1));
     expect(await target.db.query('financial_operation_inbox'), hasLength(1));
