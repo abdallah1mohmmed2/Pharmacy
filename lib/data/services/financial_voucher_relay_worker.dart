@@ -164,6 +164,9 @@ class FinancialVoucherRelayWorker {
           duplicates++;
         }
       }
+      // F09: the cursor must never advance before every event in this page
+      // has completed. Persisting it after the loop allows safe replay on
+      // restart; the financial inbox rejects already applied operations.
       await db.insert(
           'app_settings',
           {
