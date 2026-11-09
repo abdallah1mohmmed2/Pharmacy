@@ -180,7 +180,67 @@ abstract final class CashVoucherIntegrityValidator {
       throw const CashVoucherIntegrityException('AMOUNT_INVALID');
     }
     final value = raw.toString();
-    if (!RegExp(r'^\\d+(?:\\.\\d+)?$').hasMatch(value)) {
+    if (!RegExp(r'^\d+(?:\.\d+)?).hasMatch(value)) {
+      throw const CashVoucherIntegrityException('AMOUNT_NOT_DECIMAL');
+    }
+    final parts = value.split('.');
+    final fractional = parts.length == 2
+        ? parts[1].replaceFirst(RegExp(r'0+$'), '')
+        : '';
+    if (fractional.length > fractionDigits) {
+      throw const CashVoucherIntegrityException('AMOUNT_PRECISION_INVALID');
+    }
+    final whole = BigInt.parse(parts[0]);
+    final scale = BigInt.from(10).pow(fractionDigits);
+    final minor = whole * scale +
+        BigInt.parse(fractional.padRight(fractionDigits, '0').isEmpty
+            ? '0'
+            : fractional.padRight(fractionDigits, '0'));
+    if (minor > BigInt.from(0x7fffffffffffffff)) {
+      throw const CashVoucherIntegrityException('AMOUNT_OVERFLOW');
+    }
+    return minor.toInt();
+  }
+
+  static void _checkAmount(Object? value, int expected, int fractionDigits) {
+    if (_minor(value, fractionDigits) != expected) {
+      throw const CashVoucherIntegrityException('AMOUNT_MISMATCH');
+    }
+  }
+
+  static void _checkSide(
+      Map<String, Object?> line, int expected, int fractionDigits,
+      {required bool debitSide}) {
+    _checkAmount(
+        line[debitSide ? 'dr_amount' : 'cr_amount'], expected, fractionDigits);
+    _checkAmount(
+        line[debitSide ? 'cr_amount' : 'dr_amount'], 0, fractionDigits);
+  }
+}
+
+class CashVoucherIntegrityResult {
+  const CashVoucherIntegrityResult({
+    required this.voucherUuid,
+    required this.journalUuid,
+    required this.amountMinor,
+    required this.fractionDigits,
+  });
+
+  final String voucherUuid;
+  final String journalUuid;
+  final int amountMinor;
+  final int fractionDigits;
+}
+
+class CashVoucherIntegrityException implements Exception {
+  const CashVoucherIntegrityException(this.code);
+
+  final String code;
+
+  @override
+  String toString() => 'CashVoucherIntegrityException: $code';
+}
+).hasMatch(value)) {
       throw const CashVoucherIntegrityException('AMOUNT_NOT_DECIMAL');
     }
     final parts = value.split('.');
