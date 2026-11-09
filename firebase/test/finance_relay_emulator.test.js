@@ -42,7 +42,7 @@ test('Firestore Emulator: approved financial voucher persists atomically and rep
     await assert.rejects(store.commit(event(),{uid:'u',branchRole:'accountant'}),
       e=>e instanceof RelayError && e.code==='FINANCIAL_REFERENCES_NOT_APPROVED');
     assert.equal((await member.get()).exists,false);
-    await registry.set({enabled:true,fraction_digits:2,
+    await registry.set({enabled:true,fraction_digits:0,
       party_uuids:[party],cash_accounts:{[cash]:cashGl},
       party_gl:{RECEIPT:partyGl,PAYMENT:partyGl}});
     const op=event();
