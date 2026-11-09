@@ -639,4 +639,4 @@
 - Inventory 89 schema names across all production Dart sources, including legacy rename targets, conditional provisioning, FTS5 and views.
 - Add reviewed per-object classifications/reasons, a reproducible Markdown report, source/policy drift checks and six Python regression tests.
 - Cross-check the registry against actual SQLite v15 objects in the existing fresh-database test; add inventory verification to Android CI.
-- Local inventory checks pass; full CI and platform builds pending. No sync allowlist or application behavior changes.
+- Verified by GitHub Actions 42626258773 on 437b85912babbeecceb2345b457aeef02fcc6c95: inventory check (89 objects, 16 allowed tables), six Python tests, 115 Flutter tests (1 intentionally skipped), 10 emulator integration-step tests, Analyze and Android/Windows release artifacts passed. P0-04 closed; P0-05 is next. No sync allowlist or application behavior changes.
