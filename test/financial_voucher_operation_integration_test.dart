@@ -24,6 +24,7 @@ import 'package:global_enterprise_pharmacy_erp/data/database/seed_data.dart';
 import 'package:global_enterprise_pharmacy_erp/data/services/cash_voucher_integrity_validator.dart';
 import 'package:global_enterprise_pharmacy_erp/data/services/financial_voucher_operation.dart';
 import 'package:global_enterprise_pharmacy_erp/data/services/financial_voucher_relay_worker.dart';
+import 'package:global_enterprise_pharmacy_erp/data/services/financial_sync_configuration.dart';
 import 'package:global_enterprise_pharmacy_erp/data/services/posting_and_sales_service.dart';
 
 const branchUuid = '11111111-1111-4111-8111-111111111111';
@@ -687,6 +688,48 @@ void main() {
             .single['current_balance'],
         125.0);
     expect(await target.db.rawQuery('PRAGMA foreign_key_check'), isEmpty);
+  });
+
+  test('F08 opt-in gate refuses disabled, wrong branch and missing auth',
+      () async {
+    final relay = FakeTrustedFinanceRelay();
+    await source.post();
+    final endpoint =
+        Uri.parse('https://finance-relay.example.test/v1/operations');
+    await expectLater(
+        const FinancialSyncConfiguration().syncOnce(
+            helper: source.helper, client: relay.client(), branchId: 1),
+        throwsA(isA<FinancialVoucherSyncException>().having(
+            (e) => e.code, 'code', 'FINANCIAL_SYNC_DISABLED')));
+    await expectLater(
+        FinancialSyncConfiguration(
+                enabled: true,
+                endpoint: endpoint,
+                authorizedBranchId: 2,
+                idTokenProvider: () async => 'test-token')
+            .syncOnce(
+                helper: source.helper, client: relay.client(), branchId: 1),
+        throwsA(isA<FinancialVoucherSyncException>().having(
+            (e) => e.code, 'code', 'FINANCIAL_BRANCH_NOT_AUTHORIZED')));
+    await expectLater(
+        FinancialSyncConfiguration(
+                enabled: true, endpoint: endpoint, authorizedBranchId: 1)
+            .syncOnce(
+                helper: source.helper, client: relay.client(), branchId: 1),
+        throwsA(isA<FinancialVoucherSyncException>().having(
+            (e) => e.code, 'code', 'FINANCIAL_AUTH_REQUIRED')));
+    await expectLater(
+        FinancialSyncConfiguration(
+                enabled: true,
+                endpoint: Uri.parse('http://finance-relay.example.test/v1/operations'),
+                authorizedBranchId: 1,
+                idTokenProvider: () async => 'test-token')
+            .syncOnce(
+                helper: source.helper, client: relay.client(), branchId: 1),
+        throwsA(isA<FinancialVoucherSyncException>().having(
+            (e) => e.code, 'code', 'INVALID_FINANCIAL_ENDPOINT')));
+    expect(relay.operations, isEmpty);
+    expect((await source.outbox())['status'], 'PENDING');
   });
 
   test('relay cannot be used without explicit trusted configuration', () async {
