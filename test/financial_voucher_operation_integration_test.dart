@@ -368,6 +368,41 @@ void main() {
     expect(await target.db.query('cash_transactions'), hasLength(1));
   });
 
+  test('F05 missing member and unknown fields reject complete replay', () async {
+    await source.post();
+    final row = await source.outbox();
+    for (final field in ['journal', 'ledger', 'cash', 'lines']) {
+      final changed = envelopeOf(row)..remove(field);
+      await expectLater(
+          importInto(target, row, payload: changed, hash: hashOf(changed)),
+          throwsA(isA<FinancialVoucherSyncException>()));
+    }
+    final extra = envelopeOf(row)..['unexpected_member'] = true;
+    await expectLater(
+        importInto(target, row, payload: extra, hash: hashOf(extra)),
+        throwsA(isA<FinancialVoucherSyncException>()));
+    expect(await target.db.query('vouchers'), isEmpty);
+    expect(await target.db.query('financial_operation_inbox'), isEmpty);
+  });
+
+  test('F05 duplicate UUID between journal and ledger rejects atomically',
+      () async {
+    await source.post();
+    final row = await source.outbox();
+    final changed = envelopeOf(row);
+    final journal = Map<String, Object?>.from(changed['journal'] as Map);
+    final ledger = Map<String, Object?>.from(changed['ledger'] as Map);
+    ledger['uuid'] = journal['uuid'];
+    changed['ledger'] = ledger;
+    await expectLater(
+        importInto(target, row, payload: changed, hash: hashOf(changed)),
+        throwsA(isA<FinancialVoucherSyncException>().having(
+            (e) => e.code, 'code', 'REPEATED_MEMBER_UUID')));
+    expect(await target.db.query('vouchers'), isEmpty);
+    expect(await target.db.query('journal_entries'), isEmpty);
+    expect(await target.db.query('financial_operation_inbox'), isEmpty);
+  });
+
   test('missing parent blocks whole receipt until dependency is inserted',
       () async {
     await source.post();
