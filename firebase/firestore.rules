@@ -41,7 +41,7 @@ service cloud.firestore {
         ])
         && request.resource.data.keys().hasAll([
           'branch_id', 'source_device_id', 'batch_uuid', 'payload_hash',
-          'schema_version', 'events'
+          'schema_version', 'events', 'created_at'
         ])
         && request.resource.data.branch_id == branchId
         && request.resource.data.batch_uuid == batchUuid
@@ -49,43 +49,24 @@ service cloud.firestore {
       allow get: if ownsBranch(branchId) && branchManager();
       allow list: if branchManager()
         && resource.data.branch_id == request.auth.token.branch_id;
-      allow create: if ownsBranch(branchId)
-        && branchManager()
-        && request.resource.data.branch_id == branchId;
-      allow update: if ownsBranch(branchId)
-        && branchManager()
-        && resource.data.branch_id == branchId
-        && request.resource.data.branch_id == branchId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'last_seen_at', 'sync_status', 'client_version', 'updated_at'
-        ]);
-      allow delete: if false;
+      // Client-driven branch metadata changes are disabled until P1
+      // trusted provisioning and its complete field contract are verified.
+      allow create, update, delete: if false;
     }
 
     match /pharmacy_daily_dashboards/{dashboardId} {
       allow get, list: if branchManager()
         && resource.data.branch_id == request.auth.token.branch_id;
-      allow create, update: if branchManager()
-        && request.resource.data.branch_id == request.auth.token.branch_id;
-      allow delete: if false;
+      // No client-side financial/dashboard projections until P0-05.
+      allow create, update, delete: if false;
     }
 
     match /pharmacy_parties_snapshot/{branchId} {
-      allow get: if ownsBranch(branchId);
-      allow list: if signedIn()
+      allow get: if ownsBranch(branchId) && branchManager();
+      allow list: if branchManager()
         && resource.data.branch_id == request.auth.token.branch_id;
-      allow create: if ownsBranch(branchId)
-        && branchManager()
-        && request.resource.data.branch_id == branchId
-        && validPartnerMode(request.resource.data.partner_mode);
-      allow update: if ownsBranch(branchId)
-        && branchManager()
-        && resource.data.branch_id == branchId
-        && request.resource.data.branch_id == branchId
-        && validPartnerMode(request.resource.data.partner_mode)
-        // The selected distribution mode is a permanent state lock.
-        && request.resource.data.partner_mode == resource.data.partner_mode;
-      allow delete: if false;
+      // Personal/financial snapshots are not approved for client writes.
+      allow create, update, delete: if false;
     }
 
     match /pharmacy_sync_batches/{branchId}/batches/{batchUuid} {
@@ -183,7 +164,7 @@ service cloud.firestore {
         && request.resource.data.events is list
         && request.resource.data.events.size() > 0
         && request.resource.data.events.size() <= 100
-        && request.resource.data.get('created_at', request.time) == request.time;
+        && request.resource.data.created_at == request.time;
     }
 
     match /pharmacy_branches/{branchId} {
