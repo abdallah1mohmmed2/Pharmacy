@@ -632,4 +632,5 @@
 ## P0-03 — shared inbound/outbound contracts — 2026-11-09
 - Apply shared table and scalar-field contracts before retaining/applying incoming events; reject unknown fields and tables rather than partially applying them.
 - Validate FK metadata, embedded/envelope agreement and payload identity; revalidate deferred events while preserving accepted replay hashes.
-- Add production-policy round-trip and adversarial inbound regression coverage; CI validation pending.
+- Add production-policy round-trip and adversarial inbound regression coverage, including preserving applied Inbox status on invalid replay.
+- Verified GitHub Actions 42529407931 on a345a7a3e1cecd6aede36a801a5415bfc080edda (format commit 9bbdd61c5fc21dfadf66ed290e7324078d354061): Analyze, 115 Flutter tests (1 intentionally skipped), 10 tests in the emulator integration step, Android/Windows release builds and both artifacts passed. P0-03 closed; P0-04 is next.
