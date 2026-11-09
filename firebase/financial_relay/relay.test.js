@@ -57,7 +57,18 @@ test('rejects missing or corrupt accounting members',()=>{
     e=>{e.lines[0].account_uuid=e.lines[1].account_uuid;}
   ]){const en=envelope();mutation(en);assert.throws(()=>validateOperation(operation(en),branch),RelayError);}
 });
-test('rejects obsolete v1, wrong currency and fractional YER',()=>{\n  for (const mutation of [\n    e=>{e.schema_version=1;},\n    e=>{e.currency_code='USD';},\n    e=>{e.fraction_digits=2;},\n    e=>{delete e.currency_code;}\n  ]) {\n    const en=envelope(); mutation(en);\n    assert.throws(()=>validateOperation(operation(en),branch),RelayError);\n  }\n});\ntest('hash mismatch and branch mismatch never persist',async()=>{
+test('rejects obsolete v1, wrong currency and fractional YER',()=>{
+  for (const mutation of [
+    e=>{e.schema_version=1;},
+    e=>{e.currency_code='USD';},
+    e=>{e.fraction_digits=2;},
+    e=>{delete e.currency_code;}
+  ]) {
+    const en=envelope(); mutation(en);
+    assert.throws(()=>validateOperation(operation(en),branch),RelayError);
+  }
+});
+test('hash mismatch and branch mismatch never persist',async()=>{
   const store=mockStore(),h=handler(store);
   assert.equal((await invoke(h,{body:{...operation(),payload_hash:'f'.repeat(64)}})).status,400);
   assert.equal(store.saved.length,0);
