@@ -35,7 +35,7 @@ class FinanceFixture {
   final Database db;
   late final helper = DatabaseHelper.forTesting(db);
   late final posting =
-      PostingAndSalesService(helper: helper, financialSyncFractionDigits: 2);
+      PostingAndSalesService(helper: helper, financialSyncFractionDigits: 0);
   late int partyId;
   late int cashId;
 
@@ -105,7 +105,7 @@ class FinanceFixture {
       voucherType: type,
       partyId: partyId,
       cashAccountId: cashId,
-      amount: 125.25,
+      amount: 125.0,
       method: 'CASH',
       description: 'PRIVATE_SENTINEL');
   Future<Map<String, Object?>> outbox() async =>
@@ -201,6 +201,50 @@ void main() {
     await directory.delete(recursive: true);
   });
 
+  test('YER v2 envelope binds currency and zero precision', () async {
+    await source.post();
+    final row = await source.outbox();
+    final envelope = envelopeOf(row);
+    expect(envelope['schema_version'], 2);
+    expect(envelope['currency_code'], 'YER');
+    expect(envelope['fraction_digits'], 0);
+    expect((envelope['voucher'] as Map)['amount_minor'], 125);
+    expect((await importInto(target, row)).applied, isTrue);
+  });
+
+  test('currency mismatch and legacy v1 are rejected without posting', () async {
+    await source.post();
+    final row = await source.outbox();
+    for (final change in <Map<String, Object?>>[
+      {'currency_code': 'USD'},
+      {'fraction_digits': 2},
+      {'schema_version': 1},
+    ]) {
+      final envelope = envelopeOf(row)..addAll(change);
+      await expectLater(
+          importInto(target, row, payload: envelope, hash: hashOf(envelope)),
+          throwsA(isA<FinancialVoucherSyncException>()));
+    }
+    expect(await target.db.query('vouchers'), isEmpty);
+    expect(await target.db.query('financial_operation_inbox'), isEmpty);
+  });
+
+  test('fractional YER is rejected before posting or outbox capture', () async {
+    await expectLater(
+        source.posting.postVoucher(
+            branchId: 1,
+            voucherNo: 'ignored',
+            voucherType: 'RECEIPT',
+            partyId: source.partyId,
+            cashAccountId: source.cashId,
+            amount: 125.25,
+            method: 'CASH',
+            description: 'reject fractional YER'),
+        throwsA(isA<StateError>()));
+    expect(await source.db.query('vouchers'), isEmpty);
+    expect(await source.db.query('financial_operation_outbox'), isEmpty);
+  });
+
   test('complete source receipt transfers to different local SQLite IDs',
       () async {
     await source.post();
@@ -217,8 +261,8 @@ void main() {
         database: target.db,
         branchId: 1,
         voucherId: posted['id'] as int,
-        fractionDigits: 2);
-    expect(proof.amountMinor, 12525);
+        fractionDigits: 0);
+    expect(proof.amountMinor, 125);
     expect(await target.db.rawQuery('PRAGMA foreign_key_check'), isEmpty);
     expect((await target.db.query('cash_transactions')).single['doc_id'],
         posted['id']);
@@ -232,13 +276,13 @@ void main() {
         database: target.db,
         branchId: 1,
         voucherId: posted['id'] as int,
-        fractionDigits: 2);
-    expect(proof.amountMinor, 12525);
+        fractionDigits: 0);
+    expect(proof.amountMinor, 125);
     expect(
         (await target.db.query('cash_accounts',
                 where: 'id=?', whereArgs: [target.cashId]))
             .single['current_balance'],
-        -125.25);
+        -125.0);
   });
 
   test('replay and own-device echo never repost balances', () async {
@@ -254,7 +298,7 @@ void main() {
         (await target.db.query('cash_accounts',
                 where: 'id=?', whereArgs: [target.cashId]))
             .single['current_balance'],
-        125.25);
+        125.0);
   });
 
   test('changed operation fingerprint conflicts with already applied receipt',
@@ -264,7 +308,7 @@ void main() {
     await importInto(target, row);
     final changed = envelopeOf(row);
     final voucher = Map<String, Object?>.from(changed['voucher'] as Map);
-    voucher['amount_minor'] = 12526;
+    voucher['amount_minor'] = 126;
     changed['voucher'] = voucher;
     await expectLater(
         importInto(target, row, payload: changed, hash: hashOf(changed)),
@@ -328,7 +372,7 @@ void main() {
     final lines = (changed['lines'] as List)
         .map((item) => Map<String, Object?>.from(item as Map))
         .toList();
-    lines[0]['dr_minor'] = 12524;
+    lines[0]['dr_minor'] = 124;
     changed['lines'] = lines;
     await expectLater(
         importInto(target, row, payload: changed, hash: hashOf(changed)),
