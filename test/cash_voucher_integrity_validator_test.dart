@@ -124,11 +124,13 @@ Future<CashVoucherIntegrityResult> verify(Database db,
         fractionDigits: fractionDigits);
 
 /// A distinct physical database avoids FFI's shared in-memory connection.
-Future<void> withSeparateDatabase(Future<void> Function(Database) callback) async {
+Future<void> withSeparateDatabase(
+    Future<void> Function(Database) callback) async {
   final directory = await Directory.systemTemp.createTemp('pharmacy-voucher-');
   Database? other;
   try {
-    other = await databaseFactoryFfi.openDatabase('${directory.path}/second.db');
+    other =
+        await databaseFactoryFfi.openDatabase('${directory.path}/second.db');
     await callback(other);
   } finally {
     if (other != null) await other.close();
