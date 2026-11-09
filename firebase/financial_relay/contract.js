@@ -6,7 +6,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const SHA256 = /^[0-9a-f]{64}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})?)?$/;
 const MAX_MINOR = 999999999999;
-const TOP = ['schema_version','operation_uuid','branch_uuid','fraction_digits','voucher','journal','lines','ledger','cash'];
+const TOP = ['schema_version','operation_uuid','branch_uuid','fraction_digits','currency_code','voucher','journal','lines','ledger','cash'];
 
 class RelayError extends Error {
   constructor(code, status = 400) { super(code); this.code = code; this.status = status; }
@@ -45,19 +45,20 @@ function safeHashEqual(a,b) {
   return timingSafeEqual(Buffer.from(a,'hex'), Buffer.from(b,'hex'));
 }
 
-// This parser deliberately supports only the financial CASH v1 contract.
+// This parser deliberately supports only the financial CASH v2 YER contract.
 // Sensitive text, local SQLite row IDs, and unknown fields fail closed.
 function validateOperation(input, authorizedBranch) {
   object(input, ['operation_uuid','branch_uuid','payload_hash','envelope']);
   const branch = uuid(input.branch_uuid);
   if (branch !== uuid(authorizedBranch)) fail('FINANCIAL_BRANCH_FORBIDDEN',403);
   const envelope = object(input.envelope, TOP);
-  if (envelope.schema_version !== 1 || uuid(envelope.branch_uuid) !== branch) fail('FINANCIAL_SCHEMA_OR_BRANCH');
+  if (envelope.schema_version !== 2 || uuid(envelope.branch_uuid) !== branch) fail('FINANCIAL_SCHEMA_OR_BRANCH');
   const operation = uuid(envelope.operation_uuid);
   if (uuid(input.operation_uuid) !== operation) fail('FINANCIAL_OPERATION_MISMATCH');
   const submittedHash = input.payload_hash;
   if (!safeHashEqual(submittedHash,digest(envelope))) fail('FINANCIAL_HASH_MISMATCH');
-  const digits = integer(envelope.fraction_digits,0,3);
+  const digits = integer(envelope.fraction_digits,0,0);
+  if (envelope.currency_code !== 'YER') fail('FINANCIAL_CURRENCY_POLICY_MISMATCH');
   const voucher = object(envelope.voucher,['uuid','type','date','party_uuid','cash_uuid','amount_minor']);
   if (uuid(voucher.uuid) !== operation || !['RECEIPT','PAYMENT'].includes(voucher.type)) fail('FINANCIAL_VOUCHER_INVALID');
   date(voucher.date);
