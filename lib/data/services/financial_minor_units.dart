@@ -9,7 +9,7 @@ abstract final class FinancialMinorUnits {
     if (fractionDigits < 0 || fractionDigits > 3) {
       throw const FormatException('UNAPPROVED_FRACTION_DIGITS');
     }
-    if (!RegExp(r'^(0|[1-9][0-9]*)(?:\\.[0-9]+)?$').hasMatch(value)) {
+    if (!RegExp(r'^(0|[1-9][0-9]*)(?:\.[0-9]+)?$').hasMatch(value)) {
       throw const FormatException('INVALID_DECIMAL_AMOUNT');
     }
     final parts = value.split('.');
