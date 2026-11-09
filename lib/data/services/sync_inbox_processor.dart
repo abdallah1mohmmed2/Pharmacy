@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:sqflite/sqflite.dart';
 import '../database/database_helper.dart';
+import '../database/global_uuid.dart';
 import 'sync_table_policy.dart';
 import 'sync_payload_policy.dart';
 
@@ -24,12 +25,54 @@ class FirestoreInboxProcessor {
   final Set<String> _allowedTables;
   final Map<String, Set<String>>? _payloadFieldsForTesting;
 
+  static const _atomicPrefix = 'atomic-v1:';
+
   Future<InboxBatchResult> processBatch({
     required int branchId,
     required String batchUuid,
     required String payloadHash,
     required List<Map<String, Object?>> events,
     String? expectedBranchUuid,
+  }) {
+    if (batchUuid.startsWith(_atomicPrefix)) {
+      throw const AtomicInboxBatchException('RESERVED_BATCH_NAMESPACE');
+    }
+    return _processBatch(branchId: branchId, batchUuid: batchUuid,
+        payloadHash: payloadHash, events: events,
+        expectedBranchUuid: expectedBranchUuid, requireAtomic: false);
+  }
+
+  /// Local application boundary for a future complete operation envelope.
+  /// Does not enable financial tables, transport, or re-post business commands.
+  /// Any rejection/dependency rolls back all rows AND all Inbox receipts.
+  Future<InboxBatchResult> processAtomicBatch({
+    required int branchId,
+    required String operationUuid,
+    required String expectedBranchUuid,
+    required String payloadHash,
+    required List<Map<String, Object?>> events,
+  }) {
+    if (!GlobalUuid.isValid(operationUuid) ||
+        !GlobalUuid.isValid(expectedBranchUuid)) {
+      throw const AtomicInboxBatchException('INVALID_OPERATION_IDENTITY');
+    }
+    final ids = events.map((event) => event['event_uuid']).toSet();
+    if (ids.length != events.length) {
+      throw const AtomicInboxBatchException('DUPLICATE_OPERATION_MEMBER');
+    }
+    return _processBatch(branchId: branchId,
+        batchUuid: '$_atomicPrefix${operationUuid.toLowerCase()}',
+        payloadHash: payloadHash, events: events,
+        expectedBranchUuid: expectedBranchUuid, requireAtomic: true);
+  }
+
+  Future<InboxBatchResult> _processBatch({
+    required int branchId,
+    required String batchUuid,
+    required String payloadHash,
+    required List<Map<String, Object?>> events,
+    String? expectedBranchUuid,
+    required bool requireAtomic,
   }) async {
     if (branchId <= 0 || batchUuid.isEmpty || payloadHash.isEmpty) {
       throw ArgumentError('بيانات دفعة Inbox غير مكتملة');
@@ -56,6 +99,30 @@ class FirestoreInboxProcessor {
           existingBatch.first['payload_hash'] != payloadHash) {
         throw StateError('batch_uuid مستخدم مسبقاً ببصمة مختلفة');
       }
+      if (requireAtomic) {
+        if (existingBatch.isNotEmpty &&
+            (existingBatch.first['processed_at'] == null ||
+             existingBatch.first['event_count'] != events.length)) {
+          throw const AtomicInboxBatchException('INCOMPLETE_OPERATION_RECEIPT');
+        }
+        for (final event in events) {
+          final payload = event['payload'];
+          if (payload is! Map || payload['branch_id'] != expectedBranchUuid) {
+            throw const AtomicInboxBatchException('OPERATION_BRANCH_MISMATCH');
+          }
+          final prior = await txn.query('sync_inbox',
+              where: 'branch_id=? AND event_uuid=?',
+              whereArgs: [branchId, event['event_uuid']], limit: 1);
+          if (existingBatch.isEmpty && prior.isNotEmpty) {
+            throw const AtomicInboxBatchException('PREEXISTING_OPERATION_MEMBER');
+          }
+          if (existingBatch.isNotEmpty &&
+              (prior.isEmpty || prior.first['batch_uuid'] != batchUuid ||
+               prior.first['status'] != 'APPLIED')) {
+            throw const AtomicInboxBatchException('INCOMPLETE_OPERATION_RECEIPT');
+          }
+        }
+      }
       if (existingBatch.isEmpty) {
         await txn.insert('sync_inbox_batches', {
           'branch_id': branchId,
@@ -74,6 +141,10 @@ class FirestoreInboxProcessor {
           event,
           expectedBranchUuid: expectedBranchUuid,
         );
+        if (requireAtomic && outcome != 'APPLIED' && outcome != 'DUPLICATE') {
+          throw AtomicInboxBatchException(
+              outcome == 'NEEDS_DEPENDENCY' ? 'MISSING_DEPENDENCY' : 'MEMBER_REJECTED');
+        }
         switch (outcome) {
           case 'APPLIED':
             applied++;
@@ -88,6 +159,9 @@ class FirestoreInboxProcessor {
             rejected++;
             break;
         }
+      }
+      if (requireAtomic && existingBatch.isNotEmpty && applied != 0) {
+        throw const AtomicInboxBatchException('INCOMPLETE_OPERATION_RECEIPT');
       }
       await txn.update(
         'sync_inbox_batches',
@@ -444,4 +518,12 @@ class InboxBatchResult {
     required this.rejected,
   });
   final int applied, duplicates, deferred, rejected;
+}
+
+/// Safe, non-payload error codes for all-or-nothing application failures.
+class AtomicInboxBatchException implements Exception {
+  const AtomicInboxBatchException(this.code);
+  final String code;
+  @override
+  String toString() => 'AtomicInboxBatchException: $code';
 }
