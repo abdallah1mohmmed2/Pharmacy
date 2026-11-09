@@ -396,3 +396,19 @@ Artifacts المسجلة في التشغيل:
 - [CI 42675356436](https://github.com/abdallah1mohmmed2/Pharmacy/actions/runs/42675356436): رفض GitHub دفع commit التنسيق من تشغيل PR لأن تشغيل push متزامناً سبق إلى نفس الفرع. لم تصل وظيفة Android إلى الاختبارات؛ الرفض non-fast-forward حماية صحيحة وليست فشل قواعد بيانات.
 - وصل تنسيق `dart format` لملفات المدقق والخدمة والاختبارات إلى الفرع في commit `b9e557e8e42e26092ad4f3dad4b0a8736a4fe867` (تحققنا من أنه commit أمام إصلاح CI بخطوة واحدة وتغييره محصور بأربعة ملفات Dart). لا يعاد رفع صياغة الملفات من التشغيل القديم.
 - **التحقق الوظيفي النهائي لا يزال مطلوباً على HEAD بعد هذا التنسيق**: analyze, Flutter tests, Firestore Emulator integration, Android/Windows builds. لا تحسب أيًا منها نجاحاً حتى ظهور run كامل حديث مرتبط بهوية الكود المعتمد.
+
+
+### P0-05 — تحقق CI النهائي لإصلاحات السندات وتعارض التنسيق (9 نوفمبر 2026)
+
+**الحالة المثبتة:** أُغلقت **أخطاء CI الخاصة بهذه الدفعة**، بينما يظل **P0-05 قيد التنفيذ، P0-06 مفتوحاً**؛ لا مزامنة مالية إنتاجية ولا تعديل على `main` ولا تغيير قوائم السماح أو قواعد Firebase.
+
+- سبب فشل [42675719987](https://github.com/abdallah1mohmmed2/Pharmacy/actions/runs/42675719987): **142 اختباراً ناجحاً، اختباران فاشلان، واحد متجاوز**. الاختباران الجديدان `payment uses inverse debit and credit sides` و`local row IDs can differ` فتحا قاعدة `:memory:` إضافية أرجعت الاتصال المشترك نفسه؛ فشل `CREATE TABLE vouchers` برسالة `table vouchers already exists`. لم يفشل منطق السند أو الحساب المحاسبي. جرى إصلاح **تهيئة الاختبار فقط** بإنشاء ملف SQLite مؤقت مستقل للقاعدة الثانية في commit `9a681c3a5c8db963825e4945d35c18709a66f647`، وتنسيق هذا الملف في commit `a4c2bb43cf94738efb92fc15d21bee08f33736d0`.
+- سبب فشل [42676342912](https://github.com/abdallah1mohmmed2/Pharmacy/actions/runs/42676342912): تنافس تشغيل push وتشغيل PR على رفع تنسيق الملف نفسه. جرى منع هذا التعارض بنقل مسؤولية **الكتابة إلى فرع المصدر** إلى حدث `push` وحده، وجعل PR ينفذ `dart format` في مساحة العمل دون أي `git push`، في commit `ecd1a2427851e737dea108c661ac9eedde178ad2`.
+- **التحقق النهائي للكود في [GitHub Actions 42676706265](https://github.com/abdallah1mohmmed2/Pharmacy/actions/runs/42676706265)**: `completed / success`، فرع `feature/central-medicine-catalog`، HEAD وظيفي/Workflow خضع للتحقق `ecd1a2427851e737dea108c661ac9eedde178ad2`، تشغيل رقم `1133`.
+- Flutter Analyze على Android وWindows: **نجاح**، و`dart format`/فحص التنسيق: **نجاح**.
+- اختبارات Flutter: **144 ناجحاً واختبار واحد متجاوز عمداً**؛ يشمل المدقق المالي واختبارات السند على المخطط الفعلي، وتحديداً **نجاح الاختبارين اللذين فشلا سابقاً**.
+- Firestore Emulator integration: **10 اختبارات ناجحة**؛ اختبارات أمان Firebase والهوية وتحليل الجرد: **نجاح**.
+- بناء Android Release APK: **نجاح** (`app-release.apk`، سجل البناء 68.2 MB)، ورفع Artifact `pharmacy-android` بمعرّف `13700537829`.
+- بناء Windows Release: **نجاح**، ورفع Artifact `pharmacy-windows` بمعرّف `13701096810`. كان كلا الـArtifact غير منتهٍ عند المراجعة.
+- [PR #6](https://github.com/abdallah1mohmmed2/Pharmacy/pull/6) طلب مراجعة **Draft/CI only** ولم يُدمج. التحديث التوثيقي اللاحق للكود المختبر **لا يعدل المنطق البرمجي**؛ لا يُستعاض به عن نتيجة CI المثبتة للكود أعلاه.
+- **نقطة التسليم المتبقية:** لا يُغلق P0-05 إلا بعد عقد هوية مالي كامل، ربط غلاف Outbox/Inbox بالمعاملة الأصلية (P0-06)، اختبارات نقل سند/بيع/شراء/مرتجع حقيقية بين جهازين مع إثبات الاكتمال والتوازن، وضمان تحقق موثوق للحمولة المالية. لا يتم النشر الإنتاجي دون الموافقة المسبقة.
