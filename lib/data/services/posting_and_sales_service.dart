@@ -10,9 +10,18 @@ class PostingAndSalesService {
       : _helper = helper ?? DatabaseHelper.instance;
   final DatabaseHelper _helper;
   final FefoAllocator _fefo = FefoAllocator();
-  String _uuid() =>
-      DateTime.now().microsecondsSinceEpoch.toString() +
-      Random().nextInt(999999).toString().padLeft(6, '0');
+  // RFC 4122 v4 identifiers for NEW postings only. Historical local IDs
+  // remain untouched until a reviewed identity-mapping migration exists.
+  final Random _uuidRandom = Random.secure();
+
+  String _uuid() {
+    final bytes = List<int>.generate(16, (_) => _uuidRandom.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex = bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
+  }
   Map<String, Object?> _base(int branchId) => {
         'uuid': _uuid(),
         'branch_id': branchId,
