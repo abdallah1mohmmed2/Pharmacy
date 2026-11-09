@@ -650,6 +650,45 @@ void main() {
     expect(relay.operations, hasLength(1));
   });
 
+  test('F07 lost ACK then retry and duplicate download remain exactly once',
+      () async {
+    final relay = FakeTrustedFinanceRelay()..alterAcknowledgement = true;
+    await source.post();
+    final operation = await source.outbox();
+    await expectLater(
+        workerFor(source, relay).syncOnce(branchId: 1, idToken: 'test-token'),
+        throwsA(isA<FinancialVoucherSyncException>()));
+    expect(relay.operations, hasLength(1));
+    expect((await source.outbox())['status'], 'PENDING');
+
+    relay.alterAcknowledgement = false;
+    expect(
+        (await workerFor(source, relay)
+                .syncOnce(branchId: 1, idToken: 'test-token'))
+            .sent,
+        1);
+    expect(relay.operations, hasLength(1));
+    expect((await source.outbox())['status'], 'SENT');
+    expect(
+        (await workerFor(target, relay)
+                .syncOnce(branchId: 1, idToken: 'test-token'))
+            .applied,
+        1);
+    expect((await importInto(target, operation)).applied, isFalse);
+    expect(await target.db.query('vouchers'), hasLength(1));
+    expect(await target.db.query('journal_entries'), hasLength(1));
+    expect(await target.db.query('journal_lines'), hasLength(2));
+    expect(await target.db.query('lah_alayh_ledger'), hasLength(1));
+    expect(await target.db.query('cash_transactions'), hasLength(1));
+    expect(await target.db.query('financial_operation_inbox'), hasLength(1));
+    expect(
+        (await target.db.query('cash_accounts',
+                where: 'id=?', whereArgs: [target.cashId]))
+            .single['current_balance'],
+        125.0);
+    expect(await target.db.rawQuery('PRAGMA foreign_key_check'), isEmpty);
+  });
+
   test('relay cannot be used without explicit trusted configuration', () async {
     await source.post();
     final relay = FakeTrustedFinanceRelay();
