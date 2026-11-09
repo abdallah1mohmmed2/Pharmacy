@@ -396,10 +396,10 @@ jobs:
           # The installed printing plugin already includes the local
           # PDFiumConfig.cmake. Keep that declaration intact; only reject
           # unexpected network download instructions, never rewrite CMake.
-          if ($content -notmatch 'include\\(\\$\\{pdfium_SOURCE_DIR\\}/PDFiumConfig\\.cmake\\)') {
+          if (-not $content.Contains('include(${pdfium_SOURCE_DIR}/PDFiumConfig.cmake)')) {
             throw "Printing plugin no longer includes verified local PDFiumConfig.cmake."
           }
-          if ($content -match 'download_project\\(') {
+          if ($content.Contains('download_project(')) {
             throw "Printing plugin unexpectedly downloads PDFium at build time."
           }
           Write-Host "Verified PDFium archive SHA-256: $actualHash"
