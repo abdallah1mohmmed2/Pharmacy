@@ -13,7 +13,8 @@ abstract final class SchemaIteration13 {
       // without a separately approved provenance/mapping migration.
       await db.execute('ALTER TABLE cash_transactions ADD COLUMN uuid TEXT');
     }
-    await db.execute('''CREATE UNIQUE INDEX IF NOT EXISTS idx_cash_transactions_uuid
+    await db
+        .execute('''CREATE UNIQUE INDEX IF NOT EXISTS idx_cash_transactions_uuid
       ON cash_transactions(uuid) WHERE uuid IS NOT NULL''');
 
     await db.execute('''CREATE TABLE IF NOT EXISTS financial_operation_outbox(
@@ -40,7 +41,8 @@ abstract final class SchemaIteration13 {
 
     // Status may advance once a trusted relay acknowledges the exact hash.
     // The envelope itself cannot be modified after source transaction commit.
-    await db.execute('''CREATE TRIGGER IF NOT EXISTS trg_financial_outbox_immutable
+    await db
+        .execute('''CREATE TRIGGER IF NOT EXISTS trg_financial_outbox_immutable
       BEFORE UPDATE ON financial_operation_outbox
       WHEN NEW.operation_uuid != OLD.operation_uuid
         OR NEW.branch_id != OLD.branch_id
@@ -50,13 +52,16 @@ abstract final class SchemaIteration13 {
         OR NEW.payload_hash != OLD.payload_hash
         OR NEW.created_at != OLD.created_at
       BEGIN SELECT RAISE(ABORT, 'FINANCIAL_OUTBOX_IMMUTABLE'); END''');
-    await db.execute('''CREATE TRIGGER IF NOT EXISTS trg_financial_outbox_no_delete
+    await db
+        .execute('''CREATE TRIGGER IF NOT EXISTS trg_financial_outbox_no_delete
       BEFORE DELETE ON financial_operation_outbox
       BEGIN SELECT RAISE(ABORT, 'FINANCIAL_OUTBOX_IMMUTABLE'); END''');
-    await db.execute('''CREATE TRIGGER IF NOT EXISTS trg_financial_inbox_no_update
+    await db
+        .execute('''CREATE TRIGGER IF NOT EXISTS trg_financial_inbox_no_update
       BEFORE UPDATE ON financial_operation_inbox
       BEGIN SELECT RAISE(ABORT, 'FINANCIAL_INBOX_IMMUTABLE'); END''');
-    await db.execute('''CREATE TRIGGER IF NOT EXISTS trg_financial_inbox_no_delete
+    await db
+        .execute('''CREATE TRIGGER IF NOT EXISTS trg_financial_inbox_no_delete
       BEFORE DELETE ON financial_operation_inbox
       BEGIN SELECT RAISE(ABORT, 'FINANCIAL_INBOX_IMMUTABLE'); END''');
   }

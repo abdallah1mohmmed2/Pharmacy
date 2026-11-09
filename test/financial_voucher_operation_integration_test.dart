@@ -36,7 +36,8 @@ class FinanceFixture {
   late int partyId;
   late int cashId;
 
-  static Future<FinanceFixture> open(String filename, {bool shiftIds = false}) async {
+  static Future<FinanceFixture> open(String filename,
+      {bool shiftIds = false}) async {
     final db = await databaseFactoryFfi.openDatabase(filename,
         options: OpenDatabaseOptions(onConfigure: (d) async {
       await d.execute('PRAGMA foreign_keys=ON');
@@ -71,42 +72,57 @@ class FinanceFixture {
     if (shiftIds) {
       await db.insert('parties', {
         'uuid': '77777777-7777-4777-8777-777777777777',
-        'branch_id': 1, 'created_at': '2026-11-09',
-        'updated_at': '2026-11-09', 'party_type': 'CUSTOMER',
-        'code': 'OTHER-LOCAL-ONLY', 'name_ar': 'طرف آخر',
+        'branch_id': 1,
+        'created_at': '2026-11-09',
+        'updated_at': '2026-11-09',
+        'party_type': 'CUSTOMER',
+        'code': 'OTHER-LOCAL-ONLY',
+        'name_ar': 'طرف آخر',
       });
     }
     final fixture = FinanceFixture(db);
     fixture.partyId = await db.insert('parties', {
-      'uuid': partyUuid, 'branch_id': 1,
-      'created_at': '2026-11-09', 'updated_at': '2026-11-09',
-      'party_type': 'CUSTOMER', 'code': 'FINANCE-TEST', 'name_ar': 'طرف اختبار',
+      'uuid': partyUuid,
+      'branch_id': 1,
+      'created_at': '2026-11-09',
+      'updated_at': '2026-11-09',
+      'party_type': 'CUSTOMER',
+      'code': 'FINANCE-TEST',
+      'name_ar': 'طرف اختبار',
     });
-    fixture.cashId = (await db.query('cash_accounts', columns: ['id'],
-        where: 'code=?', whereArgs: ['CASH-DRAWER'])).single['id'] as int;
+    fixture.cashId = (await db.query('cash_accounts',
+            columns: ['id'], where: 'code=?', whereArgs: ['CASH-DRAWER']))
+        .single['id'] as int;
     return fixture;
   }
 
   Future<int> post([String type = 'RECEIPT']) => posting.postVoucher(
-      branchId: 1, voucherNo: 'ignored', voucherType: type,
-      partyId: partyId, cashAccountId: cashId, amount: 125.25,
-      method: 'CASH', description: 'PRIVATE_SENTINEL');
+      branchId: 1,
+      voucherNo: 'ignored',
+      voucherType: type,
+      partyId: partyId,
+      cashAccountId: cashId,
+      amount: 125.25,
+      method: 'CASH',
+      description: 'PRIVATE_SENTINEL');
   Future<Map<String, Object?>> outbox() async =>
       (await db.query('financial_operation_outbox')).single;
 }
 
 Map<String, Object?> envelopeOf(Map<String, Object?> row) =>
     Map<String, Object?>.from(jsonDecode(row['payload_json'] as String) as Map);
-String hashOf(Map<String, Object?> payload) =>
-    sha256.convert(utf8.encode(FinancialVoucherOperation.canonicalJson(payload))).toString();
-Future<FinancialVoucherApplyResult> importInto(FinanceFixture target,
-        Map<String, Object?> row, {Map<String, Object?>? payload,
-        String? hash, bool trusted = true}) =>
+String hashOf(Map<String, Object?> payload) => sha256
+    .convert(utf8.encode(FinancialVoucherOperation.canonicalJson(payload)))
+    .toString();
+Future<FinancialVoucherApplyResult> importInto(
+        FinanceFixture target, Map<String, Object?> row,
+        {Map<String, Object?>? payload, String? hash, bool trusted = true}) =>
     FinancialVoucherOperation.applyVerified(target.db,
-      branchId: 1, expectedBranchUuid: branchUuid,
-      envelope: payload ?? envelopeOf(row),
-      payloadHash: hash ?? row['payload_hash'] as String,
-      trustedRelay: trusted);
+        branchId: 1,
+        expectedBranchUuid: branchUuid,
+        envelope: payload ?? envelopeOf(row),
+        payloadHash: hash ?? row['payload_hash'] as String,
+        trustedRelay: trusted);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -120,7 +136,8 @@ void main() {
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('finance-v16-');
     source = await FinanceFixture.open(directory.path + '/source.db');
-    target = await FinanceFixture.open(directory.path + '/target.db', shiftIds: true);
+    target = await FinanceFixture.open(directory.path + '/target.db',
+        shiftIds: true);
   });
   tearDown(() async {
     await source.db.close();
@@ -128,7 +145,8 @@ void main() {
     await directory.delete(recursive: true);
   });
 
-  test('complete source receipt transfers to different local SQLite IDs', () async {
+  test('complete source receipt transfers to different local SQLite IDs',
+      () async {
     await source.post();
     final row = await source.outbox();
     expect(row['status'], 'PENDING');
@@ -140,8 +158,10 @@ void main() {
     expect(posted['party_id'], target.partyId);
     expect(posted['uuid'], row['operation_uuid']);
     final proof = await CashVoucherIntegrityValidator.validate(
-        database: target.db, branchId: 1,
-        voucherId: posted['id'] as int, fractionDigits: 2);
+        database: target.db,
+        branchId: 1,
+        voucherId: posted['id'] as int,
+        fractionDigits: 2);
     expect(proof.amountMinor, 12525);
     expect(await target.db.rawQuery('PRAGMA foreign_key_check'), isEmpty);
     expect((await target.db.query('cash_transactions')).single['doc_id'],
@@ -153,12 +173,16 @@ void main() {
     expect((await importInto(target, await source.outbox())).applied, isTrue);
     final posted = (await target.db.query('vouchers')).single;
     final proof = await CashVoucherIntegrityValidator.validate(
-        database: target.db, branchId: 1,
-        voucherId: posted['id'] as int, fractionDigits: 2);
+        database: target.db,
+        branchId: 1,
+        voucherId: posted['id'] as int,
+        fractionDigits: 2);
     expect(proof.amountMinor, 12525);
-    expect((await target.db.query('cash_accounts',
-        where: 'id=?', whereArgs: [target.cashId]))
-        .single['current_balance'], -125.25);
+    expect(
+        (await target.db.query('cash_accounts',
+                where: 'id=?', whereArgs: [target.cashId]))
+            .single['current_balance'],
+        -125.25);
   });
 
   test('replay and own-device echo never repost balances', () async {
@@ -170,12 +194,15 @@ void main() {
     expect(await target.db.query('vouchers'), hasLength(1));
     expect(await target.db.query('journal_entries'), hasLength(1));
     expect(await target.db.query('financial_operation_inbox'), hasLength(1));
-    expect((await target.db.query('cash_accounts',
-        where: 'id=?', whereArgs: [target.cashId]))
-        .single['current_balance'], 125.25);
+    expect(
+        (await target.db.query('cash_accounts',
+                where: 'id=?', whereArgs: [target.cashId]))
+            .single['current_balance'],
+        125.25);
   });
 
-  test('changed operation fingerprint conflicts with already applied receipt', () async {
+  test('changed operation fingerprint conflicts with already applied receipt',
+      () async {
     await source.post();
     final row = await source.outbox();
     await importInto(target, row);
@@ -183,30 +210,36 @@ void main() {
     final voucher = Map<String, Object?>.from(changed['voucher'] as Map);
     voucher['amount_minor'] = 12526;
     changed['voucher'] = voucher;
-    await expectLater(importInto(target, row,
-        payload: changed, hash: hashOf(changed)),
+    await expectLater(
+        importInto(target, row, payload: changed, hash: hashOf(changed)),
         throwsA(isA<FinancialVoucherSyncException>()));
     expect(await target.db.query('vouchers'), hasLength(1));
   });
 
-  test('missing parent blocks whole receipt until dependency is inserted', () async {
+  test('missing parent blocks whole receipt until dependency is inserted',
+      () async {
     await source.post();
     final row = await source.outbox();
-    await target.db.delete('parties', where: 'id=?',
-        whereArgs: [target.partyId]);
-    await expectLater(importInto(target, row),
-        throwsA(isA<FinancialVoucherSyncException>()));
+    await target.db
+        .delete('parties', where: 'id=?', whereArgs: [target.partyId]);
+    await expectLater(
+        importInto(target, row), throwsA(isA<FinancialVoucherSyncException>()));
     expect(await target.db.query('vouchers'), isEmpty);
     expect(await target.db.query('financial_operation_inbox'), isEmpty);
     target.partyId = await target.db.insert('parties', {
-      'uuid': partyUuid, 'branch_id': 1,
-      'created_at': '2026-11-09', 'updated_at': '2026-11-09',
-      'party_type': 'CUSTOMER', 'code': 'RETRY-PARTY', 'name_ar': 'طرف مستعاد',
+      'uuid': partyUuid,
+      'branch_id': 1,
+      'created_at': '2026-11-09',
+      'updated_at': '2026-11-09',
+      'party_type': 'CUSTOMER',
+      'code': 'RETRY-PARTY',
+      'name_ar': 'طرف مستعاد',
     });
     expect((await importInto(target, row)).applied, isTrue);
   });
 
-  test('SQLite failure rolls back documents, journal, cash and inbox', () async {
+  test('SQLite failure rolls back documents, journal, cash and inbox',
+      () async {
     await source.post();
     final row = await source.outbox();
     await target.db.execute('''CREATE TRIGGER reject_cash
@@ -214,14 +247,20 @@ void main() {
       BEGIN SELECT RAISE(ABORT,'simulated fail'); END''');
     await expectLater(importInto(target, row), throwsA(anything));
     for (final table in [
-      'vouchers', 'journal_entries', 'journal_lines',
-      'lah_alayh_ledger', 'cash_transactions', 'financial_operation_inbox'
+      'vouchers',
+      'journal_entries',
+      'journal_lines',
+      'lah_alayh_ledger',
+      'cash_transactions',
+      'financial_operation_inbox'
     ]) {
       expect(await target.db.query(table), isEmpty, reason: table);
     }
-    expect((await target.db.query('cash_accounts',
-        where: 'id=?', whereArgs: [target.cashId]))
-        .single['current_balance'], 0);
+    expect(
+        (await target.db.query('cash_accounts',
+                where: 'id=?', whereArgs: [target.cashId]))
+            .single['current_balance'],
+        0);
     await target.db.execute('DROP TRIGGER reject_cash');
     expect((await importInto(target, row)).applied, isTrue);
   });
@@ -231,11 +270,12 @@ void main() {
     final row = await source.outbox();
     final changed = envelopeOf(row);
     final lines = (changed['lines'] as List)
-        .map((item) => Map<String, Object?>.from(item as Map)).toList();
+        .map((item) => Map<String, Object?>.from(item as Map))
+        .toList();
     lines[0]['dr_minor'] = 12524;
     changed['lines'] = lines;
-    await expectLater(importInto(target, row,
-        payload: changed, hash: hashOf(changed)),
+    await expectLater(
+        importInto(target, row, payload: changed, hash: hashOf(changed)),
         throwsA(isA<FinancialVoucherSyncException>()));
     expect(await target.db.query('vouchers'), isEmpty);
   });
@@ -247,8 +287,8 @@ void main() {
         throwsA(isA<FinancialVoucherSyncException>()));
     final changed = envelopeOf(row);
     changed['branch_uuid'] = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-    await expectLater(importInto(target, row,
-        payload: changed, hash: hashOf(changed)),
+    await expectLater(
+        importInto(target, row, payload: changed, hash: hashOf(changed)),
         throwsA(isA<FinancialVoucherSyncException>()));
     expect(await target.db.query('vouchers'), isEmpty);
   });
@@ -266,10 +306,15 @@ void main() {
   test('legacy default posting remains local without financial capture',
       () async {
     final ordinary = PostingAndSalesService(helper: source.helper);
-    await ordinary.postVoucher(branchId: 1, voucherNo: 'ignored',
-        voucherType: 'RECEIPT', partyId: source.partyId,
-        cashAccountId: source.cashId, amount: 10,
-        method: 'CASH', description: 'local only');
+    await ordinary.postVoucher(
+        branchId: 1,
+        voucherNo: 'ignored',
+        voucherType: 'RECEIPT',
+        partyId: source.partyId,
+        cashAccountId: source.cashId,
+        amount: 10,
+        method: 'CASH',
+        description: 'local only');
     expect(await source.db.query('vouchers'), hasLength(1));
     expect(await source.db.query('financial_operation_outbox'), isEmpty);
   });
@@ -277,18 +322,24 @@ void main() {
   test('outbox payload immutable and trusted ACK required', () async {
     await source.post();
     final row = await source.outbox();
-    await expectLater(source.db.update('financial_operation_outbox',
-        {'payload_json': '{}'}), throwsA(anything));
-    await expectLater(source.db.delete('financial_operation_outbox'),
+    await expectLater(
+        source.db.update('financial_operation_outbox', {'payload_json': '{}'}),
         throwsA(anything));
-    await expectLater(FinancialVoucherOperation.acknowledge(source.db,
-        branchId: 1, operationUuid: row['operation_uuid'] as String,
-        payloadHash: row['payload_hash'] as String,
-        trustedRelay: false), throwsA(isA<FinancialVoucherSyncException>()));
+    await expectLater(
+        source.db.delete('financial_operation_outbox'), throwsA(anything));
+    await expectLater(
+        FinancialVoucherOperation.acknowledge(source.db,
+            branchId: 1,
+            operationUuid: row['operation_uuid'] as String,
+            payloadHash: row['payload_hash'] as String,
+            trustedRelay: false),
+        throwsA(isA<FinancialVoucherSyncException>()));
     expect(await FinancialVoucherOperation.pending(source.db, 1), hasLength(1));
     await FinancialVoucherOperation.acknowledge(source.db,
-        branchId: 1, operationUuid: row['operation_uuid'] as String,
-        payloadHash: row['payload_hash'] as String, trustedRelay: true);
+        branchId: 1,
+        operationUuid: row['operation_uuid'] as String,
+        payloadHash: row['payload_hash'] as String,
+        trustedRelay: true);
     expect(await FinancialVoucherOperation.pending(source.db, 1), isEmpty);
     expect((await source.outbox())['status'], 'SENT');
   });
@@ -296,8 +347,11 @@ void main() {
   test('v16 migration repeats safely and retains historic cash UUID as NULL',
       () async {
     await source.db.insert('cash_transactions', {
-      'cash_account_id': source.cashId, 'tx_date': '2026-11-09',
-      'direction': 'IN', 'amount': 1, 'tx_type': 'OPENING',
+      'cash_account_id': source.cashId,
+      'tx_date': '2026-11-09',
+      'direction': 'IN',
+      'amount': 1,
+      'tx_type': 'OPENING',
       'branch_id': 1,
     });
     await SchemaIteration13.upgrade(source.db);

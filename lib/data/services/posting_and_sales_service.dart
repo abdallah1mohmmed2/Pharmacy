@@ -7,7 +7,8 @@ import 'fefo_allocator_service.dart';
 import 'financial_voucher_operation.dart';
 
 class PostingAndSalesService {
-  PostingAndSalesService({DatabaseHelper? helper, int? financialSyncFractionDigits})
+  PostingAndSalesService(
+      {DatabaseHelper? helper, int? financialSyncFractionDigits})
       : _helper = helper ?? DatabaseHelper.instance,
         _financialSyncFractionDigits = financialSyncFractionDigits;
   final DatabaseHelper _helper;
