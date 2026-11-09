@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:global_enterprise_pharmacy_erp/data/services/sync_table_policy.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_builder.dart';
@@ -51,6 +54,28 @@ void main() {
     );
 
     try {
+      // Cross-check the source inventory against the actual v15 database.
+      final classification = jsonDecode(
+        File('docs/SYNC_SCHEMA_CLASSIFICATION.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
+      final inventory = classification['objects'] as Map<String, dynamic>;
+      expect(await db.getVersion(), classification['schema_version']);
+      final schemaObjects = await db.rawQuery(
+        "SELECT name,type FROM sqlite_master WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%'",
+      );
+      final actualNames = schemaObjects.map((row) => row['name'] as String).toSet();
+      expect(actualNames.difference(inventory.keys.toSet()), isEmpty,
+          reason: 'Runtime objects need an explicit sync classification');
+      final requiredNames = inventory.entries
+          .where((entry) => (entry.value as Map)['lifecycle'] == 'schema')
+          .map((entry) => entry.key).toSet();
+      expect(requiredNames.difference(actualNames), isEmpty,
+          reason: 'Schema inventory claims objects missing from a fresh database');
+      final allowedNames = inventory.entries
+          .where((entry) => (entry.value as Map)['sync_allowed'] == true)
+          .map((entry) => entry.key).toSet();
+      expect(allowedNames, SyncTablePolicy.outboundTables);
+      expect(allowedNames, SyncTablePolicy.inboundTables);
       final requiredTables = [
         'drugs',
         'parties',

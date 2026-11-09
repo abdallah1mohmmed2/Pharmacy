@@ -15,6 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Verify SQLite sync inventory and classifications
+        run: |
+          python3 tools/schema_inventory/check.py --check
+          python3 -m unittest discover -s tools/schema_inventory -p "test_*.py"
       - uses: subosito/flutter-action@v2
         with:
           channel: stable

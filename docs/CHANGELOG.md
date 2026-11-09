@@ -634,3 +634,9 @@
 - Validate FK metadata, embedded/envelope agreement and payload identity; revalidate deferred events while preserving accepted replay hashes.
 - Add production-policy round-trip and adversarial inbound regression coverage, including preserving applied Inbox status on invalid replay.
 - Verified GitHub Actions 42529407931 on a345a7a3e1cecd6aede36a801a5415bfc080edda (format commit 9bbdd61c5fc21dfadf66ed290e7324078d354061): Analyze, 115 Flutter tests (1 intentionally skipped), 10 tests in the emulator integration step, Android/Windows release builds and both artifacts passed. P0-03 closed; P0-04 is next.
+
+## P0-04 — SQLite schema inventory — 2026-11-09
+- Inventory 89 schema names across all production Dart sources, including legacy rename targets, conditional provisioning, FTS5 and views.
+- Add reviewed per-object classifications/reasons, a reproducible Markdown report, source/policy drift checks and six Python regression tests.
+- Cross-check the registry against actual SQLite v15 objects in the existing fresh-database test; add inventory verification to Android CI.
+- Local inventory checks pass; full CI and platform builds pending. No sync allowlist or application behavior changes.
