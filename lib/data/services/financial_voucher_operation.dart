@@ -221,6 +221,9 @@ abstract final class FinancialVoucherOperation {
       ledgerUuid,
       movementUuid,
     };
+    if (memberUuids.length != 4) {
+      throw const FinancialVoucherSyncException('REPEATED_MEMBER_UUID');
+    }
     var debitSum = 0;
     var creditSum = 0;
     for (final lineRaw in rawLines) {
