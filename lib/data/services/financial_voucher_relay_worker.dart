@@ -85,8 +85,7 @@ class FinancialVoucherRelayWorker {
               FinancialMinorUnits.currencyFractionDigits) {
         throw const FinancialVoucherSyncException('CURRENCY_POLICY_MISMATCH');
       }
-      if (payload is! Map ||
-          payload['operation_uuid'] != row['operation_uuid'] ||
+      if (payload['operation_uuid'] != row['operation_uuid'] ||
           payload['voucher'] is! Map ||
           payload['journal'] is! Map ||
           payload['lines'] is! List ||
