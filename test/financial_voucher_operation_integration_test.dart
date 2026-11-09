@@ -212,7 +212,8 @@ void main() {
     expect((await importInto(target, row)).applied, isTrue);
   });
 
-  test('currency mismatch and legacy v1 are rejected without posting', () async {
+  test('currency mismatch and legacy v1 are rejected without posting',
+      () async {
     await source.post();
     final row = await source.outbox();
     for (final change in <Map<String, Object?>>[

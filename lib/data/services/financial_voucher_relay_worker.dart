@@ -78,9 +78,11 @@ class FinancialVoucherRelayWorker {
       final json = row['payload_json'] as String;
       final payload = jsonDecode(json);
       if (payload is! Map ||
-          payload['schema_version'] != FinancialVoucherOperation.schemaVersion ||
+          payload['schema_version'] !=
+              FinancialVoucherOperation.schemaVersion ||
           payload['currency_code'] != FinancialMinorUnits.currencyCode ||
-          payload['fraction_digits'] != FinancialMinorUnits.currencyFractionDigits) {
+          payload['fraction_digits'] !=
+              FinancialMinorUnits.currencyFractionDigits) {
         throw const FinancialVoucherSyncException('CURRENCY_POLICY_MISMATCH');
       }
       final body = jsonEncode({

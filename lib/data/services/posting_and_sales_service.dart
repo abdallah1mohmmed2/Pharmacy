@@ -338,7 +338,8 @@ class PostingAndSalesService {
       String? walletRefNo}) async {
     if (amount <= 0) throw ArgumentError('المبلغ يجب أن يكون أكبر من صفر');
     if (_financialSyncFractionDigits != null && method == 'CASH') {
-      if (_financialSyncFractionDigits != FinancialMinorUnits.currencyFractionDigits) {
+      if (_financialSyncFractionDigits !=
+          FinancialMinorUnits.currencyFractionDigits) {
         throw StateError('CURRENCY_POLICY_MISMATCH');
       }
       try {

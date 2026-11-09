@@ -188,7 +188,8 @@ abstract final class FinancialVoucherOperation {
       throw const FinancialVoucherSyncException('UNSUPPORTED_FINANCIAL_TYPE');
     }
     if (envelope['currency_code'] != FinancialMinorUnits.currencyCode ||
-        envelope['fraction_digits'] != FinancialMinorUnits.currencyFractionDigits) {
+        envelope['fraction_digits'] !=
+            FinancialMinorUnits.currencyFractionDigits) {
       throw const FinancialVoucherSyncException('CURRENCY_POLICY_MISMATCH');
     }
     const digits = FinancialMinorUnits.currencyFractionDigits;
