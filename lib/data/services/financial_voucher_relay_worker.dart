@@ -43,20 +43,23 @@ class FinancialVoucherRelayWorker {
     if (!_trustedRelayConfigured) {
       throw const FinancialVoucherSyncException('TRUSTED_RELAY_NOT_CONFIGURED');
     }
-    final isLoopback = {'localhost', '127.0.0.1', '::1'}
-        .contains(_endpoint.host);
+    final isLoopback =
+        {'localhost', '127.0.0.1', '::1'}.contains(_endpoint.host);
     if (_endpoint.scheme != 'https' &&
         !(_allowLoopbackHttpForTests &&
-            _endpoint.scheme == 'http' && isLoopback)) {
+            _endpoint.scheme == 'http' &&
+            isLoopback)) {
       throw const FinancialVoucherSyncException('INSECURE_RELAY_ENDPOINT');
     }
-    if (branchId <= 0 || idToken.trim().isEmpty ||
-        pageSize < 1 || pageSize > 100) {
+    if (branchId <= 0 ||
+        idToken.trim().isEmpty ||
+        pageSize < 1 ||
+        pageSize > 100) {
       throw ArgumentError('Invalid trusted financial relay configuration');
     }
     final db = await _helper.database;
-    final branches = await db.query('branches', columns: ['uuid'],
-        where: 'id=?', whereArgs: [branchId]);
+    final branches = await db.query('branches',
+        columns: ['uuid'], where: 'id=?', whereArgs: [branchId]);
     if (branches.length != 1 ||
         branches.single['uuid'] is! String ||
         !GlobalUuid.isValid(branches.single['uuid'] as String)) {
@@ -80,10 +83,12 @@ class FinancialVoucherRelayWorker {
         'envelope': jsonDecode(json),
       });
       if (utf8.encode(body).length > _maxBytes) {
-        throw const FinancialVoucherSyncException('FINANCIAL_ENVELOPE_TOO_LARGE');
+        throw const FinancialVoucherSyncException(
+            'FINANCIAL_ENVELOPE_TOO_LARGE');
       }
-      final response = await _client.post(_endpoint,
-          headers: headers, body: body).timeout(const Duration(seconds: 30));
+      final response = await _client
+          .post(_endpoint, headers: headers, body: body)
+          .timeout(const Duration(seconds: 30));
       final ack = _successfulJson(response, 'FINANCIAL_UPLOAD_FAILED');
       if (ack['status'] != 'COMMITTED' ||
           ack['operation_uuid'] != row['operation_uuid'] ||
@@ -91,18 +96,18 @@ class FinancialVoucherRelayWorker {
         throw const FinancialVoucherSyncException('INVALID_FINANCIAL_ACK');
       }
       await FinancialVoucherOperation.acknowledge(db,
-        branchId: branchId,
-        operationUuid: row['operation_uuid'] as String,
-        payloadHash: row['payload_hash'] as String,
-        trustedRelay: true);
+          branchId: branchId,
+          operationUuid: row['operation_uuid'] as String,
+          payloadHash: row['payload_hash'] as String,
+          trustedRelay: true);
       sent++;
     }
 
     // Cursor is a trusted relay sequence, never a local SQLite row ID or
     // random UUID. Persist only AFTER all events in the page are applied.
     final key = 'financial.v1.cursor.$branchUuid';
-    final prior = await db.query('app_settings',
-        where: 'setting_key=?', whereArgs: [key]);
+    final prior = await db
+        .query('app_settings', where: 'setting_key=?', whereArgs: [key]);
     var cursor = prior.isEmpty ? '' : prior.single['value_text'] as String;
     var applied = 0;
     var duplicates = 0;
@@ -112,15 +117,17 @@ class FinancialVoucherRelayWorker {
         'after': cursor,
         'limit': pageSize.toString(),
       });
-      final response = await _client.get(uri, headers: headers)
+      final response = await _client
+          .get(uri, headers: headers)
           .timeout(const Duration(seconds: 30));
       final data = _successfulJson(response, 'FINANCIAL_DOWNLOAD_FAILED');
       final items = data['operations'];
       if (items is! List || items.length > pageSize) {
         throw const FinancialVoucherSyncException('INVALID_FINANCIAL_PAGE');
       }
-      if (items.isEmpty) return FinancialVoucherSyncCycle(
-          sent: sent, applied: applied, duplicates: duplicates);
+      if (items.isEmpty)
+        return FinancialVoucherSyncCycle(
+            sent: sent, applied: applied, duplicates: duplicates);
       final next = data['next_cursor'];
       if (next is! String || next.isEmpty || next == cursor) {
         throw const FinancialVoucherSyncException('INVALID_FINANCIAL_CURSOR');
@@ -137,22 +144,25 @@ class FinancialVoucherRelayWorker {
           throw const FinancialVoucherSyncException('INVALID_FINANCIAL_EVENT');
         }
         final result = await FinancialVoucherOperation.applyVerified(db,
-          branchId: branchId,
-          expectedBranchUuid: branchUuid,
-          envelope: Map<String, Object?>.from(payload),
-          payloadHash: decoded['payload_hash'] as String,
-          trustedRelay: true);
+            branchId: branchId,
+            expectedBranchUuid: branchUuid,
+            envelope: Map<String, Object?>.from(payload),
+            payloadHash: decoded['payload_hash'] as String,
+            trustedRelay: true);
         if (result.applied) {
           applied++;
         } else {
           duplicates++;
         }
       }
-      await db.insert('app_settings', {
-        'setting_key': key,
-        'value_text': next,
-        'updated_at': DateTime.now().toUtc().toIso8601String(),
-      }, conflictAlgorithm: ConflictAlgorithm.replace);
+      await db.insert(
+          'app_settings',
+          {
+            'setting_key': key,
+            'value_text': next,
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace);
       cursor = next;
       if (items.length < pageSize) {
         return FinancialVoucherSyncCycle(

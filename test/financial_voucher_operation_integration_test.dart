@@ -127,7 +127,6 @@ Future<FinancialVoucherApplyResult> importInto(
         payloadHash: hash ?? row['payload_hash'] as String,
         trustedRelay: trusted);
 
-
 /// Local test double for a VERIFIED append-only relay. The production server,
 /// Firebase claim verification and its financial validation are NOT shipped.
 class FakeTrustedFinanceRelay {
@@ -135,41 +134,45 @@ class FakeTrustedFinanceRelay {
   bool offline = false;
   bool alterAcknowledgement = false;
   http.Client client() => MockClient((request) async {
-    if (offline) throw const SocketException('test relay unavailable');
-    if (request.method == 'POST') {
-      final body = jsonDecode(request.body) as Map<String, dynamic>;
-      final existing = operations.where(
-          (row) => row['operation_uuid'] == body['operation_uuid']).toList();
-      if (existing.isEmpty) {
-        operations.add(Map<String, dynamic>.from(body));
-      } else if (existing.single['payload_hash'] != body['payload_hash']) {
-        return http.Response('conflicting operation hash', 409);
-      }
-      return http.Response(jsonEncode({
-        'status': 'COMMITTED',
-        'operation_uuid': body['operation_uuid'],
-        'payload_hash': alterAcknowledgement
-            ? 'BAD_HASH'
-            : body['payload_hash'],
-      }), 200);
-    }
-    if (request.method == 'GET') {
-      final after = int.tryParse(
-          request.url.queryParameters['after'] ?? '') ?? 0;
-      final limit = int.parse(
-          request.url.queryParameters['limit'] ?? '50');
-      final page = operations.skip(after).take(limit).toList();
-      return http.Response(jsonEncode({
-        'operations': page,
-        'next_cursor': (after + page.length).toString(),
-      }), 200);
-    }
-    return http.Response('not supported', 405);
-  });
+        if (offline) throw const SocketException('test relay unavailable');
+        if (request.method == 'POST') {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          final existing = operations
+              .where((row) => row['operation_uuid'] == body['operation_uuid'])
+              .toList();
+          if (existing.isEmpty) {
+            operations.add(Map<String, dynamic>.from(body));
+          } else if (existing.single['payload_hash'] != body['payload_hash']) {
+            return http.Response('conflicting operation hash', 409);
+          }
+          return http.Response(
+              jsonEncode({
+                'status': 'COMMITTED',
+                'operation_uuid': body['operation_uuid'],
+                'payload_hash':
+                    alterAcknowledgement ? 'BAD_HASH' : body['payload_hash'],
+              }),
+              200);
+        }
+        if (request.method == 'GET') {
+          final after =
+              int.tryParse(request.url.queryParameters['after'] ?? '') ?? 0;
+          final limit = int.parse(request.url.queryParameters['limit'] ?? '50');
+          final page = operations.skip(after).take(limit).toList();
+          return http.Response(
+              jsonEncode({
+                'operations': page,
+                'next_cursor': (after + page.length).toString(),
+              }),
+              200);
+        }
+        return http.Response('not supported', 405);
+      });
 }
 
-FinancialVoucherRelayWorker workerFor(FinanceFixture device,
-        FakeTrustedFinanceRelay relay, {bool trusted = true}) =>
+FinancialVoucherRelayWorker workerFor(
+        FinanceFixture device, FakeTrustedFinanceRelay relay,
+        {bool trusted = true}) =>
     FinancialVoucherRelayWorker(
       helper: device.helper,
       client: relay.client(),
@@ -412,57 +415,71 @@ void main() {
     expect((await source.db.query('cash_transactions')).single['uuid'], isNull);
   });
 
-  test('HTTP relay uploads and downloads one complete posted voucher', () async {
+  test('HTTP relay uploads and downloads one complete posted voucher',
+      () async {
     final relay = FakeTrustedFinanceRelay();
     await source.post();
-    final uploaded = await workerFor(source, relay).syncOnce(
-        branchId: 1, idToken: 'test-token');
+    final uploaded = await workerFor(source, relay)
+        .syncOnce(branchId: 1, idToken: 'test-token');
     expect(uploaded.sent, 1);
     expect(relay.operations, hasLength(1));
     expect((await source.outbox())['status'], 'SENT');
-    final downloaded = await workerFor(target, relay).syncOnce(
-        branchId: 1, idToken: 'test-token');
+    final downloaded = await workerFor(target, relay)
+        .syncOnce(branchId: 1, idToken: 'test-token');
     expect(downloaded.applied, 1);
     expect(await target.db.query('vouchers'), hasLength(1));
-    expect((await workerFor(target, relay).syncOnce(
-        branchId: 1, idToken: 'test-token')).applied, 0);
+    expect(
+        (await workerFor(target, relay)
+                .syncOnce(branchId: 1, idToken: 'test-token'))
+            .applied,
+        0);
     expect(await target.db.query('financial_operation_inbox'), hasLength(1));
   });
 
   test('offline relay retains pending envelope for retry', () async {
     final relay = FakeTrustedFinanceRelay()..offline = true;
     await source.post();
-    await expectLater(workerFor(source, relay).syncOnce(
-        branchId: 1, idToken: 'test-token'), throwsA(isA<SocketException>()));
+    await expectLater(
+        workerFor(source, relay).syncOnce(branchId: 1, idToken: 'test-token'),
+        throwsA(isA<SocketException>()));
     expect((await source.outbox())['status'], 'PENDING');
     relay.offline = false;
-    expect((await workerFor(source, relay).syncOnce(
-        branchId: 1, idToken: 'test-token')).sent, 1);
-    expect((await workerFor(target, relay).syncOnce(
-        branchId: 1, idToken: 'test-token')).applied, 1);
+    expect(
+        (await workerFor(source, relay)
+                .syncOnce(branchId: 1, idToken: 'test-token'))
+            .sent,
+        1);
+    expect(
+        (await workerFor(target, relay)
+                .syncOnce(branchId: 1, idToken: 'test-token'))
+            .applied,
+        1);
   });
 
   test('wrong relay acknowledgement never marks the outbox SENT', () async {
     final relay = FakeTrustedFinanceRelay()..alterAcknowledgement = true;
     await source.post();
-    await expectLater(workerFor(source, relay).syncOnce(
-        branchId: 1, idToken: 'test-token'),
+    await expectLater(
+        workerFor(source, relay).syncOnce(branchId: 1, idToken: 'test-token'),
         throwsA(isA<FinancialVoucherSyncException>()));
     expect((await source.outbox())['status'], 'PENDING');
     relay.alterAcknowledgement = false;
-    expect((await workerFor(source, relay).syncOnce(
-        branchId: 1, idToken: 'test-token')).sent, 1);
+    expect(
+        (await workerFor(source, relay)
+                .syncOnce(branchId: 1, idToken: 'test-token'))
+            .sent,
+        1);
     expect(relay.operations, hasLength(1));
   });
 
   test('relay cannot be used without explicit trusted configuration', () async {
     await source.post();
     final relay = FakeTrustedFinanceRelay();
-    await expectLater(workerFor(source, relay, trusted: false).syncOnce(
-        branchId: 1, idToken: 'test-token'),
+    await expectLater(
+        workerFor(source, relay, trusted: false)
+            .syncOnce(branchId: 1, idToken: 'test-token'),
         throwsA(isA<FinancialVoucherSyncException>()));
     expect(relay.operations, isEmpty);
     expect((await source.outbox())['status'], 'PENDING');
   });
-
 }
