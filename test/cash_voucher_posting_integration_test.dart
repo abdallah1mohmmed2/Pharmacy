@@ -15,6 +15,7 @@ import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration9.d
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration10.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration11.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration12.dart';
+import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration13.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/seed_data.dart';
 import 'package:global_enterprise_pharmacy_erp/data/services/posting_and_sales_service.dart';
 import 'package:global_enterprise_pharmacy_erp/data/services/cash_voucher_integrity_validator.dart';
@@ -81,6 +82,7 @@ void main() {
     await SchemaIteration10.upgrade(database);
     await SchemaIteration11.upgrade(database);
     await SchemaIteration12.upgrade(database);
+    await SchemaIteration13.upgrade(database);
 
     partyId = await database.insert('parties', {
       'uuid': '55555555-5555-4555-8555-555555555555',
