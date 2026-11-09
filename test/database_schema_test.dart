@@ -16,6 +16,7 @@ import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration9.d
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration10.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration11.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration12.dart';
+import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration13.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -30,7 +31,7 @@ void main() {
     final db = await databaseFactoryFfi.openDatabase(
       inMemoryDatabasePath,
       options: OpenDatabaseOptions(
-        version: 15,
+        version: 16,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
         },
@@ -49,12 +50,13 @@ void main() {
           await SchemaIteration10.upgrade(database);
           await SchemaIteration11.upgrade(database);
           await SchemaIteration12.upgrade(database);
+          await SchemaIteration13.upgrade(database);
         },
       ),
     );
 
     try {
-      // Cross-check the source inventory against the actual v15 database.
+      // Cross-check the source inventory against the actual v16 database.
       final classification = jsonDecode(
         File('docs/SYNC_SCHEMA_CLASSIFICATION.json').readAsStringSync(),
       ) as Map<String, dynamic>;
@@ -156,6 +158,7 @@ void main() {
       await SchemaIteration10.upgrade(db);
       await SchemaIteration11.upgrade(db);
       await SchemaIteration12.upgrade(db);
+      await SchemaIteration13.upgrade(db);
       expect(await db.rawQuery('SELECT id FROM drugs'), isEmpty);
       expect(await db.rawQuery('SELECT id FROM batches_fefo'), isEmpty);
       expect(
