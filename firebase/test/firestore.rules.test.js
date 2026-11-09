@@ -31,6 +31,7 @@ function batch(id = 'a'.repeat(64), branchId = 'branch-A', overrides = {}) {
     payload_hash: 'b'.repeat(64),
     schema_version: 1,
     events: [{ event_uuid: 'event-1', table: 'drug_categories', uuid: 'row-1' }],
+    created_at: serverTimestamp(),
     ...overrides,
   };
 }
@@ -85,6 +86,9 @@ test('required fields and event-count bounds are enforced', async () => {
   const missingSchema = batch();
   delete missingSchema.schema_version;
   await assertFails(setDoc(batchRef(db), missingSchema));
+  const missingTimestamp = batch();
+  delete missingTimestamp.created_at;
+  await assertFails(setDoc(batchRef(db), missingTimestamp));
   await assertFails(setDoc(batchRef(db), batch(undefined, undefined, { events: [] })));
   await assertFails(setDoc(batchRef(db), batch(undefined, undefined,
     { events: Array.from({ length: 101 }, (_, i) => ({ uuid: String(i) })) })));
@@ -108,6 +112,24 @@ test('valid document cannot be deleted or overwritten', async () => {
   await assertSucceeds(setDoc(batchRef(db), batch()));
   await assertFails(setDoc(batchRef(db), batch(undefined, undefined,
     { events: [{ uuid: 'another' }] })));
+});
+
+test('unreviewed branch, dashboard and financial snapshot writes are closed', async () => {
+  const db = branchUser('branch-A');
+  await assertFails(setDoc(doc(db, 'pharmacy_branches/branch-A'), { branch_id: 'branch-A' }));
+  await assertFails(setDoc(doc(db, 'pharmacy_daily_dashboards/daily-A'),
+    { branch_id: 'branch-A', secret: 'PRIVATE_SENTINEL' }));
+  await assertFails(setDoc(doc(db, 'pharmacy_parties_snapshot/branch-A'),
+    { branch_id: 'branch-A', partner_mode: 'shares', secret: 'PRIVATE_SENTINEL' }));
+});
+
+test('staff cannot read financial snapshots but its own manager can', async () => {
+  await env.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'pharmacy_parties_snapshot/branch-A'),
+      { branch_id: 'branch-A', partner_mode: 'shares' });
+  });
+  await assertFails(getDoc(doc(branchUser('branch-A', 'staff'), 'pharmacy_parties_snapshot/branch-A')));
+  await assertSucceeds(getDoc(doc(branchUser('branch-A'), 'pharmacy_parties_snapshot/branch-A')));
 });
 
 test('ordinary staff cannot read manager dashboards', async () => {
