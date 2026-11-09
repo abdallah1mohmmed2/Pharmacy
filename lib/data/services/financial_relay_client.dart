@@ -82,8 +82,8 @@ class FinancialRelayClient {
   /// must echo the exact UUID and hash before the local status may advance.
   Future<void> sendPending(Database database, int branchId,
       {int limit = 20}) async {
-    final pending =
-        await FinancialVoucherOperation.pending(database, branchId, limit: limit);
+    final pending = await FinancialVoucherOperation.pending(database, branchId,
+        limit: limit);
     for (final row in pending) {
       final operationUuid = row['operation_uuid'];
       final payloadHash = row['payload_hash'];
