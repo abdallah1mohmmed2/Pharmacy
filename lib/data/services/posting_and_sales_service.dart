@@ -554,7 +554,7 @@ class PostingAndSalesService {
           txn,
           branchId: branchId,
           voucherId: voucherId,
-          fractionDigits: _financialSyncFractionDigits!,
+          fractionDigits: _financialSyncFractionDigits,
         );
       }
       return voucherId;
