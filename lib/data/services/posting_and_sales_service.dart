@@ -5,6 +5,7 @@ import '../models/erp_models.dart';
 import '../models/clinical_and_rx_models.dart';
 import 'fefo_allocator_service.dart';
 import 'financial_voucher_operation.dart';
+import 'financial_minor_units.dart';
 
 class PostingAndSalesService {
   PostingAndSalesService(
@@ -336,6 +337,17 @@ class PostingAndSalesService {
       required String description,
       String? walletRefNo}) async {
     if (amount <= 0) throw ArgumentError('المبلغ يجب أن يكون أكبر من صفر');
+    if (_financialSyncFractionDigits != null && method == 'CASH') {
+      if (_financialSyncFractionDigits != FinancialMinorUnits.currencyFractionDigits) {
+        throw StateError('CURRENCY_POLICY_MISMATCH');
+      }
+      try {
+        final minor = FinancialMinorUnits.parseYer(amount.toString());
+        if (minor <= 0) throw const FormatException('AMOUNT_INVALID');
+      } on FormatException {
+        throw StateError('YER_AMOUNT_PRECISION_INVALID');
+      }
+    }
     if (method == 'WALLET' &&
         (walletRefNo == null || walletRefNo.trim().length < 6))
       throw ArgumentError('رقم إشعار المحفظة مطلوب');
