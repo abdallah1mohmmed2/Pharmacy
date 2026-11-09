@@ -269,7 +269,8 @@ void main() {
         posted['id']);
   });
 
-  test('F06 complete real CASH posting maps all financial references across DBs',
+  test(
+      'F06 complete real CASH posting maps all financial references across DBs',
       () async {
     await source.post();
     final original = (await source.db.query('vouchers')).single;
@@ -292,13 +293,16 @@ void main() {
     expect((await target.db.query('journal_entries')).single['id'], journalId);
     final lines = await target.db.query('journal_lines');
     expect(lines, hasLength(2));
-    expect(lines.every((line) => line['journal_entry_id'] == journalId), isTrue);
+    expect(
+        lines.every((line) => line['journal_entry_id'] == journalId), isTrue);
     expect((await target.db.query('lah_alayh_ledger')).single['doc_id'],
         voucherId);
     expect((await target.db.query('cash_transactions')).single['doc_id'],
         voucherId);
-    expect((await target.db.query('financial_operation_inbox')).single[
-        'operation_uuid'], outbox['operation_uuid']);
+    expect(
+        (await target.db.query('financial_operation_inbox'))
+            .single['operation_uuid'],
+        outbox['operation_uuid']);
     final integrity = await CashVoucherIntegrityValidator.validate(
         database: target.db,
         branchId: 1,
