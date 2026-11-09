@@ -31,9 +31,8 @@ service cloud.firestore {
         );
     }
 
-    // P2-01: validate the immutable batch envelope at the trust boundary.
-    // Event-level clinical/PII validation cannot be expressed for arbitrarily
-    // sized arrays in Firestore Rules; that remains a production-release gate.
+    // P2-01: strict immutable batch envelope. Event contents require
+    // additional server-side validation before production sync is enabled.
     function validSyncBatchEnvelope(branchId, batchUuid) {
       return request.resource.data.keys().hasOnly([
           'branch_id', 'source_device_id', 'batch_uuid', 'payload_hash',
@@ -45,121 +44,10 @@ service cloud.firestore {
         ])
         && request.resource.data.branch_id == branchId
         && request.resource.data.batch_uuid == batchUuid
-        && batchUuid.matches('^[0-9a-f]{64}
-      allow get: if ownsBranch(branchId) && branchManager();
-      allow list: if branchManager()
-        && resource.data.branch_id == request.auth.token.branch_id;
-      // Client-driven branch metadata changes are disabled until P1
-      // trusted provisioning and its complete field contract are verified.
-      allow create, update, delete: if false;
-    }
-
-    match /pharmacy_daily_dashboards/{dashboardId} {
-      allow get, list: if branchManager()
-        && resource.data.branch_id == request.auth.token.branch_id;
-      // No client-side financial/dashboard projections until P0-05.
-      allow create, update, delete: if false;
-    }
-
-    match /pharmacy_parties_snapshot/{branchId} {
-      allow get: if ownsBranch(branchId) && branchManager();
-      allow list: if branchManager()
-        && resource.data.branch_id == request.auth.token.branch_id;
-      // Personal/financial snapshots are not approved for client writes.
-      allow create, update, delete: if false;
-    }
-
-    match /pharmacy_sync_batches/{branchId}/batches/{batchUuid} {
-      allow get, list: if ownsBranch(branchId)
-        && resource.data.branch_id == branchId;
-      allow create: if ownsBranch(branchId)
-        && validSyncBatchEnvelope(branchId, batchUuid);
-      // Sync batches are an append-only audit/delta stream.
-      allow update, delete: if false;
-    }
-
-    // The central catalogue is hosted as static JSON. It must not consume
-    // Firestore reads or become a write path for operational pharmacy data.
-    match /catalog_meta/{documentId} {
-      allow read, write: if false;
-    }
-
-    match /{document=**} {
-      allow read, write: if false;
-    }
-  }
-}
-)
+        && batchUuid.matches('^[0-9a-f]{64}$')
         && validSourceDeviceId()
         && request.resource.data.payload_hash is string
-        && request.resource.data.payload_hash.matches('^[0-9a-f]{64}
-      allow get: if ownsBranch(branchId) && branchManager();
-      allow list: if branchManager()
-        && resource.data.branch_id == request.auth.token.branch_id;
-      allow create: if ownsBranch(branchId)
-        && branchManager()
-        && request.resource.data.branch_id == branchId;
-      allow update: if ownsBranch(branchId)
-        && branchManager()
-        && resource.data.branch_id == branchId
-        && request.resource.data.branch_id == branchId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'last_seen_at', 'sync_status', 'client_version', 'updated_at'
-        ]);
-      allow delete: if false;
-    }
-
-    match /pharmacy_daily_dashboards/{dashboardId} {
-      allow get, list: if branchManager()
-        && resource.data.branch_id == request.auth.token.branch_id;
-      allow create, update: if branchManager()
-        && request.resource.data.branch_id == request.auth.token.branch_id;
-      allow delete: if false;
-    }
-
-    match /pharmacy_parties_snapshot/{branchId} {
-      allow get: if ownsBranch(branchId);
-      allow list: if signedIn()
-        && resource.data.branch_id == request.auth.token.branch_id;
-      allow create: if ownsBranch(branchId)
-        && branchManager()
-        && request.resource.data.branch_id == branchId
-        && validPartnerMode(request.resource.data.partner_mode);
-      allow update: if ownsBranch(branchId)
-        && branchManager()
-        && resource.data.branch_id == branchId
-        && request.resource.data.branch_id == branchId
-        && validPartnerMode(request.resource.data.partner_mode)
-        // The selected distribution mode is a permanent state lock.
-        && request.resource.data.partner_mode == resource.data.partner_mode;
-      allow delete: if false;
-    }
-
-    match /pharmacy_sync_batches/{branchId}/batches/{batchUuid} {
-      allow get, list: if ownsBranch(branchId)
-        && resource.data.branch_id == branchId;
-      allow create: if ownsBranch(branchId)
-        && request.resource.data.branch_id == branchId
-        && validSourceDeviceId()
-        && request.resource.data.events is list
-        && request.resource.data.events.size() <= 100
-        && request.resource.data.batch_uuid == batchUuid;
-      // Sync batches are an append-only audit/delta stream.
-      allow update, delete: if false;
-    }
-
-    // The central catalogue is hosted as static JSON. It must not consume
-    // Firestore reads or become a write path for operational pharmacy data.
-    match /catalog_meta/{documentId} {
-      allow read, write: if false;
-    }
-
-    match /{document=**} {
-      allow read, write: if false;
-    }
-  }
-}
-)
+        && request.resource.data.payload_hash.matches('^[0-9a-f]{64}$')
         && request.resource.data.schema_version == 1
         && request.resource.data.events is list
         && request.resource.data.events.size() > 0
@@ -171,54 +59,30 @@ service cloud.firestore {
       allow get: if ownsBranch(branchId) && branchManager();
       allow list: if branchManager()
         && resource.data.branch_id == request.auth.token.branch_id;
-      allow create: if ownsBranch(branchId)
-        && branchManager()
-        && request.resource.data.branch_id == branchId;
-      allow update: if ownsBranch(branchId)
-        && branchManager()
-        && resource.data.branch_id == branchId
-        && request.resource.data.branch_id == branchId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'last_seen_at', 'sync_status', 'client_version', 'updated_at'
-        ]);
-      allow delete: if false;
+      // Only trusted administrative provisioning may update branch metadata.
+      allow create, update, delete: if false;
     }
 
     match /pharmacy_daily_dashboards/{dashboardId} {
       allow get, list: if branchManager()
         && resource.data.branch_id == request.auth.token.branch_id;
-      allow create, update: if branchManager()
-        && request.resource.data.branch_id == request.auth.token.branch_id;
-      allow delete: if false;
+      // Client writes suspended pending approved financial projections (P0-05).
+      allow create, update, delete: if false;
     }
 
     match /pharmacy_parties_snapshot/{branchId} {
-      allow get: if ownsBranch(branchId);
-      allow list: if signedIn()
+      allow get: if ownsBranch(branchId) && branchManager();
+      allow list: if branchManager()
         && resource.data.branch_id == request.auth.token.branch_id;
-      allow create: if ownsBranch(branchId)
-        && branchManager()
-        && request.resource.data.branch_id == branchId
-        && validPartnerMode(request.resource.data.partner_mode);
-      allow update: if ownsBranch(branchId)
-        && branchManager()
-        && resource.data.branch_id == branchId
-        && request.resource.data.branch_id == branchId
-        && validPartnerMode(request.resource.data.partner_mode)
-        // The selected distribution mode is a permanent state lock.
-        && request.resource.data.partner_mode == resource.data.partner_mode;
-      allow delete: if false;
+      // Contains sensitive financial state. No client writes until reviewed.
+      allow create, update, delete: if false;
     }
 
     match /pharmacy_sync_batches/{branchId}/batches/{batchUuid} {
       allow get, list: if ownsBranch(branchId)
         && resource.data.branch_id == branchId;
       allow create: if ownsBranch(branchId)
-        && request.resource.data.branch_id == branchId
-        && validSourceDeviceId()
-        && request.resource.data.events is list
-        && request.resource.data.events.size() <= 100
-        && request.resource.data.batch_uuid == batchUuid;
+        && validSyncBatchEnvelope(branchId, batchUuid);
       // Sync batches are an append-only audit/delta stream.
       allow update, delete: if false;
     }
