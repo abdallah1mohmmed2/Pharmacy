@@ -15,7 +15,7 @@ const partyGl='d6666666-6666-4666-8666-666666666666';
 
 function event(){
   const envelope={
-    schema_version:1,branch_uuid:branch,operation_uuid:voucherId,fraction_digits:2,
+    schema_version:2,branch_uuid:branch,operation_uuid:voucherId,fraction_digits:0,currency_code:'YER',
     voucher:{uuid:voucherId,type:'RECEIPT',date:'2026-11-09T00:00:00.000',party_uuid:party,cash_uuid:cash,amount_minor:12050},
     journal:{uuid:'d7777777-7777-4777-8777-777777777777',date:'2026-11-09T00:00:00.000'},
     lines:[
