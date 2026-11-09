@@ -280,8 +280,7 @@ abstract final class FinancialVoucherOperation {
         ('journal_entries', journalUuid),
         ('lah_alayh_ledger', ledgerUuid),
         ('cash_transactions', movementUuid),
-        for (final line in lines)
-          ('journal_lines', line['uuid'] as String),
+        for (final line in lines) ('journal_lines', line['uuid'] as String),
       ]) {
         if ((await txn.query(member.$1,
                 columns: ['id'],

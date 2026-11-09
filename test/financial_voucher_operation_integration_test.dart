@@ -329,11 +329,9 @@ void main() {
     });
     await source.post();
     final row = await source.outbox();
-    final movementUuid =
-        (envelopeOf(row)['cash'] as Map)['uuid'] as String;
+    final movementUuid = (envelopeOf(row)['cash'] as Map)['uuid'] as String;
     expect((await importInto(target, row)).applied, isTrue);
-    final movements = await target.db.query('cash_transactions',
-        orderBy: 'id');
+    final movements = await target.db.query('cash_transactions', orderBy: 'id');
     expect(movements.first['uuid'], isNull);
     expect(movements.last['uuid'], movementUuid);
     final voucherId = (await target.db.query('vouchers')).single['id'];
@@ -350,8 +348,7 @@ void main() {
       () async {
     await source.post();
     final row = await source.outbox();
-    final movementUuid =
-        (envelopeOf(row)['cash'] as Map)['uuid'] as String;
+    final movementUuid = (envelopeOf(row)['cash'] as Map)['uuid'] as String;
     await target.db.insert('cash_transactions', {
       'uuid': movementUuid,
       'cash_account_id': target.cashId,
@@ -363,8 +360,8 @@ void main() {
     });
     await expectLater(
         importInto(target, row),
-        throwsA(isA<FinancialVoucherSyncException>().having(
-            (e) => e.code, 'code', 'MEMBER_UUID_CONFLICT')));
+        throwsA(isA<FinancialVoucherSyncException>()
+            .having((e) => e.code, 'code', 'MEMBER_UUID_CONFLICT')));
     expect(await target.db.query('vouchers'), isEmpty);
     expect(await target.db.query('journal_entries'), isEmpty);
     expect(await target.db.query('financial_operation_inbox'), isEmpty);
