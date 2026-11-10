@@ -225,6 +225,7 @@ class PostingAndSalesService {
             whereArgs: [payment.cashAccountId],
             limit: 1);
         await txn.insert('cash_transactions', {
+          if (_captureSaleForF10) 'uuid': _uuid(),
           'cash_account_id': payment.cashAccountId,
           'tx_date': DateTime.now().toIso8601String(),
           'direction': 'IN',
