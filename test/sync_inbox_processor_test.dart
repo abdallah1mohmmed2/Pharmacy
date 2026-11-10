@@ -124,34 +124,46 @@ void main() {
     expect(await db.query('sync_inbox_batches'), isEmpty);
   }
 
-  test('ordinary batch can apply one member while rejecting another; atomic batch rolls back both', () async {
+  test(
+      'ordinary batch can apply one member while rejecting another; atomic batch rolls back both',
+      () async {
     final ordinary = [
-      event(table: 'sync_items', uuid: 'ordinary-valid', version: 1,
+      event(
+          table: 'sync_items',
+          uuid: 'ordinary-valid',
+          version: 1,
           payload: {'title': 'inventory-effect'}),
-      event(table: 'sync_items', uuid: 'ordinary-invalid', version: 1,
+      event(
+          table: 'sync_items',
+          uuid: 'ordinary-invalid',
+          version: 1,
           payload: {'title': 'financial-effect', 'private_field': 'blocked'}),
     ];
     final ordinaryResult = await processor.processBatch(
-        branchId: 7, batchUuid: 'ordinary-partial',
-        payloadHash: batchFingerprint(ordinary), events: ordinary);
+        branchId: 7,
+        batchUuid: 'ordinary-partial',
+        payloadHash: batchFingerprint(ordinary),
+        events: ordinary);
     expect(ordinaryResult.applied, 1);
     expect(ordinaryResult.rejected, 1);
     expect(await db.query('sync_items'), hasLength(1));
 
     final atomic = [
       atomicEvent('atomic-valid', fields: {'title': 'inventory-effect'}),
-      atomicEvent('atomic-invalid', fields: {
-        'title': 'financial-effect', 'private_field': 'blocked'
-      }),
+      atomicEvent('atomic-invalid',
+          fields: {'title': 'financial-effect', 'private_field': 'blocked'}),
     ];
-    await expectLater(receiveAtomic(atomic),
-        throwsA(isA<AtomicInboxBatchException>()));
+    await expectLater(
+        receiveAtomic(atomic), throwsA(isA<AtomicInboxBatchException>()));
     expect(await db.query('sync_items'), hasLength(1));
-    expect(await db.query('sync_items',
-        where: 'uuid=?', whereArgs: ['atomic-valid']), isEmpty);
-    expect(await db.query('sync_inbox_batches',
-        where: 'batch_uuid=?',
-        whereArgs: ['atomic-v1:$operationUuid']), isEmpty);
+    expect(
+        await db
+            .query('sync_items', where: 'uuid=?', whereArgs: ['atomic-valid']),
+        isEmpty);
+    expect(
+        await db.query('sync_inbox_batches',
+            where: 'batch_uuid=?', whereArgs: ['atomic-v1:$operationUuid']),
+        isEmpty);
   });
 
   test('atomic operation rejects invalid identity and mismatched branch',
