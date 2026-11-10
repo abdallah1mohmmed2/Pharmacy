@@ -40,6 +40,5 @@ abstract final class SchemaIteration14 {
       payload_hash TEXT NOT NULL,
       acknowledged_at TEXT NOT NULL
     )''');
-
   }
 }
