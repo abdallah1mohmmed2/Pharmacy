@@ -307,23 +307,29 @@ void main() {
             final sent = jsonDecode(request.body) as Map<String, dynamic>;
             expect(sent['payload_hash'], wire.hash);
             expect(sent['envelope'], wire.envelope);
-            return http.Response(jsonEncode({
-              'status': 'COMMITTED',
-              'operation_uuid': uuid,
-              'payload_hash': wire.hash
-            }), 200);
+            return http.Response(
+                jsonEncode({
+                  'status': 'COMMITTED',
+                  'operation_uuid': uuid,
+                  'payload_hash': wire.hash
+                }),
+                200);
           }
           getCalls++;
           expect(request.url.queryParameters['operation_type'], 'CASH_SALE');
           expect(request.url.queryParameters['after'], '0');
-          return http.Response(jsonEncode({
-            'operations': [{
-              'operation_uuid': uuid,
-              'payload_hash': wire.hash,
-              'envelope': wire.envelope,
-            }],
-            'next_cursor': '1',
-          }), 200);
+          return http.Response(
+              jsonEncode({
+                'operations': [
+                  {
+                    'operation_uuid': uuid,
+                    'payload_hash': wire.hash,
+                    'envelope': wire.envelope,
+                  }
+                ],
+                'next_cursor': '1',
+              }),
+              200);
         }),
       );
       await client.sendCapturedSale(a, branchId: 1, operationUuid: uuid);
@@ -331,8 +337,10 @@ void main() {
       expect(postCalls, 1);
       expect(await a.query('financial_sale_delivery_acks'), hasLength(1));
       final cursor = await client.receiveSalePage(c,
-          branchId: 1, branchUuid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-          afterCursor: '0', limit: 20);
+          branchId: 1,
+          branchUuid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          afterCursor: '0',
+          limit: 20);
       expect(cursor, '1');
       expect(getCalls, 1);
       client.close();
