@@ -5,17 +5,20 @@ import '../models/erp_models.dart';
 import '../models/clinical_and_rx_models.dart';
 import 'fefo_allocator_service.dart';
 import 'financial_voucher_operation.dart';
+import 'financial_sale_capture.dart';
 import 'financial_minor_units.dart';
 
 class PostingAndSalesService {
   PostingAndSalesService(
-      {DatabaseHelper? helper, int? financialSyncFractionDigits})
+      {DatabaseHelper? helper, int? financialSyncFractionDigits, bool captureSaleForF10 = false})
       : _helper = helper ?? DatabaseHelper.instance,
-        _financialSyncFractionDigits = financialSyncFractionDigits;
+        _financialSyncFractionDigits = financialSyncFractionDigits,
+        _captureSaleForF10 = captureSaleForF10;
   final DatabaseHelper _helper;
   // Null by default: no financial capture until a trusted currency/identity
   // configuration is approved by the caller. The normal posting is unchanged.
   final int? _financialSyncFractionDigits;
+  final bool _captureSaleForF10;
   final FefoAllocator _fefo = FefoAllocator();
   // RFC 4122 v4 identifiers for NEW postings only. Historical local IDs
   // remain untouched until a reviewed identity-mapping migration exists.
@@ -322,6 +325,10 @@ class PostingAndSalesService {
           lines: journalLines);
       await txn.update('sales_invoices', {'journal_entry_id': entryId},
           where: 'id=?', whereArgs: [invoiceId]);
+      if (_captureSaleForF10) {
+        await FinancialSaleCapture.capture(txn,
+            branchId: branchId, invoiceId: invoiceId);
+      }
       return invoiceId;
     });
   }
