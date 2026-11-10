@@ -265,9 +265,11 @@ void main() {
       expect(encoded.contains('"batch_id"'), isFalse);
       await expectLater(
           FinancialSaleTwoDatabaseReplay.applyVerifiedWire(
-              destination: c, destinationBranchId: 1,
+              destination: c,
+              destinationBranchId: 1,
               expectedBranchUuid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-              envelope: wire.envelope, payloadHash: wire.hash,
+              envelope: wire.envelope,
+              payloadHash: wire.hash,
               trustedRelay: false),
           throwsA(isA<StateError>()));
       final modified = Map<String, Object?>.from(
@@ -275,42 +277,59 @@ void main() {
       (modified['invoice'] as Map)['net_minor'] = 41;
       await expectLater(
           FinancialSaleTwoDatabaseReplay.applyVerifiedWire(
-              destination: c, destinationBranchId: 1,
+              destination: c,
+              destinationBranchId: 1,
               expectedBranchUuid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-              envelope: modified, payloadHash: wire.hash,
+              envelope: modified,
+              payloadHash: wire.hash,
               trustedRelay: true),
           throwsA(isA<StateError>()));
       expect(await c.query('sales_invoices'), isEmpty);
       expect(
           await FinancialSaleTwoDatabaseReplay.applyVerifiedWire(
-              destination: c, destinationBranchId: 1,
+              destination: c,
+              destinationBranchId: 1,
               expectedBranchUuid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-              envelope: wire.envelope, payloadHash: wire.hash,
+              envelope: wire.envelope,
+              payloadHash: wire.hash,
               trustedRelay: true),
           isTrue);
-      expect((await c.query('sales_invoices', where: 'uuid=?',
-          whereArgs: [uuid])).single['net_total'], 40.0);
-      expect((await c.query('batches_fefo', where: 'id=?',
-          whereArgs: [batches[2]])).single['total_units'], 8);
-      expect((await c.query('drugs', where: 'id=?',
-          whereArgs: [ids[2]])).single['stock_total_units'], 8);
+      expect(
+          (await c.query('sales_invoices', where: 'uuid=?', whereArgs: [uuid]))
+              .single['net_total'],
+          40.0);
+      expect(
+          (await c.query('batches_fefo',
+                  where: 'id=?', whereArgs: [batches[2]]))
+              .single['total_units'],
+          8);
+      expect(
+          (await c.query('drugs', where: 'id=?', whereArgs: [ids[2]]))
+              .single['stock_total_units'],
+          8);
       expect(await c.query('journal_lines'), hasLength(4));
       expect(await c.rawQuery('PRAGMA foreign_key_check'), isEmpty);
       expect(
           await FinancialSaleTwoDatabaseReplay.applyVerifiedWire(
-              destination: c, destinationBranchId: 1,
+              destination: c,
+              destinationBranchId: 1,
               expectedBranchUuid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-              envelope: wire.envelope, payloadHash: wire.hash,
+              envelope: wire.envelope,
+              payloadHash: wire.hash,
               trustedRelay: true),
           isFalse);
-      expect(await c.query('stock_movements',
-          where: 'movement_type=?', whereArgs: ['SALE_OUT']), hasLength(1));
+      expect(
+          await c.query('stock_movements',
+              where: 'movement_type=?', whereArgs: ['SALE_OUT']),
+          hasLength(1));
       // Sender receives its own branch event: exact matching echo is a no-op.
       expect(
           await FinancialSaleTwoDatabaseReplay.applyVerifiedWire(
-              destination: a, destinationBranchId: 1,
+              destination: a,
+              destinationBranchId: 1,
               expectedBranchUuid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-              envelope: wire.envelope, payloadHash: wire.hash,
+              envelope: wire.envelope,
+              payloadHash: wire.hash,
               trustedRelay: true),
           isFalse);
     } finally {

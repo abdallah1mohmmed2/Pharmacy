@@ -175,7 +175,8 @@ class FinancialRelayClient {
   }
 
   /// F10: use the existing authenticated HTTPS relay; never send local IDs.
-  Future<void> sendCapturedSale(Database database, {
+  Future<void> sendCapturedSale(
+    Database database, {
     required int branchId,
     required String operationUuid,
   }) async {
@@ -203,15 +204,19 @@ class FinancialRelayClient {
         reply['payload_hash'] != sale.hash) {
       throw const FinancialRelayException('SALE_ACK_INVALID');
     }
-    await database.insert('financial_sale_delivery_acks', {
-      'operation_uuid': operationUuid,
-      'payload_hash': sale.hash,
-      'acknowledged_at': DateTime.now().toUtc().toIso8601String(),
-    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    await database.insert(
+        'financial_sale_delivery_acks',
+        {
+          'operation_uuid': operationUuid,
+          'payload_hash': sale.hash,
+          'acknowledged_at': DateTime.now().toUtc().toIso8601String(),
+        },
+        conflictAlgorithm: ConflictAlgorithm.ignore);
   }
 
   /// Isolated sale stream: never consume voucher cursor positions.
-  Future<String> receiveSalePage(Database database, {
+  Future<String> receiveSalePage(
+    Database database, {
     required int branchId,
     required String branchUuid,
     required String afterCursor,
@@ -222,7 +227,9 @@ class FinancialRelayClient {
     }
     final cursorPattern = RegExp(r'^(0|[1-9][0-9]{0,14})$');
     if (!GlobalUuid.isValid(branchUuid) ||
-        !cursorPattern.hasMatch(afterCursor) || limit < 1 || limit > 100) {
+        !cursorPattern.hasMatch(afterCursor) ||
+        limit < 1 ||
+        limit > 100) {
       throw const FinancialRelayException('INVALID_SALE_CURSOR');
     }
     final uri = _endpoint.replace(queryParameters: {
@@ -234,8 +241,10 @@ class FinancialRelayClient {
     final reply = await _request('GET', uri, null);
     final operations = reply['operations'];
     final cursor = reply['next_cursor'];
-    if (operations is! List || operations.length > limit ||
-        cursor is! String || !cursorPattern.hasMatch(cursor) ||
+    if (operations is! List ||
+        operations.length > limit ||
+        cursor is! String ||
+        !cursorPattern.hasMatch(cursor) ||
         int.parse(cursor) < int.parse(afterCursor) ||
         (operations.isNotEmpty && cursor == afterCursor)) {
       throw const FinancialRelayException('INVALID_SALE_PAGE');
@@ -246,7 +255,8 @@ class FinancialRelayClient {
       }
       final item = Map<String, Object?>.from(raw);
       final envelope = item['envelope'];
-      if (envelope is! Map || envelope.keys.any((key) => key is! String) ||
+      if (envelope is! Map ||
+          envelope.keys.any((key) => key is! String) ||
           item['operation_uuid'] != envelope['operation_uuid'] ||
           item['payload_hash'] is! String) {
         throw const FinancialRelayException('INVALID_SALE_OPERATION');
@@ -264,7 +274,8 @@ class FinancialRelayClient {
 
   /// Explicit cycle, disabled by default and not scheduled by the app.
   /// The ACK and restart cursor are separate from CASH voucher state.
-  Future<({int sent, int pages})> syncSalesOnce(Database database, {
+  Future<({int sent, int pages})> syncSalesOnce(
+    Database database, {
     required int branchId,
     int limit = 20,
   }) async {
@@ -274,8 +285,8 @@ class FinancialRelayClient {
     if (limit < 1 || limit > 100) {
       throw const FinancialRelayException('INVALID_SALE_PAGE_SIZE');
     }
-    final branches = await database.query('branches', columns: ['uuid'],
-        where: 'id=?', whereArgs: [branchId]);
+    final branches = await database.query('branches',
+        columns: ['uuid'], where: 'id=?', whereArgs: [branchId]);
     if (branches.length != 1 ||
         branches.single['uuid'] is! String ||
         !GlobalUuid.isValid(branches.single['uuid'] as String)) {
@@ -290,23 +301,29 @@ class FinancialRelayClient {
       ORDER BY o.created_at, o.operation_uuid LIMIT ?
     ''', [branchId, limit]);
     for (final row in pending) {
-      await sendCapturedSale(database, branchId: branchId,
-          operationUuid: row['operation_uuid'] as String);
+      await sendCapturedSale(database,
+          branchId: branchId, operationUuid: row['operation_uuid'] as String);
     }
     final key = 'financial.sale.v1.yer.cursor.' + branchUuid;
-    final saved = await database.query('app_settings',
-        where: 'setting_key=?', whereArgs: [key]);
+    final saved = await database
+        .query('app_settings', where: 'setting_key=?', whereArgs: [key]);
     var cursor = saved.isEmpty ? '0' : saved.single['value_text'] as String;
     var pages = 0;
     for (var page = 0; page < 20; page++) {
       final next = await receiveSalePage(database,
-          branchId: branchId, branchUuid: branchUuid,
-          afterCursor: cursor, limit: limit);
+          branchId: branchId,
+          branchUuid: branchUuid,
+          afterCursor: cursor,
+          limit: limit);
       if (next == cursor) break;
-      await database.insert('app_settings', {
-        'setting_key': key, 'value_text': next,
-        'updated_at': DateTime.now().toUtc().toIso8601String(),
-      }, conflictAlgorithm: ConflictAlgorithm.replace);
+      await database.insert(
+          'app_settings',
+          {
+            'setting_key': key,
+            'value_text': next,
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace);
       cursor = next;
       pages++;
     }

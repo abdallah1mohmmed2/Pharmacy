@@ -47,8 +47,7 @@ abstract final class SchemaIteration13 {
       if (!names.any((row) => row['name'] == 'uuid')) {
         await db.execute('ALTER TABLE $table ADD COLUMN uuid TEXT');
       }
-      await db.execute(
-          'CREATE UNIQUE INDEX IF NOT EXISTS idx_${table}_uuid '
+      await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_${table}_uuid '
           'ON $table(uuid) WHERE uuid IS NOT NULL');
     }
 

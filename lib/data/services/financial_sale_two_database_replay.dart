@@ -298,7 +298,8 @@ abstract final class FinancialSaleTwoDatabaseReplay {
     if (!trustedRelay) throw StateError('F10_UNTRUSTED_RELAY');
     final w = FinancialSaleWireOperation.prepare(envelope,
         hash: payloadHash, expectedBranchUuid: expectedBranchUuid);
-    final localCapture = await destination.query('financial_sale_capture_outbox',
+    final localCapture = await destination.query(
+        'financial_sale_capture_outbox',
         where: 'operation_uuid=? AND branch_id=?',
         whereArgs: [w.operationUuid, destinationBranchId]);
     if (localCapture.isNotEmpty) {
@@ -306,7 +307,8 @@ abstract final class FinancialSaleTwoDatabaseReplay {
       // echo is idempotent only if its independently rebuilt wire hash matches.
       final local = await FinancialSaleWireOperation.export(destination,
           branchId: destinationBranchId, operationUuid: w.operationUuid);
-      if (local.hash != payloadHash) throw StateError('F10_LOCAL_ECHO_CONFLICT');
+      if (local.hash != payloadHash)
+        throw StateError('F10_LOCAL_ECHO_CONFLICT');
       return false;
     }
     return _applyPrepared(
@@ -434,8 +436,14 @@ abstract final class FinancialSaleTwoDatabaseReplay {
         final d = dstDrugs[k.$1]!;
         dstBatches[entry.key] = ref == null
             ? _one(await txn.query('batches_fefo',
-                where: 'drug_id=? AND warehouse_id=? AND batch_no=? AND expiry_date=?',
-                whereArgs: [d['id'], wh['id'], k.$3, k.$4]))
+                where:
+                    'drug_id=? AND warehouse_id=? AND batch_no=? AND expiry_date=?',
+                whereArgs: [
+                    d['id'],
+                    wh['id'],
+                    k.$3,
+                    k.$4
+                  ]))
             : _one(await txn.query('batches_fefo',
                 where: 'uuid=? AND drug_id=? AND warehouse_id=?',
                 whereArgs: [ref.$2, d['id'], wh['id']]));

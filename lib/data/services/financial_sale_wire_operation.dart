@@ -75,14 +75,21 @@ abstract final class FinancialSaleWireOperation {
   // not from local SQLite IDs. Source movement/allocations lack UUID columns.
   static String _memberUuid(String operationUuid, String kind, int ordinal) {
     final digest = sha256
-        .convert(utf8.encode(operationUuid + ':' + kind + ':' + ordinal.toString()))
+        .convert(
+            utf8.encode(operationUuid + ':' + kind + ':' + ordinal.toString()))
         .toString();
     final raw = digest.substring(0, 32).split('');
     raw[12] = '5';
     raw[16] = '8';
     final h = raw.join();
-    return h.substring(0, 8) + '-' + h.substring(8, 12) + '-' +
-        h.substring(12, 16) + '-' + h.substring(16, 20) + '-' +
+    return h.substring(0, 8) +
+        '-' +
+        h.substring(8, 12) +
+        '-' +
+        h.substring(12, 16) +
+        '-' +
+        h.substring(16, 20) +
+        '-' +
         h.substring(20, 32);
   }
 
@@ -130,8 +137,7 @@ abstract final class FinancialSaleWireOperation {
         journal['source_id'] != invoice['id']) {
       throw StateError('F10_CASH_SALE_REQUIRED');
     }
-    final cashier =
-        await _byId(db, 'users', invoice['cashier_user_id']);
+    final cashier = await _byId(db, 'users', invoice['cashier_user_id']);
     final invoiceWire = <String, Object?>{
       'uuid': operationUuid,
       'date': _date(invoice['invoice_date']),
@@ -195,7 +201,8 @@ abstract final class FinancialSaleWireOperation {
     for (var index = 0; index < allocationSource.length; index++) {
       final a = allocationSource[index];
       final itemId = a['invoice_item_id'];
-      if (itemId is! int || !itemUuid.containsKey(itemId) ||
+      if (itemId is! int ||
+          !itemUuid.containsKey(itemId) ||
           a['returned_qty_units'] != 0) {
         throw StateError('F10_ALLOCATION_INVALID');
       }
@@ -243,13 +250,15 @@ abstract final class FinancialSaleWireOperation {
         'cash_uuid': cashUuid,
         'amount_minor': _minor(payment['amount']),
       });
-      final matches = cashSource.where((c) =>
-          c['cash_account_id'] == payment['cash_account_id'] &&
-          c['amount'] == payment['amount'] &&
-          c['direction'] == 'IN' &&
-          c['tx_type'] == 'SALE' &&
-          c['doc_type'] == 'INVOICE' &&
-          c['doc_id'] == invoice['id']).toList();
+      final matches = cashSource
+          .where((c) =>
+              c['cash_account_id'] == payment['cash_account_id'] &&
+              c['amount'] == payment['amount'] &&
+              c['direction'] == 'IN' &&
+              c['tx_type'] == 'SALE' &&
+              c['doc_type'] == 'INVOICE' &&
+              c['doc_id'] == invoice['id'])
+          .toList();
       if (matches.length != 1) throw StateError('F10_CASH_MOVEMENT_INVALID');
       final c = matches.single;
       cashWires.add({
@@ -309,7 +318,8 @@ abstract final class FinancialSaleWireOperation {
     return (envelope: envelope, hash: hash);
   }
 
-  static SaleWirePrepared prepare(Map<String, Object?> e, {
+  static SaleWirePrepared prepare(
+    Map<String, Object?> e, {
     required String hash,
     String? expectedBranchUuid,
   }) {
@@ -319,13 +329,26 @@ abstract final class FinancialSaleWireOperation {
     if (hash != actual ||
         e['schema_version'] != schemaVersion ||
         e['operation_type'] != 'CASH_SALE' ||
-        e['currency_code'] != 'YER' || e['fraction_digits'] != 0) {
+        e['currency_code'] != 'YER' ||
+        e['fraction_digits'] != 0) {
       throw StateError('F10_WIRE_HASH_OR_VERSION_INVALID');
     }
     _fields(e, {
-      'schema_version', 'operation_type', 'operation_uuid', 'branch_uuid',
-      'currency_code', 'fraction_digits', 'invoice', 'items', 'batches',
-      'allocations', 'movements', 'payments', 'cash', 'journal', 'lines'
+      'schema_version',
+      'operation_type',
+      'operation_uuid',
+      'branch_uuid',
+      'currency_code',
+      'fraction_digits',
+      'invoice',
+      'items',
+      'batches',
+      'allocations',
+      'movements',
+      'payments',
+      'cash',
+      'journal',
+      'lines'
     });
     final branchUuid = _uuid(e['branch_uuid']);
     if (expectedBranchUuid != null && expectedBranchUuid != branchUuid) {
@@ -333,17 +356,33 @@ abstract final class FinancialSaleWireOperation {
     }
     final operationUuid = _uuid(e['operation_uuid']);
     final inv = _map(e['invoice']);
-    _fields(inv, {'uuid','date','cashier_uuid','subtotal_minor','discount_minor',
-      'net_minor','paid_minor','cost_minor'});
-    if (_uuid(inv['uuid']) != operationUuid) throw StateError('F10_INVOICE_MISMATCH');
-    final subtotal = _int(inv['subtotal_minor'], min: 1, max: FinancialMinorUnits.maxMinor);
-    final discount = _int(inv['discount_minor'], max: FinancialMinorUnits.maxMinor);
-    final net = _int(inv['net_minor'], min: 1, max: FinancialMinorUnits.maxMinor);
-    final paid = _int(inv['paid_minor'], min: 1, max: FinancialMinorUnits.maxMinor);
+    _fields(inv, {
+      'uuid',
+      'date',
+      'cashier_uuid',
+      'subtotal_minor',
+      'discount_minor',
+      'net_minor',
+      'paid_minor',
+      'cost_minor'
+    });
+    if (_uuid(inv['uuid']) != operationUuid)
+      throw StateError('F10_INVOICE_MISMATCH');
+    final subtotal =
+        _int(inv['subtotal_minor'], min: 1, max: FinancialMinorUnits.maxMinor);
+    final discount =
+        _int(inv['discount_minor'], max: FinancialMinorUnits.maxMinor);
+    final net =
+        _int(inv['net_minor'], min: 1, max: FinancialMinorUnits.maxMinor);
+    final paid =
+        _int(inv['paid_minor'], min: 1, max: FinancialMinorUnits.maxMinor);
     final cost = _int(inv['cost_minor'], max: FinancialMinorUnits.maxMinor);
-    if (subtotal - discount != net || net != paid) throw StateError('F10_TOTAL_INVALID');
+    if (subtotal - discount != net || net != paid)
+      throw StateError('F10_TOTAL_INVALID');
     final invoice = <String, Object?>{
-      'id': 1, 'uuid': operationUuid, 'invoice_date': _date(inv['date']),
+      'id': 1,
+      'uuid': operationUuid,
+      'invoice_date': _date(inv['date']),
       'total_cost': cost.toDouble(),
     };
     final itemRows = <Map<String, Object?>>[];
@@ -351,8 +390,17 @@ abstract final class FinancialSaleWireOperation {
     final itemDrugUuids = <int, String>{};
     var lineTotal = 0, lineCost = 0;
     for (final x in _list(e['items'], 100)) {
-      _fields(x, {'uuid','drug_uuid','sell_unit','qty_in_sell_unit','qty_units',
-        'unit_price_minor','line_discount_minor','line_total_minor','line_cost_minor'});
+      _fields(x, {
+        'uuid',
+        'drug_uuid',
+        'sell_unit',
+        'qty_in_sell_unit',
+        'qty_units',
+        'unit_price_minor',
+        'line_discount_minor',
+        'line_total_minor',
+        'line_cost_minor'
+      });
       final id = itemRows.length + 1;
       final uuid = _uuid(x['uuid']);
       if (itemIds.containsKey(uuid)) throw StateError('F10_ITEM_DUPLICATE');
@@ -360,18 +408,26 @@ abstract final class FinancialSaleWireOperation {
       itemDrugUuids[id] = _uuid(x['drug_uuid']);
       final qty = _int(x['qty_units'], min: 1);
       final sellQty = _int(x['qty_in_sell_unit'], min: 1);
-      final unitPrice = _int(x['unit_price_minor'], max: FinancialMinorUnits.maxMinor);
-      final off = _int(x['line_discount_minor'], max: FinancialMinorUnits.maxMinor);
-      final total = _int(x['line_total_minor'], max: FinancialMinorUnits.maxMinor);
-      final itemCost = _int(x['line_cost_minor'], max: FinancialMinorUnits.maxMinor);
+      final unitPrice =
+          _int(x['unit_price_minor'], max: FinancialMinorUnits.maxMinor);
+      final off =
+          _int(x['line_discount_minor'], max: FinancialMinorUnits.maxMinor);
+      final total =
+          _int(x['line_total_minor'], max: FinancialMinorUnits.maxMinor);
+      final itemCost =
+          _int(x['line_cost_minor'], max: FinancialMinorUnits.maxMinor);
       if (!['UNIT', 'PACK'].contains(x['sell_unit']) ||
           unitPrice * sellQty - off != total) {
         throw StateError('F10_ITEM_AMOUNT_INVALID');
       }
-      lineTotal += total; lineCost += itemCost;
+      lineTotal += total;
+      lineCost += itemCost;
       itemRows.add({
-        'id': id, 'uuid': uuid, 'sell_unit': x['sell_unit'],
-        'qty_in_sell_unit': sellQty, 'qty_units': qty,
+        'id': id,
+        'uuid': uuid,
+        'sell_unit': x['sell_unit'],
+        'qty_in_sell_unit': sellQty,
+        'qty_units': qty,
         'unit_price_sell_unit': unitPrice.toDouble(),
         'line_discount_amount': off.toDouble(),
         'line_total': total.toDouble(),
@@ -386,7 +442,7 @@ abstract final class FinancialSaleWireOperation {
     final batchUuids = <int, (String, String)>{};
     final batchIds = <String, int>{};
     for (final b in _list(e['batches'], 100)) {
-      _fields(b, {'uuid','drug_uuid','warehouse_uuid'});
+      _fields(b, {'uuid', 'drug_uuid', 'warehouse_uuid'});
       final uuid = _uuid(b['uuid']);
       if (batchIds.containsKey(uuid)) throw StateError('F10_BATCH_DUPLICATE');
       final id = batchIds.length + 1;
@@ -401,27 +457,36 @@ abstract final class FinancialSaleWireOperation {
     final perBatch = <int, int>{};
     final seen = <String>{operationUuid};
     void member(Object? value) {
-      if (!seen.add(_uuid(value))) throw StateError('F10_WIRE_MEMBER_DUPLICATE');
+      if (!seen.add(_uuid(value)))
+        throw StateError('F10_WIRE_MEMBER_DUPLICATE');
     }
+
     member(_map(e['journal'])['uuid']);
-    for (final x in itemRows) { member(x['uuid']); }
+    for (final x in itemRows) {
+      member(x['uuid']);
+    }
     for (final a in _list(e['allocations'], 300)) {
-      _fields(a, {'uuid','item_uuid','batch_uuid','qty_units','unit_cost_minor'});
+      _fields(a,
+          {'uuid', 'item_uuid', 'batch_uuid', 'qty_units', 'unit_cost_minor'});
       member(a['uuid']);
       final item = itemIds[_uuid(a['item_uuid'])];
       final batch = batchIds[_uuid(a['batch_uuid'])];
-      if (item == null || batch == null ||
+      if (item == null ||
+          batch == null ||
           itemDrugUuids[item] != batchKeys[batch]!.$1) {
         throw StateError('F10_WIRE_ALLOCATION_REFERENCE');
       }
       final qty = _int(a['qty_units'], min: 1);
-      final unitCost = _int(a['unit_cost_minor'], max: FinancialMinorUnits.maxMinor);
+      final unitCost =
+          _int(a['unit_cost_minor'], max: FinancialMinorUnits.maxMinor);
       allocated[item] = (allocated[item] ?? 0) + qty;
       allocatedCost[item] = (allocatedCost[item] ?? 0) + qty * unitCost;
       perBatch[batch] = (perBatch[batch] ?? 0) + qty;
       allocations.add({
-        'invoice_item_id': item, 'batch_id': batch,
-        'qty_units': qty, 'unit_cost': unitCost.toDouble(),
+        'invoice_item_id': item,
+        'batch_id': batch,
+        'qty_units': qty,
+        'unit_cost': unitCost.toDouble(),
       });
     }
     for (final i in itemRows) {
@@ -434,25 +499,41 @@ abstract final class FinancialSaleWireOperation {
     final movements = <Map<String, Object?>>[];
     final moved = <int, int>{};
     for (final m in _list(e['movements'], 600)) {
-      _fields(m, {'uuid','batch_uuid','movement_type','qty_units',
-        'unit_cost_minor','unit_price_minor','occurred_at'});
+      _fields(m, {
+        'uuid',
+        'batch_uuid',
+        'movement_type',
+        'qty_units',
+        'unit_cost_minor',
+        'unit_price_minor',
+        'occurred_at'
+      });
       member(m['uuid']);
       final batch = batchIds[_uuid(m['batch_uuid'])];
       if (batch == null) throw StateError('F10_WIRE_MOVEMENT_BATCH');
       final type = m['movement_type'];
       final qty = m['qty_units'];
-      if (!['SALE_OUT','PACK_OPEN'].contains(type) ||
-          qty is! int || (type == 'PACK_OPEN' && qty != 0) ||
+      if (!['SALE_OUT', 'PACK_OPEN'].contains(type) ||
+          qty is! int ||
+          (type == 'PACK_OPEN' && qty != 0) ||
           (type == 'SALE_OUT' && qty >= 0)) {
         throw StateError('F10_WIRE_MOVEMENT_SIGN');
       }
       if (type == 'SALE_OUT') moved[batch] = (moved[batch] ?? 0) - qty;
       movements.add({
-        'batch_id': batch, 'doc_type': 'SALE', 'doc_id': 1,
-        'movement_type': type, 'qty_units': qty,
-        'unit_cost': _int(m['unit_cost_minor'], max: FinancialMinorUnits.maxMinor).toDouble(),
-        'unit_price': _int(m['unit_price_minor'], max: FinancialMinorUnits.maxMinor).toDouble(),
-        'movement_at': _date(m['occurred_at']), 'note': null,
+        'batch_id': batch,
+        'doc_type': 'SALE',
+        'doc_id': 1,
+        'movement_type': type,
+        'qty_units': qty,
+        'unit_cost':
+            _int(m['unit_cost_minor'], max: FinancialMinorUnits.maxMinor)
+                .toDouble(),
+        'unit_price':
+            _int(m['unit_price_minor'], max: FinancialMinorUnits.maxMinor)
+                .toDouble(),
+        'movement_at': _date(m['occurred_at']),
+        'note': null,
       });
     }
     if (moved.length != perBatch.length ||
@@ -465,35 +546,48 @@ abstract final class FinancialSaleWireOperation {
     final paymentAmounts = <String, int>{};
     var paymentTotal = 0;
     for (final x in _list(e['payments'], 100)) {
-      _fields(x, {'uuid','cash_uuid','amount_minor'});
+      _fields(x, {'uuid', 'cash_uuid', 'amount_minor'});
       member(x['uuid']);
       final cashUuid = _uuid(x['cash_uuid']);
-      if (cashAccountIds.containsKey(cashUuid)) throw StateError('F10_CASH_ACCOUNT_DUPLICATE');
+      if (cashAccountIds.containsKey(cashUuid))
+        throw StateError('F10_CASH_ACCOUNT_DUPLICATE');
       final id = cashAccountIds.length + 1;
       cashAccountIds[cashUuid] = id;
       cashAccountUuids[id] = cashUuid;
-      final value = _int(x['amount_minor'], min: 1, max: FinancialMinorUnits.maxMinor);
+      final value =
+          _int(x['amount_minor'], min: 1, max: FinancialMinorUnits.maxMinor);
       paymentAmounts[cashUuid] = value;
       paymentTotal += value;
-      payments.add({'uuid': x['uuid'], 'cash_account_id': id,
-        'amount': value.toDouble(), 'method': 'CASH'});
+      payments.add({
+        'uuid': x['uuid'],
+        'cash_account_id': id,
+        'amount': value.toDouble(),
+        'method': 'CASH'
+      });
     }
     final cash = <Map<String, Object?>>[];
     final cashSeen = <String>{};
     var cashTotal = 0;
     for (final x in _list(e['cash'], 100)) {
-      _fields(x, {'uuid','cash_uuid','amount_minor','date'});
+      _fields(x, {'uuid', 'cash_uuid', 'amount_minor', 'date'});
       member(x['uuid']);
       final cashUuid = _uuid(x['cash_uuid']);
-      final value = _int(x['amount_minor'], min: 1, max: FinancialMinorUnits.maxMinor);
+      final value =
+          _int(x['amount_minor'], min: 1, max: FinancialMinorUnits.maxMinor);
       if (!cashSeen.add(cashUuid) || paymentAmounts[cashUuid] != value) {
         throw StateError('F10_WIRE_CASH_MISMATCH');
       }
       cashTotal += value;
-      cash.add({'uuid': x['uuid'], 'cash_account_id': cashAccountIds[cashUuid],
-        'amount': value.toDouble(), 'tx_date': _date(x['date'])});
+      cash.add({
+        'uuid': x['uuid'],
+        'cash_account_id': cashAccountIds[cashUuid],
+        'amount': value.toDouble(),
+        'tx_date': _date(x['date'])
+      });
     }
-    if (cash.length != payments.length || paymentTotal != net || cashTotal != net) {
+    if (cash.length != payments.length ||
+        paymentTotal != net ||
+        cashTotal != net) {
       throw StateError('F10_WIRE_PAYMENTS_NOT_BALANCED');
     }
     final accounts = <String, int>{};
@@ -501,9 +595,9 @@ abstract final class FinancialSaleWireOperation {
     final lines = <Map<String, Object?>>[];
     var dr = 0, cr = 0;
     final journal = _map(e['journal']);
-    _fields(journal, {'uuid','date'});
+    _fields(journal, {'uuid', 'date'});
     for (final l in _list(e['lines'], 100)) {
-      _fields(l, {'uuid','account_uuid','dr_minor','cr_minor'});
+      _fields(l, {'uuid', 'account_uuid', 'dr_minor', 'cr_minor'});
       member(l['uuid']);
       final account = _uuid(l['account_uuid']);
       final accId = accounts.putIfAbsent(account, () {
@@ -516,22 +610,43 @@ abstract final class FinancialSaleWireOperation {
       if ((debit == 0) == (credit == 0)) {
         throw StateError('F10_WIRE_JOURNAL_SIDE');
       }
-      dr += debit; cr += credit;
-      lines.add({'uuid': l['uuid'], 'account_id': accId,
-        'dr_amount': debit.toDouble(), 'cr_amount': credit.toDouble(),
-        'memo': null});
+      dr += debit;
+      cr += credit;
+      lines.add({
+        'uuid': l['uuid'],
+        'account_id': accId,
+        'dr_amount': debit.toDouble(),
+        'cr_amount': credit.toDouble(),
+        'memo': null
+      });
     }
-    if (dr != cr || dr != net + cost) throw StateError('F10_WIRE_JOURNAL_TOTALS');
+    if (dr != cr || dr != net + cost)
+      throw StateError('F10_WIRE_JOURNAL_TOTALS');
     return SaleWirePrepared(
-      operationUuid: operationUuid, branchUuid: branchUuid, hash: hash,
-      invoice: invoice, items: itemRows, allocations: allocations,
-      movements: movements, payments: payments, cash: cash,
-      journal: {'id': 1, 'uuid': journal['uuid'],
-        'entry_date': _date(journal['date'])},
-      lines: lines, net: net, paid: paid, subtotal: subtotal,
-      discount: discount, cashierUuid: _uuid(inv['cashier_uuid']),
-      itemDrugUuids: itemDrugUuids, batchKeys: batchKeys,
-      batchUuids: batchUuids, accountUuids: accountUuids,
+      operationUuid: operationUuid,
+      branchUuid: branchUuid,
+      hash: hash,
+      invoice: invoice,
+      items: itemRows,
+      allocations: allocations,
+      movements: movements,
+      payments: payments,
+      cash: cash,
+      journal: {
+        'id': 1,
+        'uuid': journal['uuid'],
+        'entry_date': _date(journal['date'])
+      },
+      lines: lines,
+      net: net,
+      paid: paid,
+      subtotal: subtotal,
+      discount: discount,
+      cashierUuid: _uuid(inv['cashier_uuid']),
+      itemDrugUuids: itemDrugUuids,
+      batchKeys: batchKeys,
+      batchUuids: batchUuids,
+      accountUuids: accountUuids,
       cashAccountUuids: cashAccountUuids,
     );
   }
@@ -539,19 +654,36 @@ abstract final class FinancialSaleWireOperation {
 
 class SaleWirePrepared {
   const SaleWirePrepared({
-    required this.operationUuid, required this.branchUuid, required this.hash,
-    required this.invoice, required this.items, required this.allocations,
-    required this.movements, required this.payments, required this.cash,
-    required this.journal, required this.lines, required this.net,
-    required this.paid, required this.subtotal, required this.discount,
-    required this.cashierUuid, required this.itemDrugUuids,
-    required this.batchKeys, required this.batchUuids,
-    required this.accountUuids, required this.cashAccountUuids,
+    required this.operationUuid,
+    required this.branchUuid,
+    required this.hash,
+    required this.invoice,
+    required this.items,
+    required this.allocations,
+    required this.movements,
+    required this.payments,
+    required this.cash,
+    required this.journal,
+    required this.lines,
+    required this.net,
+    required this.paid,
+    required this.subtotal,
+    required this.discount,
+    required this.cashierUuid,
+    required this.itemDrugUuids,
+    required this.batchKeys,
+    required this.batchUuids,
+    required this.accountUuids,
+    required this.cashAccountUuids,
   });
   final String operationUuid, branchUuid, hash, cashierUuid;
   final Map<String, Object?> invoice, journal;
-  final List<Map<String, Object?>> items, allocations, movements,
-      payments, cash, lines;
+  final List<Map<String, Object?>> items,
+      allocations,
+      movements,
+      payments,
+      cash,
+      lines;
   final int net, paid, subtotal, discount;
   final Map<int, String> itemDrugUuids, accountUuids, cashAccountUuids;
   final Map<int, (String, String, String, String)> batchKeys;
