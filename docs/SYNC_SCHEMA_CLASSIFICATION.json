@@ -200,6 +200,12 @@
       "reason_ar": "إيصال منع تطبيق السند المالي مرتين على هذا الجهاز؛ محلي وممنوع في المزامنة العامة.",
       "lifecycle": "schema"
     },
+    "financial_sale_capture_outbox": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "لقطة فاتورة بيع مالية ومخزنية محلية؛ تحتوي معرفات محلية ولا تصلح للترحيل أو المزامنة العامة.",
+      "lifecycle": "schema"
+    },
     "financial_operation_outbox": {
       "classification": "sensitive",
       "sync_allowed": false,
