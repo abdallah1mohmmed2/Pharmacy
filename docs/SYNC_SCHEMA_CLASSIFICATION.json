@@ -200,16 +200,22 @@
       "reason_ar": "إيصال منع تطبيق السند المالي مرتين على هذا الجهاز؛ محلي وممنوع في المزامنة العامة.",
       "lifecycle": "schema"
     },
+    "financial_operation_outbox": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "غلاف عملية سند مالي يحتوي مراجع وأرصدة مالية؛ لا يمر عبر المزامنة العامة ولا يرسل قبل تحقق موثوق.",
+      "lifecycle": "schema"
+    },
     "financial_sale_capture_outbox": {
       "classification": "sensitive",
       "sync_allowed": false,
       "reason_ar": "لقطة فاتورة بيع مالية ومخزنية محلية؛ تحتوي معرفات محلية ولا تصلح للترحيل أو المزامنة العامة.",
       "lifecycle": "schema"
     },
-    "financial_operation_outbox": {
-      "classification": "sensitive",
+    "financial_sale_delivery_acks": {
+      "classification": "local",
       "sync_allowed": false,
-      "reason_ar": "غلاف عملية سند مالي يحتوي مراجع وأرصدة مالية؛ لا يمر عبر المزامنة العامة ولا يرسل قبل تحقق موثوق.",
+      "reason_ar": "إيصال تأكيد إرسال فاتورة البيع المالية عبر Relay؛ محلي ولا يمر بالمزامنة العامة.",
       "lifecycle": "schema"
     },
     "fiscal_periods": {
