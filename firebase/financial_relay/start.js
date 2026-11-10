@@ -12,6 +12,8 @@ if (!admin.apps.length) admin.initializeApp();
 // after an operator approves master-data registration and end-to-end security.
 // Never run it using emulator credentials in production.
 const enabled = process.env.PHARMACY_FINANCIAL_RELAY_ENABLED === 'true';
+// Separate F10 release gate. Existing CASH voucher relay is unchanged.
+const saleEnabled = process.env.PHARMACY_FINANCIAL_SALES_ENABLED === 'true';
 const port = Number(process.env.PORT || 8085);
 if (!Number.isInteger(port)||port<1||port>65535) throw new Error('Invalid PORT');
 
@@ -19,6 +21,7 @@ const handler = createFinancialRelayHandler({
   verifyIdToken: (token,checkRevoked)=>admin.auth().verifyIdToken(token,checkRevoked),
   store: new FirestoreFinanceStore(admin.firestore()),
   enabled,
+  saleEnabled,
 });
 http.createServer(handler).listen(port,()=>{
   process.stdout.write('Financial relay HTTP server initialized; enabled='+enabled+'\n');
