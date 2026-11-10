@@ -515,7 +515,7 @@ class FirestoreSyncWorker {
           where: 'id=?', whereArgs: [value], limit: 1);
       if (parent.isEmpty ||
           parent.first['uuid'] is! String ||
-          (parent.first['uuid'] as String).isEmpty) {
+          !GlobalUuid.isValid(parent.first['uuid'] as String)) {
         throw StateError('تعذر تحويل العلاقة $table.$column إلى UUID');
       }
       result[column] = {'table': parentTable, 'uuid': parent.first['uuid']};
