@@ -71,6 +71,7 @@ void main() {
         'units_per_pack': 1,
         'sell_price_unit': 20.0,
         'sell_price_pack': 20.0,
+        'stock_total_units': 10,
       });
       final warehouseId = await source.insert('warehouses', {
         'branch_id': 1,
