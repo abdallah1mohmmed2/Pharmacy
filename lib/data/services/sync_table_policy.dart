@@ -15,8 +15,10 @@ abstract final class SyncTablePolicy {
     'warehouses',
     'shelf_locations',
     'batches_fefo',
-    'stock_movements',
-    'sales_invoice_item_batches',
+    // Append-only stock effects must travel inside their approved atomic
+    // operation contract, never as orphaned generic rows.
+    // Sale allocations depend on a protected financial invoice and cannot
+    // be replayed independently via row synchronization.
     'stocktaking_sessions',
     'stocktaking_lines',
     'disposals',
