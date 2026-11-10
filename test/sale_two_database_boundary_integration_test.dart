@@ -52,7 +52,8 @@ void main() {
     databaseFactory = databaseFactoryFfi;
   });
 
-  test('real postSale commits invoice, FEFO movement and journal only at source',
+  test(
+      'real postSale commits invoice, FEFO movement and journal only at source',
       () async {
     final dir = await Directory.systemTemp.createTemp('sale-two-db-');
     Database? source;
@@ -90,34 +91,51 @@ void main() {
         'pack_cost': 5.0,
       });
       final cashId = (await source.query('cash_accounts',
-          columns: ['id'], where: 'code=?', whereArgs: ['CASH-DRAWER']))
+              columns: ['id'], where: 'code=?', whereArgs: ['CASH-DRAWER']))
           .single['id'] as int;
-      final posting = PostingAndSalesService(
-          helper: DatabaseHelper.forTesting(source));
+      final posting =
+          PostingAndSalesService(helper: DatabaseHelper.forTesting(source));
       final invoiceId = await posting.postSale(
         branchId: 1,
         cashierUserId: 1,
-        items: [CartItemModel(
-            drug: DrugModel(id: drugId, unitsPerPack: 1,
-                sellPriceUnit: 20.0, sellPricePack: 20.0),
-            sellUnit: 'UNIT', quantity: 2)],
+        items: [
+          CartItemModel(
+              drug: DrugModel(
+                  id: drugId,
+                  unitsPerPack: 1,
+                  sellPriceUnit: 20.0,
+                  sellPricePack: 20.0),
+              sellUnit: 'UNIT',
+              quantity: 2)
+        ],
         saleType: 'CASH',
-        payments: [(cashAccountId: cashId, amount: 40.0,
-            method: 'CASH', walletRef: null)],
+        payments: [
+          (cashAccountId: cashId, amount: 40.0, method: 'CASH', walletRef: null)
+        ],
         clinicalVerdict: ClinicalVerdict([]),
       );
-      expect(await source.query('sales_invoices',
-          where: 'id=?', whereArgs: [invoiceId]), hasLength(1));
-      expect(await source.query('sales_invoice_items',
-          where: 'invoice_id=?', whereArgs: [invoiceId]), hasLength(1));
-      expect(await source.query('stock_movements',
-          where: 'doc_type=? AND doc_id=?',
-          whereArgs: ['SALE', invoiceId]), isNotEmpty);
-      expect((await source.query('batches_fefo',
-          where: 'id=?', whereArgs: [batchId])).single['total_units'], 8);
-      expect(await source.query('journal_entries',
-          where: 'source_type=? AND source_id=?',
-          whereArgs: ['SALE', invoiceId]), hasLength(1));
+      expect(
+          await source
+              .query('sales_invoices', where: 'id=?', whereArgs: [invoiceId]),
+          hasLength(1));
+      expect(
+          await source.query('sales_invoice_items',
+              where: 'invoice_id=?', whereArgs: [invoiceId]),
+          hasLength(1));
+      expect(
+          await source.query('stock_movements',
+              where: 'doc_type=? AND doc_id=?', whereArgs: ['SALE', invoiceId]),
+          isNotEmpty);
+      expect(
+          (await source
+                  .query('batches_fefo', where: 'id=?', whereArgs: [batchId]))
+              .single['total_units'],
+          8);
+      expect(
+          await source.query('journal_entries',
+              where: 'source_type=? AND source_id=?',
+              whereArgs: ['SALE', invoiceId]),
+          hasLength(1));
       expect(await source.query('financial_operation_outbox'), isEmpty,
           reason: 'F10 sale transport must not be inferred from CASH vouchers');
       expect(await target.query('sales_invoices'), isEmpty);
