@@ -426,8 +426,30 @@ class FirestoreSyncWorker {
       payload['branch_id'] = branchUuid;
       payload['sync_version'] = version;
       payload['sync_status'] = 'SYNCED';
-      final relations =
-          await _relationsForRow(db, table, current, payload.keys.toSet());
+      // Historical warehouse/batch parents may deliberately have no trusted
+      // UUID yet. Quarantine only this event; never infer a cross-device
+      // identity from a local SQLite ID or block unrelated queue entries.
+      late final Map<String, Object?> relations;
+      try {
+        relations =
+            await _relationsForRow(db, table, current, payload.keys.toSet());
+      } on FormatException catch (error) {
+        await db.update(
+          'sync_queue',
+          {'status': 'CONFLICT', 'last_error': error.message},
+          where: 'id=?',
+          whereArgs: [queueRow['id']],
+        );
+        continue;
+      } on StateError catch (error) {
+        await db.update(
+          'sync_queue',
+          {'status': 'CONFLICT', 'last_error': error.message},
+          where: 'id=?',
+          whereArgs: [queueRow['id']],
+        );
+        continue;
+      }
       payload['__relations'] = relations;
       final operation = queueRow['operation'] as String;
       final eventUuid = _hash('$table|$uuid|$version|$operation');
