@@ -249,7 +249,7 @@ class FirestoreInboxProcessor {
     final payload = event['payload'];
     final relations = event['relations'];
     if (!_identifier.hasMatch(table) ||
-        uuid.isEmpty ||
+        !GlobalUuid.isValid(uuid) ||
         version < 1 ||
         !{'INSERT', 'UPDATE', 'SOFT_DELETE'}.contains(operation) ||
         payload is! Map ||
@@ -298,7 +298,7 @@ class FirestoreInboxProcessor {
             relation['table'] != matching.single['table'] ||
             !_allowedTables.contains(relation['table']) ||
             relation['uuid'] is! String ||
-            (relation['uuid'] as String).isEmpty) {
+            !GlobalUuid.isValid(relation['uuid'] as String)) {
           throw const FormatException('SYNC_PAYLOAD_POLICY_REJECTED');
         }
       }
