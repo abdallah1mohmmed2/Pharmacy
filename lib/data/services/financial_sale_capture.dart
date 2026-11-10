@@ -30,21 +30,25 @@ abstract final class FinancialSaleCapture {
       return FinancialMinorUnits.parseYer(value.toString());
     }
 
-    final branch = one('BRANCH', await txn.query('branches',
-        where: 'id=?', whereArgs: [branchId]));
-    final invoice = one('INVOICE', await txn.query('sales_invoices',
-        where: 'id=? AND branch_id=?', whereArgs: [invoiceId, branchId]));
-    final journal = one('JOURNAL', await txn.query('journal_entries',
-        where: 'id=? AND branch_id=?',
-        whereArgs: [invoice['journal_entry_id'], branchId]));
+    final branch = one('BRANCH',
+        await txn.query('branches', where: 'id=?', whereArgs: [branchId]));
+    final invoice = one(
+        'INVOICE',
+        await txn.query('sales_invoices',
+            where: 'id=? AND branch_id=?', whereArgs: [invoiceId, branchId]));
+    final journal = one(
+        'JOURNAL',
+        await txn.query('journal_entries',
+            where: 'id=? AND branch_id=?',
+            whereArgs: [invoice['journal_entry_id'], branchId]));
     if (journal['source_type'] != 'SALE' || journal['source_id'] != invoiceId) {
       throw StateError('F10_JOURNAL_SOURCE_MISMATCH');
     }
     final items = await txn.query('sales_invoice_items',
         where: 'invoice_id=?', whereArgs: [invoiceId]);
     if (items.isEmpty) throw StateError('F10_ITEMS_MISSING');
-    final payments = await txn.query('sales_payments',
-        where: 'invoice_id=?', whereArgs: [invoiceId]);
+    final payments = await txn
+        .query('sales_payments', where: 'invoice_id=?', whereArgs: [invoiceId]);
     final cash = await txn.query('cash_transactions',
         where: "doc_type='INVOICE' AND doc_id=? AND branch_id=?",
         whereArgs: [invoiceId, branchId]);
@@ -67,7 +71,8 @@ abstract final class FinancialSaleCapture {
     final remaining = money(invoice['remaining_alayh']);
     if (paid + remaining != net ||
         items.fold<int>(0, (s, i) => s + money(i['line_total'])) -
-                money(invoice['discount_amount']) != net ||
+                money(invoice['discount_amount']) !=
+            net ||
         payments.fold<int>(0, (s, i) => s + money(i['amount'])) != paid) {
       throw StateError('F10_TOTAL_MISMATCH');
     }

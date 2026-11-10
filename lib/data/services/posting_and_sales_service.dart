@@ -10,7 +10,9 @@ import 'financial_minor_units.dart';
 
 class PostingAndSalesService {
   PostingAndSalesService(
-      {DatabaseHelper? helper, int? financialSyncFractionDigits, bool captureSaleForF10 = false})
+      {DatabaseHelper? helper,
+      int? financialSyncFractionDigits,
+      bool captureSaleForF10 = false})
       : _helper = helper ?? DatabaseHelper.instance,
         _financialSyncFractionDigits = financialSyncFractionDigits,
         _captureSaleForF10 = captureSaleForF10;
