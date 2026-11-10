@@ -298,6 +298,17 @@ abstract final class FinancialSaleTwoDatabaseReplay {
     if (!trustedRelay) throw StateError('F10_UNTRUSTED_RELAY');
     final w = FinancialSaleWireOperation.prepare(envelope,
         hash: payloadHash, expectedBranchUuid: expectedBranchUuid);
+    final localCapture = await destination.query('financial_sale_capture_outbox',
+        where: 'operation_uuid=? AND branch_id=?',
+        whereArgs: [w.operationUuid, destinationBranchId]);
+    if (localCapture.isNotEmpty) {
+      // The sender also receives its own branch stream. A genuine local
+      // echo is idempotent only if its independently rebuilt wire hash matches.
+      final local = await FinancialSaleWireOperation.export(destination,
+          branchId: destinationBranchId, operationUuid: w.operationUuid);
+      if (local.hash != payloadHash) throw StateError('F10_LOCAL_ECHO_CONFLICT');
+      return false;
+    }
     return _applyPrepared(
       destination: destination,
       destinationBranchId: destinationBranchId,
