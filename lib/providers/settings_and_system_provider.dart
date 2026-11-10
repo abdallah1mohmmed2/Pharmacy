@@ -172,8 +172,19 @@ class SettingsAndSystemProvider extends ChangeNotifier {
   Future<void> _configureCloudSyncTimer() async {
     _cloudSyncTimer?.cancel();
     _cloudSyncTimer = null;
-    if (settings.getJson(SettingKey.cloudSync)['enabled'] != true) {
+    final config = settings.getJson(SettingKey.cloudSync);
+    if (config['enabled'] != true) {
       cloudSyncStatus = 'المزامنة متوقفة';
+      notifyListeners();
+      return;
+    }
+    if ((config['provider'] ?? 'firestore') != 'firestore') {
+      cloudSyncStatus = 'مزود المزامنة المحدد غير مدعوم';
+      notifyListeners();
+      return;
+    }
+    if ((config['project_id']?.toString().trim() ?? '').isEmpty) {
+      cloudSyncStatus = 'أدخل Firebase project_id في الإعداد 35';
       notifyListeners();
       return;
     }
