@@ -70,6 +70,13 @@ abstract final class SchemaIteration13 {
       BEFORE DELETE ON financial_sale_capture_outbox
       BEGIN SELECT RAISE(ABORT, 'F10_CAPTURE_IMMUTABLE'); END''');
 
+    // Separate ACK ledger: capture snapshots remain strictly immutable.
+    await db.execute('''CREATE TABLE IF NOT EXISTS financial_sale_delivery_acks(
+      operation_uuid TEXT PRIMARY KEY,
+      payload_hash TEXT NOT NULL,
+      acknowledged_at TEXT NOT NULL
+    )''');
+
     // Status may advance once a trusted relay acknowledges the exact hash.
     // The envelope itself cannot be modified after source transaction commit.
     await db
