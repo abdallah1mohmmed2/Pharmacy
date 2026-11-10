@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -23,6 +24,7 @@ import 'package:global_enterprise_pharmacy_erp/data/models/clinical_and_rx_model
 import 'package:global_enterprise_pharmacy_erp/data/services/posting_and_sales_service.dart';
 import 'package:global_enterprise_pharmacy_erp/data/services/financial_domain_gate.dart';
 import 'package:global_enterprise_pharmacy_erp/data/services/financial_sale_two_database_replay.dart';
+import 'package:global_enterprise_pharmacy_erp/data/services/financial_sale_wire_operation.dart';
 
 Future<Database> openSaleDatabase(String path) async {
   final db = await databaseFactoryFfi.openDatabase(path,
@@ -59,10 +61,12 @@ void main() {
     final dir = await Directory.systemTemp.createTemp('f10-actual-transfer-');
     Database? a;
     Database? b;
+    Database? c;
     try {
       a = await openSaleDatabase(dir.path + '/a.db');
       b = await openSaleDatabase(dir.path + '/b.db');
-      for (final db in [a, b]) {
+      c = await openSaleDatabase(dir.path + '/c.db');
+      for (final db in [a, b, c]) {
         await db.update(
             'branches', {'uuid': 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'},
             where: 'id=?', whereArgs: [1]);
@@ -103,7 +107,7 @@ void main() {
       });
       final ids = <int>[];
       final batches = <int>[];
-      for (final db in [a, b]) {
+      for (final db in [a, b, c]) {
         final drugId = await db.insert('drugs', {
           'uuid': 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
           'branch_id': 1,
@@ -117,6 +121,7 @@ void main() {
           'stock_total_units': 10,
         });
         final wh = await db.insert('warehouses', {
+          'uuid': '55555555-5555-4555-8555-555555555555',
           'branch_id': 1,
           'code': 'F10-WH',
           'name_ar': 'مخزن مشترك',
@@ -124,6 +129,7 @@ void main() {
           'created_at': '2026-11-10',
         });
         final batch = await db.insert('batches_fefo', {
+          'uuid': '66666666-6666-4666-8666-666666666666',
           'drug_id': drugId,
           'warehouse_id': wh,
           'batch_no': 'F10-B',
@@ -249,9 +255,67 @@ void main() {
               whereArgs: ['SALE', dest['id'], 'SALE_OUT']),
           hasLength(1));
       expect(await b.rawQuery('PRAGMA foreign_key_check'), isEmpty);
+
+      // F10 independent UUID-only wire: destination C has no source DB handle.
+      final wire = await FinancialSaleWireOperation.export(a,
+          branchId: 1, operationUuid: uuid);
+      final encoded = jsonEncode(wire.envelope);
+      expect(encoded.contains('"invoice_id"'), isFalse);
+      expect(encoded.contains('"drug_id"'), isFalse);
+      expect(encoded.contains('"batch_id"'), isFalse);
+      await expectLater(
+          FinancialSaleTwoDatabaseReplay.applyVerifiedWire(
+              destination: c, destinationBranchId: 1,
+              expectedBranchUuid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+              envelope: wire.envelope, payloadHash: wire.hash,
+              trustedRelay: false),
+          throwsA(isA<StateError>()));
+      final modified = Map<String, Object?>.from(
+          jsonDecode(jsonEncode(wire.envelope)) as Map);
+      (modified['invoice'] as Map)['net_minor'] = 41;
+      await expectLater(
+          FinancialSaleTwoDatabaseReplay.applyVerifiedWire(
+              destination: c, destinationBranchId: 1,
+              expectedBranchUuid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+              envelope: modified, payloadHash: wire.hash,
+              trustedRelay: true),
+          throwsA(isA<StateError>()));
+      expect(await c.query('sales_invoices'), isEmpty);
+      expect(
+          await FinancialSaleTwoDatabaseReplay.applyVerifiedWire(
+              destination: c, destinationBranchId: 1,
+              expectedBranchUuid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+              envelope: wire.envelope, payloadHash: wire.hash,
+              trustedRelay: true),
+          isTrue);
+      expect((await c.query('sales_invoices', where: 'uuid=?',
+          whereArgs: [uuid])).single['net_total'], 40.0);
+      expect((await c.query('batches_fefo', where: 'id=?',
+          whereArgs: [batches[2]])).single['total_units'], 8);
+      expect((await c.query('drugs', where: 'id=?',
+          whereArgs: [ids[2]])).single['stock_total_units'], 8);
+      expect(await c.query('journal_lines'), hasLength(4));
+      expect(await c.rawQuery('PRAGMA foreign_key_check'), isEmpty);
+      expect(
+          await FinancialSaleTwoDatabaseReplay.applyVerifiedWire(
+              destination: c, destinationBranchId: 1,
+              expectedBranchUuid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+              envelope: wire.envelope, payloadHash: wire.hash,
+              trustedRelay: true),
+          isFalse);
+      expect(await c.query('stock_movements'), hasLength(1));
+      // Sender receives its own branch event: exact matching echo is a no-op.
+      expect(
+          await FinancialSaleTwoDatabaseReplay.applyVerifiedWire(
+              destination: a, destinationBranchId: 1,
+              expectedBranchUuid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+              envelope: wire.envelope, payloadHash: wire.hash,
+              trustedRelay: true),
+          isFalse);
     } finally {
       if (a != null) await a.close();
       if (b != null) await b.close();
+      if (c != null) await c.close();
       await dir.delete(recursive: true);
     }
   });
