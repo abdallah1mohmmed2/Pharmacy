@@ -2,6 +2,8 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/database_helper.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_builder.dart';
@@ -25,6 +27,7 @@ import 'package:global_enterprise_pharmacy_erp/data/services/posting_and_sales_s
 import 'package:global_enterprise_pharmacy_erp/data/services/financial_domain_gate.dart';
 import 'package:global_enterprise_pharmacy_erp/data/services/financial_sale_two_database_replay.dart';
 import 'package:global_enterprise_pharmacy_erp/data/services/financial_sale_wire_operation.dart';
+import 'package:global_enterprise_pharmacy_erp/data/services/financial_relay_client.dart';
 
 Future<Database> openSaleDatabase(String path) async {
   final db = await databaseFactoryFfi.openDatabase(path,
@@ -285,15 +288,50 @@ void main() {
               trustedRelay: true),
           throwsA(isA<StateError>()));
       expect(await c.query('sales_invoices'), isEmpty);
-      expect(
-          await FinancialSaleTwoDatabaseReplay.applyVerifiedWire(
-              destination: c,
-              destinationBranchId: 1,
-              expectedBranchUuid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-              envelope: wire.envelope,
-              payloadHash: wire.hash,
-              trustedRelay: true),
-          isTrue);
+      // The Dart HTTP client must carry the UUID-only envelope through the
+      // authenticated relay route; the destination still has no source handle.
+      var postCalls = 0;
+      var getCalls = 0;
+      final client = FinancialRelayClient(
+        endpoint: Uri.parse('https://relay.invalid/v1/operations'),
+        idTokenProvider: () async => 'verified-id-token',
+        saleTransportEnabled: true,
+        client: MockClient((request) async {
+          expect(request.headers['authorization'], 'Bearer verified-id-token');
+          if (request.method == 'POST') {
+            postCalls++;
+            final sent = jsonDecode(request.body) as Map<String, dynamic>;
+            expect(sent['payload_hash'], wire.hash);
+            expect(sent['envelope'], wire.envelope);
+            return http.Response(jsonEncode({
+              'status': 'COMMITTED',
+              'operation_uuid': uuid,
+              'payload_hash': wire.hash
+            }), 200);
+          }
+          getCalls++;
+          expect(request.url.queryParameters['operation_type'], 'CASH_SALE');
+          expect(request.url.queryParameters['after'], '0');
+          return http.Response(jsonEncode({
+            'operations': [{
+              'operation_uuid': uuid,
+              'payload_hash': wire.hash,
+              'envelope': wire.envelope,
+            }],
+            'next_cursor': '1',
+          }), 200);
+        }),
+      );
+      await client.sendCapturedSale(a, branchId: 1, operationUuid: uuid);
+      await client.sendCapturedSale(a, branchId: 1, operationUuid: uuid);
+      expect(postCalls, 1);
+      expect(await a.query('financial_sale_delivery_acks'), hasLength(1));
+      final cursor = await client.receiveSalePage(c,
+          branchId: 1, branchUuid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          afterCursor: '0', limit: 20);
+      expect(cursor, '1');
+      expect(getCalls, 1);
+      client.close();
       expect(
           (await c.query('sales_invoices', where: 'uuid=?', whereArgs: [uuid]))
               .single['net_total'],
