@@ -1,6 +1,6 @@
 # جرد مخطط SQLite وتصنيف المزامنة — P0-04
 
-المصدر المراجع: `3dd6ec22e335d544ba4869e7e9597e836c129a73`؛ قاعدة البيانات v16.
+المصدر المراجع: `3dd6ec22e335d544ba4869e7e9597e836c129a73`؛ قاعدة البيانات v17.
 
 هذا جرد لجميع تعريفات TABLE وVIRTUAL TABLE وVIEW وأهداف RENAME في ملفات lib/**/*.dart، بما فيها الترحيلات والخدمات والمستودعات. تعدد تعريف جدول في الترحيلات لا يزيد العدد.
 
@@ -18,7 +18,7 @@
 - «قابل للمزامنة» يصف قائمة السماح البرمجية الحالية فقط، ولا يثبت سلامة دورة مالية أو تشغيل جهازين. الحقول تحكمها sync_payload_policy.dart.
 - لا يغيّر هذا الجرد قائمة السماح أو قاعدة البيانات، ولا يفعّل Firebase.
 - الجداول المالية والشخصية غير المعتمدة تبقى محظورة. أرصدة وحركات المخزون المرتبطة بها تحتاج P0-05 وP0-06 قبل اعتماد التشغيل.
-- فحص المصدر لا ينفذ Dart ولا SQL ولا يدعي استخراج كل عمود أو كل علاقة. اختبار قاعدة البيانات يقارن الجداول والعروض الفعلية في إنشاء v16 بالجرد؛ تغير صيغة DDL أو استعمال أسماء ديناميكية يتطلب تحديث الفاحص ومراجعة صريحة.
+- فحص المصدر لا ينفذ Dart ولا SQL ولا يدعي استخراج كل عمود أو كل علاقة. اختبار قاعدة البيانات يقارن الجداول والعروض الفعلية في إنشاء v17 بالجرد؛ تغير صيغة DDL أو استعمال أسماء ديناميكية يتطلب تحديث الفاحص ومراجعة صريحة.
 - الأسماء القديمة تنشأ حسب مسار الترحيل؛ branch_identity_provisioning ينشأ عند اعتماد الهوية، وcatalog_cache_fts ينشأ عند توفر FTS5.
 - sqlite_sequence وsqlite_stat* كائنات داخلية تديرها SQLite. جداول FTS5 الداخلية catalog_cache_fts_data وcatalog_cache_fts_idx وcatalog_cache_fts_docsize وcatalog_cache_fts_config مشتقة من الفهرس وليست جداول أعمال أو أهداف مزامنة مستقلة.
 
@@ -60,8 +60,8 @@
 | `expenses` | table / schema | حساس / غير معتمد للنقل | محظورة | مصروفات وجهة الصرف ومرفقاتها؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06. | [schema_iteration4.dart:16](../lib/data/database/schema_iteration4.dart#L16) |
 | `financial_operation_inbox` | table / schema | محلي | محظورة | إيصال منع تطبيق السند المالي مرتين على هذا الجهاز؛ محلي وممنوع في المزامنة العامة. | [schema_iteration13.dart:34](../lib/data/database/schema_iteration13.dart#L34) |
 | `financial_operation_outbox` | table / schema | حساس / غير معتمد للنقل | محظورة | غلاف عملية سند مالي يحتوي مراجع وأرصدة مالية؛ لا يمر عبر المزامنة العامة ولا يرسل قبل تحقق موثوق. | [schema_iteration13.dart:20](../lib/data/database/schema_iteration13.dart#L20) |
-| `financial_sale_capture_outbox` | table / schema | حساس / غير معتمد للنقل | محظورة | لقطة فاتورة بيع مالية ومخزنية محلية؛ تحتوي معرفات محلية ولا تصلح للترحيل أو المزامنة العامة. | [schema_iteration13.dart:56](../lib/data/database/schema_iteration13.dart#L56) |
-| `financial_sale_delivery_acks` | table / schema | محلي | محظورة | إيصال تأكيد إرسال فاتورة البيع المالية عبر Relay؛ محلي ولا يمر بالمزامنة العامة. | [schema_iteration13.dart:73](../lib/data/database/schema_iteration13.dart#L73) |
+| `financial_sale_capture_outbox` | table / schema | حساس / غير معتمد للنقل | محظورة | لقطة فاتورة بيع مالية ومخزنية محلية؛ تحتوي معرفات محلية ولا تصلح للترحيل أو المزامنة العامة. | [schema_iteration14.dart:21](../lib/data/database/schema_iteration14.dart#L21) |
+| `financial_sale_delivery_acks` | table / schema | محلي | محظورة | إيصال تأكيد إرسال فاتورة البيع المالية عبر Relay؛ محلي ولا يمر بالمزامنة العامة. | [schema_iteration14.dart:38](../lib/data/database/schema_iteration14.dart#L38) |
 | `fiscal_periods` | table / schema | حساس / غير معتمد للنقل | محظورة | الفترات المحاسبية وإقفالها؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06. | [schema_iteration6.dart:111](../lib/data/database/schema_iteration6.dart#L111) |
 | `import_jobs` | table / schema | محلي | محظورة | سجل استيراد وتصدير محلي يتضمن أسماء ملفات وتعيين أعمدة. | [schema_iteration6.dart:70](../lib/data/database/schema_iteration6.dart#L70) |
 | `insurance_companies` | table / schema | حساس / غير معتمد للنقل | محظورة | مرجع تأمين مرتبط بطرف مالي؛ غير معتمد في العقد الحالي. | [schema_iteration3.dart:14](../lib/data/database/schema_iteration3.dart#L14) |
