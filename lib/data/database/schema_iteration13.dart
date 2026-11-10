@@ -39,6 +39,19 @@ abstract final class SchemaIteration13 {
       applied_at TEXT NOT NULL
     )''');
 
+    // F10: master references must be provisioned, never inferred from local IDs.
+    // Historical warehouse/batch rows deliberately remain NULL until a trusted
+    // identity migration maps them across independently provisioned devices.
+    for (final table in ['warehouses', 'batches_fefo']) {
+      final names = await db.rawQuery('PRAGMA table_info($table)');
+      if (!names.any((row) => row['name'] == 'uuid')) {
+        await db.execute('ALTER TABLE $table ADD COLUMN uuid TEXT');
+      }
+      await db.execute(
+          'CREATE UNIQUE INDEX IF NOT EXISTS idx_${table}_uuid '
+          'ON $table(uuid) WHERE uuid IS NOT NULL');
+    }
+
     // F10 local-only snapshots. Deliberately isolated from voucher transport.
     await db
         .execute('''CREATE TABLE IF NOT EXISTS financial_sale_capture_outbox(
