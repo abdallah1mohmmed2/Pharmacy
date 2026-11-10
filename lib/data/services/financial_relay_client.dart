@@ -41,7 +41,7 @@ class FinancialRelayClient {
   final Uri _endpoint;
   final Future<String> Function() _idTokenProvider;
   final http.Client _client;
-  // Explicit opt-in; server ALSO requires a distinct enabled gate and registry.
+  // Explicit opt-in; server separately enforces a default-off domain gate.
   final bool _saleTransportEnabled;
 
   Future<Map<String, Object?>> _request(
@@ -174,8 +174,7 @@ class FinancialRelayClient {
     return cursor;
   }
 
-  /// F10: reuse this authenticated HTTPS transport, never the generic
-  /// Firestore row sync nor the CASH voucher schema.
+  /// F10: use the existing authenticated HTTPS relay; never send local IDs.
   Future<void> sendCapturedSale(Database database, {
     required int branchId,
     required String operationUuid,
@@ -185,10 +184,10 @@ class FinancialRelayClient {
     }
     final sale = await FinancialSaleWireOperation.export(database,
         branchId: branchId, operationUuid: operationUuid);
-    final approved = await database.query('financial_sale_delivery_acks',
+    final acknowledged = await database.query('financial_sale_delivery_acks',
         where: 'operation_uuid=?', whereArgs: [operationUuid]);
-    if (approved.isNotEmpty) {
-      if (approved.single['payload_hash'] != sale.hash) {
+    if (acknowledged.isNotEmpty) {
+      if (acknowledged.single['payload_hash'] != sale.hash) {
         throw const FinancialRelayException('SALE_ACK_CONFLICT');
       }
       return;
@@ -211,8 +210,7 @@ class FinancialRelayClient {
     }, conflictAlgorithm: ConflictAlgorithm.ignore);
   }
 
-  /// Fetch a sale-only page; the voucher cursor and stream never intermix.
-  /// Any member failure leaves the persisted cursor at its previous value.
+  /// Isolated sale stream: never consume voucher cursor positions.
   Future<String> receiveSalePage(Database database, {
     required int branchId,
     required String branchUuid,
@@ -222,18 +220,9 @@ class FinancialRelayClient {
     if (!_saleTransportEnabled) {
       throw const FinancialRelayException('SALES_TRANSPORT_DISABLED');
     }
+    final cursorPattern = RegExp(r'^(0|[1-9][0-9]{0,14})$');
     if (!GlobalUuid.isValid(branchUuid) ||
-        !RegExp(r'^(0|[1-9][0-9]{0,14})
-}
-
-class FinancialRelayException implements Exception {
-  const FinancialRelayException(this.code);
-  final String code;
-  @override
-  String toString() => 'FinancialRelayException: $code';
-}
-).hasMatch(afterCursor) ||
-        limit < 1 || limit > 100) {
+        !cursorPattern.hasMatch(afterCursor) || limit < 1 || limit > 100) {
       throw const FinancialRelayException('INVALID_SALE_CURSOR');
     }
     final uri = _endpoint.replace(queryParameters: {
@@ -246,17 +235,7 @@ class FinancialRelayException implements Exception {
     final operations = reply['operations'];
     final cursor = reply['next_cursor'];
     if (operations is! List || operations.length > limit ||
-        cursor is! String ||
-        !RegExp(r'^(0|[1-9][0-9]{0,14})
-}
-
-class FinancialRelayException implements Exception {
-  const FinancialRelayException(this.code);
-  final String code;
-  @override
-  String toString() => 'FinancialRelayException: $code';
-}
-).hasMatch(cursor) ||
+        cursor is! String || !cursorPattern.hasMatch(cursor) ||
         int.parse(cursor) < int.parse(afterCursor) ||
         (operations.isNotEmpty && cursor == afterCursor)) {
       throw const FinancialRelayException('INVALID_SALE_PAGE');
@@ -283,10 +262,9 @@ class FinancialRelayException implements Exception {
     return cursor;
   }
 
-  /// Explicit cycle. No application scheduling or production switch is added.
-  /// The sale ACK ledger and cursor are independent from voucher state.
-  Future<({int sent, int pages})> syncSalesOnce(
-    Database database, {
+  /// Explicit cycle, disabled by default and not scheduled by the app.
+  /// The ACK and restart cursor are separate from CASH voucher state.
+  Future<({int sent, int pages})> syncSalesOnce(Database database, {
     required int branchId,
     int limit = 20,
   }) async {
@@ -316,8 +294,8 @@ class FinancialRelayException implements Exception {
           operationUuid: row['operation_uuid'] as String);
     }
     final key = 'financial.sale.v1.yer.cursor.' + branchUuid;
-    final saved = await database.query('app_settings', where: 'setting_key=?',
-        whereArgs: [key]);
+    final saved = await database.query('app_settings',
+        where: 'setting_key=?', whereArgs: [key]);
     var cursor = saved.isEmpty ? '0' : saved.single['value_text'] as String;
     var pages = 0;
     for (var page = 0; page < 20; page++) {
@@ -325,7 +303,6 @@ class FinancialRelayException implements Exception {
           branchId: branchId, branchUuid: branchUuid,
           afterCursor: cursor, limit: limit);
       if (next == cursor) break;
-      // Advance ONLY after every sale on this page is applied or idempotent.
       await database.insert('app_settings', {
         'setting_key': key, 'value_text': next,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
