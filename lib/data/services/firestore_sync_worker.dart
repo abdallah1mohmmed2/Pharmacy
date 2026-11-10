@@ -399,6 +399,20 @@ class FirestoreSyncWorker {
       if (!{'uuid', 'branch_id', 'sync_version'}.every(names.contains))
         continue;
       final uuid = queueRow['row_uuid'] as String;
+      // Never export a legacy/local identifier as a global row identity.
+      // Existing UUIDs are preserved; unresolved rows require provisioning.
+      if (!GlobalUuid.isValid(uuid)) {
+        await db.update(
+          'sync_queue',
+          {
+            'status': 'CONFLICT',
+            'last_error': 'INVALID_GLOBAL_ROW_UUID',
+          },
+          where: 'id=?',
+          whereArgs: [queueRow['id']],
+        );
+        continue;
+      }
       final row =
           await db.query(table, where: 'uuid=?', whereArgs: [uuid], limit: 1);
       if (row.isEmpty) continue;
