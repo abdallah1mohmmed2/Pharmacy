@@ -8,7 +8,7 @@ const { RelayError, uuid } = require('./contract');
 class FirestoreFinanceStore {
   constructor(firestore) { this.firestore=firestore; }
   async commit(operation,audit) {
-    const stream=this.firestore.collection('financial_operation_streams').doc(operation.branchUuid);
+    const stream=this.firestore.collection(operation.operationType==='CASH_SALE' ? 'financial_sale_operation_streams' : 'financial_operation_streams').doc(operation.branchUuid);
     const record=stream.collection('operations').doc(operation.operationUuid);
     const registry=this.firestore.collection('financial_operation_registries').doc(operation.branchUuid);
     await this.firestore.runTransaction(async tx=>{
@@ -23,6 +23,9 @@ class FirestoreFinanceStore {
       if (approved.fraction_digits!==operation.fractionDigits) {
         throw new RelayError('FINANCIAL_CURRENCY_POLICY_MISMATCH',403);
       }
+      if (operation.operationType==='CASH_SALE') {
+        this._authorizeSale(operation.envelope, approved);
+      } else {
       const voucher=operation.envelope.voucher;
       if (!Array.isArray(approved.party_uuids) ||
           !approved.party_uuids.includes(voucher.party_uuid)) {
@@ -43,6 +46,7 @@ class FirestoreFinanceStore {
           cashLine.account_uuid!==accountGl ||
           partyLine.account_uuid!==partyGl) {
         throw new RelayError('FINANCIAL_GL_MAPPING_MISMATCH',403);
+      }
       }
       if (current.exists) {
         const stored=current.data();
@@ -65,8 +69,71 @@ class FirestoreFinanceStore {
       });
     });
   }
-  async list(branch,after,limit) {
-    const stream=this.firestore.collection('financial_operation_streams').doc(branch);
+  // Branch registry is provisioned by a trusted administrator; a client must
+  // never register its own cash, stock, cashier or general-ledger references.
+  _authorizeSale(e, approved) {
+    if (approved.sale_enabled!==true ||
+        !Array.isArray(approved.sale_cashier_uuids) ||
+        !approved.sale_cashier_uuids.includes(e.invoice.cashier_uuid) ||
+        !Array.isArray(approved.sale_drug_uuids) ||
+        !approved.sale_batches || typeof approved.sale_batches!=='object') {
+      throw new RelayError('FINANCIAL_SALE_REFERENCES_NOT_APPROVED',403);
+    }
+    for (const item of e.items) {
+      if (!approved.sale_drug_uuids.includes(item.drug_uuid)) {
+        throw new RelayError('FINANCIAL_SALE_DRUG_NOT_APPROVED',403);
+      }
+    }
+    for (const batch of e.batches) {
+      const known=approved.sale_batches[batch.uuid];
+      if (!known || known.drug_uuid!==batch.drug_uuid ||
+          known.warehouse_uuid!==batch.warehouse_uuid) {
+        throw new RelayError('FINANCIAL_SALE_BATCH_NOT_APPROVED',403);
+      }
+    }
+    const gl=approved.sale_gl;
+    if (!gl || typeof gl!=='object' ||
+        typeof gl.revenue!=='string' || typeof gl.cogs!=='string' ||
+        typeof gl.inventory!=='string') {
+      throw new RelayError('FINANCIAL_SALE_GL_NOT_APPROVED',403);
+    }
+    const expected=new Map();
+    const add=(account,dr,cr)=>{
+      if (!account || typeof account!=='string') {
+        throw new RelayError('FINANCIAL_SALE_GL_NOT_APPROVED',403);
+      }
+      uuid(account);
+      const prev=expected.get(account)||[0,0];
+      expected.set(account,[prev[0]+dr,prev[1]+cr]);
+    };
+    add(gl.revenue,0,e.invoice.net_minor);
+    if (e.invoice.cost_minor>0) {
+      add(gl.cogs,e.invoice.cost_minor,0);
+      add(gl.inventory,0,e.invoice.cost_minor);
+    }
+    for (const payment of e.payments) {
+      const account=approved.cash_accounts?.[payment.cash_uuid];
+      if (!account) throw new RelayError('FINANCIAL_SALE_CASH_NOT_APPROVED',403);
+      add(account,payment.amount_minor,0);
+    }
+    const actual=new Map();
+    for (const line of e.lines) {
+      if (actual.has(line.account_uuid)) {
+        throw new RelayError('FINANCIAL_SALE_DUPLICATE_GL_LINE',403);
+      }
+      actual.set(line.account_uuid,[line.dr_minor,line.cr_minor]);
+    }
+    if (actual.size!==expected.size ||
+        [...actual].some(([account,values])=>{
+          const e=expected.get(account);
+          return !e || e[0]!==values[0] || e[1]!==values[1];
+        })) {
+      throw new RelayError('FINANCIAL_SALE_GL_MAPPING_MISMATCH',403);
+    }
+  }
+
+  async list(branch,after,limit,operationType=null) {
+    const stream=this.firestore.collection(operationType==='CASH_SALE' ? 'financial_sale_operation_streams' : 'financial_operation_streams').doc(branch);
     const query=stream.collection('operations').where('sequence','>',after)
       .orderBy('sequence','asc').limit(limit);
     const snap=await query.get();
