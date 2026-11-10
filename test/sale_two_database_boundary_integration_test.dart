@@ -63,14 +63,14 @@ void main() {
       a = await openSaleDatabase(dir.path + '/a.db');
       b = await openSaleDatabase(dir.path + '/b.db');
       for (final db in [a, b]) {
-        await db.update('branches',
-            {'uuid': 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'},
+        await db.update(
+            'branches', {'uuid': 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'},
             where: 'id=?', whereArgs: [1]);
-        await db.update('users',
-            {'uuid': 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'},
+        await db.update(
+            'users', {'uuid': 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'},
             where: 'id=?', whereArgs: [1]);
-        await db.update('cash_accounts',
-            {'uuid': 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'},
+        await db.update(
+            'cash_accounts', {'uuid': 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'},
             where: 'code=?', whereArgs: ['CASH-DRAWER']);
         for (final e in <String, String>{
           '1102': '11111111-1111-4111-8111-111111111111',
@@ -84,110 +84,170 @@ void main() {
       }
       await b.insert('drugs', {
         'uuid': 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
-        'branch_id': 1, 'created_at': '2026-11-10',
-        'updated_at': '2026-11-10', 'internal_code': 'UNRELATED',
+        'branch_id': 1,
+        'created_at': '2026-11-10',
+        'updated_at': '2026-11-10',
+        'internal_code': 'UNRELATED',
         'trade_name_ar': 'صنف آخر',
       });
       await b.insert('sales_invoices', {
         'uuid': 'ffffffff-ffff-4fff-8fff-ffffffffffff',
-        'branch_id': 1, 'created_at': '2026-11-10',
-        'updated_at': '2026-11-10', 'invoice_no': 'OTHER-LOCAL',
-        'invoice_date': '2026-11-10', 'cashier_user_id': 1,
-        'sale_type': 'CASH', 'status': 'HELD',
+        'branch_id': 1,
+        'created_at': '2026-11-10',
+        'updated_at': '2026-11-10',
+        'invoice_no': 'OTHER-LOCAL',
+        'invoice_date': '2026-11-10',
+        'cashier_user_id': 1,
+        'sale_type': 'CASH',
+        'status': 'HELD',
       });
       final ids = <int>[];
       final batches = <int>[];
       for (final db in [a, b]) {
         final drugId = await db.insert('drugs', {
           'uuid': 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
-          'branch_id': 1, 'created_at': '2026-11-10',
-          'updated_at': '2026-11-10', 'internal_code': 'SHARED-DRUG',
+          'branch_id': 1,
+          'created_at': '2026-11-10',
+          'updated_at': '2026-11-10',
+          'internal_code': 'SHARED-DRUG',
           'trade_name_ar': 'صنف مشترك',
-          'units_per_pack': 1, 'sell_price_unit': 20.0,
-          'sell_price_pack': 20.0, 'stock_total_units': 10,
+          'units_per_pack': 1,
+          'sell_price_unit': 20.0,
+          'sell_price_pack': 20.0,
+          'stock_total_units': 10,
         });
         final wh = await db.insert('warehouses', {
-          'branch_id': 1, 'code': 'F10-WH', 'name_ar': 'مخزن مشترك',
-          'wh_type': 'MAIN_STORE', 'created_at': '2026-11-10',
+          'branch_id': 1,
+          'code': 'F10-WH',
+          'name_ar': 'مخزن مشترك',
+          'wh_type': 'MAIN_STORE',
+          'created_at': '2026-11-10',
         });
         final batch = await db.insert('batches_fefo', {
-          'drug_id': drugId, 'warehouse_id': wh,
-          'batch_no': 'F10-B', 'expiry_date': '2030-12-31',
-          'sealed_packs': 10, 'loose_units': 0, 'total_units': 10,
-          'unit_cost': 5.0, 'pack_cost': 5.0,
+          'drug_id': drugId,
+          'warehouse_id': wh,
+          'batch_no': 'F10-B',
+          'expiry_date': '2030-12-31',
+          'sealed_packs': 10,
+          'loose_units': 0,
+          'total_units': 10,
+          'unit_cost': 5.0,
+          'pack_cost': 5.0,
         });
         ids.add(drugId);
         batches.add(batch);
       }
       expect(ids[0], isNot(ids[1]));
       final cashId = (await a.query('cash_accounts',
-          columns: ['id'], where: 'code=?',
-          whereArgs: ['CASH-DRAWER'])).single['id'] as int;
+              columns: ['id'], where: 'code=?', whereArgs: ['CASH-DRAWER']))
+          .single['id'] as int;
       final posted = await PostingAndSalesService(
-          helper: DatabaseHelper.forTesting(a),
-          captureSaleForF10: true).postSale(
-        branchId: 1, cashierUserId: 1,
-        items: [CartItemModel(
-            drug: DrugModel(id: ids[0], unitsPerPack: 1,
-                sellPriceUnit: 20, sellPricePack: 20),
-            sellUnit: 'UNIT', quantity: 2)],
+              helper: DatabaseHelper.forTesting(a), captureSaleForF10: true)
+          .postSale(
+        branchId: 1,
+        cashierUserId: 1,
+        items: [
+          CartItemModel(
+              drug: DrugModel(
+                  id: ids[0],
+                  unitsPerPack: 1,
+                  sellPriceUnit: 20,
+                  sellPricePack: 20),
+              sellUnit: 'UNIT',
+              quantity: 2)
+        ],
         saleType: 'CASH',
-        payments: [(cashAccountId: cashId, amount: 40.0,
-            method: 'CASH', walletRef: null)],
+        payments: [
+          (cashAccountId: cashId, amount: 40.0, method: 'CASH', walletRef: null)
+        ],
         clinicalVerdict: ClinicalVerdict([]),
       );
-      final uuid = (await a.query('sales_invoices',
-          where: 'id=?', whereArgs: [posted])).single['uuid'] as String;
+      final uuid =
+          (await a.query('sales_invoices', where: 'id=?', whereArgs: [posted]))
+              .single['uuid'] as String;
       expect(await b.query('stock_movements'), isEmpty);
       await expectLater(
           FinancialSaleTwoDatabaseReplay.applyFromTrustedLocalSource(
-              source: a, destination: b, sourceBranchId: 1,
-              destinationBranchId: 1, operationUuid: uuid,
-              trustedLocalSource: false), throwsA(isA<StateError>()));
-      expect(await FinancialSaleTwoDatabaseReplay.applyFromTrustedLocalSource(
-          source: a, destination: b, sourceBranchId: 1,
-          destinationBranchId: 1, operationUuid: uuid,
-          trustedLocalSource: true), isTrue);
-      final dest = (await b.query('sales_invoices',
-          where: 'uuid=?', whereArgs: [uuid])).single;
+              source: a,
+              destination: b,
+              sourceBranchId: 1,
+              destinationBranchId: 1,
+              operationUuid: uuid,
+              trustedLocalSource: false),
+          throwsA(isA<StateError>()));
+      expect(
+          await FinancialSaleTwoDatabaseReplay.applyFromTrustedLocalSource(
+              source: a,
+              destination: b,
+              sourceBranchId: 1,
+              destinationBranchId: 1,
+              operationUuid: uuid,
+              trustedLocalSource: true),
+          isTrue);
+      final dest =
+          (await b.query('sales_invoices', where: 'uuid=?', whereArgs: [uuid]))
+              .single;
       expect(dest['id'], isNot(posted));
       expect(dest['net_total'], 40.0);
       expect(dest['paid_total'], 40.0);
       expect(dest['total_cost'], 10.0);
-      expect(await b.query('sales_invoice_items',
-          where: 'invoice_id=?', whereArgs: [dest['id']]), hasLength(1));
-      expect(await b.query('sales_payments',
-          where: 'invoice_id=?', whereArgs: [dest['id']]), hasLength(1));
-      expect(await b.query('cash_transactions',
-          where: 'doc_type=? AND doc_id=?',
-          whereArgs: ['INVOICE', dest['id']]), hasLength(1));
-      expect(await b.query('stock_movements',
-          where: 'doc_type=? AND doc_id=? AND movement_type=?',
-          whereArgs: ['SALE', dest['id'], 'SALE_OUT']), hasLength(1));
-      expect((await b.query('batches_fefo',
-          where: 'id=?', whereArgs: [batches[1]]))
-          .single['total_units'], 8);
-      expect((await b.query('drugs',
-          where: 'id=?', whereArgs: [ids[1]]))
-          .single['stock_total_units'], 8);
+      expect(
+          await b.query('sales_invoice_items',
+              where: 'invoice_id=?', whereArgs: [dest['id']]),
+          hasLength(1));
+      expect(
+          await b.query('sales_payments',
+              where: 'invoice_id=?', whereArgs: [dest['id']]),
+          hasLength(1));
+      expect(
+          await b.query('cash_transactions',
+              where: 'doc_type=? AND doc_id=?',
+              whereArgs: ['INVOICE', dest['id']]),
+          hasLength(1));
+      expect(
+          await b.query('stock_movements',
+              where: 'doc_type=? AND doc_id=? AND movement_type=?',
+              whereArgs: ['SALE', dest['id'], 'SALE_OUT']),
+          hasLength(1));
+      expect(
+          (await b.query('batches_fefo',
+                  where: 'id=?', whereArgs: [batches[1]]))
+              .single['total_units'],
+          8);
+      expect(
+          (await b.query('drugs', where: 'id=?', whereArgs: [ids[1]]))
+              .single['stock_total_units'],
+          8);
       final journal = (await b.query('journal_entries',
-          where: 'source_type=? AND source_id=?',
-          whereArgs: ['SALE', dest['id']])).single;
+              where: 'source_type=? AND source_id=?',
+              whereArgs: ['SALE', dest['id']]))
+          .single;
       final lines = await b.query('journal_lines',
           where: 'journal_entry_id=?', whereArgs: [journal['id']]);
       expect(lines, hasLength(4));
-      expect(lines.fold<double>(0,
-          (s, row) => s + (row['dr_amount'] as num).toDouble()), 50.0);
-      expect(lines.fold<double>(0,
-          (s, row) => s + (row['cr_amount'] as num).toDouble()), 50.0);
-      expect(await FinancialSaleTwoDatabaseReplay.applyFromTrustedLocalSource(
-          source: a, destination: b, sourceBranchId: 1,
-          destinationBranchId: 1, operationUuid: uuid,
-          trustedLocalSource: true), isFalse);
+      expect(
+          lines.fold<double>(
+              0, (s, row) => s + (row['dr_amount'] as num).toDouble()),
+          50.0);
+      expect(
+          lines.fold<double>(
+              0, (s, row) => s + (row['cr_amount'] as num).toDouble()),
+          50.0);
+      expect(
+          await FinancialSaleTwoDatabaseReplay.applyFromTrustedLocalSource(
+              source: a,
+              destination: b,
+              sourceBranchId: 1,
+              destinationBranchId: 1,
+              operationUuid: uuid,
+              trustedLocalSource: true),
+          isFalse);
       expect(await b.query('sales_invoices'), hasLength(2));
-      expect(await b.query('stock_movements',
-          where: 'doc_type=? AND doc_id=? AND movement_type=?',
-          whereArgs: ['SALE', dest['id'], 'SALE_OUT']), hasLength(1));
+      expect(
+          await b.query('stock_movements',
+              where: 'doc_type=? AND doc_id=? AND movement_type=?',
+              whereArgs: ['SALE', dest['id'], 'SALE_OUT']),
+          hasLength(1));
       expect(await b.rawQuery('PRAGMA foreign_key_check'), isEmpty);
     } finally {
       if (a != null) await a.close();

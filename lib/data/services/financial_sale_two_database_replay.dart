@@ -43,7 +43,8 @@ abstract final class FinancialSaleTwoDatabaseReplay {
   }
 
   static Map<String, Object?> _one(List<Map<String, Object?>> rows) {
-    if (rows.length != 1) throw StateError('F10_REFERENCE_MISSING_OR_AMBIGUOUS');
+    if (rows.length != 1)
+      throw StateError('F10_REFERENCE_MISSING_OR_AMBIGUOUS');
     return rows.single;
   }
 
@@ -54,7 +55,7 @@ abstract final class FinancialSaleTwoDatabaseReplay {
   }
 
   static Future<Map<String, Object?>> _target(
-      Transaction txn, String table, String uuid, int branchId) =>
+          Transaction txn, String table, String uuid, int branchId) =>
       txn.query(table,
           where: 'uuid=? AND branch_id=? AND is_deleted=0',
           whereArgs: [uuid, branchId]).then(_one);
@@ -76,7 +77,8 @@ abstract final class FinancialSaleTwoDatabaseReplay {
         whereArgs: [operationUuid, sourceBranchId]));
     final payload = capture['payload_json'];
     final hash = capture['payload_hash'];
-    if (payload is! String || hash is! String ||
+    if (payload is! String ||
+        hash is! String ||
         sha256.convert(utf8.encode(payload)).toString() != hash) {
       throw StateError('F10_CAPTURE_HASH_MISMATCH');
     }
@@ -88,8 +90,8 @@ abstract final class FinancialSaleTwoDatabaseReplay {
         envelope['fraction_digits'] != 0) {
       throw StateError('F10_CONTRACT_MISMATCH');
     }
-    final sourceBranch = _one(await source.query('branches',
-        where: 'id=?', whereArgs: [sourceBranchId]));
+    final sourceBranch = _one(await source
+        .query('branches', where: 'id=?', whereArgs: [sourceBranchId]));
     final branchUuid = _uuid(sourceBranch['uuid']);
     if (envelope['branch_uuid'] != branchUuid) {
       throw StateError('F10_SOURCE_BRANCH_MISMATCH');
@@ -111,9 +113,13 @@ abstract final class FinancialSaleTwoDatabaseReplay {
     final ledger = _rows(envelope['ledger']);
     final journal = _map(envelope['journal']);
     final lines = _rows(envelope['lines']);
-    if (items.isEmpty || allocations.isEmpty || payments.isEmpty ||
-        payments.length != cash.length || ledger.isNotEmpty ||
-        lines.isEmpty || _uuid(journal['uuid']).isEmpty ||
+    if (items.isEmpty ||
+        allocations.isEmpty ||
+        payments.isEmpty ||
+        payments.length != cash.length ||
+        ledger.isNotEmpty ||
+        lines.isEmpty ||
+        _uuid(journal['uuid']).isEmpty ||
         journal['source_type'] != 'SALE' ||
         journal['source_id'] != invoice['id']) {
       throw StateError('F10_INCOMPLETE_OPERATION');
@@ -122,7 +128,9 @@ abstract final class FinancialSaleTwoDatabaseReplay {
     final paid = _money(invoice['paid_total']);
     final subtotal = _money(invoice['subtotal']);
     final discount = _money(invoice['discount_amount']);
-    if (net == 0 || net != paid || subtotal - discount != net ||
+    if (net == 0 ||
+        net != paid ||
+        subtotal - discount != net ||
         items.fold<int>(0, (s, i) => s + _money(i['line_total'])) != subtotal ||
         payments.fold<int>(0, (s, i) => s + _money(i['amount'])) != paid ||
         cash.fold<int>(0, (s, i) => s + _money(i['amount'])) != paid ||
@@ -176,8 +184,7 @@ abstract final class FinancialSaleTwoDatabaseReplay {
     }
     for (final allocation in allocations) {
       final itemId = _positive(allocation['invoice_item_id']);
-      if (!itemIds.contains(itemId) ||
-          allocation['returned_qty_units'] != 0) {
+      if (!itemIds.contains(itemId) || allocation['returned_qty_units'] != 0) {
         throw StateError('F10_ALLOCATION_INTEGRITY');
       }
       final units = _positive(allocation['qty_units']);
@@ -186,9 +193,14 @@ abstract final class FinancialSaleTwoDatabaseReplay {
       quantitiesPerBatch[batchId] = (quantitiesPerBatch[batchId] ?? 0) + units;
       final batch = await _source(source, 'batches_fefo', batchId);
       final drug = await _source(source, 'drugs', batch['drug_id']);
-      final warehouse = await _source(source, 'warehouses', batch['warehouse_id']);
-      final key = (_uuid(drug['uuid']), warehouse['code'] as String,
-          batch['batch_no'] as String, batch['expiry_date'] as String);
+      final warehouse =
+          await _source(source, 'warehouses', batch['warehouse_id']);
+      final key = (
+        _uuid(drug['uuid']),
+        warehouse['code'] as String,
+        batch['batch_no'] as String,
+        batch['expiry_date'] as String
+      );
       if (key.$1 != itemDrugUuids[itemId]) {
         throw StateError('F10_BATCH_DRUG_MISMATCH');
       }
@@ -201,7 +213,8 @@ abstract final class FinancialSaleTwoDatabaseReplay {
     }
     final movementUnits = <int, int>{};
     for (final m in movements) {
-      if (m['doc_type'] != 'SALE' || m['doc_id'] != invoice['id'] ||
+      if (m['doc_type'] != 'SALE' ||
+          m['doc_id'] != invoice['id'] ||
           !batchKeys.containsKey(m['batch_id']) ||
           !{'SALE_OUT', 'PACK_OPEN'}.contains(m['movement_type'])) {
         throw StateError('F10_STOCK_MOVEMENT_INVALID');
@@ -216,13 +229,13 @@ abstract final class FinancialSaleTwoDatabaseReplay {
       }
     }
     if (movementUnits.length != quantitiesPerBatch.length ||
-        quantitiesPerBatch.keys.any(
-            (id) => movementUnits[id] != quantitiesPerBatch[id])) {
+        quantitiesPerBatch.keys
+            .any((id) => movementUnits[id] != quantitiesPerBatch[id])) {
       throw StateError('F10_STOCK_ALLOCATION_MISMATCH');
     }
     for (final payment in payments) {
-      final acc = await _source(source, 'cash_accounts',
-          payment['cash_account_id']);
+      final acc =
+          await _source(source, 'cash_accounts', payment['cash_account_id']);
       cashAccountUuids[acc['id'] as int] = _uuid(acc['uuid']);
       if (!memberUuids.add(_uuid(payment['uuid']))) {
         throw StateError('F10_REPEATED_MEMBER');
@@ -239,15 +252,16 @@ abstract final class FinancialSaleTwoDatabaseReplay {
           !memberUuids.add(_uuid(line['uuid']))) {
         throw StateError('F10_JOURNAL_LINE_INVALID');
       }
-      final account = await _source(source, 'chart_of_accounts',
-          line['account_id']);
+      final account =
+          await _source(source, 'chart_of_accounts', line['account_id']);
       accountUuids[account['id'] as int] = _uuid(account['uuid']);
     }
 
     return destination.transaction((txn) async {
-      final branch = _one(await txn.query('branches',
-          where: 'id=?', whereArgs: [destinationBranchId]));
-      if (branch['uuid'] != branchUuid) throw StateError('F10_DEST_BRANCH_MISMATCH');
+      final branch = _one(await txn
+          .query('branches', where: 'id=?', whereArgs: [destinationBranchId]));
+      if (branch['uuid'] != branchUuid)
+        throw StateError('F10_DEST_BRANCH_MISMATCH');
       final prior = await txn.query('financial_operation_inbox',
           where: 'operation_uuid=?', whereArgs: [operationUuid]);
       if (prior.isNotEmpty) {
@@ -258,31 +272,39 @@ abstract final class FinancialSaleTwoDatabaseReplay {
         return false;
       }
       if ((await txn.query('sales_invoices',
-          where: 'uuid=?', whereArgs: [operationUuid])).isNotEmpty ||
+                  where: 'uuid=?', whereArgs: [operationUuid]))
+              .isNotEmpty ||
           (await txn.query('financial_sale_capture_outbox',
-          where: 'operation_uuid=?', whereArgs: [operationUuid])).isNotEmpty) {
+                  where: 'operation_uuid=?', whereArgs: [operationUuid]))
+              .isNotEmpty) {
         throw StateError('F10_INVOICE_OR_LOCAL_ECHO_CONFLICT');
       }
-      final dstCashier = await _target(txn, 'users', cashierUuid,
-          destinationBranchId);
+      final dstCashier =
+          await _target(txn, 'users', cashierUuid, destinationBranchId);
       final now = DateTime.now().toUtc().toIso8601String();
       Map<String, Object?> base(String uuid) => {
-        'uuid': uuid, 'branch_id': destinationBranchId,
-        'created_at': now, 'updated_at': now, 'is_deleted': 0,
-        'sync_status': 'SYNCED', 'sync_version': 1,
-      };
+            'uuid': uuid,
+            'branch_id': destinationBranchId,
+            'created_at': now,
+            'updated_at': now,
+            'is_deleted': 0,
+            'sync_status': 'SYNCED',
+            'sync_version': 1,
+          };
       final suffix = operationUuid.replaceAll('-', '');
       final invoiceId = await txn.insert('sales_invoices', {
         ...base(operationUuid),
         'invoice_no': 'F10-I-' + suffix,
         'invoice_date': invoice['invoice_date'],
         'cashier_user_id': dstCashier['id'],
-        'sale_type': 'CASH', 'status': 'COMPLETED',
+        'sale_type': 'CASH',
+        'status': 'COMPLETED',
         'subtotal': subtotal.toDouble(),
         'discount_amount': discount.toDouble(),
         'net_total': net.toDouble(),
         'paid_total': paid.toDouble(),
-        'remaining_alayh': 0, 'total_cost': invoice['total_cost'],
+        'remaining_alayh': 0,
+        'total_cost': invoice['total_cost'],
       });
 
       // Use stable drug UUID and a unique warehouse/batch business key.
@@ -296,10 +318,12 @@ abstract final class FinancialSaleTwoDatabaseReplay {
       for (final entry in batchKeys.entries) {
         final k = entry.value;
         final wh = _one(await txn.query('warehouses',
-            where: 'code=? AND branch_id=?', whereArgs: [k.$2, destinationBranchId]));
+            where: 'code=? AND branch_id=?',
+            whereArgs: [k.$2, destinationBranchId]));
         final d = dstDrugs[k.$1]!;
         dstBatches[entry.key] = _one(await txn.query('batches_fefo',
-            where: 'drug_id=? AND warehouse_id=? AND batch_no=? AND expiry_date=?',
+            where:
+                'drug_id=? AND warehouse_id=? AND batch_no=? AND expiry_date=?',
             whereArgs: [d['id'], wh['id'], k.$3, k.$4]));
       }
       final dstItems = <int, int>{};
@@ -307,13 +331,15 @@ abstract final class FinancialSaleTwoDatabaseReplay {
         final drug = dstDrugs[itemDrugUuids[item['id']]!]!;
         final id = await txn.insert('sales_invoice_items', {
           ...base(_uuid(item['uuid'])),
-          'invoice_id': invoiceId, 'drug_id': drug['id'],
+          'invoice_id': invoiceId,
+          'drug_id': drug['id'],
           'sell_unit': item['sell_unit'],
           'qty_in_sell_unit': item['qty_in_sell_unit'],
           'qty_units': item['qty_units'],
           'unit_price_sell_unit': item['unit_price_sell_unit'],
           'line_discount_amount': item['line_discount_amount'],
-          'line_total': item['line_total'], 'line_cost': item['line_cost'],
+          'line_total': item['line_total'],
+          'line_cost': item['line_cost'],
         });
         dstItems[item['id'] as int] = id;
         final changed = await txn.rawUpdate(
@@ -342,13 +368,16 @@ abstract final class FinancialSaleTwoDatabaseReplay {
         if (next < 0) throw StateError('F10_INSUFFICIENT_BATCH_STOCK');
         if (m['movement_type'] == 'SALE_OUT') {
           final size = (targetDrug['units_per_pack'] as int);
-          final changed = await txn.update('batches_fefo', {
-            'total_units': next,
-            'sealed_packs': next ~/ size,
-            'loose_units': next % size,
-            'status': next == 0 ? 'DEPLETED' : 'ACTIVE',
-          }, where: 'id=? AND total_units=?',
-             whereArgs: [targetBatch['id'], current]);
+          final changed = await txn.update(
+              'batches_fefo',
+              {
+                'total_units': next,
+                'sealed_packs': next ~/ size,
+                'loose_units': next % size,
+                'status': next == 0 ? 'DEPLETED' : 'ACTIVE',
+              },
+              where: 'id=? AND total_units=?',
+              whereArgs: [targetBatch['id'], current]);
           if (changed != 1) throw StateError('F10_BATCH_CONFLICT');
         }
         await txn.insert('stock_movements', {
@@ -360,7 +389,8 @@ abstract final class FinancialSaleTwoDatabaseReplay {
           'unit_cost': m['unit_cost'],
           'unit_price': m['unit_price'],
           'balance_after_units': next,
-          'doc_type': 'SALE', 'doc_id': invoiceId,
+          'doc_type': 'SALE',
+          'doc_id': invoiceId,
           'movement_at': m['movement_at'],
           'note': m['note'],
         });
@@ -369,17 +399,21 @@ abstract final class FinancialSaleTwoDatabaseReplay {
       for (final p in payments) {
         final dstCash = await _target(txn, 'cash_accounts',
             cashAccountUuids[p['cash_account_id']]!, destinationBranchId);
-        if (!{'CASHIER_DRAWER', 'MAIN_SAFE'}.contains(dstCash['account_kind'])) {
+        if (!{'CASHIER_DRAWER', 'MAIN_SAFE'}
+            .contains(dstCash['account_kind'])) {
           throw StateError('F10_CASH_KIND_INVALID');
         }
         await txn.insert('sales_payments', {
           ...base(_uuid(p['uuid'])),
-          'invoice_id': invoiceId, 'cash_account_id': dstCash['id'],
-          'method': 'CASH', 'amount': p['amount'],
+          'invoice_id': invoiceId,
+          'cash_account_id': dstCash['id'],
+          'method': 'CASH',
+          'amount': p['amount'],
         });
         final changed = await txn.rawUpdate(
             'UPDATE cash_accounts SET current_balance=current_balance+?,updated_at=? '
-            'WHERE id=?', [p['amount'], now, dstCash['id']]);
+            'WHERE id=?',
+            [p['amount'], now, dstCash['id']]);
         if (changed != 1) throw StateError('F10_CASH_ACCOUNT_MISSING');
         final balance = _one(await txn.query('cash_accounts',
             where: 'id=?', whereArgs: [dstCash['id']]))['current_balance'];
@@ -390,9 +424,12 @@ abstract final class FinancialSaleTwoDatabaseReplay {
           'uuid': _uuid(cashRow['uuid']),
           'branch_id': destinationBranchId,
           'cash_account_id': dstCash['id'],
-          'tx_date': cashRow['tx_date'], 'direction': 'IN',
-          'amount': p['amount'], 'tx_type': 'SALE',
-          'doc_type': 'INVOICE', 'doc_id': invoiceId,
+          'tx_date': cashRow['tx_date'],
+          'direction': 'IN',
+          'amount': p['amount'],
+          'tx_type': 'SALE',
+          'doc_type': 'INVOICE',
+          'doc_id': invoiceId,
           'balance_after': balance,
           'note': 'تحصيل فاتورة متزامنة',
         });
@@ -402,7 +439,8 @@ abstract final class FinancialSaleTwoDatabaseReplay {
         'entry_no': 'F10-J-' + suffix,
         'entry_date': journal['entry_date'],
         'description': 'قيد فاتورة متزامنة',
-        'source_type': 'SALE', 'source_id': invoiceId,
+        'source_type': 'SALE',
+        'source_id': invoiceId,
         'is_posted': 1,
       });
       for (final line in lines) {
@@ -422,8 +460,10 @@ abstract final class FinancialSaleTwoDatabaseReplay {
       // Existing v13 receipt table also guards duplicate F10 operation UUIDs.
       // The legacy voucher_uuid column is set to the operation UUID.
       await txn.insert('financial_operation_inbox', {
-        'operation_uuid': operationUuid, 'branch_id': destinationBranchId,
-        'voucher_uuid': operationUuid, 'payload_hash': hash,
+        'operation_uuid': operationUuid,
+        'branch_id': destinationBranchId,
+        'voucher_uuid': operationUuid,
+        'payload_hash': hash,
         'applied_at': now,
       });
       return true;
