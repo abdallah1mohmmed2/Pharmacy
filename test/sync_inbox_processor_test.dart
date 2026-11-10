@@ -5,6 +5,12 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:global_enterprise_pharmacy_erp/data/services/sync_inbox_processor.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration11.dart';
 
+// Deterministic UUID-shaped fixtures; production validation remains strict.
+String testUuid(String label) {
+  final hash = sha256.convert(utf8.encode(label)).toString();
+  return '${hash.substring(0, 8)}-${hash.substring(8, 12)}-4${hash.substring(13, 16)}-8${hash.substring(17, 20)}-${hash.substring(20, 32)}';
+}
+
 void main() {
   late Database db;
   late FirestoreInboxProcessor processor;
@@ -101,7 +107,7 @@ void main() {
           Map<String, Object?> relations = const {}}) =>
       event(
           table: table,
-          uuid: uuid,
+          uuid: testUuid(uuid),
           version: version,
           operation: operation,
           payload: {'branch_id': branchUuid, ...fields},
@@ -124,18 +130,43 @@ void main() {
     expect(await db.query('sync_inbox_batches'), isEmpty);
   }
 
+  test('malformed row and parent UUIDs are rejected without storing payload',
+      () async {
+    final invalidRow = event(
+        table: 'sync_items',
+        uuid: 'legacy-local-1',
+        version: 1,
+        payload: {'title': 'PRIVATE_SENTINEL'});
+    expect((await receive(invalidRow, batch: 'invalid-row')).rejected, 1);
+    final invalidParent = event(
+        table: 'sync_children',
+        uuid: testUuid('child'),
+        version: 1,
+        payload: {
+          'title': 'PRIVATE_SENTINEL',
+          'parent_id': 1
+        },
+        relations: {
+          'parent_id': {'table': 'sync_parents', 'uuid': 'legacy-parent'}
+        });
+    expect((await receive(invalidParent, batch: 'invalid-parent')).rejected, 1);
+    expect(await db.query('sync_inbox'), isEmpty);
+    expect(await db.query('sync_items'), isEmpty);
+    expect(await db.query('sync_children'), isEmpty);
+  });
+
   test(
       'ordinary batch can apply one member while rejecting another; atomic batch rolls back both',
       () async {
     final ordinary = [
       event(
           table: 'sync_items',
-          uuid: 'ordinary-valid',
+          uuid: testUuid('ordinary-valid'),
           version: 1,
           payload: {'title': 'inventory-effect'}),
       event(
           table: 'sync_items',
-          uuid: 'ordinary-invalid',
+          uuid: testUuid('ordinary-invalid'),
           version: 1,
           payload: {'title': 'financial-effect', 'private_field': 'blocked'}),
     ];
@@ -157,8 +188,8 @@ void main() {
         receiveAtomic(atomic), throwsA(isA<AtomicInboxBatchException>()));
     expect(await db.query('sync_items'), hasLength(1));
     expect(
-        await db
-            .query('sync_items', where: 'uuid=?', whereArgs: ['atomic-valid']),
+        await db.query('sync_items',
+            where: 'uuid=?', whereArgs: [testUuid('atomic-valid')]),
         isEmpty);
     expect(
         await db.query('sync_inbox_batches',
@@ -247,22 +278,22 @@ void main() {
         'title': 'child',
         'parent_id': 99
       }, relations: {
-        'parent_id': {'table': 'sync_parents', 'uuid': 'parent'}
+        'parent_id': {'table': 'sync_parents', 'uuid': testUuid('parent')}
       })
     ];
     await expectLater(
         receiveAtomic(events), throwsA(isA<AtomicInboxBatchException>()));
     await expectAtomicRollback();
     expect(await processor.retryDeferred(7), 0);
-    await db.insert(
-        'sync_parents', {'uuid': 'parent', 'branch_id': 7, 'name': 'parent'});
+    await db.insert('sync_parents',
+        {'uuid': testUuid('parent'), 'branch_id': 7, 'name': 'parent'});
     expect((await receiveAtomic(events)).applied, 2);
   });
 
   test('atomic conflict keeps local edit and rolls back other members',
       () async {
     await db.insert('sync_items', {
-      'uuid': 'local',
+      'uuid': testUuid('local'),
       'branch_id': 7,
       'title': 'newer local',
       'sync_version': 2,
@@ -336,8 +367,10 @@ void main() {
       atomicEvent('two', fields: {'title': 'two'})
     ];
     await receiveAtomic(events);
-    await db.delete('sync_inbox', where: 'row_uuid=?', whereArgs: ['two']);
-    await db.delete('sync_items', where: 'uuid=?', whereArgs: ['two']);
+    await db.delete('sync_inbox',
+        where: 'row_uuid=?', whereArgs: [testUuid('two')]);
+    await db
+        .delete('sync_items', where: 'uuid=?', whereArgs: [testUuid('two')]);
     await expectLater(
         receiveAtomic(events), throwsA(isA<AtomicInboxBatchException>()));
     expect(await db.query('sync_items'), hasLength(1));
@@ -349,7 +382,7 @@ void main() {
       () async {
     final incoming = event(
         table: 'sync_items',
-        uuid: 'blocked',
+        uuid: testUuid('blocked'),
         version: 1,
         payload: {'title': 'PRIVATE_SENTINEL'});
     final result =
@@ -366,7 +399,7 @@ void main() {
     for (final field in ['password_hash', 'future_field', 'id']) {
       final incoming = event(
           table: 'sync_items',
-          uuid: field,
+          uuid: testUuid(field),
           version: 1,
           payload: {'title': 'valid', field: 'PRIVATE_SENTINEL'});
       expect((await receive(incoming, batch: field)).rejected, 1);
@@ -382,13 +415,13 @@ void main() {
         'title': {'token': 'PRIVATE_SENTINEL'}
       },
       {'title': '{"patient":"PRIVATE_SENTINEL"}'},
-      {'title': 'ok', 'uuid': 'wrong'},
+      {'title': 'ok', 'uuid': testUuid('wrong')},
       {'title': 'ok', 'sync_version': 99},
     ];
     for (var i = 0; i < payloads.length; i++) {
       final incoming = event(
           table: 'sync_items',
-          uuid: 'item-$i',
+          uuid: testUuid('item-$i'),
           version: 1,
           payload: payloads[i]);
       expect((await receive(incoming, batch: 'invalid-$i')).rejected, 1);
@@ -403,21 +436,21 @@ void main() {
         'ALTER TABLE sync_children ADD COLUMN private_owner_id INTEGER REFERENCES sync_parents(id)');
     final relations = <Map<String, Object?>>[
       {
-        'private_owner_id': {'table': 'sync_parents', 'uuid': 'p'}
+        'private_owner_id': {'table': 'sync_parents', 'uuid': testUuid('p')}
       },
       {
-        'title': {'table': 'sync_parents', 'uuid': 'p'}
+        'title': {'table': 'sync_parents', 'uuid': testUuid('p')}
       },
       {
-        'branch_id': {'table': 'sync_parents', 'uuid': 'p'}
+        'branch_id': {'table': 'sync_parents', 'uuid': testUuid('p')}
       },
       {
-        'parent_id': {'table': 'users', 'uuid': 'p'}
+        'parent_id': {'table': 'users', 'uuid': testUuid('p')}
       },
       {
         'parent_id': {
           'table': 'sync_parents',
-          'uuid': 'p',
+          'uuid': testUuid('p'),
           'secret': 'PRIVATE_SENTINEL'
         }
       },
@@ -428,7 +461,7 @@ void main() {
     for (var i = 0; i < relations.length; i++) {
       final incoming = event(
           table: 'sync_children',
-          uuid: 'c-$i',
+          uuid: testUuid('c-$i'),
           version: 1,
           payload: {'title': 'child', 'parent_id': 42},
           relations: relations[i]);
@@ -441,15 +474,18 @@ void main() {
   test(
       'embedded relations must match envelope and valid replays stay idempotent',
       () async {
-    final invalid =
-        event(table: 'sync_items', uuid: 'invalid', version: 1, payload: {
-      'title': 'bad',
-      '__relations': {'secret': 'PRIVATE_SENTINEL'}
-    });
+    final invalid = event(
+        table: 'sync_items',
+        uuid: testUuid('invalid'),
+        version: 1,
+        payload: {
+          'title': 'bad',
+          '__relations': {'secret': 'PRIVATE_SENTINEL'}
+        });
     expect((await receive(invalid)).rejected, 1);
     final valid = event(
         table: 'sync_items',
-        uuid: 'valid',
+        uuid: testUuid('valid'),
         version: 1,
         payload: {'title': 'ok', '__relations': {}});
     expect((await receive(valid, batch: 'valid-batch')).applied, 1);
@@ -460,13 +496,13 @@ void main() {
       () async {
     final valid = event(
         table: 'sync_items',
-        uuid: 'same',
+        uuid: testUuid('same'),
         version: 1,
         payload: {'title': 'valid'});
     expect((await receive(valid, batch: 'original')).applied, 1);
     final forged = event(
         table: 'sync_items',
-        uuid: 'same',
+        uuid: testUuid('same'),
         version: 1,
         payload: {'title': 'forged', 'password_hash': 'PRIVATE_SENTINEL'});
     expect((await receive(forged, batch: 'forged')).rejected, 1);
@@ -477,7 +513,7 @@ void main() {
   test('update and soft delete keep excluded local fields unchanged', () async {
     await db.execute('ALTER TABLE sync_items ADD COLUMN private_note TEXT');
     await db.insert('sync_items', {
-      'uuid': 'local',
+      'uuid': testUuid('local'),
       'branch_id': 7,
       'sync_version': 1,
       'sync_status': 'SYNCED',
@@ -486,14 +522,14 @@ void main() {
     });
     final update = event(
         table: 'sync_items',
-        uuid: 'local',
+        uuid: testUuid('local'),
         version: 2,
         operation: 'UPDATE',
         payload: {'title': 'new'});
     expect((await receive(update)).applied, 1);
     final deletion = event(
         table: 'sync_items',
-        uuid: 'local',
+        uuid: testUuid('local'),
         version: 3,
         operation: 'SOFT_DELETE',
         payload: {});
@@ -505,13 +541,17 @@ void main() {
   });
 
   test('deferred events are revalidated when policy changes', () async {
-    final incoming =
-        event(table: 'sync_children', uuid: 'child', version: 1, payload: {
-      'title': 'child',
-      'parent_id': 3
-    }, relations: {
-      'parent_id': {'table': 'sync_parents', 'uuid': 'missing'}
-    });
+    final incoming = event(
+        table: 'sync_children',
+        uuid: testUuid('child'),
+        version: 1,
+        payload: {
+          'title': 'child',
+          'parent_id': 3
+        },
+        relations: {
+          'parent_id': {'table': 'sync_parents', 'uuid': testUuid('missing')}
+        });
     expect((await receive(incoming)).deferred, 1);
     expect(await FirestoreInboxProcessor(database: db).retryDeferred(7), 0);
     expect((await db.query('sync_inbox')).single['status'], 'FAILED');
@@ -522,10 +562,10 @@ void main() {
   test('applies an event once and treats a replay as a duplicate', () async {
     final incoming = event(
       table: 'sync_items',
-      uuid: 'item-1',
+      uuid: testUuid('item-1'),
       version: 1,
       payload: {
-        'uuid': 'item-1',
+        'uuid': testUuid('item-1'),
         'branch_id': 7,
         'sync_version': 1,
         'sync_status': 'SYNCED',
@@ -558,10 +598,10 @@ void main() {
       () async {
     final parent = event(
       table: 'sync_parents',
-      uuid: 'parent-global-1',
+      uuid: testUuid('parent-global-1'),
       version: 1,
       payload: {
-        'uuid': 'parent-global-1',
+        'uuid': testUuid('parent-global-1'),
         'branch_id': 7,
         'sync_version': 1,
         'sync_status': 'SYNCED',
@@ -570,10 +610,10 @@ void main() {
     );
     final child = event(
       table: 'sync_children',
-      uuid: 'child-global-1',
+      uuid: testUuid('child-global-1'),
       version: 1,
       payload: {
-        'uuid': 'child-global-1',
+        'uuid': testUuid('child-global-1'),
         'branch_id': 7,
         'sync_version': 1,
         'sync_status': 'SYNCED',
@@ -581,7 +621,10 @@ void main() {
         'title': 'child',
       },
       relations: {
-        'parent_id': {'table': 'sync_parents', 'uuid': 'parent-global-1'},
+        'parent_id': {
+          'table': 'sync_parents',
+          'uuid': testUuid('parent-global-1')
+        },
       },
     );
 
@@ -607,10 +650,10 @@ void main() {
   test('retries a deferred child after its parent arrives', () async {
     final child = event(
       table: 'sync_children',
-      uuid: 'child-waiting',
+      uuid: testUuid('child-waiting'),
       version: 1,
       payload: {
-        'uuid': 'child-waiting',
+        'uuid': testUuid('child-waiting'),
         'branch_id': 7,
         'sync_version': 1,
         'sync_status': 'SYNCED',
@@ -618,7 +661,7 @@ void main() {
         'title': 'waiting child',
       },
       relations: {
-        'parent_id': {'table': 'sync_parents', 'uuid': 'parent-late'},
+        'parent_id': {'table': 'sync_parents', 'uuid': testUuid('parent-late')},
       },
     );
     final firstPass = await processor.processBatch(
@@ -631,10 +674,10 @@ void main() {
 
     final parent = event(
       table: 'sync_parents',
-      uuid: 'parent-late',
+      uuid: testUuid('parent-late'),
       version: 1,
       payload: {
-        'uuid': 'parent-late',
+        'uuid': testUuid('parent-late'),
         'branch_id': 7,
         'sync_version': 1,
         'sync_status': 'SYNCED',
@@ -662,10 +705,10 @@ void main() {
   test('rejects an event whose payload belongs to another branch', () async {
     final incoming = event(
       table: 'sync_items',
-      uuid: 'foreign-item',
+      uuid: testUuid('foreign-item'),
       version: 1,
       payload: {
-        'uuid': 'foreign-item',
+        'uuid': testUuid('foreign-item'),
         'branch_id': 'branch-b-uuid',
         'sync_version': 1,
         'sync_status': 'SYNCED',
@@ -689,7 +732,7 @@ void main() {
 
   test('does not overwrite a newer unsynchronized local edit', () async {
     await db.insert('sync_items', {
-      'uuid': 'item-local',
+      'uuid': testUuid('item-local'),
       'branch_id': 7,
       'sync_version': 2,
       'sync_status': 'LOCAL',
@@ -697,10 +740,10 @@ void main() {
     });
     final incoming = event(
       table: 'sync_items',
-      uuid: 'item-local',
+      uuid: testUuid('item-local'),
       version: 1,
       payload: {
-        'uuid': 'item-local',
+        'uuid': testUuid('item-local'),
         'branch_id': 7,
         'sync_version': 1,
         'sync_status': 'SYNCED',
@@ -727,10 +770,10 @@ void main() {
   test('rejects reuse of a batch UUID with a different fingerprint', () async {
     final original = event(
       table: 'sync_items',
-      uuid: 'item-2',
+      uuid: testUuid('item-2'),
       version: 1,
       payload: {
-        'uuid': 'item-2',
+        'uuid': testUuid('item-2'),
         'branch_id': 7,
         'sync_version': 1,
         'sync_status': 'SYNCED',
@@ -740,10 +783,10 @@ void main() {
     );
     final tampered = event(
       table: 'sync_items',
-      uuid: 'item-3',
+      uuid: testUuid('item-3'),
       version: 1,
       payload: {
-        'uuid': 'item-3',
+        'uuid': testUuid('item-3'),
         'branch_id': 7,
         'sync_version': 1,
         'sync_status': 'SYNCED',
