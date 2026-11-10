@@ -5,6 +5,8 @@ import 'package:sqflite/sqflite.dart';
 
 import '../database/global_uuid.dart';
 import 'financial_voucher_operation.dart';
+import 'financial_sale_wire_operation.dart';
+import 'financial_sale_two_database_replay.dart';
 
 /// Explicit, authenticated transport for the financial voucher contract.
 ///
@@ -18,9 +20,11 @@ class FinancialRelayClient {
     required Future<String> Function() idTokenProvider,
     http.Client? client,
     bool allowInsecureLocalhostForTesting = false,
+    bool saleTransportEnabled = false,
   })  : _endpoint = endpoint,
         _idTokenProvider = idTokenProvider,
-        _client = client ?? http.Client() {
+        _client = client ?? http.Client(),
+        _saleTransportEnabled = saleTransportEnabled {
     final secure = endpoint.scheme == 'https';
     final localTest = allowInsecureLocalhostForTesting &&
         endpoint.scheme == 'http' &&
@@ -37,6 +41,8 @@ class FinancialRelayClient {
   final Uri _endpoint;
   final Future<String> Function() _idTokenProvider;
   final http.Client _client;
+  // Explicit opt-in; server ALSO requires a distinct enabled gate and registry.
+  final bool _saleTransportEnabled;
 
   Future<Map<String, Object?>> _request(
       String method, Uri uri, Object? payload) async {
@@ -166,6 +172,168 @@ class FinancialRelayClient {
           trustedRelay: true);
     }
     return cursor;
+  }
+
+  /// F10: reuse this authenticated HTTPS transport, never the generic
+  /// Firestore row sync nor the CASH voucher schema.
+  Future<void> sendCapturedSale(Database database, {
+    required int branchId,
+    required String operationUuid,
+  }) async {
+    if (!_saleTransportEnabled) {
+      throw const FinancialRelayException('SALES_TRANSPORT_DISABLED');
+    }
+    final sale = await FinancialSaleWireOperation.export(database,
+        branchId: branchId, operationUuid: operationUuid);
+    final approved = await database.query('financial_sale_delivery_acks',
+        where: 'operation_uuid=?', whereArgs: [operationUuid]);
+    if (approved.isNotEmpty) {
+      if (approved.single['payload_hash'] != sale.hash) {
+        throw const FinancialRelayException('SALE_ACK_CONFLICT');
+      }
+      return;
+    }
+    final reply = await _request('POST', _endpoint, {
+      'operation_uuid': operationUuid,
+      'branch_uuid': sale.envelope['branch_uuid'],
+      'payload_hash': sale.hash,
+      'envelope': sale.envelope,
+    });
+    if (reply['status'] != 'COMMITTED' ||
+        reply['operation_uuid'] != operationUuid ||
+        reply['payload_hash'] != sale.hash) {
+      throw const FinancialRelayException('SALE_ACK_INVALID');
+    }
+    await database.insert('financial_sale_delivery_acks', {
+      'operation_uuid': operationUuid,
+      'payload_hash': sale.hash,
+      'acknowledged_at': DateTime.now().toUtc().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+  }
+
+  /// Fetch a sale-only page; the voucher cursor and stream never intermix.
+  /// Any member failure leaves the persisted cursor at its previous value.
+  Future<String> receiveSalePage(Database database, {
+    required int branchId,
+    required String branchUuid,
+    required String afterCursor,
+    int limit = 20,
+  }) async {
+    if (!_saleTransportEnabled) {
+      throw const FinancialRelayException('SALES_TRANSPORT_DISABLED');
+    }
+    if (!GlobalUuid.isValid(branchUuid) ||
+        !RegExp(r'^(0|[1-9][0-9]{0,14})
+}
+
+class FinancialRelayException implements Exception {
+  const FinancialRelayException(this.code);
+  final String code;
+  @override
+  String toString() => 'FinancialRelayException: $code';
+}
+).hasMatch(afterCursor) ||
+        limit < 1 || limit > 100) {
+      throw const FinancialRelayException('INVALID_SALE_CURSOR');
+    }
+    final uri = _endpoint.replace(queryParameters: {
+      'branch_uuid': branchUuid,
+      'operation_type': 'CASH_SALE',
+      'after': afterCursor,
+      'limit': '$limit',
+    });
+    final reply = await _request('GET', uri, null);
+    final operations = reply['operations'];
+    final cursor = reply['next_cursor'];
+    if (operations is! List || operations.length > limit ||
+        cursor is! String ||
+        !RegExp(r'^(0|[1-9][0-9]{0,14})
+}
+
+class FinancialRelayException implements Exception {
+  const FinancialRelayException(this.code);
+  final String code;
+  @override
+  String toString() => 'FinancialRelayException: $code';
+}
+).hasMatch(cursor) ||
+        int.parse(cursor) < int.parse(afterCursor) ||
+        (operations.isNotEmpty && cursor == afterCursor)) {
+      throw const FinancialRelayException('INVALID_SALE_PAGE');
+    }
+    for (final raw in operations) {
+      if (raw is! Map || raw.keys.any((key) => key is! String)) {
+        throw const FinancialRelayException('INVALID_SALE_OPERATION');
+      }
+      final item = Map<String, Object?>.from(raw);
+      final envelope = item['envelope'];
+      if (envelope is! Map || envelope.keys.any((key) => key is! String) ||
+          item['operation_uuid'] != envelope['operation_uuid'] ||
+          item['payload_hash'] is! String) {
+        throw const FinancialRelayException('INVALID_SALE_OPERATION');
+      }
+      await FinancialSaleTwoDatabaseReplay.applyVerifiedWire(
+          destination: database,
+          destinationBranchId: branchId,
+          expectedBranchUuid: branchUuid,
+          envelope: Map<String, Object?>.from(envelope),
+          payloadHash: item['payload_hash'] as String,
+          trustedRelay: true);
+    }
+    return cursor;
+  }
+
+  /// Explicit cycle. No application scheduling or production switch is added.
+  /// The sale ACK ledger and cursor are independent from voucher state.
+  Future<({int sent, int pages})> syncSalesOnce(
+    Database database, {
+    required int branchId,
+    int limit = 20,
+  }) async {
+    if (!_saleTransportEnabled) {
+      throw const FinancialRelayException('SALES_TRANSPORT_DISABLED');
+    }
+    if (limit < 1 || limit > 100) {
+      throw const FinancialRelayException('INVALID_SALE_PAGE_SIZE');
+    }
+    final branches = await database.query('branches', columns: ['uuid'],
+        where: 'id=?', whereArgs: [branchId]);
+    if (branches.length != 1 ||
+        branches.single['uuid'] is! String ||
+        !GlobalUuid.isValid(branches.single['uuid'] as String)) {
+      throw const FinancialRelayException('INVALID_BRANCH_IDENTITY');
+    }
+    final branchUuid = branches.single['uuid'] as String;
+    final pending = await database.rawQuery('''
+      SELECT o.operation_uuid FROM financial_sale_capture_outbox o
+      LEFT JOIN financial_sale_delivery_acks a
+        ON a.operation_uuid=o.operation_uuid
+      WHERE o.branch_id=? AND a.operation_uuid IS NULL
+      ORDER BY o.created_at, o.operation_uuid LIMIT ?
+    ''', [branchId, limit]);
+    for (final row in pending) {
+      await sendCapturedSale(database, branchId: branchId,
+          operationUuid: row['operation_uuid'] as String);
+    }
+    final key = 'financial.sale.v1.yer.cursor.' + branchUuid;
+    final saved = await database.query('app_settings', where: 'setting_key=?',
+        whereArgs: [key]);
+    var cursor = saved.isEmpty ? '0' : saved.single['value_text'] as String;
+    var pages = 0;
+    for (var page = 0; page < 20; page++) {
+      final next = await receiveSalePage(database,
+          branchId: branchId, branchUuid: branchUuid,
+          afterCursor: cursor, limit: limit);
+      if (next == cursor) break;
+      // Advance ONLY after every sale on this page is applied or idempotent.
+      await database.insert('app_settings', {
+        'setting_key': key, 'value_text': next,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+      cursor = next;
+      pages++;
+    }
+    return (sent: pending.length, pages: pages);
   }
 
   void close() => _client.close();
