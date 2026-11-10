@@ -297,7 +297,11 @@ void main() {
         idTokenProvider: () async => 'verified-id-token',
         saleTransportEnabled: true,
         client: MockClient((request) async {
-          expect(request.headers['authorization'], 'Bearer verified-id-token');
+          expect(
+              request.headers.entries.any((header) =>
+                  header.key.toLowerCase() == 'authorization' &&
+                  header.value == 'Bearer verified-id-token'),
+              isTrue);
           if (request.method == 'POST') {
             postCalls++;
             final sent = jsonDecode(request.body) as Map<String, dynamic>;
