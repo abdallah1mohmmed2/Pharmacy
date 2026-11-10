@@ -5,6 +5,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../database/global_uuid.dart';
 import 'financial_minor_units.dart';
+import 'financial_sale_wire_operation.dart';
 
 /// F10 integration-only replay between two independently opened SQLite DBs.
 ///
@@ -280,6 +281,47 @@ abstract final class FinancialSaleTwoDatabaseReplay {
       batchKeys: batchKeys,
       accountUuids: accountUuids,
       cashAccountUuids: cashAccountUuids,
+    );
+  }
+
+  /// Called only after an authenticated relay has supplied the exact
+  /// server-validated CASH_SALE operation. Local preflight is repeated here.
+  /// No source database handle or source SQLite integer ID is required.
+  static Future<bool> applyVerifiedWire({
+    required Database destination,
+    required int destinationBranchId,
+    required String expectedBranchUuid,
+    required Map<String, Object?> envelope,
+    required String payloadHash,
+    required bool trustedRelay,
+  }) async {
+    if (!trustedRelay) throw StateError('F10_UNTRUSTED_RELAY');
+    final w = FinancialSaleWireOperation.prepare(envelope,
+        hash: payloadHash, expectedBranchUuid: expectedBranchUuid);
+    return _applyPrepared(
+      destination: destination,
+      destinationBranchId: destinationBranchId,
+      operationUuid: w.operationUuid,
+      hash: w.hash,
+      branchUuid: w.branchUuid,
+      invoice: w.invoice,
+      items: w.items,
+      allocations: w.allocations,
+      movements: w.movements,
+      payments: w.payments,
+      cash: w.cash,
+      journal: w.journal,
+      lines: w.lines,
+      net: w.net,
+      paid: w.paid,
+      subtotal: w.subtotal,
+      discount: w.discount,
+      cashierUuid: w.cashierUuid,
+      itemDrugUuids: w.itemDrugUuids,
+      batchKeys: w.batchKeys,
+      batchUuids: w.batchUuids,
+      accountUuids: w.accountUuids,
+      cashAccountUuids: w.cashAccountUuids,
     );
   }
 
