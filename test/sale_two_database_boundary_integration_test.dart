@@ -140,14 +140,16 @@ void main() {
           hasLength(1));
       // F10 preflight: a genuine sale spans more than its invoice and stock row.
       // This is a source-side completeness audit, NOT a transport envelope.
-      final invoice = (await source.query('sales_invoices',
-          where: 'id=?', whereArgs: [invoiceId])).single;
+      final invoice = (await source
+              .query('sales_invoices', where: 'id=?', whereArgs: [invoiceId]))
+          .single;
       expect(invoice['net_total'], 40.0);
       expect(invoice['paid_total'], 40.0);
       expect(invoice['total_cost'], 10.0);
       expect(invoice['remaining_alayh'], 0.0);
       final item = (await source.query('sales_invoice_items',
-          where: 'invoice_id=?', whereArgs: [invoiceId])).single;
+              where: 'invoice_id=?', whereArgs: [invoiceId]))
+          .single;
       expect(item['qty_units'], 2);
       expect(item['line_cost'], 10.0);
       final allocations = await source.query('sales_invoice_item_batches',
@@ -161,21 +163,22 @@ void main() {
       expect(saleMovements, hasLength(1));
       expect(saleMovements.single['qty_units'], -2);
       expect(saleMovements.single['balance_after_units'], 8);
-      expect((await source.query('drugs',
-          where: 'id=?', whereArgs: [drugId]))
-          .single['stock_total_units'], 8);
+      expect(
+          (await source.query('drugs', where: 'id=?', whereArgs: [drugId]))
+              .single['stock_total_units'],
+          8);
       final payments = await source.query('sales_payments',
           where: 'invoice_id=?', whereArgs: [invoiceId]);
       expect(payments, hasLength(1));
       expect(payments.single['amount'], 40.0);
       final cashMovements = await source.query('cash_transactions',
-          where: 'doc_type=? AND doc_id=?',
-          whereArgs: ['INVOICE', invoiceId]);
+          where: 'doc_type=? AND doc_id=?', whereArgs: ['INVOICE', invoiceId]);
       expect(cashMovements, hasLength(1));
       expect(cashMovements.single['amount'], 40.0);
       final journal = (await source.query('journal_entries',
-          where: 'source_type=? AND source_id=?',
-          whereArgs: ['SALE', invoiceId])).single;
+              where: 'source_type=? AND source_id=?',
+              whereArgs: ['SALE', invoiceId]))
+          .single;
       final journalLines = await source.query('journal_lines',
           where: 'journal_entry_id=?', whereArgs: [journal['id']]);
       expect(journalLines, hasLength(4));
@@ -185,9 +188,11 @@ void main() {
           0, (sum, row) => sum + (row['cr_amount'] as num).toDouble());
       expect(debit, 50.0);
       expect(credit, debit);
-      expect(await source.query('lah_alayh_ledger',
-          where: 'doc_type=? AND doc_id=?',
-          whereArgs: ['INVOICE', invoiceId]), isEmpty,
+      expect(
+          await source.query('lah_alayh_ledger',
+              where: 'doc_type=? AND doc_id=?',
+              whereArgs: ['INVOICE', invoiceId]),
+          isEmpty,
           reason: 'Fully paid cash sale must not create customer debt');
       expect(FinancialDomainGate.productionTransportEnabled, isFalse);
       expect(() => FinancialDomainGate.requireTransportApproved('CASH_SALE'),
