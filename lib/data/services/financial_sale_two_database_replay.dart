@@ -257,6 +257,59 @@ abstract final class FinancialSaleTwoDatabaseReplay {
       accountUuids[account['id'] as int] = _uuid(account['uuid']);
     }
 
+    return _applyPrepared(
+      destination: destination,
+      destinationBranchId: destinationBranchId,
+      operationUuid: operationUuid,
+      hash: hash,
+      branchUuid: branchUuid,
+      invoice: invoice,
+      items: items,
+      allocations: allocations,
+      movements: movements,
+      payments: payments,
+      cash: cash,
+      journal: journal,
+      lines: lines,
+      net: net,
+      paid: paid,
+      subtotal: subtotal,
+      discount: discount,
+      cashierUuid: cashierUuid,
+      itemDrugUuids: itemDrugUuids,
+      batchKeys: batchKeys,
+      accountUuids: accountUuids,
+      cashAccountUuids: cashAccountUuids,
+    );
+  }
+
+  /// Shared atomic destination transaction. The local two-DB preflight and
+  /// the separately validated server wire contract both call this SAME code.
+  static Future<bool> _applyPrepared({
+    required Database destination,
+    required int destinationBranchId,
+    required String operationUuid,
+    required String hash,
+    required String branchUuid,
+    required Map<String, Object?> invoice,
+    required List<Map<String, Object?>> items,
+    required List<Map<String, Object?>> allocations,
+    required List<Map<String, Object?>> movements,
+    required List<Map<String, Object?>> payments,
+    required List<Map<String, Object?>> cash,
+    required Map<String, Object?> journal,
+    required List<Map<String, Object?>> lines,
+    required int net,
+    required int paid,
+    required int subtotal,
+    required int discount,
+    required String cashierUuid,
+    required Map<int, String> itemDrugUuids,
+    required Map<int, (String, String, String, String)> batchKeys,
+    required Map<int, String> accountUuids,
+    required Map<int, String> cashAccountUuids,
+    Map<int, (String, String)> batchUuids = const {},
+  }) async {
     return destination.transaction((txn) async {
       final branch = _one(await txn
           .query('branches', where: 'id=?', whereArgs: [destinationBranchId]));
@@ -317,14 +370,22 @@ abstract final class FinancialSaleTwoDatabaseReplay {
       final dstBatches = <int, Map<String, Object?>>{};
       for (final entry in batchKeys.entries) {
         final k = entry.value;
-        final wh = _one(await txn.query('warehouses',
-            where: 'code=? AND branch_id=?',
-            whereArgs: [k.$2, destinationBranchId]));
+        final ref = batchUuids[entry.key];
+        final wh = ref == null
+            ? _one(await txn.query('warehouses',
+                where: 'code=? AND branch_id=?',
+                whereArgs: [k.$2, destinationBranchId]))
+            : _one(await txn.query('warehouses',
+                where: 'uuid=? AND branch_id=?',
+                whereArgs: [ref.$1, destinationBranchId]));
         final d = dstDrugs[k.$1]!;
-        dstBatches[entry.key] = _one(await txn.query('batches_fefo',
-            where:
-                'drug_id=? AND warehouse_id=? AND batch_no=? AND expiry_date=?',
-            whereArgs: [d['id'], wh['id'], k.$3, k.$4]));
+        dstBatches[entry.key] = ref == null
+            ? _one(await txn.query('batches_fefo',
+                where: 'drug_id=? AND warehouse_id=? AND batch_no=? AND expiry_date=?',
+                whereArgs: [d['id'], wh['id'], k.$3, k.$4]))
+            : _one(await txn.query('batches_fefo',
+                where: 'uuid=? AND drug_id=? AND warehouse_id=?',
+                whereArgs: [ref.$2, d['id'], wh['id']]));
       }
       final dstItems = <int, int>{};
       for (final item in items) {
