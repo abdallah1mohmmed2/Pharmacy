@@ -4,12 +4,12 @@
 
 هذا جرد لجميع تعريفات TABLE وVIRTUAL TABLE وVIEW وأهداف RENAME في ملفات lib/**/*.dart، بما فيها الترحيلات والخدمات والمستودعات. تعدد تعريف جدول في الترحيلات لا يزيد العدد.
 
-**الإجمالي: 92 اسمًا**: 87 أسماء جداول عادية (تشمل أسماء الترحيل القديمة والإنشاء المشروط)، و1 جدول افتراضي، و4 عروض. ليست جميعها موجودة معاً في كل قاعدة جهاز.
+**الإجمالي: 93 اسمًا**: 88 أسماء جداول عادية (تشمل أسماء الترحيل القديمة والإنشاء المشروط)، و1 جدول افتراضي، و4 عروض. ليست جميعها موجودة معاً في كل قاعدة جهاز.
 
 | التصنيف | العدد |
 |---|---:|
 | قابل للمزامنة بالحقول المعتمدة | 16 |
-| محلي | 16 |
+| محلي | 17 |
 | حساس / غير معتمد للنقل | 54 |
 | مشتق | 6 |
 
@@ -61,6 +61,7 @@
 | `financial_operation_inbox` | table / schema | محلي | محظورة | إيصال منع تطبيق السند المالي مرتين على هذا الجهاز؛ محلي وممنوع في المزامنة العامة. | [schema_iteration13.dart:34](../lib/data/database/schema_iteration13.dart#L34) |
 | `financial_operation_outbox` | table / schema | حساس / غير معتمد للنقل | محظورة | غلاف عملية سند مالي يحتوي مراجع وأرصدة مالية؛ لا يمر عبر المزامنة العامة ولا يرسل قبل تحقق موثوق. | [schema_iteration13.dart:20](../lib/data/database/schema_iteration13.dart#L20) |
 | `financial_sale_capture_outbox` | table / schema | حساس / غير معتمد للنقل | محظورة | لقطة فاتورة بيع مالية ومخزنية محلية؛ تحتوي معرفات محلية ولا تصلح للترحيل أو المزامنة العامة. | [schema_iteration13.dart:44](../lib/data/database/schema_iteration13.dart#L44) |
+| `financial_sale_delivery_acks` | table / schema | محلي | محظورة | إيصال تأكيد إرسال فاتورة البيع المالية عبر Relay؛ محلي ولا يمر بالمزامنة العامة. | [schema_iteration13.dart:74](../lib/data/database/schema_iteration13.dart#L74) |
 | `fiscal_periods` | table / schema | حساس / غير معتمد للنقل | محظورة | الفترات المحاسبية وإقفالها؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06. | [schema_iteration6.dart:111](../lib/data/database/schema_iteration6.dart#L111) |
 | `import_jobs` | table / schema | محلي | محظورة | سجل استيراد وتصدير محلي يتضمن أسماء ملفات وتعيين أعمدة. | [schema_iteration6.dart:70](../lib/data/database/schema_iteration6.dart#L70) |
 | `insurance_companies` | table / schema | حساس / غير معتمد للنقل | محظورة | مرجع تأمين مرتبط بطرف مالي؛ غير معتمد في العقد الحالي. | [schema_iteration3.dart:14](../lib/data/database/schema_iteration3.dart#L14) |
