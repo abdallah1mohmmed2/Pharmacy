@@ -105,3 +105,50 @@ test('approved transaction persists once, returns ordered stream, rejects change
   assert.equal((await store.list(branch,0,10)).length,1);
   assert.equal(db.docs.get('financial_operation_streams/'+branch).last_sequence,1);
 });
+
+test('F10 uses branch-approved master UUIDs and independent exactly-once stream',async()=>{
+  const db=new FakeFirestore(),store=new FirestoreFinanceStore(db);
+  const cashier='55555555-5555-4555-8555-555555555555';
+  const drug='88888888-8888-4888-8888-888888888888';
+  const batch='99999999-9999-4999-8999-999999999999';
+  const warehouse='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const revenue='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const cogs='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  const inventory='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+  const sale={
+    operationType:'CASH_SALE',operationUuid:operationId,branchUuid:branch,
+    payloadHash:'a'.repeat(64),fractionDigits:0,
+    envelope:{
+      invoice:{cashier_uuid:cashier,net_minor:40,cost_minor:10},
+      items:[{drug_uuid:drug}],
+      batches:[{uuid:batch,drug_uuid:drug,warehouse_uuid:warehouse}],
+      payments:[{cash_uuid:cash,amount_minor:40}],
+      lines:[
+        {account_uuid:cashGl,dr_minor:40,cr_minor:0},
+        {account_uuid:revenue,dr_minor:0,cr_minor:40},
+        {account_uuid:cogs,dr_minor:10,cr_minor:0},
+        {account_uuid:inventory,dr_minor:0,cr_minor:10},
+      ]
+    }
+  };
+  db.approve();
+  await assert.rejects(store.commit(sale,audit),e=>e.code==='FINANCIAL_SALE_REFERENCES_NOT_APPROVED');
+  db.docs.set('financial_operation_registries/'+branch,{
+    enabled:true,fraction_digits:0,sale_enabled:true,
+    sale_cashier_uuids:[cashier],sale_drug_uuids:[drug],
+    sale_batches:{[batch]:{drug_uuid:drug,warehouse_uuid:warehouse}},
+    cash_accounts:{[cash]:cashGl},
+    sale_gl:{revenue,cogs,inventory},
+  });
+  await store.commit(sale,audit);
+  await store.commit(sale,audit);
+  assert.equal((await store.list(branch,0,20,'CASH_SALE')).length,1);
+  assert.equal((await store.list(branch,0,20)).length,0);
+  assert.equal(db.docs.get('financial_sale_operation_streams/'+branch).last_sequence,1);
+  const bad={...sale,payloadHash:'b'.repeat(64)};
+  await assert.rejects(store.commit(bad,audit),e=>e.code==='FINANCIAL_OPERATION_CONFLICT');
+  const registry=db.docs.get('financial_operation_registries/'+branch);
+  registry.sale_gl={...registry.sale_gl,revenue:inventory};
+  await assert.rejects(store.commit(sale,audit),e=>e.code==='FINANCIAL_SALE_GL_MAPPING_MISMATCH');
+  assert.equal(db.docs.get('financial_sale_operation_streams/'+branch).last_sequence,1);
+});
