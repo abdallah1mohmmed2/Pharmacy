@@ -79,7 +79,7 @@ test('F10 rejects local IDs, unknown fields, missing allocations and altered has
 });
 async function invoke(handler,method='POST',url='/v1/operations',body=event()) {
   const {Readable}=require('node:stream');
-  const req=Readable.from(method==='POST'?[JSON.stringify(body)]:[]);
+  const req=Readable.from(method==='POST'?[Buffer.from(JSON.stringify(body))]:[]);
   req.method=method; req.url=url;
   req.headers={authorization:'Bearer good','content-type':'application/json'};
   const res={
