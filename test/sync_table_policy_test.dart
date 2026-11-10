@@ -12,7 +12,6 @@ void main() {
         'warehouses',
         'shelf_locations',
         'batches_fefo',
-        'stock_movements',
         'stocktaking_sessions',
         'stocktaking_lines',
         'stock_transfers',
@@ -64,6 +63,8 @@ void main() {
         'purchase_invoice_items',
         'expenses',
         'cash_transactions',
+        'stock_movements',
+        'sales_invoice_item_batches',
         'party_settlements',
       ]) {
         expect(SyncTablePolicy.allowsOutbound(table), isFalse,
