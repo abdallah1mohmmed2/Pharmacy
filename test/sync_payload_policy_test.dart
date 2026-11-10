@@ -62,43 +62,61 @@ void main() {
           'authority_ref': 'private',
         }),
         {'disposal_no': 'D1'});
-    expect(() => SyncPayloadPolicy.project('stock_movements', {
-      'qty_units': 3,
-      'note': 'patient information',
-    }), throwsFormatException);
+    expect(
+        () => SyncPayloadPolicy.project('stock_movements', {
+              'qty_units': 3,
+              'note': 'patient information',
+            }),
+        throwsFormatException);
   });
 
   test('F10 generic row sync cannot copy stock balances or sale effects', () {
     expect(SyncTablePolicy.allowsInbound('stock_movements'), isFalse);
-    expect(SyncTablePolicy.allowsOutbound('sales_invoice_item_batches'),
-        isFalse);
-    expect(() => SyncPayloadPolicy.validateIncoming('stock_movements', {
-      'doc_type': 'SALE',
-      'qty_units': -2,
-    }), throwsFormatException);
-    expect(() => SyncPayloadPolicy.validateIncoming(
-        'sales_invoice_item_batches', {
-      'invoice_item_id': 12, 'batch_id': 20, 'qty_units': 2,
-    }), throwsFormatException);
+    expect(
+        SyncTablePolicy.allowsOutbound('sales_invoice_item_batches'), isFalse);
+    expect(
+        () => SyncPayloadPolicy.validateIncoming('stock_movements', {
+              'doc_type': 'SALE',
+              'qty_units': -2,
+            }),
+        throwsFormatException);
+    expect(
+        () => SyncPayloadPolicy.validateIncoming('sales_invoice_item_batches', {
+              'invoice_item_id': 12,
+              'batch_id': 20,
+              'qty_units': 2,
+            }),
+        throwsFormatException);
     final drug = SyncPayloadPolicy.project('drugs', {
-      'uuid': 'global-drug', 'trade_name_ar': 'صنف',
-      'stock_total_units': 8, 'sell_price_unit': 20,
+      'uuid': 'global-drug',
+      'trade_name_ar': 'صنف',
+      'stock_total_units': 8,
+      'sell_price_unit': 20,
     });
-    expect(drug, {'uuid':'global-drug', 'trade_name_ar':'صنف',
-      'sell_price_unit':20});
+    expect(drug,
+        {'uuid': 'global-drug', 'trade_name_ar': 'صنف', 'sell_price_unit': 20});
     final batch = SyncPayloadPolicy.project('batches_fefo', {
-      'uuid': 'global-batch', 'batch_no':'B', 'total_units': 8,
-      'sealed_packs': 8, 'loose_units':0, 'status':'ACTIVE',
-      'unit_cost':5,
+      'uuid': 'global-batch',
+      'batch_no': 'B',
+      'total_units': 8,
+      'sealed_packs': 8,
+      'loose_units': 0,
+      'status': 'ACTIVE',
+      'unit_cost': 5,
     });
-    expect(batch, {'uuid':'global-batch', 'batch_no':'B',
-      'unit_cost':5});
-    expect(() => SyncPayloadPolicy.validateIncoming('drugs', {
-      'uuid': 'global-drug', 'stock_total_units': 8,
-    }), throwsFormatException);
-    expect(() => SyncPayloadPolicy.validateIncoming('batches_fefo', {
-      'uuid': 'global-batch', 'total_units': 8,
-    }), throwsFormatException);
+    expect(batch, {'uuid': 'global-batch', 'batch_no': 'B', 'unit_cost': 5});
+    expect(
+        () => SyncPayloadPolicy.validateIncoming('drugs', {
+              'uuid': 'global-drug',
+              'stock_total_units': 8,
+            }),
+        throwsFormatException);
+    expect(
+        () => SyncPayloadPolicy.validateIncoming('batches_fefo', {
+              'uuid': 'global-batch',
+              'total_units': 8,
+            }),
+        throwsFormatException);
   });
 
   test('unknown tables and malformed root values fail closed', () {
