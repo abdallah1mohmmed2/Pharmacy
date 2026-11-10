@@ -41,7 +41,7 @@
     "batches_fefo": {
       "classification": "syncable",
       "sync_allowed": true,
-      "reason_ar": "التشغيلات والكميات؛ مسموح برمجياً مع بقاء اتساق حركة الشراء والرصيد قيد P0-05/P0-06.",
+      "reason_ar": "مرجع التشغيلات وبياناتها غير الرصيدية فقط؛ الكميات وحالة النفاد المشتقة تنقل عبر العمليات الذرية لا عبر last-write-wins.",
       "lifecycle": "schema"
     },
     "branch_identity_provisioning": {
@@ -167,7 +167,7 @@
     "drugs": {
       "classification": "syncable",
       "sync_allowed": true,
-      "reason_ar": "سجل الصنف التشغيلي؛ إسقاط الحقول المعتمدة فقط دون النصوص السريرية وJSON. الأرصدة تحتاج تدقيق P0-05/P0-06.",
+      "reason_ar": "مرجع الصنف العام؛ حقول الأرصدة المشتقة محظورة على المزامنة العامة، ولا يجوز أن تستبدل نتائج ترحيل المبيعات.",
       "lifecycle": "schema"
     },
     "employee_attendance": {
@@ -393,9 +393,9 @@
       "lifecycle": "schema"
     },
     "sales_invoice_item_batches": {
-      "classification": "syncable",
-      "sync_allowed": true,
-      "reason_ar": "توزيع بنود البيع على التشغيلات؛ مسموح حالياً لكن invoice_item_id يرتبط بمجال مالي محظور ويلزم P0-05.",
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "تخصيص دفعات فاتورة البيع مرتبط برأس وبند مالي محظور؛ ينقل فقط ضمن عقد CASH_SALE الذري.",
       "lifecycle": "schema"
     },
     "sales_invoice_items": {
@@ -435,9 +435,9 @@
       "lifecycle": "schema"
     },
     "stock_movements": {
-      "classification": "syncable",
-      "sync_allowed": true,
-      "reason_ar": "دفتر حركة المخزون؛ الملاحظة الحرة مستبعدة. النقل الذري مع المستند المالي لم يعتمد بعد.",
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "حركات المخزون مرتبطة بمستندات مالية وتشغيلية مركبة؛ منع نقل الصف منفرداً تجنباً لتكرار خصم البيع والقيود.",
       "lifecycle": "schema"
     },
     "stock_transfer_items": {
