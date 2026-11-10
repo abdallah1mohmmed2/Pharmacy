@@ -188,6 +188,17 @@ class SettingsAndSystemProvider extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    final batchSize = config['batch_size'];
+    if (batchSize != null &&
+        (batchSize is! num ||
+            !batchSize.isFinite ||
+            batchSize != batchSize.roundToDouble() ||
+            batchSize < 1 ||
+            batchSize > 100)) {
+      cloudSyncStatus = 'حجم دفعة المزامنة يجب أن يكون عدداً صحيحاً بين 1 و100';
+      notifyListeners();
+      return;
+    }
     final tokenProvider = _firebaseIdTokenProvider;
     if (tokenProvider == null) {
       cloudSyncStatus = 'بانتظار ربط Firebase Authentication';
@@ -224,6 +235,11 @@ class SettingsAndSystemProvider extends ChangeNotifier {
   Future<bool> testCloudConnection() async {
     final cfg = settings.getJson(SettingKey.cloudSync);
     final projectId = cfg['project_id']?.toString().trim() ?? '';
+    if ((cfg['provider'] ?? 'firestore') != 'firestore') {
+      cloudSyncStatus = 'مزود المزامنة المحدد غير مدعوم';
+      notifyListeners();
+      return false;
+    }
     if (projectId.isEmpty) {
       cloudSyncStatus = 'أدخل Firebase project_id أولاً';
       notifyListeners();
