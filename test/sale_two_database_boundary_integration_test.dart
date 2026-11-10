@@ -53,6 +53,63 @@ void main() {
     databaseFactory = databaseFactoryFfi;
   });
 
+  test('F10 opt-in captures immutable sale in posting transaction', () async {
+    final dir = await Directory.systemTemp.createTemp('f10-capture-');
+    Database? db;
+    try {
+      db = await openSaleDatabase('${dir.path}/capture.db');
+      await db.update('branches',
+          {'uuid': 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'},
+          where: 'id=?', whereArgs: [1]);
+      final drugId = await db.insert('drugs', {
+        'uuid': 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        'branch_id': 1, 'created_at': '2026-11-10',
+        'updated_at': '2026-11-10', 'internal_code': 'F10-CAPTURE',
+        'trade_name_ar': 'اختبار الالتقاط', 'units_per_pack': 1,
+        'sell_price_unit': 20.0, 'sell_price_pack': 20.0,
+        'stock_total_units': 10,
+      });
+      final wh = await db.insert('warehouses', {
+        'branch_id': 1, 'code': 'F10-WH', 'name_ar': 'مخزن',
+        'wh_type': 'MAIN_STORE', 'created_at': '2026-11-10',
+      });
+      await db.insert('batches_fefo', {
+        'drug_id': drugId, 'warehouse_id': wh, 'batch_no': 'F10-BATCH',
+        'expiry_date': '2030-12-31', 'sealed_packs': 10,
+        'loose_units': 0, 'total_units': 10, 'unit_cost': 5.0,
+      });
+      final cashId = (await db.query('cash_accounts',
+          columns: ['id'], where: 'code=?', whereArgs: ['CASH-DRAWER']))
+          .single['id'] as int;
+      final posting = PostingAndSalesService(
+          helper: DatabaseHelper.forTesting(db), captureSaleForF10: true);
+      final id = await posting.postSale(
+        branchId: 1, cashierUserId: 1,
+        items: [CartItemModel(
+          drug: DrugModel(id: drugId, unitsPerPack: 1,
+              sellPriceUnit: 20, sellPricePack: 20),
+          sellUnit: 'UNIT', quantity: 2)],
+        saleType: 'CASH',
+        payments: [(cashAccountId: cashId, amount: 40.0,
+            method: 'CASH', walletRef: null)],
+        clinicalVerdict: ClinicalVerdict([]),
+      );
+      final snapshots = await db.query('financial_sale_capture_outbox');
+      expect(snapshots, hasLength(1));
+      expect(snapshots.single['operation_uuid'],
+          (await db.query('sales_invoices',
+              where: 'id=?', whereArgs: [id])).single['uuid']);
+      expect(await db.query('financial_operation_outbox'), isEmpty);
+      await expectLater(
+          db.delete('financial_sale_capture_outbox'),
+          throwsA(isA<DatabaseException>()));
+      expect(await db.rawQuery('PRAGMA foreign_key_check'), isEmpty);
+    } finally {
+      if (db != null) await db.close();
+      await dir.delete(recursive: true);
+    }
+  });
+
   test(
       'real postSale commits invoice, FEFO movement and journal only at source',
       () async {
