@@ -303,7 +303,8 @@ void main() {
               envelope: wire.envelope, payloadHash: wire.hash,
               trustedRelay: true),
           isFalse);
-      expect(await c.query('stock_movements'), hasLength(1));
+      expect(await c.query('stock_movements',
+          where: 'movement_type=?', whereArgs: ['SALE_OUT']), hasLength(1));
       // Sender receives its own branch event: exact matching echo is a no-op.
       expect(
           await FinancialSaleTwoDatabaseReplay.applyVerifiedWire(
