@@ -19,6 +19,7 @@ import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration10.
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration11.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration12.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration13.dart';
+import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration14.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/seed_data.dart';
 import 'package:global_enterprise_pharmacy_erp/data/models/drug_model.dart';
 import 'package:global_enterprise_pharmacy_erp/data/models/erp_models.dart';
@@ -49,6 +50,7 @@ Future<Database> openSaleDatabase(String path) async {
   await SchemaIteration11.upgrade(db);
   await SchemaIteration12.upgrade(db);
   await SchemaIteration13.upgrade(db);
+  await SchemaIteration14.upgrade(db);
   return db;
 }
 
