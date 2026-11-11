@@ -175,9 +175,7 @@ class FinancialRelayClient {
   }
 
   /// Explicit voucher cycle with a restart-safe, branch-scoped cursor.
-  /// Disabled from automatic scheduling; the caller must configure a trusted
-  /// relay and authenticated identity. An interrupted page is replayed safely
-  /// because applyVerified is idempotent.
+  /// Not scheduled by the app; requires a separately approved relay.
   Future<({int pages})> syncVouchersOnce(
     Database database, {
     required int branchId,
@@ -199,7 +197,32 @@ class FinancialRelayClient {
     final saved = await database.query('app_settings',
         where: 'setting_key=?', whereArgs: [key]);
     var cursor = saved.isEmpty ? '0' : saved.single['value_text'] as String;
-    if (!RegExp(r'^(0|[1-9][0-9]{0,14})
+    if (!RegExp(r'^(0|[1-9][0-9]{0,14})$').hasMatch(cursor)) {
+      throw const FinancialRelayException('INVALID_FINANCIAL_CURSOR');
+    }
+    var pages = 0;
+    for (var page = 0; page < 20; page++) {
+      final next = await receivePage(database,
+          branchId: branchId,
+          branchUuid: branchUuid,
+          afterCursor: cursor,
+          limit: limit);
+      if (next == cursor) break;
+      await database.insert(
+          'app_settings',
+          {
+            'setting_key': key,
+            'value_text': next,
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace);
+      cursor = next;
+      pages++;
+    }
+    return (pages: pages);
+  }
+
+  /// F10: use the existing authenticated HTTPS relay; never send local IDs.
   Future<void> sendCapturedSale(
     Database database, {
     required int branchId,
