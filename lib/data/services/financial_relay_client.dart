@@ -357,6 +357,41 @@ class FinancialRelayClient {
     final saved = await database
         .query('app_settings', where: 'setting_key=?', whereArgs: [key]);
     var cursor = saved.isEmpty ? '0' : saved.single['value_text'] as String;
+    if (!RegExp(r'^(0|[1-9][0-9]{0,14})
+    var pages = 0;
+    for (var page = 0; page < 20; page++) {
+      final next = await receiveSalePage(database,
+          branchId: branchId,
+          branchUuid: branchUuid,
+          afterCursor: cursor,
+          limit: limit);
+      if (next == cursor) break;
+      await database.insert(
+          'app_settings',
+          {
+            'setting_key': key,
+            'value_text': next,
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace);
+      cursor = next;
+      pages++;
+    }
+    return (sent: pending.length, pages: pages);
+  }
+
+  void close() => _client.close();
+}
+
+class FinancialRelayException implements Exception {
+  const FinancialRelayException(this.code);
+  final String code;
+  @override
+  String toString() => 'FinancialRelayException: $code';
+}
+).hasMatch(cursor)) {
+      throw const FinancialRelayException('INVALID_SALE_CURSOR');
+    }
     var pages = 0;
     for (var page = 0; page < 20; page++) {
       final next = await receiveSalePage(database,
