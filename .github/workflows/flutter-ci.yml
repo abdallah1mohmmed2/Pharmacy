@@ -187,15 +187,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          archive="$RUNNER_TEMP/gradle-9.3.1-bin.zip"
+          archive="$RUNNER_TEMP/gradle-9.5.1-bin.zip"
           curl --fail --location --retry 3 --retry-all-errors \
             -H "Accept: application/octet-stream" \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             -H "User-Agent: Pharmacy-Android-CI" \
-            "https://api.github.com/repos/gradle/gradle-distributions/releases/assets/347704202" \
+            "https://api.github.com/repos/gradle/gradle-distributions/releases/assets/418398387" \
             --output "$archive"
-          expected="b266d5ff6b90eada6dc3b20cb090e3731302e553a27c5d3e4df1f0d76beaff06"
+          expected="bafc141b619ad6350fd975fc903156dd5c151998cc8b058e8c1044ab5f7b031f"
           printf '%s  %s\n' "$expected" "$archive" | sha256sum --check -
           python - "$archive" <<'PY'
           from pathlib import Path
@@ -215,14 +215,14 @@ jobs:
                   output.append(f"distributionUrl={uri}")
                   found_url = True
               elif line.startswith("distributionSha256Sum="):
-                  output.append("distributionSha256Sum=b266d5ff6b90eada6dc3b20cb090e3731302e553a27c5d3e4df1f0d76beaff06")
+                  output.append("distributionSha256Sum=bafc141b619ad6350fd975fc903156dd5c151998cc8b058e8c1044ab5f7b031f")
                   found_hash = True
               else:
                   output.append(line)
           if not found_url:
               raise SystemExit("Gradle wrapper distributionUrl was not found.")
           if not found_hash:
-              output.append("distributionSha256Sum=b266d5ff6b90eada6dc3b20cb090e3731302e553a27c5d3e4df1f0d76beaff06")
+              output.append("distributionSha256Sum=bafc141b619ad6350fd975fc903156dd5c151998cc8b058e8c1044ab5f7b031f")
           properties.write_text("\n".join(output) + "\n", encoding="utf-8")
           print(f"Gradle wrapper configured to use verified local distribution: {archive}")
           PY
