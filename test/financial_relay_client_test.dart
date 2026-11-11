@@ -190,10 +190,9 @@ void main() {
     await expectLater(
       client.receivePage(database,
           branchId: 1, branchUuid: branchUuid, afterCursor: '0'),
-      throwsA(isA<FinancialRelayException>().having(
-          (e) => e.code, 'code', 'INVALID_FINANCIAL_PAGE')),
+      throwsA(isA<FinancialRelayException>()
+          .having((e) => e.code, 'code', 'INVALID_FINANCIAL_PAGE')),
     );
     client.close();
   });
-
 }
