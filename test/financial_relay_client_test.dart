@@ -171,4 +171,29 @@ void main() {
         throwsA(isA<FinancialRelayException>()));
     expect(await database.query('app_settings'), isEmpty);
   });
+  test('voucher page with operations must advance cursor before apply',
+      () async {
+    const branchUuid = 'd1111111-1111-4111-8111-111111111111';
+    final client = FinancialRelayClient(
+      endpoint: Uri.parse('https://example.org/v1/operations'),
+      idTokenProvider: () async => 'signed-token',
+      client: MockClient((request) async => http.Response(
+            jsonEncode({
+              'operations': [
+                {'operation_uuid': 'invalid-operation'}
+              ],
+              'next_cursor': '0',
+            }),
+            200,
+          )),
+    );
+    await expectLater(
+      client.receivePage(database,
+          branchId: 1, branchUuid: branchUuid, afterCursor: '0'),
+      throwsA(isA<FinancialRelayException>().having(
+          (e) => e.code, 'code', 'INVALID_FINANCIAL_PAGE')),
+    );
+    client.close();
+  });
+
 }
