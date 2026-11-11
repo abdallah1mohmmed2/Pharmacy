@@ -42,3 +42,23 @@ GitHub Actions run [42990882379](https://github.com/abdallah1mohmmed2/Pharmacy/a
 - These are client-side cursor/transport tests, **not** proof of a complete end-to-end financial transfer across two independently provisioned databases and an authorized server.
 - Existing voucher capture/replay, branch identity groundwork, and security contract tests must be inventoried before adding any redundant implementation.
 - The server's production token/role/branch membership validation, financial domain authorization, currency/reference validation, and operational provisioning remain acceptance gates until verified against a deployed trusted backend. Do not enable production finance sync or merge `main` on the strength of CI alone.
+
+## Acceptance handoff: engineering versus owner action (2026-11-11)
+
+Latest verified feature-branch CI: [43025538752](https://github.com/abdallah1mohmmed2/Pharmacy/actions/runs/43025538752), completed **success** at `713a76cd98ab5f5f1718d3e013fabf214a60c368`. This includes the branch-isolated voucher cursor regression test. Do not rerun or recreate successful tests solely because older handoff sections describe them as pending.
+
+### Engineering verification without owner intervention
+
+- Inventory existing financial voucher capture, apply/replay, independent-database tests, failure rollback, and financial-sale replay before identifying missing **operation-specific** coverage. Existing evidence is not equivalent to acceptance of every purchase, return, payroll or partner operation.
+- Review trusted financial relay implementation and automated authorization contract, and distinguish test/mock verification from actual deployed backend identity, claims and reference provisioning.
+- Keep production financial transport disabled, financial Firestore allowlists unchanged, and the draft PR unmerged. Do not modify `main`.
+
+### Explicit owner-controlled production gates
+
+1. Approve the intended real Firebase project and any deployment or real-data integration. No production deployment without explicit approval.
+2. In a secure administrative environment, generate and safeguard the Ed25519 signing key and signed *single* tenant/branch manifest for `pharmacy/PHARMACY` and `ph1/PH1`. Do not commit the private key, identity registry or operational manifest. The owner must confirm the final tenant and branch identities before issuance.
+3. Install the trusted public key in the approved build configuration and provision the *same* signed branch manifest to the intended devices; record actual UUID/device identity checks.
+4. Approve Firebase Auth accounts, UID-to-branch role mapping and Custom Claims through trusted administration, and verify actual token/branch authorization and backend domain checks.
+5. Authorize a staged end-to-end acceptance run against the approved backend and two separately provisioned devices/databases; only then consider a controlled production rollout.
+
+**Status:** CI and client-side regression coverage are verified. Administrative provisioning, live trusted backend checks, and full production acceptance are **not verified**. Do not count pre-existing independent-database tests as missing work, and do not claim production readiness from CI alone.
