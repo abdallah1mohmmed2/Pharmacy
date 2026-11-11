@@ -113,4 +113,63 @@ void main() {
     );
     client.close();
   });
+  test('voucher cycle persists cursor across independent client instances',
+      () async {
+    const branchUuid = 'd1111111-1111-4111-8111-111111111111';
+    await database.execute(
+        'CREATE TABLE branches (id INTEGER PRIMARY KEY, uuid TEXT NOT NULL)');
+    await database.execute(
+        'CREATE TABLE financial_operation_outbox (operation_uuid TEXT, branch_id INTEGER, status TEXT, created_at TEXT)');
+    await database.execute(
+        'CREATE TABLE app_settings (setting_key TEXT PRIMARY KEY, value_text TEXT, updated_at TEXT)');
+    await database.insert('branches', {'id': 1, 'uuid': branchUuid});
+    final seen = <String>[];
+    final mock = MockClient((request) async {
+      final after = request.url.queryParameters['after']!;
+      seen.add(after);
+      return http.Response(
+          jsonEncode({
+            'operations': <Object>[],
+            'next_cursor': after == '0' ? '5' : after,
+          }),
+          200);
+    });
+    FinancialRelayClient makeClient() => FinancialRelayClient(
+          endpoint: Uri.parse('https://example.org/v1/operations'),
+          idTokenProvider: () async => 'signed-token',
+          client: mock,
+        );
+    final first = makeClient();
+    final firstResult = await first.syncVouchersOnce(database, branchId: 1);
+    expect(firstResult.pages, 1);
+    expect(seen, ['0', '5']);
+    final stored = await database.query('app_settings');
+    expect(stored.single['value_text'], '5');
+
+    // A fresh client reads the durable cursor rather than starting at zero.
+    final second = makeClient();
+    final secondResult = await second.syncVouchersOnce(database, branchId: 1);
+    expect(secondResult.pages, 0);
+    expect(seen, ['0', '5', '5']);
+  });
+
+  test('voucher cycle leaves cursor unchanged on relay failure', () async {
+    const branchUuid = 'd1111111-1111-4111-8111-111111111111';
+    await database.execute(
+        'CREATE TABLE branches (id INTEGER PRIMARY KEY, uuid TEXT NOT NULL)');
+    await database.execute(
+        'CREATE TABLE financial_operation_outbox (operation_uuid TEXT, branch_id INTEGER, status TEXT, created_at TEXT)');
+    await database.execute(
+        'CREATE TABLE app_settings (setting_key TEXT PRIMARY KEY, value_text TEXT, updated_at TEXT)');
+    await database.insert('branches', {'id': 1, 'uuid': branchUuid});
+    final client = FinancialRelayClient(
+      endpoint: Uri.parse('https://example.org/v1/operations'),
+      idTokenProvider: () async => 'signed-token',
+      client: MockClient((request) async => http.Response('denied', 403)),
+    );
+    await expectLater(client.syncVouchersOnce(database, branchId: 1),
+        throwsA(isA<FinancialRelayException>()));
+    expect(await database.query('app_settings'), isEmpty);
+  });
+
 }
