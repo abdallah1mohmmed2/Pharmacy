@@ -217,9 +217,8 @@ void main() {
         return http.Response(
             jsonEncode({
               'operations': <Object>[],
-              'next_cursor': after == '0'
-                  ? (branch == firstUuid ? '3' : '9')
-                  : after,
+              'next_cursor':
+                  after == '0' ? (branch == firstUuid ? '3' : '9') : after,
             }),
             200);
       }),
@@ -234,11 +233,9 @@ void main() {
       '$secondUuid:9',
       '$firstUuid:3',
     ]);
-    final saved = await database.query('app_settings',
-        orderBy: 'setting_key');
+    final saved = await database.query('app_settings', orderBy: 'setting_key');
     expect(saved.length, 2);
     expect(saved.map((row) => row['value_text']).toSet(), {'3', '9'});
     client.close();
   });
-
 }
