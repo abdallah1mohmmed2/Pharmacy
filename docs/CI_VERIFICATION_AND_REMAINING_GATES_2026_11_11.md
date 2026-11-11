@@ -26,3 +26,9 @@ The existing `processAtomicBatch` and cash voucher validator are groundwork, **n
 ## Next engineering step
 
 Audit the existing source posting/Outbox integration for a single cash voucher operation; implement only the missing transaction-bound capture and identity mapping after tests confirm the gap. Follow with two-database replay tests. Do not rebuild working sync infrastructure or weaken UUID validation.
+
+## 2026-11-11 follow-up: voucher cursor persistence
+
+Commit `dbde1e6fb9a59c47e38f945f456f286a1e9701c1` adds `FinancialRelayClient.syncVouchersOnce` using the existing voucher `sendPending` and `receivePage` functions. It stores a branch-UUID-scoped cursor in `app_settings` after each successfully processed page. It is explicitly caller-invoked, not scheduled, and does not activate production transport. The existing voucher capture/replay implementation was **not** duplicated.
+
+**Verification pending:** this commit has not yet been shown to pass CI or targeted restart/interrupted-page tests. Do not treat the feature as accepted until those checks pass. The cursor and applied operations are not committed in one SQLite transaction; a crash between them intentionally causes idempotent replay rather than lost events. Financial deployment gates above remain in force.
