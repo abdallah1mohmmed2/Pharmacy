@@ -149,7 +149,8 @@ class FinancialRelayClient {
         operations.length > limit ||
         cursor is! String ||
         !RegExp(r'^(0|[1-9][0-9]{0,14})$').hasMatch(cursor) ||
-        int.parse(cursor) < int.parse(afterCursor)) {
+        int.parse(cursor) < int.parse(afterCursor) ||
+        (operations.isNotEmpty && cursor == afterCursor)) {
       throw const FinancialRelayException('INVALID_FINANCIAL_PAGE');
     }
     for (final raw in operations) {
