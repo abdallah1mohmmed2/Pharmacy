@@ -32,3 +32,7 @@
 - Financial relay HTTPS endpoint not deployed and validated.
 
 A green CI build and a successful local login are not sufficient evidence to claim first-day cross-device synchronization.
+
+## CI rebuild trigger after public-key variable configuration
+- Operator reported configuring `PROVISIONING_ED25519_PUBLIC_KEY_PEM_BASE64` in GitHub Actions repository variables. This is operator-reported, not independently readable through this connection.
+- This documentation-only commit intentionally triggers the existing push-based Pharmacy Flutter CI workflow on `feature/central-medicine-catalog` to build Android with the current repository variable. Verify the workflow job, its logs, and the new APK artifact before installation. Do not treat a green build as proof that the key value matches the issuer or that Firebase sync works.
