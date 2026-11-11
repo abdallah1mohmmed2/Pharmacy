@@ -171,5 +171,4 @@ void main() {
         throwsA(isA<FinancialRelayException>()));
     expect(await database.query('app_settings'), isEmpty);
   });
-
 }

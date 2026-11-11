@@ -194,8 +194,8 @@ class FinancialRelayClient {
     final branchUuid = branches.single['uuid'] as String;
     await sendPending(database, branchId, limit: limit);
     final key = 'financial.voucher.v2.yer.cursor.' + branchUuid;
-    final saved = await database.query('app_settings',
-        where: 'setting_key=?', whereArgs: [key]);
+    final saved = await database
+        .query('app_settings', where: 'setting_key=?', whereArgs: [key]);
     var cursor = saved.isEmpty ? '0' : saved.single['value_text'] as String;
     if (!RegExp(r'^(0|[1-9][0-9]{0,14})$').hasMatch(cursor)) {
       throw const FinancialRelayException('INVALID_FINANCIAL_CURSOR');
