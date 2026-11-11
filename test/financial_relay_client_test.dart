@@ -195,4 +195,50 @@ void main() {
     );
     client.close();
   });
+  test('voucher cursors are isolated between branch identities', () async {
+    const firstUuid = 'd1111111-1111-4111-8111-111111111111';
+    const secondUuid = 'd2222222-2222-4222-8222-222222222222';
+    await database.execute(
+        'CREATE TABLE branches (id INTEGER PRIMARY KEY, uuid TEXT NOT NULL)');
+    await database.execute(
+        'CREATE TABLE financial_operation_outbox (operation_uuid TEXT, branch_id INTEGER, status TEXT, created_at TEXT)');
+    await database.execute(
+        'CREATE TABLE app_settings (setting_key TEXT PRIMARY KEY, value_text TEXT, updated_at TEXT)');
+    await database.insert('branches', {'id': 1, 'uuid': firstUuid});
+    await database.insert('branches', {'id': 2, 'uuid': secondUuid});
+    final seen = <String>[];
+    final client = FinancialRelayClient(
+      endpoint: Uri.parse('https://example.org/v1/operations'),
+      idTokenProvider: () async => 'signed-token',
+      client: MockClient((request) async {
+        final branch = request.url.queryParameters['branch_uuid']!;
+        final after = request.url.queryParameters['after']!;
+        seen.add('$branch:$after');
+        return http.Response(
+            jsonEncode({
+              'operations': <Object>[],
+              'next_cursor': after == '0'
+                  ? (branch == firstUuid ? '3' : '9')
+                  : after,
+            }),
+            200);
+      }),
+    );
+    await client.syncVouchersOnce(database, branchId: 1);
+    await client.syncVouchersOnce(database, branchId: 2);
+    await client.syncVouchersOnce(database, branchId: 1);
+    expect(seen, [
+      '$firstUuid:0',
+      '$firstUuid:3',
+      '$secondUuid:0',
+      '$secondUuid:9',
+      '$firstUuid:3',
+    ]);
+    final saved = await database.query('app_settings',
+        orderBy: 'setting_key');
+    expect(saved.length, 2);
+    expect(saved.map((row) => row['value_text']).toSet(), {'3', '9'});
+    client.close();
+  });
+
 }
