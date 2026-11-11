@@ -266,11 +266,10 @@ void main() {
     );
     await expectLater(
       client.syncSalesOnce(database, branchId: 1),
-      throwsA(isA<FinancialRelayException>().having(
-          (e) => e.code, 'code', 'INVALID_SALE_CURSOR')),
+      throwsA(isA<FinancialRelayException>()
+          .having((e) => e.code, 'code', 'INVALID_SALE_CURSOR')),
     );
     expect(called, isFalse);
     client.close();
   });
-
 }
