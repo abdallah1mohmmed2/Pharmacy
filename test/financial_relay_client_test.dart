@@ -238,4 +238,39 @@ void main() {
     expect(saved.map((row) => row['value_text']).toSet(), {'3', '9'});
     client.close();
   });
+  test('sale cycle rejects corrupt persisted cursor before network access',
+      () async {
+    const branchUuid = 'd1111111-1111-4111-8111-111111111111';
+    await database.execute(
+        'CREATE TABLE branches (id INTEGER PRIMARY KEY, uuid TEXT NOT NULL)');
+    await database.execute(
+        'CREATE TABLE financial_sale_capture_outbox (operation_uuid TEXT, branch_id INTEGER, created_at TEXT)');
+    await database.execute(
+        'CREATE TABLE financial_sale_delivery_acks (operation_uuid TEXT)');
+    await database.execute(
+        'CREATE TABLE app_settings (setting_key TEXT PRIMARY KEY, value_text TEXT, updated_at TEXT)');
+    await database.insert('branches', {'id': 1, 'uuid': branchUuid});
+    await database.insert('app_settings', {
+      'setting_key': 'financial.sale.v1.yer.cursor.$branchUuid',
+      'value_text': '-1',
+    });
+    var called = false;
+    final client = FinancialRelayClient(
+      endpoint: Uri.parse('https://example.org/v1/operations'),
+      idTokenProvider: () async => 'signed-token',
+      saleTransportEnabled: true,
+      client: MockClient((request) async {
+        called = true;
+        return http.Response('{}', 200);
+      }),
+    );
+    await expectLater(
+      client.syncSalesOnce(database, branchId: 1),
+      throwsA(isA<FinancialRelayException>().having(
+          (e) => e.code, 'code', 'INVALID_SALE_CURSOR')),
+    );
+    expect(called, isFalse);
+    client.close();
+  });
+
 }
