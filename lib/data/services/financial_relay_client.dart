@@ -198,7 +198,7 @@ class FinancialRelayClient {
     final saved = await database
         .query('app_settings', where: 'setting_key=?', whereArgs: [key]);
     var cursor = saved.isEmpty ? '0' : saved.single['value_text'] as String;
-    if (!RegExp(r'^[0-9]+').hasMatch(cursor) || cursor.length > 15 ||
+    if (RegExp(r'^[0-9]+').stringMatch(cursor) != cursor || cursor.length > 15 ||
         (cursor.length > 1 && cursor.startsWith('0'))) {
       throw const FinancialRelayException('INVALID_FINANCIAL_CURSOR');
     }
@@ -358,7 +358,7 @@ class FinancialRelayClient {
     final saved = await database
         .query('app_settings', where: 'setting_key=?', whereArgs: [key]);
     var cursor = saved.isEmpty ? '0' : saved.single['value_text'] as String;
-    if (!RegExp(r'^[0-9]+').hasMatch(cursor) || cursor.length > 15 ||
+    if (RegExp(r'^[0-9]+').stringMatch(cursor) != cursor || cursor.length > 15 ||
         (cursor.length > 1 && cursor.startsWith('0'))) {
       throw const FinancialRelayException('INVALID_SALE_CURSOR');
     }
