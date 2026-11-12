@@ -32,20 +32,17 @@ void main() {
 
   group('Opening stock prices', () {
     test('any one source price derives only the blanks', () {
-      expect(
-          const OpeningStockPrices(carton: 10000).fillMissing(10, 10).packet,
+      expect(const OpeningStockPrices(carton: 10000).fillMissing(10, 10).packet,
           1000);
-      expect(
-          const OpeningStockPrices(carton: 10000).fillMissing(10, 10).unit,
+      expect(const OpeningStockPrices(carton: 10000).fillMissing(10, 10).unit,
           100);
-      expect(
-          const OpeningStockPrices(packet: 1000).fillMissing(10, 10).carton,
+      expect(const OpeningStockPrices(packet: 1000).fillMissing(10, 10).carton,
           10000);
-      expect(
-          const OpeningStockPrices(unit: 100).fillMissing(10, 10).carton,
+      expect(const OpeningStockPrices(unit: 100).fillMissing(10, 10).carton,
           10000);
-      final manual = const OpeningStockPrices(
-          carton: 10000, packet: 1200, unit: 130).fillMissing(10, 10);
+      final manual =
+          const OpeningStockPrices(carton: 10000, packet: 1200, unit: 130)
+              .fillMissing(10, 10);
       expect([manual.carton, manual.packet, manual.unit], [10000, 1200, 130]);
       expect(() => const OpeningStockPrices(carton: 10).fillMissing(0, 10),
           throwsArgumentError);
@@ -120,12 +117,14 @@ void main() {
       helper = DatabaseHelper.forTesting(db);
       service = OpeningInventoryService(helper: helper);
       warehouseId = (await db.query('warehouses',
-          where: 'branch_id=? AND wh_type=?',
-          whereArgs: [branchId, 'PHARMACY_FLOOR'], limit: 1))
+              where: 'branch_id=? AND wh_type=?',
+              whereArgs: [branchId, 'PHARMACY_FLOOR'],
+              limit: 1))
           .single['id'] as int;
       final now = DateTime.now().toIso8601String();
       final expiry = DateTime.now().add(const Duration(days: 730));
-      futureExpiry = '${expiry.year.toString().padLeft(4, '0')}-${expiry.month.toString().padLeft(2, '0')}-${expiry.day.toString().padLeft(2, '0')}';
+      futureExpiry =
+          '${expiry.year.toString().padLeft(4, '0')}-${expiry.month.toString().padLeft(2, '0')}-${expiry.day.toString().padLeft(2, '0')}';
       drugId = await db.insert('drugs', {
         'uuid': 'opening-test-drug',
         'branch_id': branchId,
@@ -148,29 +147,33 @@ void main() {
       int packets = 3,
       int units = 4,
       OpeningStockPrices prices = const OpeningStockPrices(carton: 12000),
-    }) => OpeningStockLine(
-      drugId: drugId,
-      warehouseId: warehouseId,
-      expiryDate: futureExpiry,
-      batchNo: lot,
-      shelfCode: shelf,
-      cartons: cartons,
-      packets: packets,
-      units: units,
-      packetsPerCarton: 10,
-      unitsPerPacket: 12,
-      prices: prices,
-    );
+    }) =>
+        OpeningStockLine(
+          drugId: drugId,
+          warehouseId: warehouseId,
+          expiryDate: futureExpiry,
+          batchNo: lot,
+          shelfCode: shelf,
+          cartons: cartons,
+          packets: packets,
+          units: units,
+          packetsPerCarton: 10,
+          unitsPerPacket: 12,
+          prices: prices,
+        );
 
-    Future<int> post(String uuid, List<OpeningStockLine> lines, {String? hash}) =>
+    Future<int> post(String uuid, List<OpeningStockLine> lines,
+            {String? hash}) =>
         service.post(
-          branchId: branchId, operationUuid: uuid,
+          branchId: branchId,
+          operationUuid: uuid,
           effectiveDate: DateTime.now().toIso8601String().substring(0, 10),
           lines: lines,
           sourceHash: hash,
         );
 
-    test('280 units are posted to FEFO, movements, existing drug fields', () async {
+    test('280 units are posted to FEFO, movements, existing drug fields',
+        () async {
       final settingsBefore = await db.query('system_settings', orderBy: 'id');
       final result = await service.preview(
           branchId: branchId,
@@ -178,7 +181,8 @@ void main() {
           lines: [row()]);
       expect(result.errors, isEmpty);
       expect(result.totalUnits, 280);
-      final operationId = await post('opening-uuid-1', [row()], hash: 'filehash-A');
+      final operationId =
+          await post('opening-uuid-1', [row()], hash: 'filehash-A');
       final batch = (await db.query('batches_fefo')).single;
       expect(batch['sealed_packs'], 2);
       expect(batch['loose_units'], 40);
@@ -190,8 +194,8 @@ void main() {
       expect(movement['qty_units'], 280);
       expect(movement['doc_id'], operationId);
       expect((movement['note'] as String), contains('تاريخ الرصيد:'));
-      final drug = (await db.query('drugs', where: 'id=?',
-          whereArgs: [drugId])).single;
+      final drug =
+          (await db.query('drugs', where: 'id=?', whereArgs: [drugId])).single;
       expect(drug['stock_total_units'], 280);
       expect(drug['strips_per_pack'], 10);
       expect(drug['units_per_strip'], 12);
@@ -204,56 +208,70 @@ void main() {
       expect(await db.rawQuery('PRAGMA foreign_key_check'), isEmpty);
     });
 
-    test('same operation and same XLSX file cannot inflate stock twice', () async {
+    test('same operation and same XLSX file cannot inflate stock twice',
+        () async {
       final first = await post('opening-uuid-2', [row()], hash: 'filehash-B');
       expect(await post('opening-uuid-2', [row()], hash: 'filehash-B'), first);
-      await expectLater(
-          post('opening-uuid-new', [row()], hash: 'filehash-B'), throwsStateError);
+      await expectLater(post('opening-uuid-new', [row()], hash: 'filehash-B'),
+          throwsStateError);
       expect((await db.query('batches_fefo')).single['total_units'], 280);
       expect(await db.query('stock_movements'), hasLength(1));
       expect(await db.query('opening_inventory_posts'), hasLength(1));
     });
 
     test('invalid shelf or wrong branch rejects whole operation', () async {
-      await expectLater(post('opening-invalid', [
-        row(),
-        row(lot: 'LOT-002', shelf: 'UNKNOWN-SHELF'),
-      ]), throwsStateError);
+      await expectLater(
+          post('opening-invalid', [
+            row(),
+            row(lot: 'LOT-002', shelf: 'UNKNOWN-SHELF'),
+          ]),
+          throwsStateError);
       expect(await db.query('batches_fefo'), isEmpty);
       expect(await db.query('stock_movements'), isEmpty);
       expect(await db.query('opening_inventory_posts'), isEmpty);
-      await expectLater(service.post(
-        branchId: 999,
-        operationUuid: 'wrong-branch',
-        effectiveDate: DateTime.now().toIso8601String().substring(0, 10),
-        lines: [row()],
-      ), throwsStateError);
+      await expectLater(
+          service.post(
+            branchId: 999,
+            operationUuid: 'wrong-branch',
+            effectiveDate: DateTime.now().toIso8601String().substring(0, 10),
+            lines: [row()],
+          ),
+          throwsStateError);
     });
 
-    test('two lots retain separate FEFO batches while prices remain independent', () async {
+    test(
+        'two lots retain separate FEFO batches while prices remain independent',
+        () async {
       await post('opening-lots', [
-        row(lot: 'LOT-A', prices: const OpeningStockPrices(
-          carton: 12000, packet: 1350, unit: 115)),
-        row(lot: 'LOT-B', cartons: 1, packets: 0, units: 0,
+        row(
+            lot: 'LOT-A',
             prices: const OpeningStockPrices(
-          carton: 12000, packet: 1350, unit: 115)),
+                carton: 12000, packet: 1350, unit: 115)),
+        row(
+            lot: 'LOT-B',
+            cartons: 1,
+            packets: 0,
+            units: 0,
+            prices: const OpeningStockPrices(
+                carton: 12000, packet: 1350, unit: 115)),
       ]);
       expect(await db.query('batches_fefo'), hasLength(2));
       expect(await db.query('stock_movements'), hasLength(2));
-      final drug = (await db.query('drugs', where: 'id=?',
-          whereArgs: [drugId])).single;
+      final drug =
+          (await db.query('drugs', where: 'id=?', whereArgs: [drugId])).single;
       expect(drug['stock_total_units'], 400);
       expect(drug['sell_price_strip'], 1350);
       expect(drug['sell_price_unit'], 115);
       // The medicine editor must not destroy manual packet/unit prices.
       final editing = DrugModel.fromMap(drug);
       final updated = DrugModel.fromMap({
-        ...editing.toMap(), 'sell_price_pack': 14000,
+        ...editing.toMap(),
+        'sell_price_pack': 14000,
       });
       final provider = PosAndDrugsProvider(database: helper);
       await provider.saveDrug(updated);
-      final afterEdit = (await db.query('drugs', where: 'id=?',
-          whereArgs: [drugId])).single;
+      final afterEdit =
+          (await db.query('drugs', where: 'id=?', whereArgs: [drugId])).single;
       expect(afterEdit['sell_price_strip'], 1350);
       expect(afterEdit['sell_price_unit'], 115);
       expect(afterEdit['stock_total_units'], 400);
