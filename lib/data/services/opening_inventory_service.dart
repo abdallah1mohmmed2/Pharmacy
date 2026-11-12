@@ -344,6 +344,10 @@ class OpeningInventoryService {
         final p = previewResult[i];
         final line = p.row;
         final drug = p.drug;
+        // Combine explicit prices across lots before suggesting missing fields.
+        // No later row may erase an earlier manual carton/packet/unit price.
+        final resolvedPrices = perDrugPrices[p.drugId]!
+            .fillMissing(line.packetsPerCarton, line.unitsPerPacket);
         // Prices are medicine-level fields already consumed by clinical details.
         // Never copy stock quantities or expiry batches to clinical fields.
         final update = <String, Object?>{
@@ -357,7 +361,7 @@ class OpeningInventoryService {
           update['sell_price_pack'] = p.prices.carton;
         if (p.prices.packet != null)
           update['sell_price_strip'] = p.prices.packet;
-        if (p.prices.unit != null) update['sell_price_unit'] = p.prices.unit;
+        if (resolvedPrices.unit != null) update['sell_price_unit'] = resolvedPrices.unit;
         await txn.update('drugs', update,
             where: 'id=? AND branch_id=? AND is_deleted=0',
             whereArgs: [p.drugId, branchId]);
