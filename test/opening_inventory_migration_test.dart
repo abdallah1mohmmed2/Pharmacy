@@ -60,7 +60,7 @@ void main() {
               await SchemaIteration14.upgrade(d);
             },
           ));
-      final settingsBefore = await old.query('system_settings', orderBy: 'id');
+      final settingsBefore = await old.query('system_settings', orderBy: 'setting_no');
       final drugId = await old.insert('drugs', {
         'uuid': 'existing-drug-before-opening',
         'branch_id': 1,
@@ -88,7 +88,7 @@ void main() {
             },
           ));
       expect(await upgraded.getVersion(), 18);
-      expect(await upgraded.query('system_settings', orderBy: 'id'),
+      expect(await upgraded.query('system_settings', orderBy: 'setting_no'),
           settingsBefore);
       final existing =
           (await upgraded.query('drugs', where: 'id=?', whereArgs: [drugId]))
