@@ -217,8 +217,9 @@ class PosAndDrugsProvider extends ChangeNotifier {
     map['sell_price_strip'] = drug.stripPriceMode == 'MANUAL'
         ? drug.sellPriceStrip
         : drug.sellPricePack / stripsPerPack;
-    map['sell_price_unit'] =
-        drug.sellPricePack / (stripsPerPack * unitsPerStrip);
+    map['sell_price_unit'] = drug.stripPriceMode == 'MANUAL'
+        ? drug.sellPriceUnit
+        : drug.sellPricePack / (stripsPerPack * unitsPerStrip);
     final db = await _db.database;
     if (drug.id == null) {
       // Stock is derived from FEFO batches and stock movements. A catalogue
