@@ -57,6 +57,16 @@ Branch: `feature/central-medicine-catalog`. Never change `main` for this task. T
 - Batch-specific expiry date, lot number and receipt date remain in inventory/batch screens, not clinical details. Keep clinical medical content unchanged; do not overwrite drug indications, interactions, contraindications or other medical attributes with stock-entry values.
 - Preserve existing system settings and data path. Add tests ensuring price/package changes are reflected in existing clinical-details fields while stock-count changes do not add or alter clinical detail fields.
 
+
+## Excel (.xlsx) bulk opening-stock import — requested, not yet implemented
+- Add **استيراد من Excel** to the **existing** `المخزون ← إدخال البضاعة / الرصيد الافتتاحي` screen, alongside manual entry. Do not change system settings, data routing or existing database ownership.
+- Provide a downloadable, documented XLSX template with columns: existing drug identifier or name, medicine type/form, carton quantity, additional packet quantity, additional loose-unit quantity, packets per carton, units per packet, independent carton/packet/unit selling prices, per-batch expiry date, lot/batch number, effective stock-entry date, warehouse reference and optional purchase cost/source. Explicitly document the unit meanings and currency; require positive conversion factors. Dates use unambiguous YYYY-MM-DD.
+- Parse and validate **all rows before posting**: medicine matching (ambiguous names require manual resolution), branch and warehouse authorization, numeric constraints, pricing precision, dates and batch expiry. Preview totals and row-level errors; allow correction and explicit approval. Never silently invent clinical attributes or drug identifiers.
+- Post approved rows using the **same existing branch-scoped inventory transaction, FEFO batches and stock movements** as manual opening stock. Use stable import/job ID and per-row idempotency keys, detect repeated uploads and partial retries; avoid stock duplication. On failure do not leave partially posted untraceable balances; define atomic import/rollback policy and audit imported file hash, operator, actual posting timestamp and effective date.
+- Update only the **existing medicine price/package fields** consumed by clinical details; do **not** expose stock-on-hand or expiry batches inside clinical details. All quantities, batch expiry dates and warehouse balances remain in inventory.
+- Tests: correct conversion for mixed units, multiple batches of one medicine, price propagation, invalid/ambiguous rows, duplicate file/retry, transaction rollback, no settings/data-route changes, no regression in purchases/sales/FEFO, and authorized two-device sync only when separately approved.
+- Status: **requirement documented only; XLSX import UI/parser and transaction integration are not implemented**.
+
 ## Implementation status
 - **Documentation/specification added**; opening-inventory feature is **NOT YET IMPLEMENTED** by this handoff commit.
 - Next engineering action: inspect schema/migrations, drug model, inventory posting service and existing screens; implement minimal missing opening-balance transaction and UI, then tests. Do not alter `main`.
