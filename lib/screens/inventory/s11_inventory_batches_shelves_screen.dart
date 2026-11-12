@@ -5,6 +5,8 @@ import '../../data/database/database_helper.dart';
 import '../../data/models/inventory_and_purchase_models.dart';
 import '../../core/widgets/shared_widgets.dart';
 import 'opening_inventory_screen.dart';
+import '../../providers/session_and_erp_provider.dart';
+import '../../providers/settings_and_system_provider.dart';
 
 class S11InventoryBatchesShelvesScreen extends StatefulWidget {
   const S11InventoryBatchesShelvesScreen({super.key});
@@ -35,6 +37,13 @@ class _S11InventoryBatchesShelvesScreenState
   @override
   Widget build(BuildContext context) {
     final p = context.watch<InventoryAndPurchaseProvider>();
+    final session = context.watch<SessionAndErpProvider>();
+    final settings = context.watch<SettingsAndSystemProvider>();
+    final role = session.currentUser?['role_code'] as String? ?? '';
+    final canPostOpening = role == 'OWNER' || settings.roleRows.any((r) =>
+        r['role_code'] == role &&
+        r['permission_code'] == 'inventory.adjust' &&
+        (r['is_allowed'] as num) == 1);
     return Padding(
       padding: const EdgeInsets.all(12),
       child: Column(children: [
@@ -55,7 +64,7 @@ class _S11InventoryBatchesShelvesScreenState
               icon: const Icon(Icons.receipt_long),
               tooltip: 'كارت حركة الصنف'),
         ]),
-        Align(
+        if (canPostOpening) Align(
           alignment: AlignmentDirectional.centerStart,
           child: FilledButton.icon(
             icon: const Icon(Icons.add_box_outlined),
