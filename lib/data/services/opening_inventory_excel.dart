@@ -48,12 +48,19 @@ abstract final class OpeningInventoryExcel {
     ]) {
       help.appendRow([TextCellValue(description)]);
     }
+    excel.delete('Sheet1');
+    excel.setDefaultSheet('الرصيد الافتتاحي');
     return excel.save()!;
+  }
+
+  static String _plainText(TextSpan value) {
+    final own = value.text ?? '';
+    return own + (value.children?.map(_plainText).join() ?? '');
   }
 
   static String _text(CellValue? value) {
     if (value == null) return '';
-    if (value is TextCellValue) return value.value.trim();
+    if (value is TextCellValue) return _plainText(value.value).trim();
     if (value is IntCellValue) return value.value.toString();
     if (value is DoubleCellValue) return value.value.toString();
     if (value is DateCellValue) {
