@@ -50,6 +50,13 @@ Branch: `feature/central-medicine-catalog`. Never change `main` for this task. T
 - Before implementation, write regression tests asserting unchanged system settings and storage/sync routing, plus no stock mutation from catalog-only edits; verify existing records remain readable and current business workflows still pass.
 - If a requested feature cannot fit the current schema/data path safely, document the gap and seek approval before any architectural or settings change; do not silently introduce a new route.
 
+
+## Existing clinical-details screen: strict separation from stock balances
+- The existing clinical-details screen already shows medicine price, package size/count and type/form. When opening inventory captures **medicine-level price or package metadata**, update the **existing corresponding fields** in the current medicine model so that this screen displays the latest values. Do not add a duplicate panel or independent source of truth.
+- **Never display available stock quantity, remaining cartons/packets/units, warehouse balances, stock movements or inventory entry totals in clinical details.** These belong exclusively to inventory screens. Distinguish fixed package composition (e.g. units per carton) from current quantity on hand.
+- Batch-specific expiry date, lot number and receipt date remain in inventory/batch screens, not clinical details. Keep clinical medical content unchanged; do not overwrite drug indications, interactions, contraindications or other medical attributes with stock-entry values.
+- Preserve existing system settings and data path. Add tests ensuring price/package changes are reflected in existing clinical-details fields while stock-count changes do not add or alter clinical detail fields.
+
 ## Implementation status
 - **Documentation/specification added**; opening-inventory feature is **NOT YET IMPLEMENTED** by this handoff commit.
 - Next engineering action: inspect schema/migrations, drug model, inventory posting service and existing screens; implement minimal missing opening-balance transaction and UI, then tests. Do not alter `main`.
