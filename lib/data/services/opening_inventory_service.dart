@@ -181,7 +181,8 @@ class OpeningInventoryService {
         drug['units_per_strip'] != row.unitsPerPacket) {
       final anyBatches = await txn.query('batches_fefo',
           columns: ['id'], where: 'drug_id=?', whereArgs: [drugId], limit: 1);
-      if (anyBatches.isNotEmpty || (drug['stock_total_units'] as int? ?? 0) > 0) {
+      if (anyBatches.isNotEmpty ||
+          (drug['stock_total_units'] as int? ?? 0) > 0) {
         throw StateError('لا يمكن تغيير تعبئة دواء له تشغيلات مسجلة');
       }
     }
@@ -226,7 +227,8 @@ class OpeningInventoryService {
         [previous.packet, original.packet],
         [previous.unit, original.unit],
       ]) {
-        if (pair[0] != null && pair[1] != null &&
+        if (pair[0] != null &&
+            pair[1] != null &&
             (pair[0]! - pair[1]!).abs() > 0.000001) {
           throw StateError(
               'أسعار بيع مختلفة للدواء نفسه في صفوف متعددة؛ وحّدها أو راجعها');
@@ -361,7 +363,8 @@ class OpeningInventoryService {
           update['sell_price_pack'] = p.prices.carton;
         if (p.prices.packet != null)
           update['sell_price_strip'] = p.prices.packet;
-        if (resolvedPrices.unit != null) update['sell_price_unit'] = resolvedPrices.unit;
+        if (resolvedPrices.unit != null)
+          update['sell_price_unit'] = resolvedPrices.unit;
         await txn.update('drugs', update,
             where: 'id=? AND branch_id=? AND is_deleted=0',
             whereArgs: [p.drugId, branchId]);
