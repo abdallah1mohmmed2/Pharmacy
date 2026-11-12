@@ -1,5 +1,5 @@
 {
-  "schema_version": 17,
+  "schema_version": 18,
   "reviewed_commit": "3dd6ec22e335d544ba4869e7e9597e836c129a73",
   "objects": {
     "active_ingredients": {
@@ -270,6 +270,12 @@
       "classification": "local",
       "sync_allowed": false,
       "reason_ar": "عدادات ترقيم المستندات؛ نسخها كسجلات مستقلة قد يولد أرقاماً متصادمة. يحتاج سياسة ترقيم مستقلة.",
+      "lifecycle": "schema"
+    },
+    "opening_inventory_posts": {
+      "classification": "local",
+      "sync_allowed": false,
+      "reason_ar": "سجل منع تكرار اعتماد الرصيد الافتتاحي وبصمة الملف محلي؛ لا ينقل عبر مزامنة السجلات العامة.",
       "lifecycle": "schema"
     },
     "parties": {
