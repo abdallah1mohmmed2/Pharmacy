@@ -174,7 +174,8 @@ void main() {
 
     test('280 units are posted to FEFO, movements, existing drug fields',
         () async {
-      final settingsBefore = await db.query('system_settings', orderBy: 'setting_no');
+      final settingsBefore =
+          await db.query('system_settings', orderBy: 'setting_no');
       final result = await service.preview(
           branchId: branchId,
           effectiveDate: DateTime.now().toIso8601String().substring(0, 10),
@@ -204,7 +205,8 @@ void main() {
       expect(drug['sell_price_strip'], 1200);
       expect(drug['sell_price_unit'], 100);
       expect(drug['strip_price_mode'], 'MANUAL');
-      expect(await db.query('system_settings', orderBy: 'setting_no'), settingsBefore);
+      expect(await db.query('system_settings', orderBy: 'setting_no'),
+          settingsBefore);
       expect(await db.rawQuery('PRAGMA foreign_key_check'), isEmpty);
     });
 

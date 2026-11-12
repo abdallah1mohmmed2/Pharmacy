@@ -60,7 +60,8 @@ void main() {
               await SchemaIteration14.upgrade(d);
             },
           ));
-      final settingsBefore = await old.query('system_settings', orderBy: 'setting_no');
+      final settingsBefore =
+          await old.query('system_settings', orderBy: 'setting_no');
       final drugId = await old.insert('drugs', {
         'uuid': 'existing-drug-before-opening',
         'branch_id': 1,
