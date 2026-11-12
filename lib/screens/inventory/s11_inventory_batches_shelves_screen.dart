@@ -64,7 +64,8 @@ class _S11InventoryBatchesShelvesScreenState
               await Navigator.of(context).push(MaterialPageRoute<void>(
                 builder: (_) => const OpeningInventoryScreen(),
               ));
-              if (mounted) await context.read<InventoryAndPurchaseProvider>().loadAll();
+              if (mounted)
+                await context.read<InventoryAndPurchaseProvider>().loadAll();
             },
           ),
         ),

@@ -26,7 +26,9 @@ class OpeningStockPrices {
     final calculatedCarton = carton ??
         _rounded((packet ?? unit! * unitsPerPacket) * packetsPerCarton);
     final calculatedPacket = packet ??
-        _rounded(carton != null ? carton! / packetsPerCarton : unit! * unitsPerPacket);
+        _rounded(carton != null
+            ? carton! / packetsPerCarton
+            : unit! * unitsPerPacket);
     final calculatedUnit = unit ??
         _rounded(packet != null
             ? packet! / unitsPerPacket
@@ -110,16 +112,21 @@ class OpeningInventoryService {
   static bool _validDate(String s) {
     if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(s)) return false;
     final value = DateTime.tryParse(s);
-    return value != null && value.year.toString().padLeft(4, '0') == s.substring(0, 4) &&
+    return value != null &&
+        value.year.toString().padLeft(4, '0') == s.substring(0, 4) &&
         value.month.toString().padLeft(2, '0') == s.substring(5, 7) &&
         value.day.toString().padLeft(2, '0') == s.substring(8, 10);
   }
 
-  Future<_Prepared> _prepare(
-      Transaction txn, int branchId, OpeningStockLine row, String defaultDate) async {
-    if (row.packetsPerCarton < 1 || row.unitsPerPacket < 1 ||
-        row.cartons < 0 || row.packets < 0 || row.units < 0 ||
-        row.quantityUnits <= 0 || row.quantityUnits > 9007199254740991) {
+  Future<_Prepared> _prepare(Transaction txn, int branchId,
+      OpeningStockLine row, String defaultDate) async {
+    if (row.packetsPerCarton < 1 ||
+        row.unitsPerPacket < 1 ||
+        row.cartons < 0 ||
+        row.packets < 0 ||
+        row.units < 0 ||
+        row.quantityUnits <= 0 ||
+        row.quantityUnits > 9007199254740991) {
       throw StateError('كميات أو وحدات التعبئة غير صحيحة');
     }
     if (row.unitCost < 0 || !row.unitCost.isFinite) {
@@ -127,12 +134,14 @@ class OpeningInventoryService {
     }
     final effective = row.effectiveDate ?? defaultDate;
     final today = DateTime.now().toIso8601String().substring(0, 10);
-    if (!_validDate(row.expiryDate) || !_validDate(effective) ||
+    if (!_validDate(row.expiryDate) ||
+        !_validDate(effective) ||
         effective.compareTo(today) > 0) {
       throw StateError('تاريخ الانتهاء أو تاريخ الإدخال غير صحيح');
     }
     final warehouses = await txn.query('warehouses',
-        where: 'id=? AND branch_id=?', whereArgs: [row.warehouseId, branchId],
+        where: 'id=? AND branch_id=?',
+        whereArgs: [row.warehouseId, branchId],
         limit: 1);
     if (warehouses.isEmpty) throw StateError('المخزن لا يتبع الفرع الحالي');
 
@@ -140,12 +149,19 @@ class OpeningInventoryService {
     if (row.drugId != null) {
       drugs = await txn.query('drugs',
           where: 'id=? AND branch_id=? AND is_deleted=0 AND is_active=1',
-          whereArgs: [row.drugId, branchId], limit: 1);
+          whereArgs: [row.drugId, branchId],
+          limit: 1);
     } else {
       if (row.drugName.trim().isEmpty) throw StateError('اسم الدواء مطلوب');
       drugs = await txn.query('drugs',
-          where: 'branch_id=? AND is_deleted=0 AND is_active=1 AND (trade_name_ar=? OR trade_name_en=? OR internal_code=?)',
-          whereArgs: [branchId, row.drugName.trim(), row.drugName.trim(), row.drugName.trim()]);
+          where:
+              'branch_id=? AND is_deleted=0 AND is_active=1 AND (trade_name_ar=? OR trade_name_en=? OR internal_code=?)',
+          whereArgs: [
+            branchId,
+            row.drugName.trim(),
+            row.drugName.trim(),
+            row.drugName.trim()
+          ]);
       // Name matching must be unambiguous; never guess among medicines.
       final ids = drugs.map((e) => e['id']).toSet();
       if (ids.length != 1) {
@@ -157,8 +173,8 @@ class OpeningInventoryService {
     if (drugs.isEmpty) throw StateError('الدواء غير موجود في الفرع');
     final drug = drugs.first;
     final drugId = drug['id'] as int;
-    final currentRatio = (drug['strips_per_pack'] as int) *
-        (drug['units_per_strip'] as int);
+    final currentRatio =
+        (drug['strips_per_pack'] as int) * (drug['units_per_strip'] as int);
     final newRatio = row.packetsPerCarton * row.unitsPerPacket;
     if (currentRatio != newRatio ||
         drug['strips_per_pack'] != row.packetsPerCarton ||
@@ -177,8 +193,10 @@ class OpeningInventoryService {
     if (row.shelfCode != null && row.shelfCode!.trim().isNotEmpty) {
       final shelves = await txn.query('shelf_locations',
           where: 'warehouse_id=? AND code=?',
-          whereArgs: [row.warehouseId, row.shelfCode!.trim()], limit: 1);
-      if (shelves.isEmpty) throw StateError('رقم الرف غير موجود في المخزن المحدد');
+          whereArgs: [row.warehouseId, row.shelfCode!.trim()],
+          limit: 1);
+      if (shelves.isEmpty)
+        throw StateError('رقم الرف غير موجود في المخزن المحدد');
       if ((drug['requires_refrigeration'] as num? ?? 0) == 1 &&
           (shelves.first['is_fridge'] as num? ?? 0) != 1) {
         throw StateError('الدواء المبرد يجب أن يكون على رف مبرد عند تحديد رف');
@@ -186,7 +204,10 @@ class OpeningInventoryService {
       shelfId = shelves.first['id'] as int;
     }
     return _Prepared(
-      row: row, drugId: drugId, drug: drug, qty: row.quantityUnits,
+      row: row,
+      drugId: drugId,
+      drug: drug,
+      qty: row.quantityUnits,
       shelfId: shelfId,
       prices: row.prices.fillMissing(row.packetsPerCarton, row.unitsPerPacket),
       effectiveDate: effective,
@@ -203,16 +224,20 @@ class OpeningInventoryService {
     final seenRatio = <int, String>{};
     if (lines.isEmpty) errors.add('أدخل صنفًا واحدًا على الأقل');
     if (!_validDate(effectiveDate) ||
-        effectiveDate.compareTo(DateTime.now().toIso8601String().substring(0, 10)) > 0) {
+        effectiveDate
+                .compareTo(DateTime.now().toIso8601String().substring(0, 10)) >
+            0) {
       errors.add('تاريخ الإدخال غير صالح');
     }
     final db = await _helper.database;
     await db.transaction((txn) async {
       for (var i = 0; i < lines.length; i++) {
         try {
-          final prepared = await _prepare(txn, branchId, lines[i], effectiveDate);
+          final prepared =
+              await _prepare(txn, branchId, lines[i], effectiveDate);
           final key = '${lines[i].packetsPerCarton}x${lines[i].unitsPerPacket}';
-          if (seenRatio[prepared.drugId] != null && seenRatio[prepared.drugId] != key) {
+          if (seenRatio[prepared.drugId] != null &&
+              seenRatio[prepared.drugId] != key) {
             throw StateError('تعبئة مختلفة لنفس الدواء داخل الملف');
           }
           seenRatio[prepared.drugId] = key;
@@ -240,12 +265,14 @@ class OpeningInventoryService {
     return db.transaction((txn) async {
       final repeated = await txn.query('opening_inventory_posts',
           where: 'operation_uuid=? AND branch_id=?',
-          whereArgs: [operationUuid, branchId], limit: 1);
+          whereArgs: [operationUuid, branchId],
+          limit: 1);
       if (repeated.isNotEmpty) return repeated.first['id'] as int;
       if (sourceHash != null) {
         final prior = await txn.query('opening_inventory_posts',
             where: 'branch_id=? AND source_hash=?',
-            whereArgs: [branchId, sourceHash], limit: 1);
+            whereArgs: [branchId, sourceHash],
+            limit: 1);
         if (prior.isNotEmpty) {
           throw StateError('تم استيراد ملف Excel نفسه مسبقًا؛ لن نكرر الرصيد');
         }
@@ -264,7 +291,9 @@ class OpeningInventoryService {
       }
       if (previewResult.isEmpty) throw StateError('لا توجد أصناف لاعتمادها');
       if (!_validDate(effectiveDate) ||
-          effectiveDate.compareTo(DateTime.now().toIso8601String().substring(0, 10)) > 0) {
+          effectiveDate.compareTo(
+                  DateTime.now().toIso8601String().substring(0, 10)) >
+              0) {
         throw StateError('تاريخ الإدخال غير صالح');
       }
       final now = DateTime.now().toIso8601String();
@@ -292,8 +321,10 @@ class OpeningInventoryService {
           'strip_price_mode': 'MANUAL',
           'updated_at': now,
         };
-        if (p.prices.carton != null) update['sell_price_pack'] = p.prices.carton;
-        if (p.prices.packet != null) update['sell_price_strip'] = p.prices.packet;
+        if (p.prices.carton != null)
+          update['sell_price_pack'] = p.prices.carton;
+        if (p.prices.packet != null)
+          update['sell_price_strip'] = p.prices.packet;
         if (p.prices.unit != null) update['sell_price_unit'] = p.prices.unit;
         await txn.update('drugs', update,
             where: 'id=? AND branch_id=? AND is_deleted=0',
@@ -303,7 +334,8 @@ class OpeningInventoryService {
             ? 'OPEN-${operationUuid.substring(0, operationUuid.length < 8 ? operationUuid.length : 8)}-${i + 1}'
             : line.batchNo.trim();
         final existing = await txn.query('batches_fefo',
-            where: 'drug_id=? AND warehouse_id=? AND batch_no=? AND expiry_date=?',
+            where:
+                'drug_id=? AND warehouse_id=? AND batch_no=? AND expiry_date=?',
             whereArgs: [p.drugId, line.warehouseId, batchNo, line.expiryDate],
             limit: 1);
         final unitsPerCarton = line.packetsPerCarton * line.unitsPerPacket;
@@ -335,22 +367,28 @@ class OpeningInventoryService {
           }
           if (old['purchase_invoice_item_id'] != null &&
               (old['unit_cost'] as num).toDouble() != line.unitCost) {
-            throw StateError('تكلفة التشغيلة المحاسبية مختلفة؛ راجع الصف ${i + 2}');
+            throw StateError(
+                'تكلفة التشغيلة المحاسبية مختلفة؛ راجع الصف ${i + 2}');
           }
           balance = (old['total_units'] as int) + p.qty;
           final oldCost = (old['unit_cost'] as num).toDouble();
           final weightedCost =
-              ((old['total_units'] as int) * oldCost + p.qty * line.unitCost) / balance;
+              ((old['total_units'] as int) * oldCost + p.qty * line.unitCost) /
+                  balance;
           batchId = old['id'] as int;
-          await txn.update('batches_fefo', {
-            'location_id': old['location_id'] ?? p.shelfId,
-            'total_units': balance,
-            'sealed_packs': balance ~/ unitsPerCarton,
-            'loose_units': balance % unitsPerCarton,
-            'unit_cost': weightedCost,
-            'pack_cost': weightedCost * unitsPerCarton,
-            'status': expired ? 'EXPIRED' : 'ACTIVE',
-          }, where: 'id=?', whereArgs: [batchId]);
+          await txn.update(
+              'batches_fefo',
+              {
+                'location_id': old['location_id'] ?? p.shelfId,
+                'total_units': balance,
+                'sealed_packs': balance ~/ unitsPerCarton,
+                'loose_units': balance % unitsPerCarton,
+                'unit_cost': weightedCost,
+                'pack_cost': weightedCost * unitsPerCarton,
+                'status': expired ? 'EXPIRED' : 'ACTIVE',
+              },
+              where: 'id=?',
+              whereArgs: [batchId]);
         }
         await txn.insert('stock_movements', {
           'drug_id': p.drugId,
@@ -359,7 +397,8 @@ class OpeningInventoryService {
           'movement_type': 'OPENING_IN',
           'qty_units': p.qty,
           'unit_cost': line.unitCost,
-          'unit_price': p.prices.unit ?? (drug['sell_price_unit'] as num).toDouble(),
+          'unit_price':
+              p.prices.unit ?? (drug['sell_price_unit'] as num).toDouble(),
           'balance_after_units': balance,
           'doc_type': 'OPENING_INVENTORY',
           'doc_id': id,

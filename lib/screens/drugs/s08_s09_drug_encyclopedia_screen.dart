@@ -150,8 +150,7 @@ class _S08S09DrugEncyclopediaScreenState
                 color: AppColors.primary,
               ),
               const SizedBox(height: 8),
-              Text(
-                  'السعر: ${MoneyFormatter.format(drug.sellPricePack)}'),
+              Text('السعر: ${MoneyFormatter.format(drug.sellPricePack)}'),
             ],
             actions: [
               OutlinedButton.icon(

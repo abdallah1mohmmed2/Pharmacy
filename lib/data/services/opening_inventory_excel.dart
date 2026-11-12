@@ -70,7 +70,8 @@ abstract final class OpeningInventoryExcel {
       return '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
     }
     if (value is FormulaCellValue) {
-      throw const FormatException('الصيغ الحسابية غير مدعومة؛ استخدم القيمة النهائية');
+      throw const FormatException(
+          'الصيغ الحسابية غير مدعومة؛ استخدم القيمة النهائية');
     }
     throw const FormatException('نوع خلية غير مدعوم');
   }
@@ -105,7 +106,8 @@ abstract final class OpeningInventoryExcel {
     final sheet = workbook.tables['الرصيد الافتتاحي'] ??
         workbook.tables.values.firstWhere(
           (s) => s.rows.isNotEmpty,
-          orElse: () => throw const FormatException('لا توجد بيانات في ملف Excel'),
+          orElse: () =>
+              throw const FormatException('لا توجد بيانات في ملف Excel'),
         );
     if (sheet.rows.isEmpty) {
       throw const FormatException('ملف Excel لا يحتوي على عناوين');
@@ -136,11 +138,11 @@ abstract final class OpeningInventoryExcel {
           final col = columnIndex[heading]!;
           return col < row.length ? _text(row[col]?.value) : '';
         }
+
         if (headers.every((h) => cell(h).isEmpty)) continue;
         final drugIdRaw = cell('معرّف الدواء');
-        final drugId = drugIdRaw.isEmpty
-            ? null
-            : _integer(drugIdRaw, 'معرّف الدواء');
+        final drugId =
+            drugIdRaw.isEmpty ? null : _integer(drugIdRaw, 'معرّف الدواء');
         if (drugId == null && cell('اسم الدواء').isEmpty) {
           throw const FormatException('معرّف الدواء أو الاسم مطلوب');
         }
@@ -156,8 +158,8 @@ abstract final class OpeningInventoryExcel {
           packet: _optionalPrice(cell('سعر الباكت'), 'سعر الباكت'),
           unit: _optionalPrice(cell('سعر الحبة'), 'سعر الحبة'),
         );
-        final packets = _integer(
-            cell('باكتات في الكرتون'), 'باكتات في الكرتون');
+        final packets =
+            _integer(cell('باكتات في الكرتون'), 'باكتات في الكرتون');
         final units = _integer(cell('حبات في الباكت'), 'حبات في الباكت');
         if (packets == 0 || units == 0) {
           throw const FormatException('يجب تحديد تعبئة الكرتون والباكت');
@@ -174,9 +176,8 @@ abstract final class OpeningInventoryExcel {
           prices: prices,
           batchNo: cell('رقم التشغيلة'),
           expiryDate: cell('تاريخ الانتهاء'),
-          effectiveDate: cell('تاريخ الإدخال').isEmpty
-              ? null
-              : cell('تاريخ الإدخال'),
+          effectiveDate:
+              cell('تاريخ الإدخال').isEmpty ? null : cell('تاريخ الإدخال'),
           shelfCode: cell('رقم الرف (اختياري)').isEmpty
               ? null
               : cell('رقم الرف (اختياري)'),

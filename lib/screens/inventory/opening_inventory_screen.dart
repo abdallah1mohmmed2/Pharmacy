@@ -78,8 +78,17 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
   @override
   void dispose() {
     for (final field in [
-      cartons, packets, units, packetsPerCarton, unitsPerPacket,
-      cartonPrice, packetPrice, unitPrice, batchNo, costUnit, notes,
+      cartons,
+      packets,
+      units,
+      packetsPerCarton,
+      unitsPerPacket,
+      cartonPrice,
+      packetPrice,
+      unitPrice,
+      batchNo,
+      costUnit,
+      notes,
     ]) {
       field.dispose();
     }
@@ -94,10 +103,10 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
   }
 
   TextEditingController _priceController(String name) => switch (name) {
-    'carton' => cartonPrice,
-    'packet' => packetPrice,
-    _ => unitPrice,
-  };
+        'carton' => cartonPrice,
+        'packet' => packetPrice,
+        _ => unitPrice,
+      };
 
   void _priceChanged(String field, String text) {
     if (computingPrices) return;
@@ -148,12 +157,12 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
       child: TextField(
         controller: controller,
         keyboardType: TextInputType.numberWithOptions(decimal: !integer),
-        inputFormatters: integer
-            ? [FilteringTextInputFormatter.digitsOnly]
-            : null,
+        inputFormatters:
+            integer ? [FilteringTextInputFormatter.digitsOnly] : null,
         onChanged: onChanged,
         decoration: InputDecoration(
-          labelText: title, border: const OutlineInputBorder(),
+          labelText: title,
+          border: const OutlineInputBorder(),
           isDense: true,
         ),
       ),
@@ -211,6 +220,7 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
       if (value == null || value < 0) throw StateError('عدد غير صحيح: $name');
       return value;
     }
+
     double? price(TextEditingController c) {
       if (c.text.trim().isEmpty) return null;
       final value = double.tryParse(c.text.trim());
@@ -219,8 +229,10 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
       }
       return value;
     }
+
     return OpeningStockLine(
-      drugId: drugId, warehouseId: warehouseId!,
+      drugId: drugId,
+      warehouseId: warehouseId!,
       cartons: count(cartons, 'الكراتين'),
       packets: count(packets, 'الباكتات'),
       units: count(units, 'الحبات'),
@@ -245,7 +257,9 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
       final line = _manualLine();
       final p = context.read<InventoryAndPurchaseProvider>();
       final result = await service.preview(
-        branchId: p.branchId, effectiveDate: _date(effectiveDate), lines: [line],
+        branchId: p.branchId,
+        effectiveDate: _date(effectiveDate),
+        lines: [line],
       );
       if (!result.isValid) {
         _message(result.errors.join('؛ '));
@@ -293,7 +307,8 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
       if (bytes == null) throw StateError('تعذرت قراءة ملف Excel');
       if (!mounted) return;
       final inventory = context.read<InventoryAndPurchaseProvider>();
-      if (inventory.warehouses.isEmpty) throw StateError('لا يوجد مخزن في الفرع');
+      if (inventory.warehouses.isEmpty)
+        throw StateError('لا يوجد مخزن في الفرع');
       final fallbackId = warehouseId ?? inventory.warehouses.first.id;
       final parsed = OpeningInventoryExcel.parse(
         bytes,
@@ -348,7 +363,9 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
     if (busy || lines.isEmpty || issues.isNotEmpty) return;
     final p = context.read<InventoryAndPurchaseProvider>();
     final preview = await service.preview(
-      branchId: p.branchId, effectiveDate: _date(effectiveDate), lines: lines,
+      branchId: p.branchId,
+      effectiveDate: _date(effectiveDate),
+      lines: lines,
     );
     if (!mounted) return;
     if (!preview.isValid) {
@@ -430,24 +447,28 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
       body: ListView(
         padding: const EdgeInsets.all(14),
         children: [
-          const Text('تُضاف البضاعة الموجودة فعلًا في الصيدلية، دون تغيير إعدادات النظام أو مسار البيانات.',
+          const Text(
+              'تُضاف البضاعة الموجودة فعلًا في الصيدلية، دون تغيير إعدادات النظام أو مسار البيانات.',
               style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 12),
-          Wrap(spacing: 10, runSpacing: 10, crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              OutlinedButton.icon(
-                onPressed: busy ? null : _saveTemplate,
-                icon: const Icon(Icons.file_download_outlined),
-                label: const Text('تنزيل نموذج Excel')),
-              OutlinedButton.icon(
-                onPressed: busy ? null : _loadExcel,
-                icon: const Icon(Icons.upload_file),
-                label: const Text('استيراد ملف Excel')),
-              OutlinedButton.icon(
-                onPressed: busy ? null : _createMedicine,
-                icon: const Icon(Icons.add),
-                label: const Text('إضافة دواء جديد للموسوعة')),
-            ]),
+          Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                    onPressed: busy ? null : _saveTemplate,
+                    icon: const Icon(Icons.file_download_outlined),
+                    label: const Text('تنزيل نموذج Excel')),
+                OutlinedButton.icon(
+                    onPressed: busy ? null : _loadExcel,
+                    icon: const Icon(Icons.upload_file),
+                    label: const Text('استيراد ملف Excel')),
+                OutlinedButton.icon(
+                    onPressed: busy ? null : _createMedicine,
+                    icon: const Icon(Icons.add),
+                    label: const Text('إضافة دواء جديد للموسوعة')),
+              ]),
           const SizedBox(height: 16),
           Text('الإدخال اليدوي', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
@@ -455,25 +476,28 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
             displayStringForOption: (d) =>
                 '${d.tradeNameAr} • ${d.strengthText} [${d.internalCode}]',
             optionsBuilder: (value) {
-              if (value.text.trim().isEmpty) return const Iterable<DrugModel>.empty();
+              if (value.text.trim().isEmpty)
+                return const Iterable<DrugModel>.empty();
               final term = value.text.trim().toLowerCase();
-              return available.where((d) =>
-                  d.tradeNameAr.toLowerCase().contains(term) ||
-                  d.tradeNameEn.toLowerCase().contains(term) ||
-                  d.internalCode.toLowerCase().contains(term)).take(30);
+              return available
+                  .where((d) =>
+                      d.tradeNameAr.toLowerCase().contains(term) ||
+                      d.tradeNameEn.toLowerCase().contains(term) ||
+                      d.internalCode.toLowerCase().contains(term))
+                  .take(30);
             },
             onSelected: _selectDrug,
             fieldViewBuilder: (context, controller, focusNode, submit) =>
                 TextField(
-                  controller: controller,
-                  focusNode: focusNode,
-                  onChanged: (_) => drugId = null,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    labelText: 'ابحث عن الدواء ثم اختر النتيجة',
-                    prefixIcon: Icon(Icons.medication_outlined),
-                  ),
-                ),
+              controller: controller,
+              focusNode: focusNode,
+              onChanged: (_) => drugId = null,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'ابحث عن الدواء ثم اختر النتيجة',
+                prefixIcon: Icon(Icons.medication_outlined),
+              ),
+            ),
           ),
           const SizedBox(height: 12),
           Wrap(spacing: 12, runSpacing: 12, children: [
@@ -484,9 +508,12 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
                 isExpanded: true,
                 decoration: const InputDecoration(
                     labelText: 'المخزن', border: OutlineInputBorder()),
-                items: warehouses.map((w) => DropdownMenuItem(
-                  value: w.id, child: Text('${w.nameAr} (${w.code})'),
-                )).toList(),
+                items: warehouses
+                    .map((w) => DropdownMenuItem(
+                          value: w.id,
+                          child: Text('${w.nameAr} (${w.code})'),
+                        ))
+                    .toList(),
                 onChanged: (v) => setState(() {
                   warehouseId = v;
                   shelfCode = null;
@@ -499,7 +526,8 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
                 value: selectedShelf,
                 isExpanded: true,
                 decoration: const InputDecoration(
-                    labelText: 'رقم الرف (اختياري)', border: OutlineInputBorder()),
+                    labelText: 'رقم الرف (اختياري)',
+                    border: OutlineInputBorder()),
                 items: [
                   const DropdownMenuItem<String?>(
                       value: null, child: Text('بدون رف')),
@@ -515,7 +543,8 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
             ),
             OutlinedButton(
               onPressed: () => _pickDate(expiry: true),
-              child: Text('تاريخ الانتهاء *: ${expiryDate == null ? 'اختر التاريخ' : _date(expiryDate!)}'),
+              child: Text(
+                  'تاريخ الانتهاء *: ${expiryDate == null ? 'اختر التاريخ' : _date(expiryDate!)}'),
             ),
           ]),
           const SizedBox(height: 12),
@@ -529,31 +558,38 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
                 onChanged: (_) => _recalculateFromPrimaryPrice()),
           ]),
           const SizedBox(height: 12),
-          const Text('أدخل أي سعر، وستُحسب الأسعار الأخرى. يمكنك تعديل كل سعر مستقلًا.'),
+          const Text(
+              'أدخل أي سعر، وستُحسب الأسعار الأخرى. يمكنك تعديل كل سعر مستقلًا.'),
           const SizedBox(height: 8),
           Wrap(spacing: 10, runSpacing: 10, children: [
-            _numberField('سعر بيع الكرتون', cartonPrice, integer: false,
-                onChanged: (v) => _priceChanged('carton', v)),
-            _numberField('سعر بيع الباكت', packetPrice, integer: false,
-                onChanged: (v) => _priceChanged('packet', v)),
-            _numberField('سعر بيع الحبة', unitPrice, integer: false,
-                onChanged: (v) => _priceChanged('unit', v)),
+            _numberField('سعر بيع الكرتون', cartonPrice,
+                integer: false, onChanged: (v) => _priceChanged('carton', v)),
+            _numberField('سعر بيع الباكت', packetPrice,
+                integer: false, onChanged: (v) => _priceChanged('packet', v)),
+            _numberField('سعر بيع الحبة', unitPrice,
+                integer: false, onChanged: (v) => _priceChanged('unit', v)),
             _numberField('تكلفة الحبة (اختياري)', costUnit, integer: false),
           ]),
           const SizedBox(height: 12),
           Wrap(spacing: 10, runSpacing: 10, children: [
-            SizedBox(width: 230, child: TextField(
-              controller: batchNo,
-              decoration: const InputDecoration(
-                labelText: 'رقم التشغيلة (اختياري)', border: OutlineInputBorder(),
-              ),
-            )),
-            SizedBox(width: 290, child: TextField(
-              controller: notes,
-              decoration: const InputDecoration(
-                labelText: 'ملاحظات', border: OutlineInputBorder(),
-              ),
-            )),
+            SizedBox(
+                width: 230,
+                child: TextField(
+                  controller: batchNo,
+                  decoration: const InputDecoration(
+                    labelText: 'رقم التشغيلة (اختياري)',
+                    border: OutlineInputBorder(),
+                  ),
+                )),
+            SizedBox(
+                width: 290,
+                child: TextField(
+                  controller: notes,
+                  decoration: const InputDecoration(
+                    labelText: 'ملاحظات',
+                    border: OutlineInputBorder(),
+                  ),
+                )),
             FilledButton.icon(
               onPressed: busy ? null : _addManual,
               icon: const Icon(Icons.playlist_add),
@@ -569,32 +605,36 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
                 style: const TextStyle(color: Colors.redAccent)),
             for (final error in issues.take(30))
               Text('• $error', style: const TextStyle(color: Colors.redAccent)),
-            if (issues.length > 30)
-              Text('و${issues.length - 30} أخطاء أخرى'),
+            if (issues.length > 30) Text('و${issues.length - 30} أخطاء أخرى'),
           ],
           for (var i = 0; i < lines.length && i < 50; i++)
             ListTile(
               dense: true,
               title: Text(
-                '${i + 1}. ${lines[i].drugName.isNotEmpty ? lines[i].drugName : 'دواء #${lines[i].drugId}'} '
-                '• ${lines[i].quantityUnits} حبة'),
+                  '${i + 1}. ${lines[i].drugName.isNotEmpty ? lines[i].drugName : 'دواء #${lines[i].drugId}'} '
+                  '• ${lines[i].quantityUnits} حبة'),
               subtitle: Text(
-                'صلاحية ${lines[i].expiryDate} | تشغيلة ${lines[i].batchNo.isEmpty ? 'تلقائية' : lines[i].batchNo} '
-                '| رف ${lines[i].shelfCode ?? 'غير محدد'}'),
-              trailing: sourceHash == null ? IconButton(
-                icon: const Icon(Icons.close),
-                tooltip: 'حذف من المراجعة',
-                onPressed: busy ? null : () => setState(() => lines.removeAt(i)),
-              ) : null,
+                  'صلاحية ${lines[i].expiryDate} | تشغيلة ${lines[i].batchNo.isEmpty ? 'تلقائية' : lines[i].batchNo} '
+                  '| رف ${lines[i].shelfCode ?? 'غير محدد'}'),
+              trailing: sourceHash == null
+                  ? IconButton(
+                      icon: const Icon(Icons.close),
+                      tooltip: 'حذف من المراجعة',
+                      onPressed:
+                          busy ? null : () => setState(() => lines.removeAt(i)),
+                    )
+                  : null,
             ),
           if (lines.length > 50)
             Text('يُعرض أول 50 صفًا فقط؛ الإجمالي ${lines.length} صفًا'),
           const SizedBox(height: 16),
           FilledButton.icon(
-            onPressed: busy || lines.isEmpty || issues.isNotEmpty
-                ? null : _post,
+            onPressed:
+                busy || lines.isEmpty || issues.isNotEmpty ? null : _post,
             icon: const Icon(Icons.verified_outlined),
-            label: Text(busy ? 'جارٍ حفظ البيانات...' : 'اعتماد وإضافة الرصيد الافتتاحي'),
+            label: Text(busy
+                ? 'جارٍ حفظ البيانات...'
+                : 'اعتماد وإضافة الرصيد الافتتاحي'),
           ),
           const SizedBox(height: 24),
         ],
