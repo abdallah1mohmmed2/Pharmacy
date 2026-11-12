@@ -42,6 +42,14 @@ Branch: `feature/central-medicine-catalog`. Never change `main` for this task. T
 - Repeated submission with the same operation UUID does not duplicate quantity or ledger rows; failed transaction leaves no partial stock.
 - Existing purchases/sales/returns/stocktaking and migration tests remain green; two-device inventory sync is separately verified **only after** authorized, validated sync support is established.
 
+
+## Non-negotiable compatibility: existing settings and data path
+- **Do not modify system settings, existing setting keys/defaults, Firebase project configuration, cloud setting 35, authentication, branch identity, sync endpoint, or data-routing logic** to implement opening inventory. No new independent database, server, collection, alternate storage path or separate inventory source of truth.
+- Follow the **same established application data flow**: existing branch-scoped medicine catalog reference → existing inventory/FEFO batch and stock-movement services → current SQLite database and transaction conventions → existing approved Outbox/sync path **only for supported and authorized event types**. Do not bypass validation or activate financial sync.
+- Reuse existing providers, services, tables, migrations and navigation. Any essential schema extension must be backward-compatible and additive, preserve historical records/UUIDs, and must not reset or silently migrate settings. Avoid changing existing purchase, sale, stocktaking, return and valuation semantics.
+- Before implementation, write regression tests asserting unchanged system settings and storage/sync routing, plus no stock mutation from catalog-only edits; verify existing records remain readable and current business workflows still pass.
+- If a requested feature cannot fit the current schema/data path safely, document the gap and seek approval before any architectural or settings change; do not silently introduce a new route.
+
 ## Implementation status
 - **Documentation/specification added**; opening-inventory feature is **NOT YET IMPLEMENTED** by this handoff commit.
 - Next engineering action: inspect schema/migrations, drug model, inventory posting service and existing screens; implement minimal missing opening-balance transaction and UI, then tests. Do not alter `main`.
