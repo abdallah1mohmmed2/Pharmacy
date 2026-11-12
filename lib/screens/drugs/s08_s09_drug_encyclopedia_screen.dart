@@ -32,6 +32,10 @@ class _S08S09DrugEncyclopediaScreenState
   @override
   Widget build(BuildContext context) {
     final p = context.watch<PosAndDrugsProvider>();
+    final freshSelection = selected == null
+        ? <DrugModel>[]
+        : p.drugs.where((d) => d.id == selected!.id).toList();
+    final shownDrug = freshSelection.isEmpty ? selected : freshSelection.first;
     final list = p.drugs
         .where((d) => switch (filter) {
               'ANTIBIOTIC' => d.isAntibiotic,
@@ -99,7 +103,7 @@ class _S08S09DrugEncyclopediaScreenState
                               label: const Text('العودة إلى قائمة الأدوية'),
                             ),
                           ),
-                          Expanded(child: _details(selected!)),
+                          Expanded(child: _details(shownDrug!)),
                         ],
                       ),
                 desktop: Row(
@@ -109,7 +113,7 @@ class _S08S09DrugEncyclopediaScreenState
                     Expanded(
                       child: selected == null
                           ? const Center(child: Text('اختر دواء لعرض التفاصيل'))
-                          : _details(selected!),
+                          : _details(shownDrug!),
                     ),
                   ],
                 ),
@@ -147,7 +151,7 @@ class _S08S09DrugEncyclopediaScreenState
               ),
               const SizedBox(height: 8),
               Text(
-                  'السعر: ${MoneyFormatter.format(drug.sellPricePack)} • المخزون: ${drug.stockTotalUnits} حبة'),
+                  'السعر: ${MoneyFormatter.format(drug.sellPricePack)}'),
             ],
             actions: [
               OutlinedButton.icon(
@@ -230,10 +234,9 @@ class _S08S09DrugEncyclopediaScreenState
               d.stripsPerPack.toString() + ' × ' + d.unitsPerStrip.toString()
             ),
             ('التكلفة', MoneyFormatter.format(d.costPricePack)),
-            ('سعر الباكت', MoneyFormatter.format(d.sellPricePack)),
-            ('سعر الشريط', MoneyFormatter.format(d.sellPriceStrip)),
-            ('سعر الحبة', MoneyFormatter.format(d.sellPriceUnit)),
-            ('المخزون بالحبة', d.stockTotalUnits.toString())
+            ('سعر العبوة / الكرتون', MoneyFormatter.format(d.sellPricePack)),
+            ('سعر الباكت / الشريط', MoneyFormatter.format(d.sellPriceStrip)),
+            ('سعر الحبة', MoneyFormatter.format(d.sellPriceUnit))
           ]),
           _group([
             ('دواعي الاستعمال', d.indications),
@@ -860,9 +863,10 @@ class _S08S09DrugEncyclopediaScreenState
                       map['units_per_pack'] = strips * units;
                       final packPrice =
                           (map['sell_price_pack'] as num?)?.toDouble() ?? 0;
-                      if (map['strip_price_mode'] == 'AUTO')
+                      if (map['strip_price_mode'] == 'AUTO') {
                         map['sell_price_strip'] = packPrice / strips;
-                      map['sell_price_unit'] = packPrice / (strips * units);
+                        map['sell_price_unit'] = packPrice / (strips * units);
+                      }
                       final model = DrugModel.fromMap(map);
                       await provider.saveDrug(model);
                       if (!mounted) return;
