@@ -239,6 +239,28 @@ void main() {
           throwsStateError);
     });
 
+    test('mixed source prices across lots preserve every explicit price', () async {
+      await post('opening-mixed-prices', [
+        row(lot: 'MIX-A', prices: const OpeningStockPrices(carton: 12000)),
+        row(lot: 'MIX-B', prices: const OpeningStockPrices(unit: 125)),
+      ]);
+      final drug = (await db.query('drugs', where: 'id=?',
+          whereArgs: [drugId])).single;
+      expect(drug['sell_price_pack'], 12000);
+      expect(drug['sell_price_strip'], 1200);
+      expect(drug['sell_price_unit'], 125);
+    });
+
+    test('conflicting explicit prices across lots reject entire import', () async {
+      await expectLater(post('opening-conflicting-prices', [
+        row(lot: 'A', prices: const OpeningStockPrices(carton: 12000)),
+        row(lot: 'B', prices: const OpeningStockPrices(carton: 14000)),
+      ]), throwsStateError);
+      expect(await db.query('opening_inventory_posts'), isEmpty);
+      expect(await db.query('batches_fefo'), isEmpty);
+      expect(await db.query('stock_movements'), isEmpty);
+    });
+
     test(
         'two lots retain separate FEFO batches while prices remain independent',
         () async {
