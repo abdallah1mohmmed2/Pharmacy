@@ -21,7 +21,7 @@ Branch: `feature/central-medicine-catalog`. Never change `main` for this task. T
 
 ### Operator workflow
 1. Open `المخزون ← إدخال البضاعة / الرصيد الافتتاحي`. Choose a medicine from existing branch/central catalog or add a branch medicine if missing, without overwriting shared catalog records.
-2. Select warehouse and optionally shelf, batch/lot, expiry date, supplier/source and notes. Preserve traceability of stock by FEFO batch and stock movement. Allow several batches for the same medicine.
+2. Select warehouse and optionally shelf, batch/lot, **mandatory expiry date (تاريخ الانتهاء) for each batch**, supplier/source and notes. Display a date picker and clear day/month/year. Reject invalid dates; warn/block expired stock according to approved policy, and flag near-expiry stock. Preserve traceability of stock by FEFO batch and stock movement. Allow several batches for the same medicine, each with its own expiry date.
 3. Specify package hierarchy: **carton (كرتون) → packet/strip (باكت/شريط) → single unit (حبة)**. Explicitly enter `packets_per_carton` and `units_per_packet` as positive integers; names may vary by product. Do not assume one carton or packet has a universal size.
 4. Enter initial quantities as cartons, packets and loose units. Compute normalized units exactly: `total_units = cartons * packets_per_carton * units_per_packet + packets * units_per_packet + loose_units`. Prevent negative counts and integer overflow; support 0 in individual quantity fields but require positive total for posting.
 5. Enter **selling prices** for carton, packet and unit independently (currency and rounding per branch). Do not silently infer one from another when operator provided a different price; if optional derived defaults are shown, make them editable. Separate purchase cost from selling price. Show a preview of the normalized quantity and prices.
@@ -38,7 +38,7 @@ Branch: `feature/central-medicine-catalog`. Never change `main` for this task. T
 ### Acceptance tests
 - Enter a medicine with 2 cartons × 10 packets/carton × 12 units/packet + 3 packets + 4 loose units → **280 units**. Verify prices for all three units persist independently and POS uses the selected unit's correct price.
 - Enter stock for a chosen previous day; report shows effective date while audit retains actual posting time.
-- Same medicine with two lots/expiry dates retains separate FEFO balances; no cross-branch leakage.
+- Same medicine with two lots/expiry dates retains separate FEFO balances; no cross-branch leakage. Expiry date persists per batch, appears on inventory entry and stock lists, and is used by FEFO allocation; invalid/missing dates are rejected, expired stock is not silently offered for sale.
 - Repeated submission with the same operation UUID does not duplicate quantity or ledger rows; failed transaction leaves no partial stock.
 - Existing purchases/sales/returns/stocktaking and migration tests remain green; two-device inventory sync is separately verified **only after** authorized, validated sync support is established.
 
