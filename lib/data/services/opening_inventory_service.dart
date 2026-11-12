@@ -181,7 +181,7 @@ class OpeningInventoryService {
         drug['units_per_strip'] != row.unitsPerPacket) {
       final anyBatches = await txn.query('batches_fefo',
           columns: ['id'], where: 'drug_id=?', whereArgs: [drugId], limit: 1);
-      if (anyBatches.isNotEmpty) {
+      if (anyBatches.isNotEmpty || (drug['stock_total_units'] as int? ?? 0) > 0) {
         throw StateError('لا يمكن تغيير تعبئة دواء له تشغيلات مسجلة');
       }
     }
@@ -214,6 +214,34 @@ class OpeningInventoryService {
     );
   }
 
+  /// Distinct lots of one medicine must not silently overwrite each other's
+  /// explicit branch selling prices. A missing price is not a conflict.
+  static void _verifyRepeatedPrices(
+      Map<int, OpeningStockPrices> byDrug, _Prepared prepared) {
+    final original = prepared.row.prices;
+    final previous = byDrug[prepared.drugId];
+    if (previous != null) {
+      for (final pair in [
+        [previous.carton, original.carton],
+        [previous.packet, original.packet],
+        [previous.unit, original.unit],
+      ]) {
+        if (pair[0] != null && pair[1] != null &&
+            (pair[0]! - pair[1]!).abs() > 0.000001) {
+          throw StateError(
+              'أسعار بيع مختلفة للدواء نفسه في صفوف متعددة؛ وحّدها أو راجعها');
+        }
+      }
+      byDrug[prepared.drugId] = OpeningStockPrices(
+        carton: previous.carton ?? original.carton,
+        packet: previous.packet ?? original.packet,
+        unit: previous.unit ?? original.unit,
+      );
+    } else {
+      byDrug[prepared.drugId] = original;
+    }
+  }
+
   Future<OpeningStockPreview> preview({
     required int branchId,
     required String effectiveDate,
@@ -222,6 +250,7 @@ class OpeningInventoryService {
     final errors = <String>[];
     var total = 0;
     final seenRatio = <int, String>{};
+    final seenPrices = <int, OpeningStockPrices>{};
     if (lines.isEmpty) errors.add('أدخل صنفًا واحدًا على الأقل');
     if (!_validDate(effectiveDate) ||
         effectiveDate
@@ -241,6 +270,7 @@ class OpeningInventoryService {
             throw StateError('تعبئة مختلفة لنفس الدواء داخل الملف');
           }
           seenRatio[prepared.drugId] = key;
+          _verifyRepeatedPrices(seenPrices, prepared);
           total += prepared.qty;
         } catch (e) {
           errors.add('الصف ${i + 2}: $e');
@@ -279,6 +309,7 @@ class OpeningInventoryService {
       }
       final previewResult = <_Prepared>[];
       final perDrugRatio = <int, String>{};
+      final perDrugPrices = <int, OpeningStockPrices>{};
       for (var i = 0; i < lines.length; i++) {
         final value = await _prepare(txn, branchId, lines[i], effectiveDate);
         final key = '${lines[i].packetsPerCarton}x${lines[i].unitsPerPacket}';
@@ -287,6 +318,7 @@ class OpeningInventoryService {
           throw StateError('تعبئة مختلفة لنفس الدواء في الصف ${i + 2}');
         }
         perDrugRatio[value.drugId] = key;
+        _verifyRepeatedPrices(perDrugPrices, value);
         previewResult.add(value);
       }
       if (previewResult.isEmpty) throw StateError('لا توجد أصناف لاعتمادها');
