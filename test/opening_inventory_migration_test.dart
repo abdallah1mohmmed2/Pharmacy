@@ -90,8 +90,9 @@ void main() {
       expect(await upgraded.getVersion(), 18);
       expect(await upgraded.query('system_settings', orderBy: 'id'),
           settingsBefore);
-      final existing = (await upgraded.query('drugs',
-          where: 'id=?', whereArgs: [drugId])).single;
+      final existing =
+          (await upgraded.query('drugs', where: 'id=?', whereArgs: [drugId]))
+              .single;
       expect(existing['trade_name_ar'], 'دواء محفوظ');
       expect(existing['sell_price_pack'], 15000);
       expect(existing['sell_price_unit'], 150);
