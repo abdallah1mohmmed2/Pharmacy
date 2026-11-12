@@ -4,6 +4,7 @@ import '../../providers/inventory_and_purchase_provider.dart';
 import '../../data/database/database_helper.dart';
 import '../../data/models/inventory_and_purchase_models.dart';
 import '../../core/widgets/shared_widgets.dart';
+import 'opening_inventory_screen.dart';
 
 class S11InventoryBatchesShelvesScreen extends StatefulWidget {
   const S11InventoryBatchesShelvesScreen({super.key});
@@ -54,6 +55,20 @@ class _S11InventoryBatchesShelvesScreenState
               icon: const Icon(Icons.receipt_long),
               tooltip: 'كارت حركة الصنف'),
         ]),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: FilledButton.icon(
+            icon: const Icon(Icons.add_box_outlined),
+            label: const Text('إدخال البضاعة — الرصيد الافتتاحي'),
+            onPressed: () async {
+              await Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (_) => const OpeningInventoryScreen(),
+              ));
+              if (mounted) await context.read<InventoryAndPurchaseProvider>().loadAll();
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
         CompactSearchAndFilterBar(
           controller: searchController,
           hintText: 'ابحث باسم الدواء أو رقم التشغيلة أو الرف',
