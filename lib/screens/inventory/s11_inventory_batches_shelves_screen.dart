@@ -40,10 +40,11 @@ class _S11InventoryBatchesShelvesScreenState
     final session = context.watch<SessionAndErpProvider>();
     final settings = context.watch<SettingsAndSystemProvider>();
     final role = session.currentUser?['role_code'] as String? ?? '';
-    final canPostOpening = role == 'OWNER' || settings.roleRows.any((r) =>
-        r['role_code'] == role &&
-        r['permission_code'] == 'inventory.adjust' &&
-        (r['is_allowed'] as num) == 1);
+    final canPostOpening = role == 'OWNER' ||
+        settings.roleRows.any((r) =>
+            r['role_code'] == role &&
+            r['permission_code'] == 'inventory.adjust' &&
+            (r['is_allowed'] as num) == 1);
     return Padding(
       padding: const EdgeInsets.all(12),
       child: Column(children: [
@@ -64,20 +65,21 @@ class _S11InventoryBatchesShelvesScreenState
               icon: const Icon(Icons.receipt_long),
               tooltip: 'كارت حركة الصنف'),
         ]),
-        if (canPostOpening) Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: FilledButton.icon(
-            icon: const Icon(Icons.add_box_outlined),
-            label: const Text('إدخال البضاعة — الرصيد الافتتاحي'),
-            onPressed: () async {
-              await Navigator.of(context).push(MaterialPageRoute<void>(
-                builder: (_) => const OpeningInventoryScreen(),
-              ));
-              if (mounted)
-                await context.read<InventoryAndPurchaseProvider>().loadAll();
-            },
+        if (canPostOpening)
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: FilledButton.icon(
+              icon: const Icon(Icons.add_box_outlined),
+              label: const Text('إدخال البضاعة — الرصيد الافتتاحي'),
+              onPressed: () async {
+                await Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => const OpeningInventoryScreen(),
+                ));
+                if (mounted)
+                  await context.read<InventoryAndPurchaseProvider>().loadAll();
+              },
+            ),
           ),
-        ),
         const SizedBox(height: 10),
         CompactSearchAndFilterBar(
           controller: searchController,
