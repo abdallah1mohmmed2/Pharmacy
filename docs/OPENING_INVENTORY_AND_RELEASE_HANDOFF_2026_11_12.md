@@ -66,10 +66,10 @@ Branch: `feature/central-medicine-catalog`. Never change `main` for this task. T
 - Post approved rows using the **same existing branch-scoped inventory transaction, FEFO batches and stock movements** as manual opening stock. Use stable import/job ID and per-row idempotency keys, detect repeated uploads and partial retries; avoid stock duplication. On failure do not leave partially posted untraceable balances; define atomic import/rollback policy and audit imported file hash, operator, actual posting timestamp and effective date.
 - Update only the **existing medicine price/package fields** consumed by clinical details; do **not** expose stock-on-hand or expiry batches inside clinical details. All quantities, batch expiry dates and warehouse balances remain in inventory.
 - Tests: correct conversion for mixed units, multiple batches of one medicine, price propagation, invalid/ambiguous rows, duplicate file/retry, transaction rollback, no settings/data-route changes, no regression in purchases/sales/FEFO, and authorized two-device sync only when separately approved.
-- Status: **requirement documented only; XLSX import UI/parser and transaction integration are not implemented**.
+- Status: source implementation added; CI and live acceptance still pending.
 
 ## Implementation status
-- **Documentation/specification added**; opening-inventory feature is **NOT YET IMPLEMENTED** by this handoff commit.
+- The original handoff documented an unimplemented request. Implementation progress is recorded below; release gates remain pending.
 - Next engineering action: inspect schema/migrations, drug model, inventory posting service and existing screens; implement minimal missing opening-balance transaction and UI, then tests. Do not alter `main`.
 
 
@@ -79,4 +79,10 @@ Branch: `feature/central-medicine-catalog`. Never change `main` for this task. T
 - Excel template/import applies the same rule **only to blank price fields** when exactly one source price is supplied; preserve any other explicitly entered prices. Flag conflicting explicit prices for review, not silent replacement. Validate conversion factors > 0 and all monetary values >= 0.
 - Save the resulting independent selling prices through the existing medicine price fields/data path so the existing clinical-details screen reflects price/package metadata. Inventory balances remain exclusively in inventory screens. No system-setting changes.
 - Tests: all three source-price directions, manual override precedence, precision/rounding, Excel blanks versus explicit values, invalid pack ratios, and no regression in existing medicine pricing modes.
-- Status: **documented requirement only; no code implemented**.
+- Status: source implementation added; CI and live acceptance still pending.
+
+## Implementation progress (2026-11-12; feature branch only)
+- **Implemented in source, pending CI and live acceptance:** new opening-stock form `lib/screens/inventory/opening_inventory_screen.dart`, reusable atomic/idempotent FEFO posting `lib/data/services/opening_inventory_service.dart`, XLSX template/import preview `lib/data/services/opening_inventory_excel.dart`, permission-gated inventory-screen entry, preservation of manual prices and explicit separation of clinical details from stock balances.
+- SQLite database migrates **additively from v17 to v18**, retaining the same database file/path and system settings. The new local-only `opening_inventory_posts` ledger records operation UUID/file hash to prevent repeat posts; it is not added to the synchronization allowlist.
+- Automated integration coverage: mixed-unit quantity (280), multiple batches, optional shelf, price conflicts/overrides, duplicate import prevention, rollback, unchanged settings and v17→v18 preservation. Release still requires CI, real POS/FEFO and two-device tests; do not claim synchronization of stock or production readiness.
+- Opening stock optionally accepts unit cost and stores it in FEFO/movement data, **but does not yet generate a balanced opening valuation journal**. Financial opening valuation must be separately implemented and tested before relying on opening stock financial reports.
