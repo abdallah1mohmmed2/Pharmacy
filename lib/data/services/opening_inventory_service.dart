@@ -359,10 +359,10 @@ class OpeningInventoryService {
           'strip_price_mode': 'MANUAL',
           'updated_at': now,
         };
-        if (p.prices.carton != null)
-          update['sell_price_pack'] = p.prices.carton;
-        if (p.prices.packet != null)
-          update['sell_price_strip'] = p.prices.packet;
+        if (resolvedPrices.carton != null)
+          update['sell_price_pack'] = resolvedPrices.carton;
+        if (resolvedPrices.packet != null)
+          update['sell_price_strip'] = resolvedPrices.packet;
         if (resolvedPrices.unit != null)
           update['sell_price_unit'] = resolvedPrices.unit;
         await txn.update('drugs', update,
