@@ -5,132 +5,138 @@ import 'package:global_enterprise_pharmacy_erp/data/services/opening_inventory_e
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('opening-stock template has exactly four requested columns', () {
-    final book = Excel.decodeBytes(OpeningInventoryExcel.simpleTemplateBytes());
-    final columns = book['الرصيد الافتتاحي']
-        .rows
-        .first
+  test('new opening inventory template has five columns including expiry', () {
+    final sheet = Excel.decodeBytes(OpeningInventoryExcel.simpleTemplateBytes())
+        ['الرصيد الافتتاحي'];
+    final headers = sheet.rows.first
         .map((cell) => (cell?.value as TextCellValue).value.text)
         .toList();
-    expect(columns, [
+    expect(headers, [
       'اسم العلاج',
       'عدد الباكتات',
       'عدد الأشرطة داخل الباكت',
       'سعر الباكت',
+      'تاريخ الانتهاء'
     ]);
-    expect(columns.length, 4);
+    expect(headers, hasLength(5));
   });
 
-  test('12 packs x 3 strips is stock, not packaging count of 12 strips', () {
+  test('expiry is read from each row, not one global default', () {
     final book = Excel.decodeBytes(OpeningInventoryExcel.simpleTemplateBytes());
-    book['الرصيد الافتتاحي'].appendRow([
+    final sheet = book['الرصيد الافتتاحي'];
+    sheet.appendRow([
       TextCellValue('باراسيتامول 500'),
       IntCellValue(12),
       IntCellValue(3),
       DoubleCellValue(1000),
+      TextCellValue('2028-12-31'),
     ]);
-    final parsed = OpeningInventoryExcel.parse(
-      book.save()!,
-      defaultWarehouseId: 4,
-      warehousesByCode: const {},
-      defaultExpiryDate: '2028-12-31',
-    );
-    expect(parsed.errors, isEmpty);
-    expect(parsed.lines, hasLength(1));
-    final stock = parsed.lines.single;
-    expect(stock.drugName, 'باراسيتامول 500');
-    expect(stock.cartons, 12);
-    expect(stock.packetsPerCarton, 3);
-    expect(stock.prices.carton, 1000);
-    expect(stock.prices.packet, isNull);
-    expect(stock.resolveUnitsFromCatalog, isTrue);
-    // Until actual tablets-per-strip are loaded from the drug card the
-    // temporary 36 MUST NOT be posted as stock units.
-    expect(stock.quantityUnits, 36);
-    final resolved = stock.withUnitsPerPacket(10);
-    expect(resolved.resolveUnitsFromCatalog, isFalse);
-    expect(resolved.quantityUnits, 360);
-    expect(resolved.prices.carton, 1000);
+    sheet.appendRow([
+      TextCellValue('باراسيتامول 500'),
+      IntCellValue(2),
+      IntCellValue(3),
+      DoubleCellValue(1000),
+      TextCellValue('2029-06-30'),
+    ]);
+    final result = OpeningInventoryExcel.parse(book.save()!,
+        defaultWarehouseId: 4, warehousesByCode: const {});
+    expect(result.errors, isEmpty);
+    expect(result.lines, hasLength(2));
+    expect(result.lines.map((line) => line.expiryDate),
+        ['2028-12-31', '2029-06-30']);
+    expect(result.lines.map((line) => line.cartons), [12, 2]);
+    expect(result.lines.first.packetsPerCarton, 3);
+    expect(result.lines.first.prices.carton, 1000);
+    expect(result.lines.first.resolveUnitsFromCatalog, isTrue);
+    expect(result.lines.first.withUnitsPerPacket(10).quantityUnits, 360);
   });
 
-  test('selected medicines are separate, name-only rows are not stock', () {
-    final book = Excel.decodeBytes(OpeningInventoryExcel.simpleTemplateBytes());
+  test('four-column files still use expiry selected in the app', () {
+    final book = Excel.createExcel();
     final sheet = book['الرصيد الافتتاحي'];
-    sheet.appendRow([TextCellValue('اسم للبحث'), null, null, null]);
     sheet.appendRow([
-      TextCellValue('دواء أول'),
+      TextCellValue('اسم العلاج'),
+      TextCellValue('عدد الباكتات'),
+      TextCellValue('عدد الأشرطة داخل الباكت'),
+      TextCellValue('سعر الباكت'),
+    ]);
+    sheet.appendRow([
+      TextCellValue('دواء قديم'),
       IntCellValue(5),
       IntCellValue(2),
       DoubleCellValue(200),
     ]);
-    sheet.appendRow([
-      TextCellValue('دواء ثان'),
-      IntCellValue(7),
-      IntCellValue(4),
-      DoubleCellValue(500),
-    ]);
-    final parsed = OpeningInventoryExcel.parse(
-      book.save()!,
-      defaultWarehouseId: 2,
-      warehousesByCode: const {},
-      defaultExpiryDate: '2028-12-31',
-    );
-    expect(parsed.errors, isEmpty);
-    expect(parsed.lines.map((r) => r.drugName), ['دواء أول', 'دواء ثان']);
-    expect(parsed.lines.map((r) => r.cartons), [5, 7]);
-    expect(parsed.lines.map((r) => r.packetsPerCarton), [2, 4]);
-  });
-
-  test('expiry date must be selected in app, never fabricated', () {
-    final book = Excel.decodeBytes(OpeningInventoryExcel.simpleTemplateBytes());
-    book['الرصيد الافتتاحي'].appendRow([
-      TextCellValue('دواء'),
-      IntCellValue(2),
-      IntCellValue(4),
-      DoubleCellValue(600),
-    ]);
+    final bytes = book.save()!;
     expect(
-      () => OpeningInventoryExcel.parse(
-        book.save()!,
-        defaultWarehouseId: 1,
-        warehousesByCode: const {},
-      ),
+      () => OpeningInventoryExcel.parse(bytes,
+          defaultWarehouseId: 1, warehousesByCode: const {}),
       throwsFormatException,
     );
+    final withExpiry = OpeningInventoryExcel.parse(bytes,
+        defaultWarehouseId: 1,
+        warehousesByCode: const {},
+        defaultExpiryDate: '2028-10-31');
+    expect(withExpiry.errors, isEmpty);
+    expect(withExpiry.lines.single.expiryDate, '2028-10-31');
   });
 
-  test('zero pack count, missing strips or missing price blocks posting', () {
+  test('blank and impossible expiry dates reject only affected rows', () {
     final book = Excel.decodeBytes(OpeningInventoryExcel.simpleTemplateBytes());
     final sheet = book['الرصيد الافتتاحي'];
     sheet.appendRow([
-      TextCellValue('صنف بلا رصيد'),
-      IntCellValue(0),
-      IntCellValue(3),
+      TextCellValue('بلا صلاحية'),
+      IntCellValue(1),
+      IntCellValue(2),
       DoubleCellValue(100),
-    ]);
-    sheet.appendRow([
-      TextCellValue('صنف بلا تعبئة'),
-      IntCellValue(4),
-      IntCellValue(0),
-      DoubleCellValue(100),
-    ]);
-    sheet.appendRow([
-      TextCellValue('صنف بلا سعر'),
-      IntCellValue(4),
-      IntCellValue(3),
       null,
     ]);
-    final parsed = OpeningInventoryExcel.parse(
-      book.save()!,
-      defaultWarehouseId: 1,
-      warehousesByCode: const {},
-      defaultExpiryDate: '2028-12-31',
-    );
-    expect(parsed.lines, isEmpty);
-    expect(parsed.errors, hasLength(3));
+    sheet.appendRow([
+      TextCellValue('تاريخ غير صحيح'),
+      IntCellValue(1),
+      IntCellValue(2),
+      DoubleCellValue(100),
+      TextCellValue('2028-02-30'),
+    ]);
+    sheet.appendRow([
+      TextCellValue('صنف صحيح'),
+      IntCellValue(1),
+      IntCellValue(2),
+      DoubleCellValue(100),
+      TextCellValue('2028-02-29'),
+    ]);
+    final result = OpeningInventoryExcel.parse(book.save()!,
+        defaultWarehouseId: 1, warehousesByCode: const {});
+    expect(result.lines, hasLength(1));
+    expect(result.lines.single.drugName, 'صنف صحيح');
+    expect(result.errors, hasLength(2));
+    expect(result.errors.every((e) => e.contains('تاريخ')), isTrue);
   });
 
-  test('an old six-column workbook is never silently misinterpreted', () {
+  test('name-only catalog rows are ignored; quantities still required', () {
+    final book = Excel.decodeBytes(OpeningInventoryExcel.simpleTemplateBytes());
+    final sheet = book['الرصيد الافتتاحي'];
+    sheet.appendRow([TextCellValue('مرجع فقط'), null, null, null, null]);
+    sheet.appendRow([
+      TextCellValue('لا يوجد رصيد'),
+      IntCellValue(0),
+      IntCellValue(3),
+      DoubleCellValue(100),
+      TextCellValue('2029-01-01'),
+    ]);
+    sheet.appendRow([
+      TextCellValue('صنف بكمية'),
+      IntCellValue(3),
+      IntCellValue(2),
+      DoubleCellValue(180),
+      TextCellValue('2029-01-01'),
+    ]);
+    final result = OpeningInventoryExcel.parse(book.save()!,
+        defaultWarehouseId: 2, warehousesByCode: const {});
+    expect(result.errors, hasLength(1));
+    expect(result.lines.map((r) => r.drugName), ['صنف بكمية']);
+  });
+
+  test('old six-column workbook is never silently misinterpreted', () {
     final book = Excel.createExcel();
     final sheet = book['الرصيد الافتتاحي'];
     sheet.appendRow([
@@ -141,21 +147,11 @@ void main() {
       TextCellValue('سعر العلاج'),
       TextCellValue('الأرصدة الافتتاحية'),
     ]);
-    sheet.appendRow([
-      TextCellValue('دواء'),
-      IntCellValue(5),
-      IntCellValue(3),
-      DoubleCellValue(500),
-      DoubleCellValue(50),
-      IntCellValue(20),
-    ]);
     expect(
-      () => OpeningInventoryExcel.parse(
-        book.save()!,
-        defaultWarehouseId: 1,
-        warehousesByCode: const {},
-        defaultExpiryDate: '2028-12-31',
-      ),
+      () => OpeningInventoryExcel.parse(book.save()!,
+          defaultWarehouseId: 1,
+          warehousesByCode: const {},
+          defaultExpiryDate: '2028-12-31'),
       throwsFormatException,
     );
   });
