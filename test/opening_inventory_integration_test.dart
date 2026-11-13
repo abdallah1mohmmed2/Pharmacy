@@ -458,8 +458,10 @@ void main() {
       );
       expect(preview.errors, hasLength(1));
       expect(preview.errors.single, contains('تعبئة الصنف'));
-      expect((await db.query('drugs',
-          where: 'id=?', whereArgs: [drugId])).single['stock_total_units'], 0);
+      expect(
+          (await db.query('drugs', where: 'id=?', whereArgs: [drugId]))
+              .single['stock_total_units'],
+          0);
     });
 
     test('simple template does not invent missing tablets-per-strip', () async {
