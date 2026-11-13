@@ -127,10 +127,12 @@ void main() {
       expect(result.inserted, 2);
       final rows = await db.query('drugs');
       expect(rows, hasLength(2));
-      final first = (await db.query('drugs', where: 'trade_name_ar=?',
-          whereArgs: ['دواء, واحد'])).single;
-      final second = (await db.query('drugs', where: 'trade_name_ar=?',
-          whereArgs: ['دواء ثان'])).single;
+      final first = (await db.query('drugs',
+              where: 'trade_name_ar=?', whereArgs: ['دواء, واحد']))
+          .single;
+      final second = (await db.query('drugs',
+              where: 'trade_name_ar=?', whereArgs: ['دواء ثان']))
+          .single;
       expect(first['indications'], 'سطر أول\nسطر ثان');
       expect(second['indications'], 'نص به "اقتباس"');
     });
