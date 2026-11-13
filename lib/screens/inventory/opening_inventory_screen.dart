@@ -343,7 +343,8 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
 
   Future<void> _saveTemplate() async {
     try {
-      final data = Uint8List.fromList(OpeningInventoryExcel.simpleTemplateBytes());
+      final data =
+          Uint8List.fromList(OpeningInventoryExcel.simpleTemplateBytes());
       final path = await FilePicker.platform.saveFile(
         dialogTitle: 'حفظ نموذج الأرصدة الافتتاحية',
         fileName: 'pharmacy_opening_inventory_template.xlsx',
