@@ -158,7 +158,8 @@ extension DrugImportFileStreaming on DrugImportExportService {
         totalRows: count,
         validRows: valid,
         errors: errors,
-        duplicates: duplicates);
+        duplicates: duplicates,
+        barcodeDuplicates: barcodeDuplicates);
   }
 
   Future<ImportExecutionResult> executeImportFile({
