@@ -90,6 +90,50 @@ void main() {
     });
   });
 
+  group('Opening inventory dosage-form Excel mapping', () {
+    test('optional Arabic form maps to the app enum without a new field', () {
+      final workbook = Excel.decodeBytes(OpeningInventoryExcel.templateBytes());
+      workbook['الرصيد الافتتاحي'].appendRow([
+        null,
+        TextCellValue('دواء تجريبي'),
+        null,
+        IntCellValue(1),
+        null,
+        null,
+        IntCellValue(10),
+        IntCellValue(12),
+        null,
+        null,
+        null,
+        TextCellValue('2028-06-30'),
+        null,
+        null,
+        null,
+        null,
+        null,
+        TextCellValue('أقراص'),
+      ]);
+      final parsed = OpeningInventoryExcel.parse(workbook.save()!,
+          defaultWarehouseId: 3, warehousesByCode: {});
+      expect(parsed.errors, isEmpty);
+      expect(parsed.lines.single.dosageForm, 'TABLET');
+    });
+
+    test('rejects unrecognized types before any stock is posted', () {
+      final workbook = Excel.decodeBytes(OpeningInventoryExcel.templateBytes());
+      workbook['الرصيد الافتتاحي'].appendRow([
+        null, TextCellValue('دواء تجريبي'), null, IntCellValue(1),
+        null, null, IntCellValue(10), IntCellValue(12),
+        null, null, null, TextCellValue('2028-06-30'),
+        null, null, null, null, null, TextCellValue('نوع غير معروف'),
+      ]);
+      final parsed = OpeningInventoryExcel.parse(workbook.save()!,
+          defaultWarehouseId: 3, warehousesByCode: {});
+      expect(parsed.lines, isEmpty);
+      expect(parsed.errors.single, contains('نوع الدواء غير معتمد'));
+    });
+  });
+
   group('Opening XLSX with source-price columns', () {
     test('formula display prices are ignored and raw user price is imported',
         () {
@@ -223,9 +267,11 @@ void main() {
       int packets = 3,
       int units = 4,
       OpeningStockPrices prices = const OpeningStockPrices(carton: 12000),
+      String? dosageForm,
     }) =>
         OpeningStockLine(
           drugId: drugId,
+          dosageForm: dosageForm,
           warehouseId: warehouseId,
           expiryDate: futureExpiry,
           batchNo: lot,
@@ -284,6 +330,30 @@ void main() {
       expect(await db.query('system_settings', orderBy: 'setting_no'),
           settingsBefore);
       expect(await db.rawQuery('PRAGMA foreign_key_check'), isEmpty);
+    });
+
+    test('opening stock fills OTHER dosage form without overwriting a known one',
+        () async {
+      await post('opening-type-tablet', [row(dosageForm: 'TABLET')]);
+      final drug =
+          (await db.query('drugs', where: 'id=?', whereArgs: [drugId])).single;
+      expect(drug['dosage_form'], 'TABLET');
+      await expectLater(
+          post('opening-type-conflict', [row(dosageForm: 'CAPSULE')]),
+          throwsStateError);
+      expect(await db.query('opening_inventory_posts'), hasLength(1));
+      expect(await db.query('stock_movements'), hasLength(1));
+    });
+
+    test('conflicting forms across lots fail atomically', () async {
+      await expectLater(
+          post('opening-mixed-types', [
+            row(lot: 'TYPE-A', dosageForm: 'TABLET'),
+            row(lot: 'TYPE-B', dosageForm: 'CAPSULE'),
+          ]),
+          throwsStateError);
+      expect(await db.query('opening_inventory_posts'), isEmpty);
+      expect(await db.query('stock_movements'), isEmpty);
     });
 
     test('same operation and same XLSX file cannot inflate stock twice',
