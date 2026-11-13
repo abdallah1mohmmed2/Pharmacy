@@ -87,8 +87,10 @@ abstract final class DrugImportStreamReader {
               state = 2;
             }
           }
-        } else if (state == 4 && c.trim().isNotEmpty &&
-            c != '}' && c != '\uFEFF') {
+        } else if (state == 4 &&
+            c.trim().isNotEmpty &&
+            c != '}' &&
+            c != '\uFEFF') {
           throw const FormatException('بيانات إضافية بعد نهاية قائمة الأدوية');
         }
       }
