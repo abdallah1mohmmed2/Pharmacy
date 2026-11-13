@@ -10,19 +10,15 @@ class OpeningExcelResult {
 /// Spreadsheet import targets existing branch medicines/warehouses only.
 /// Blank prices are intentionally null, allowing automatic price suggestions.
 abstract final class OpeningInventoryExcel {
-  /// Simple six-column opening-stock template used by pharmacy staff.
-  ///
-  /// "الأرصدة الافتتاحية" counts outer packs (cartons). Packet/strip counts
-  /// describe the units inside one outer pack, not additional stock. The
-  /// expiry date is deliberately selected in the app for each import batch,
-  /// never fabricated or read from an unrelated column.
+  /// All rows in this worksheet are opening inventory. Each row records
+  /// existing *small boxes* (packs), strips per box and the box selling price.
+  /// Units/tablets per strip are deliberately read from the existing medicine
+  /// record at posting time: the spreadsheet does not contain that dimension.
   static const simpleHeaders = <String>[
     'اسم العلاج',
     'عدد الباكتات',
-    'عدد الأشرطة',
+    'عدد الأشرطة داخل الباكت',
     'سعر الباكت',
-    'سعر العلاج',
-    'الأرصدة الافتتاحية',
   ];
 
   static List<int> simpleTemplateBytes() {
@@ -188,7 +184,7 @@ abstract final class OpeningInventoryExcel {
     if (simpleHeaders.every(columnIndex.containsKey)) {
       if (columnIndex.length != simpleHeaders.length) {
         throw const FormatException(
-            'القالب المبسط يجب أن يحتوي على الأعمدة الستة فقط');
+            'القالب المبسط يجب أن يحتوي على الأعمدة الأربعة فقط');
       }
       if (defaultExpiryDate == null || defaultExpiryDate.trim().isEmpty) {
         throw const FormatException(
@@ -208,8 +204,7 @@ abstract final class OpeningInventoryExcel {
           }
 
           if (simpleHeaders.every((heading) => cell(heading).isEmpty)) continue;
-          // A searchable master sheet may list thousands of medicines.
-          // Name-only rows are reference items, not pharmacy stock.
+          // Name-only rows in a reference catalog do not imply stock.
           if (simpleHeaders.skip(1).every((heading) => cell(heading).isEmpty)) {
             continue;
           }
@@ -217,30 +212,28 @@ abstract final class OpeningInventoryExcel {
           if (name.isEmpty) {
             throw const FormatException('اسم العلاج مطلوب');
           }
-          final packetsPerCarton =
-              _integer(cell('عدد الباكتات'), 'عدد الباكتات');
-          final unitsPerPacket = _integer(cell('عدد الأشرطة'), 'عدد الأشرطة');
-          final openingCartons =
-              _integer(cell('الأرصدة الافتتاحية'), 'الأرصدة الافتتاحية');
-          if (packetsPerCarton <= 0 || unitsPerPacket <= 0) {
+          final packs = _integer(cell('عدد الباكتات'), 'عدد الباكتات');
+          final stripsPerPack = _integer(
+              cell('عدد الأشرطة داخل الباكت'), 'عدد الأشرطة داخل الباكت');
+          final pricePerPack =
+              _optionalPrice(cell('سعر الباكت'), 'سعر الباكت');
+          if (packs <= 0 || stripsPerPack <= 0) {
             throw const FormatException(
-                'عدد الباكتات والأشرطة يجب أن يكون أكبر من الصفر');
+                'عدد الباكتات والأشرطة داخل الباكت يجب أن يكون أكبر من الصفر');
           }
-          if (openingCartons <= 0) {
-            throw const FormatException(
-                'الرصيد الافتتاحي يجب أن يكون أكبر من الصفر');
+          if (pricePerPack == null) {
+            throw const FormatException('سعر الباكت مطلوب');
           }
-          final packetPrice = _optionalPrice(cell('سعر الباكت'), 'سعر الباكت');
-          final medicinePrice =
-              _optionalPrice(cell('سعر العلاج'), 'سعر العلاج');
           result.add(OpeningStockLine(
             drugName: name,
             warehouseId: defaultWarehouseId,
-            cartons: openingCartons,
-            packetsPerCarton: packetsPerCarton,
-            unitsPerPacket: unitsPerPacket,
-            prices:
-                OpeningStockPrices(packet: packetPrice, unit: medicinePrice),
+            cartons: packs,
+            packetsPerCarton: stripsPerPack,
+            // One strip is *not* assumed to contain one tablet.
+            // The posting service looks up this value from the medicine.
+            unitsPerPacket: 1,
+            resolveUnitsFromCatalog: true,
+            prices: OpeningStockPrices(carton: pricePerPack),
             expiryDate: defaultExpiryDate,
           ));
         } catch (e) {
