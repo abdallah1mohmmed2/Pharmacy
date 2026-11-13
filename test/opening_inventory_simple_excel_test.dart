@@ -7,7 +7,9 @@ void main() {
 
   test('opening-stock template has exactly four requested columns', () {
     final book = Excel.decodeBytes(OpeningInventoryExcel.simpleTemplateBytes());
-    final columns = book['الرصيد الافتتاحي'].rows.first
+    final columns = book['الرصيد الافتتاحي']
+        .rows
+        .first
         .map((cell) => (cell?.value as TextCellValue).value.text)
         .toList();
     expect(columns, [
@@ -82,7 +84,9 @@ void main() {
   test('expiry date must be selected in app, never fabricated', () {
     final book = Excel.decodeBytes(OpeningInventoryExcel.simpleTemplateBytes());
     book['الرصيد الافتتاحي'].appendRow([
-      TextCellValue('دواء'), IntCellValue(2), IntCellValue(4),
+      TextCellValue('دواء'),
+      IntCellValue(2),
+      IntCellValue(4),
       DoubleCellValue(600),
     ]);
     expect(
@@ -100,15 +104,21 @@ void main() {
     final sheet = book['الرصيد الافتتاحي'];
     sheet.appendRow([
       TextCellValue('صنف بلا رصيد'),
-      IntCellValue(0), IntCellValue(3), DoubleCellValue(100),
+      IntCellValue(0),
+      IntCellValue(3),
+      DoubleCellValue(100),
     ]);
     sheet.appendRow([
       TextCellValue('صنف بلا تعبئة'),
-      IntCellValue(4), IntCellValue(0), DoubleCellValue(100),
+      IntCellValue(4),
+      IntCellValue(0),
+      DoubleCellValue(100),
     ]);
     sheet.appendRow([
       TextCellValue('صنف بلا سعر'),
-      IntCellValue(4), IntCellValue(3), null,
+      IntCellValue(4),
+      IntCellValue(3),
+      null,
     ]);
     final parsed = OpeningInventoryExcel.parse(
       book.save()!,
@@ -124,13 +134,20 @@ void main() {
     final book = Excel.createExcel();
     final sheet = book['الرصيد الافتتاحي'];
     sheet.appendRow([
-      TextCellValue('اسم العلاج'), TextCellValue('عدد الباكتات'),
-      TextCellValue('عدد الأشرطة'), TextCellValue('سعر الباكت'),
-      TextCellValue('سعر العلاج'), TextCellValue('الأرصدة الافتتاحية'),
+      TextCellValue('اسم العلاج'),
+      TextCellValue('عدد الباكتات'),
+      TextCellValue('عدد الأشرطة'),
+      TextCellValue('سعر الباكت'),
+      TextCellValue('سعر العلاج'),
+      TextCellValue('الأرصدة الافتتاحية'),
     ]);
     sheet.appendRow([
-      TextCellValue('دواء'), IntCellValue(5), IntCellValue(3),
-      DoubleCellValue(500), DoubleCellValue(50), IntCellValue(20),
+      TextCellValue('دواء'),
+      IntCellValue(5),
+      IntCellValue(3),
+      DoubleCellValue(500),
+      DoubleCellValue(50),
+      IntCellValue(20),
     ]);
     expect(
       () => OpeningInventoryExcel.parse(
