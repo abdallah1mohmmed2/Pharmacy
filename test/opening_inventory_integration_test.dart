@@ -374,35 +374,27 @@ void main() {
           sourceHash: hash,
         );
 
-    test('six-column Excel posts selected rows to the correct medicines',
+    test('four-column Excel uses stored tablets per strip and pack price',
         () async {
+      // The template specifies 3 strips per pack, not tablets per strip.
+      // The latter comes from the existing drug card (10 tablets/strip).
+      await db.update('drugs', {
+        'strips_per_pack': 3,
+        'units_per_strip': 10,
+        'units_per_pack': 30,
+      }, where: 'id=?', whereArgs: [drugId]);
+
       final book =
           Excel.decodeBytes(OpeningInventoryExcel.simpleTemplateBytes());
       final sheet = book['الرصيد الافتتاحي'];
-      // A name from the reference catalog is not a stock item until selected.
       sheet.appendRow([
-        TextCellValue('دواء مرجعي فقط'),
-        null,
-        null,
-        null,
-        null,
-        null,
+        TextCellValue('دواء مرجعي فقط'), null, null, null,
       ]);
       sheet.appendRow([
         TextCellValue('دواء تجريبي'),
-        IntCellValue(10),
         IntCellValue(12),
-        IntCellValue(1200),
-        IntCellValue(100),
-        IntCellValue(2),
-      ]);
-      sheet.appendRow([
-        TextCellValue('دواء جديد محلي'),
-        IntCellValue(2),
-        IntCellValue(4),
-        IntCellValue(80),
-        IntCellValue(20),
-        IntCellValue(1),
+        IntCellValue(3),
+        DoubleCellValue(1000),
       ]);
       final parsed = OpeningInventoryExcel.parse(
         book.save()!,
@@ -411,32 +403,57 @@ void main() {
         defaultExpiryDate: futureExpiry,
       );
       expect(parsed.errors, isEmpty);
-      expect(parsed.lines, hasLength(2));
+      expect(parsed.lines, hasLength(1));
+      expect(parsed.lines.single.resolveUnitsFromCatalog, isTrue);
       final preview = await service.preview(
         branchId: branchId,
         effectiveDate: DateTime.now().toIso8601String().substring(0, 10),
         lines: parsed.lines,
       );
       expect(preview.errors, isEmpty);
-      expect(preview.totalUnits, 248);
+      expect(preview.totalUnits, 360); // 12 packs * 3 strips * 10 tablets
       await post('simple-stock-first', parsed.lines, hash: 'simple-file-1');
 
-      final oldDrug =
-          (await db.query('drugs', where: 'id=?', whereArgs: [drugId])).single;
-      final newDrug = (await db.query('drugs',
-              where: 'trade_name_ar=?', whereArgs: ['دواء جديد محلي']))
-          .single;
-      expect(oldDrug['stock_total_units'], 240);
-      expect(oldDrug['sell_price_strip'], 1200);
-      expect(oldDrug['sell_price_unit'], 100);
-      expect(newDrug['stock_total_units'], 8);
-      expect(newDrug['sell_price_strip'], 80);
+      final stored = (await db.query('drugs',
+          where: 'id=?', whereArgs: [drugId])).single;
+      expect(stored['stock_total_units'], 360);
+      expect(stored['sell_price_pack'], 1000);
+      expect(stored['strips_per_pack'], 3);
+      expect(stored['units_per_strip'], 10);
       expect(
-          (await db.query('drugs',
-              where: 'trade_name_ar=?', whereArgs: ['دواء مرجعي فقط'])),
+          await db.query('drugs',
+              where: 'trade_name_ar=?', whereArgs: ['دواء مرجعي فقط']),
           isEmpty);
-      expect(await db.query('stock_movements'), hasLength(2));
+      expect(await db.query('stock_movements'), hasLength(1));
       expect(await db.rawQuery('PRAGMA foreign_key_check'), isEmpty);
+    });
+
+    test('simple template does not invent missing tablets-per-strip',
+        () async {
+      final book =
+          Excel.decodeBytes(OpeningInventoryExcel.simpleTemplateBytes());
+      book['الرصيد الافتتاحي'].appendRow([
+        TextCellValue('صنف غير موجود'),
+        IntCellValue(2),
+        IntCellValue(3),
+        DoubleCellValue(400),
+      ]);
+      final parsed = OpeningInventoryExcel.parse(
+        book.save()!,
+        defaultWarehouseId: warehouseId,
+        warehousesByCode: const {},
+        defaultExpiryDate: futureExpiry,
+      );
+      expect(parsed.errors, isEmpty);
+      final preview = await service.preview(
+        branchId: branchId,
+        effectiveDate: DateTime.now().toIso8601String().substring(0, 10),
+        lines: parsed.lines,
+      );
+      expect(preview.errors, hasLength(1));
+      expect(preview.errors.single, contains('الصنف غير موجود'));
+      expect(await db.query('drugs',
+          where: 'trade_name_ar=?', whereArgs: ['صنف غير موجود']), isEmpty);
     });
 
     test('unknown Excel drug is created automatically only on approval',
