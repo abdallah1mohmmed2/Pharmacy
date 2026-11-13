@@ -30,16 +30,51 @@ abstract final class OpeningInventoryExcel {
     'ملاحظات',
   ];
 
+  // Optional form input matches the existing drugs.dosage_form enum.
+  // Arabic is for pharmacists; stored codes remain identical to the app.
+  static const dosageForms = <String, String>{
+    'أقراص': 'TABLET',
+    'كبسولات': 'CAPSULE',
+    'شراب': 'SYRUP',
+    'معلق': 'SUSPENSION',
+    'قطرات': 'DROPS',
+    'حقن': 'INJECTION',
+    'كريم': 'CREAM',
+    'مرهم': 'OINTMENT',
+    'بخاخ': 'INHALER',
+    'تحاميل': 'SUPPOSITORY',
+    'أكياس': 'SACHET',
+    'أخرى': 'OTHER',
+  };
+
+  static String? _dosageForm(String text) {
+    final raw = text.trim();
+    if (raw.isEmpty) return null;
+    final asCode = raw.toUpperCase();
+    if (dosageForms.values.contains(asCode)) return asCode;
+    final code = dosageForms[raw];
+    if (code == null) {
+      throw FormatException('نوع الدواء غير معتمد: $raw');
+    }
+    return code;
+  }
+
   static List<int> templateBytes() {
     final excel = Excel.createExcel();
     final sheet = excel['الرصيد الافتتاحي'];
-    sheet.appendRow(headers.map((h) => TextCellValue(h)).toList());
+    // Added after the legacy 17-column layout for backwards compatibility.
+    sheet.appendRow([
+      ...headers.map((h) => TextCellValue(h)),
+      TextCellValue('نوع الدواء'),
+    ]);
     final help = excel['إرشادات'];
     for (final description in [
       'أدخل كل تشغيلة أو تاريخ انتهاء في صف منفصل.',
       'معرّف الدواء أو اسمه المطابق تمامًا لما في فرع الصيدلية مطلوب.',
       'رمز المخزن اختياري؛ عند تركه فارغًا يستخدم المخزن المختار في التطبيق.',
       'رقم الرف اختياري. إن كتبته فيجب أن يكون رفًا موجودًا في ذلك المخزن.',
+      'نوع الدواء اختياري؛ اختر الشكل الصيدلاني بالعربية من القائمة المعتمدة.',
+      'إذا كان نوع الدواء معروفًا ويختلف عن المسجل في الفرع، يتوقف الاستيراد لمراجعة الصنف.',
       'يمكن إدخال سعر الكرتون أو الباكت أو الحبة وحده؛ تحسب الأسعار الناقصة.',
       'أي سعر مُدخل يدويًا لا يُستبدل بالحساب الآلي.',
       'تواريخ الانتهاء والإدخال بصيغة YYYY-MM-DD، ولا تدخل كميات سالبة.',
@@ -200,6 +235,9 @@ abstract final class OpeningInventoryExcel {
         result.add(OpeningStockLine(
           drugId: drugId,
           drugName: cell('اسم الدواء'),
+          dosageForm: columnIndex.containsKey('نوع الدواء')
+              ? _dosageForm(cell('نوع الدواء'))
+              : null,
           warehouseId: warehouseId,
           cartons: _integer(cell('عدد الكراتين'), 'عدد الكراتين'),
           packets: _integer(cell('الباكتات الإضافية'), 'الباكتات الإضافية'),
