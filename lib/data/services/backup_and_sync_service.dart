@@ -58,8 +58,7 @@ class BackupAndSyncService {
   /// This is intentionally not a live File.copy while WAL is in use.
   Future<Database> _snapshot(Database db, File target) async {
     final versionRows = await db.rawQuery('SELECT sqlite_version() AS version');
-    final sqliteVersion =
-        versionRows.first['version']?.toString() ?? '';
+    final sqliteVersion = versionRows.first['version']?.toString() ?? '';
     if (!_forceLegacyCopyForTesting && _supportsVacuumInto(sqliteVersion)) {
       final escaped = target.path.replaceAll("'", "''");
       await db.execute("VACUUM INTO '$escaped'");

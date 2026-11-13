@@ -26,8 +26,8 @@ void main() {
   setUp(() async {
     root = await Directory.systemTemp.createTemp('pharmacy_backup_test_');
     backupDirectory = Directory('${root.path}/backups');
-    final source = await openDatabase('${root.path}/pharmacy.db',
-        singleInstance: false);
+    final source =
+        await openDatabase('${root.path}/pharmacy.db', singleInstance: false);
     await source.execute('PRAGMA journal_mode=WAL');
     await source.execute(
         'CREATE TABLE system_settings (setting_no INTEGER PRIMARY KEY, setting_value TEXT)');
@@ -69,7 +69,8 @@ CREATE TABLE audit_logs (
     try {
       final data = await snapshot.query('test_data');
       expect(data.single['payload'], 'كميات الصيدلية');
-      expect((await snapshot.rawQuery('PRAGMA quick_check')).single.values.single,
+      expect(
+          (await snapshot.rawQuery('PRAGMA quick_check')).single.values.single,
           'ok');
     } finally {
       await snapshot.close();
