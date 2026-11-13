@@ -122,10 +122,24 @@ void main() {
     test('rejects unrecognized types before any stock is posted', () {
       final workbook = Excel.decodeBytes(OpeningInventoryExcel.templateBytes());
       workbook['الرصيد الافتتاحي'].appendRow([
-        null, TextCellValue('دواء تجريبي'), null, IntCellValue(1),
-        null, null, IntCellValue(10), IntCellValue(12),
-        null, null, null, TextCellValue('2028-06-30'),
-        null, null, null, null, null, TextCellValue('نوع غير معروف'),
+        null,
+        TextCellValue('دواء تجريبي'),
+        null,
+        IntCellValue(1),
+        null,
+        null,
+        IntCellValue(10),
+        IntCellValue(12),
+        null,
+        null,
+        null,
+        TextCellValue('2028-06-30'),
+        null,
+        null,
+        null,
+        null,
+        null,
+        TextCellValue('نوع غير معروف'),
       ]);
       final parsed = OpeningInventoryExcel.parse(workbook.save()!,
           defaultWarehouseId: 3, warehousesByCode: {});
@@ -332,7 +346,8 @@ void main() {
       expect(await db.rawQuery('PRAGMA foreign_key_check'), isEmpty);
     });
 
-    test('opening stock fills OTHER dosage form without overwriting a known one',
+    test(
+        'opening stock fills OTHER dosage form without overwriting a known one',
         () async {
       await post('opening-type-tablet', [row(dosageForm: 'TABLET')]);
       final drug =
