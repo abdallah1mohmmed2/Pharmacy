@@ -148,6 +148,42 @@ void main() {
     });
   });
 
+  group('Opening XLSX with three optional cost inputs', () {
+    test('carton acquisition cost derives precise unit cost', () {
+      final book = Excel.decodeBytes(OpeningInventoryExcel.templateBytes());
+      book['الرصيد الافتتاحي'].appendRow([
+        null, TextCellValue('دواء تجريبي'), null, IntCellValue(1),
+        null, null, IntCellValue(10), IntCellValue(12),
+        null, null, null, TextCellValue('2028-06-30'),
+        null, null, null, FormulaCellValue('V2/G2/H2'),
+        null, TextCellValue('أقراص'), DoubleCellValue(5000),
+        null, null,
+      ]);
+      final parsed = OpeningInventoryExcel.parse(book.save()!,
+          defaultWarehouseId: 3, warehousesByCode: {});
+      expect(parsed.errors, isEmpty);
+      expect(parsed.lines, hasLength(1));
+      expect(parsed.lines.single.unitCost, closeTo(5000 / 120, 1e-8));
+      expect(parsed.lines.single.dosageForm, 'TABLET');
+    });
+
+    test('multiple acquisition-cost sources cannot silently conflict', () {
+      final book = Excel.decodeBytes(OpeningInventoryExcel.templateBytes());
+      book['الرصيد الافتتاحي'].appendRow([
+        null, TextCellValue('دواء تجريبي'), null, IntCellValue(1),
+        null, null, IntCellValue(10), IntCellValue(12),
+        null, null, null, TextCellValue('2028-06-30'),
+        null, null, null, null,
+        null, TextCellValue('أقراص'), DoubleCellValue(5000),
+        DoubleCellValue(550), null,
+      ]);
+      final parsed = OpeningInventoryExcel.parse(book.save()!,
+          defaultWarehouseId: 3, warehousesByCode: {});
+      expect(parsed.lines, isEmpty);
+      expect(parsed.errors.single, contains('تكلفة شراء واحدة فقط'));
+    });
+  });
+
   group('Opening XLSX with source-price columns', () {
     test('formula display prices are ignored and raw user price is imported',
         () {
