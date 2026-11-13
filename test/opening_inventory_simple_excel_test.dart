@@ -6,8 +6,8 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test('new opening inventory template has five columns including expiry', () {
-    final sheet = Excel.decodeBytes(OpeningInventoryExcel.simpleTemplateBytes())
-        ['الرصيد الافتتاحي'];
+    final sheet = Excel.decodeBytes(
+        OpeningInventoryExcel.simpleTemplateBytes())['الرصيد الافتتاحي'];
     final headers = sheet.rows.first
         .map((cell) => (cell?.value as TextCellValue).value.text)
         .toList();

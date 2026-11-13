@@ -201,6 +201,7 @@ abstract final class OpeningInventoryExcel {
     }
     return parsed;
   }
+
   static OpeningExcelResult parse(
     List<int> bytes, {
     required int defaultWarehouseId,
@@ -232,10 +233,11 @@ abstract final class OpeningInventoryExcel {
     final isCurrentSimple = simpleHeaders.every(columnIndex.containsKey);
     final isPreviousSimple =
         _previousSimpleHeaders.every(columnIndex.containsKey) &&
-        !columnIndex.containsKey('تاريخ الانتهاء');
+            !columnIndex.containsKey('تاريخ الانتهاء');
     if (isCurrentSimple || isPreviousSimple) {
-      final expectedColumns =
-          isCurrentSimple ? simpleHeaders.length : _previousSimpleHeaders.length;
+      final expectedColumns = isCurrentSimple
+          ? simpleHeaders.length
+          : _previousSimpleHeaders.length;
       if (columnIndex.length != expectedColumns) {
         throw const FormatException(
             'أعمدة قالب الأرصدة الافتتاحية غير متطابقة');
@@ -259,14 +261,14 @@ abstract final class OpeningInventoryExcel {
           }
 
           if (_previousSimpleHeaders
-              .every((heading) => cell(heading).isEmpty) &&
+                  .every((heading) => cell(heading).isEmpty) &&
               (!isCurrentSimple || cell('تاريخ الانتهاء').isEmpty)) {
             continue;
           }
           // Name-only reference rows do not imply existing stock.
           if (_previousSimpleHeaders
-              .skip(1)
-              .every((heading) => cell(heading).isEmpty) &&
+                  .skip(1)
+                  .every((heading) => cell(heading).isEmpty) &&
               (!isCurrentSimple || cell('تاريخ الانتهاء').isEmpty)) {
             continue;
           }
