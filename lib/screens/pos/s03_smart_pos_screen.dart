@@ -130,7 +130,9 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
             : _StickyCheckoutBar(
                 itemCount: pos.cart.length,
                 total: _net(pos),
-                onCheckout: pos.cart.isEmpty || _checkoutBusy || pos.checkoutPending
+                onCheckout: pos.cart.isEmpty ||
+                        _checkoutBusy ||
+                        pos.checkoutPending
                     ? null
                     : () => _openCheckout(pos, session, inventory, clinical),
               ),
@@ -484,11 +486,13 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
             _paymentFields(pos, session),
             const SizedBox(height: 8),
             FilledButton.icon(
-              onPressed: pos.cart.isEmpty || _checkoutBusy || pos.checkoutPending
-                  ? null
-                  : () => _finish(pos, session, inventory, clinical),
+              onPressed:
+                  pos.cart.isEmpty || _checkoutBusy || pos.checkoutPending
+                      ? null
+                      : () => _finish(pos, session, inventory, clinical),
               icon: const Icon(Icons.check_circle),
-              label: Text(_checkoutBusy ? 'جارٍ حفظ الفاتورة...' : 'إتمام الفاتورة'),
+              label: Text(
+                  _checkoutBusy ? 'جارٍ حفظ الفاتورة...' : 'إتمام الفاتورة'),
             ),
           ],
         ),
