@@ -184,7 +184,16 @@ abstract final class OpeningInventoryExcel {
   }
 
   static bool _validIsoDate(String value) {
-    if (!RegExp(r'^\d{4}-\d{2}-\d{2}
+    final pattern = RegExp(r'^\d{4}-\d{2}-\d{2}$');
+    if (!pattern.hasMatch(value)) return false;
+    final parsed = DateTime.tryParse(value);
+    return parsed != null &&
+        parsed.year.toString().padLeft(4, '0') == value.substring(0, 4) &&
+        parsed.month.toString().padLeft(2, '0') == value.substring(5, 7) &&
+        parsed.day.toString().padLeft(2, '0') == value.substring(8, 10);
+  }
+
+  static double? _optionalPrice(String value, String label) {
     if (value.isEmpty) return null;
     final parsed = double.tryParse(_normalizeNumber(value));
     if (parsed == null || !parsed.isFinite || parsed < 0) {
@@ -192,7 +201,6 @@ abstract final class OpeningInventoryExcel {
     }
     return parsed;
   }
-
   static OpeningExcelResult parse(
     List<int> bytes, {
     required int defaultWarehouseId,
