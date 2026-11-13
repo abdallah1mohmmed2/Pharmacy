@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:sqflite/sqflite.dart';
 import '../database/database_helper.dart';
 
@@ -107,10 +108,29 @@ class _Prepared {
 
 /// Posts initial branch stock only through batches_fefo + stock_movements.
 /// Each operation uses a durable key and one SQLite transaction.
+class _PreviewRollback implements Exception {
+  const _PreviewRollback();
+}
+
 class OpeningInventoryService {
   OpeningInventoryService({DatabaseHelper? helper})
       : _helper = helper ?? DatabaseHelper.instance;
   final DatabaseHelper _helper;
+
+  static String _newIdentifier() {
+    final random = Random.secure();
+    final values = List<int>.generate(16, (_) => random.nextInt(256));
+    // RFC 4122 version 4 / variant 1 UUID.
+    values[6] = (values[6] & 0x0f) | 0x40;
+    values[8] = (values[8] & 0x3f) | 0x80;
+    final hex = values.map((n) => n.toRadixString(16).padLeft(2, '0')).join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-'
+        '${hex.substring(20)}';
+  }
+
+  static String _normalizeName(String value) =>
+      value.trim().replaceAll(RegExp(r'\\s+'), ' ');
 
   static bool _validDate(String s) {
     if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(s)) return false;
@@ -154,26 +174,45 @@ class OpeningInventoryService {
           where: 'id=? AND branch_id=? AND is_deleted=0 AND is_active=1',
           whereArgs: [row.drugId, branchId],
           limit: 1);
+      if (drugs.isEmpty) {
+        throw StateError('معرّف الدواء غير موجود أو غير نشط في الفرع');
+      }
     } else {
-      if (row.drugName.trim().isEmpty) throw StateError('اسم الدواء مطلوب');
+      final name = _normalizeName(row.drugName);
+      if (name.isEmpty) throw StateError('اسم الدواء مطلوب');
+      // Exact match first; do not silently merge different drugs.
       drugs = await txn.query('drugs',
-          where:
-              'branch_id=? AND is_deleted=0 AND is_active=1 AND (trade_name_ar=? OR trade_name_en=? OR internal_code=?)',
-          whereArgs: [
-            branchId,
-            row.drugName.trim(),
-            row.drugName.trim(),
-            row.drugName.trim()
-          ]);
-      // Name matching must be unambiguous; never guess among medicines.
-      final ids = drugs.map((e) => e['id']).toSet();
-      if (ids.length != 1) {
-        throw StateError(ids.isEmpty
-            ? 'الدواء غير موجود في الفرع: ${row.drugName}'
-            : 'اسم الدواء مكرر؛ استخدم معرّف الدواء: ${row.drugName}');
+          where: 'branch_id=? AND is_deleted=0 AND '
+              '(trade_name_ar=? OR trade_name_en=? OR internal_code=?)',
+          whereArgs: [branchId, name, name, name]);
+      if (drugs.length > 1) {
+        throw StateError('اسم الدواء مكرر؛ استخدم معرّف الدواء: $name');
+      }
+      if (drugs.isNotEmpty && drugs.first['is_active'] != 1) {
+        throw StateError('الدواء موجود ولكنه غير نشط: $name');
+      }
+      if (drugs.isEmpty) {
+        // The user explicitly enabled automatic catalog creation on posting.
+        // Only data present in Excel is used. Never infer clinical properties.
+        final uuid = _newIdentifier();
+        final now = DateTime.now().toUtc().toIso8601String();
+        final id = await txn.insert('drugs', {
+          'uuid': uuid,
+          'branch_id': branchId,
+          'created_at': now,
+          'updated_at': now,
+          'internal_code': 'OPEN-${uuid.replaceAll('-', '')}',
+          'trade_name_ar': name,
+          'dosage_form': row.dosageForm ?? 'OTHER',
+          'strips_per_pack': row.packetsPerCarton,
+          'units_per_strip': row.unitsPerPacket,
+          'units_per_pack': row.packetsPerCarton * row.unitsPerPacket,
+          'stock_total_units': 0,
+        });
+        drugs = await txn.query('drugs', where: 'id=?', whereArgs: [id],
+            limit: 1);
       }
     }
-    if (drugs.isEmpty) throw StateError('الدواء غير موجود في الفرع');
     final drug = drugs.first;
     final drugId = drug['id'] as int;
     final storedForm = (drug['dosage_form'] as String?) ?? 'OTHER';
@@ -271,7 +310,8 @@ class OpeningInventoryService {
       errors.add('تاريخ الإدخال غير صالح');
     }
     final db = await _helper.database;
-    await db.transaction((txn) async {
+    try {
+      await db.transaction((txn) async {
       for (var i = 0; i < lines.length; i++) {
         try {
           final prepared =
@@ -288,7 +328,13 @@ class OpeningInventoryService {
           errors.add('الصف ${i + 2}: $e');
         }
       }
+      // Preview may provision missing catalog rows for validation, but must
+      // never persist them. All provisional inserts are rolled back here.
+      throw const _PreviewRollback();
     });
+    } on _PreviewRollback {
+      // Validation completed; database remains unchanged.
+    }
     return OpeningStockPreview(total, errors);
   }
 
