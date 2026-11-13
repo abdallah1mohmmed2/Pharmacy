@@ -715,6 +715,40 @@ class _S08S09DrugEncyclopediaScreenState
     ];
     Widget buildField(String key) {
       final controller = controllers[key]!;
+      if (key == 'dosage_form') {
+        // Reuse the app's existing dosage_form enum, with Arabic UI labels.
+        const formLabels = <String, String>{
+          'TABLET': 'أقراص',
+          'CAPSULE': 'كبسولات',
+          'SYRUP': 'شراب',
+          'SUSPENSION': 'معلق',
+          'DROPS': 'قطرات',
+          'INJECTION': 'حقن',
+          'CREAM': 'كريم',
+          'OINTMENT': 'مرهم',
+          'INHALER': 'بخاخ',
+          'SUPPOSITORY': 'تحاميل',
+          'SACHET': 'أكياس',
+          'OTHER': 'أخرى',
+        };
+        final current = controller.text.trim().toUpperCase();
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: DropdownButtonFormField<String>(
+            value: formLabels.containsKey(current) ? current : 'OTHER',
+            decoration: InputDecoration(labelText: labels[key]),
+            isExpanded: true,
+            items: [
+              for (final entry in formLabels.entries)
+                DropdownMenuItem<String>(
+                  value: entry.key,
+                  child: Text(entry.value),
+                ),
+            ],
+            onChanged: (value) => controller.text = value ?? 'OTHER',
+          ),
+        );
+      }
       final longText = key.contains('notes') ||
           key.contains('warning') ||
           key.contains('indication') ||
