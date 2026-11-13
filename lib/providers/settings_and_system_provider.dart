@@ -144,7 +144,6 @@ class SettingsAndSystemProvider extends ChangeNotifier {
     }
   }
 
-
   /// Bounded-memory validation of a file picked on Android.
   Future<ImportDryRunResult> dryRunFile({
     required String filePath,

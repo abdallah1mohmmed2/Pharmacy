@@ -25,8 +25,8 @@ extension DrugImportFileStreaming on DrugImportExportService {
       for (final line in parser.add(chunk)) {
         if (line.trim().isEmpty) continue;
         rowNumber++;
-        final rows = const CsvToListConverter(shouldParseNumbers: false)
-            .convert(line);
+        final rows =
+            const CsvToListConverter(shouldParseNumbers: false).convert(line);
         if (rows.length != 1) {
           throw FormatException('صف CSV غير صالح: ' + rowNumber.toString());
         }
@@ -47,15 +47,16 @@ extension DrugImportFileStreaming on DrugImportExportService {
     for (final line in parser.finish()) {
       if (line.trim().isEmpty) continue;
       rowNumber++;
-      final rows = const CsvToListConverter(shouldParseNumbers: false)
-          .convert(line);
+      final rows =
+          const CsvToListConverter(shouldParseNumbers: false).convert(line);
       if (rows.length != 1) {
         throw FormatException('صف CSV غير صالح: ' + rowNumber.toString());
       }
       final values = rows.single.map((value) => value.toString()).toList();
       if (headers == null) {
         headers = values
-            .map((value) => value.replaceFirst('\uFEFF', '').trim()).toList();
+            .map((value) => value.replaceFirst('\uFEFF', '').trim())
+            .toList();
         continue;
       }
       final result = <String, Object?>{};
@@ -67,26 +68,38 @@ extension DrugImportFileStreaming on DrugImportExportService {
   }
 
   String? _rowProblem(Map<String, Object?> row) {
-    final name = (row['trade_name_ar'] ?? row['trade_name_en'] ?? '')
-        .toString().trim();
+    final name =
+        (row['trade_name_ar'] ?? row['trade_name_en'] ?? '').toString().trim();
     if (name.isEmpty &&
         (row['scientific_name'] ?? '').toString().trim().isEmpty) {
       return 'الاسم التجاري أو العلمي مطلوب';
     }
-    for (final key in ['strips_per_pack', 'units_per_strip', 'units_per_pack']) {
+    for (final key in [
+      'strips_per_pack',
+      'units_per_strip',
+      'units_per_pack'
+    ]) {
       if (row[key] != null && (row[key] as int) < 1) {
         return 'القيمة يجب أن تكون موجبة: ' + key;
       }
     }
-    for (final key in ['stock_total_units', 'min_stock_units',
-                       'reorder_qty_packs']) {
+    for (final key in [
+      'stock_total_units',
+      'min_stock_units',
+      'reorder_qty_packs'
+    ]) {
       if (row[key] != null && (row[key] as int) < 0) {
         return 'القيمة لا يمكن أن تكون سالبة: ' + key;
       }
     }
-    for (final key in ['cost_price_pack', 'last_purchase_cost_pack',
-                       'sell_price_pack', 'sell_price_strip',
-                       'sell_price_unit', 'public_price_pack']) {
+    for (final key in [
+      'cost_price_pack',
+      'last_purchase_cost_pack',
+      'sell_price_pack',
+      'sell_price_strip',
+      'sell_price_unit',
+      'public_price_pack'
+    ]) {
       if (row[key] != null && (row[key] as num) < 0) {
         return 'السعر لا يمكن أن يكون سالباً: ' + key;
       }
@@ -98,9 +111,11 @@ extension DrugImportFileStreaming on DrugImportExportService {
     final code = (row['internal_code'] ?? '').toString().trim().toLowerCase();
     if (code.isNotEmpty) return 'code:' + code;
     final name = (row['trade_name_ar'] ?? row['trade_name_en'] ?? '')
-        .toString().trim().toLowerCase();
-    final scientific = (row['scientific_name'] ?? '')
-        .toString().trim().toLowerCase();
+        .toString()
+        .trim()
+        .toLowerCase();
+    final scientific =
+        (row['scientific_name'] ?? '').toString().trim().toLowerCase();
     return 'name:' + name + '|' + scientific;
   }
 
@@ -132,8 +147,11 @@ extension DrugImportFileStreaming on DrugImportExportService {
         errors.add(ImportRowIssue(item.number, e.toString()));
       }
     }
-    return ImportDryRunResult(totalRows: count, validRows: valid,
-        errors: errors, duplicates: duplicates);
+    return ImportDryRunResult(
+        totalRows: count,
+        validRows: valid,
+        errors: errors,
+        duplicates: duplicates);
   }
 
   Future<ImportExecutionResult> executeImportFile({
@@ -180,18 +198,22 @@ extension DrugImportFileStreaming on DrugImportExportService {
             }
             final name = (incoming['trade_name_ar'] ??
                     incoming['trade_name_en'] ??
-                    incoming['scientific_name'] ?? '')
-                .toString().trim();
-            final scientific = (incoming['scientific_name'] ?? '')
-                .toString().trim();
+                    incoming['scientific_name'] ??
+                    '')
+                .toString()
+                .trim();
+            final scientific =
+                (incoming['scientific_name'] ?? '').toString().trim();
             final barcode = (incoming['barcode_international'] ??
-                    incoming['barcode_local'] ?? '')
-                .toString().trim();
+                    incoming['barcode_local'] ??
+                    '')
+                .toString()
+                .trim();
             final specifiedCode =
                 (incoming['internal_code'] ?? '').toString().trim();
             // Stable identifiers make partial imports safe to retry.
-            final digest = sha1.convert(utf8.encode(
-                '$branchId|$name|$scientific|$barcode'));
+            final digest = sha1
+                .convert(utf8.encode('$branchId|$name|$scientific|$barcode'));
             final code = specifiedCode.isEmpty
                 ? 'IMP-' + digest.toString().substring(0, 24)
                 : specifiedCode;
@@ -202,8 +224,15 @@ extension DrugImportFileStreaming on DrugImportExportService {
                LOWER(TRIM(COALESCE(scientific_name,'')))=?) OR
               (?<>'' AND (barcode_international=? OR barcode_local=?)))
               LIMIT 2''',
-              [branchId, code, name.toLowerCase(), scientific.toLowerCase(),
-               barcode, barcode, barcode],
+              [
+                branchId,
+                code,
+                name.toLowerCase(),
+                scientific.toLowerCase(),
+                barcode,
+                barcode,
+                barcode
+              ],
             );
             if (matching.length > 1) {
               errors++;
@@ -217,30 +246,53 @@ extension DrugImportFileStreaming on DrugImportExportService {
             drug.remove('id');
             drug['branch_id'] = branchId;
             drug['internal_code'] = code;
-            drug['uuid'] = 'drug-import-' + branchId.toString() +
-                '-' + digest.toString();
+            drug['uuid'] =
+                'drug-import-' + branchId.toString() + '-' + digest.toString();
             drug['trade_name_ar'] = name;
             final dosage = drug['dosage_form']?.toString().toUpperCase();
-            const forms = {'TABLET','CAPSULE','SYRUP','SUSPENSION','DROPS',
-              'INJECTION','CREAM','OINTMENT','INHALER','SUPPOSITORY',
-              'SACHET','OTHER'};
+            const forms = {
+              'TABLET',
+              'CAPSULE',
+              'SYRUP',
+              'SUSPENSION',
+              'DROPS',
+              'INJECTION',
+              'CREAM',
+              'OINTMENT',
+              'INHALER',
+              'SUPPOSITORY',
+              'SACHET',
+              'OTHER'
+            };
             if (dosage != null && !forms.contains(dosage)) {
               drug['dosage_form'] = 'OTHER';
             }
             final route = drug['route']?.toString().toUpperCase();
-            const routes = {'ORAL','IV','IM','SC','TOPICAL','OPHTHALMIC',
-              'INHALATION','RECTAL','OTHER'};
+            const routes = {
+              'ORAL',
+              'IV',
+              'IM',
+              'SC',
+              'TOPICAL',
+              'OPHTHALMIC',
+              'INHALATION',
+              'RECTAL',
+              'OTHER'
+            };
             if (route != null && !routes.contains(route)) {
               drug['route'] = 'OTHER';
             }
-            final pregnancy = drug['pregnancy_category']?.toString().toUpperCase();
+            final pregnancy =
+                drug['pregnancy_category']?.toString().toUpperCase();
             if (pregnancy != null &&
-                !{'A','B','C','D','X','N','UNKNOWN'}.contains(pregnancy)) {
+                !{'A', 'B', 'C', 'D', 'X', 'N', 'UNKNOWN'}
+                    .contains(pregnancy)) {
               drug['pregnancy_category'] = 'UNKNOWN';
             }
             final lactation = drug['lactation_risk']?.toString().toUpperCase();
             if (lactation != null &&
-                !{'L1','L2','L3','L4','L5','UNKNOWN'}.contains(lactation)) {
+                !{'L1', 'L2', 'L3', 'L4', 'L5', 'UNKNOWN'}
+                    .contains(lactation)) {
               drug['lactation_risk'] = 'UNKNOWN';
             }
             final timestamp = DateTime.now().toIso8601String();
@@ -255,16 +307,25 @@ extension DrugImportFileStreaming on DrugImportExportService {
               final updates = <String, Object?>{};
               // Update explicit import values only, never model defaults.
               const protected = {
-                'id','uuid','internal_code','branch_id','created_at',
-                'updated_at','sync_status','sync_version','is_deleted',
-                'stock_total_units','completeness_pct'
+                'id',
+                'uuid',
+                'internal_code',
+                'branch_id',
+                'created_at',
+                'updated_at',
+                'sync_status',
+                'sync_version',
+                'is_deleted',
+                'stock_total_units',
+                'completeness_pct'
               };
               for (final entry in incoming.entries) {
                 if (protected.contains(entry.key) ||
                     !drug.containsKey(entry.key)) continue;
                 final previous = old[entry.key];
                 if (conflictPolicy == 'OVERWRITE' ||
-                    previous == null || previous == '' ||
+                    previous == null ||
+                    previous == '' ||
                     previous == 'UNKNOWN') {
                   updates[entry.key] = drug[entry.key];
                 }
@@ -273,8 +334,9 @@ extension DrugImportFileStreaming on DrugImportExportService {
                 skipped++;
               } else {
                 updates['updated_at'] = timestamp;
-                updates['completeness_pct'] = DrugModel.fromMap(
-                    {...old, ...updates}).calculateCompletenessPct();
+                updates['completeness_pct'] =
+                    DrugModel.fromMap({...old, ...updates})
+                        .calculateCompletenessPct();
                 await txn.update('drugs', updates,
                     where: 'id=?', whereArgs: [old['id']]);
                 updated++;
@@ -295,31 +357,53 @@ extension DrugImportFileStreaming on DrugImportExportService {
         if (pending.length >= batchSize) await flush();
       }
       await flush();
-      await db.update('import_jobs', {
-        'total_rows': done,
-        'inserted_rows': inserted, 'updated_rows': updated,
-        'skipped_rows': skipped, 'error_rows': errors,
-        'status': errors == 0 ? 'COMPLETED' : 'COMPLETED_WITH_ERRORS',
-        'finished_at': DateTime.now().toIso8601String(),
-      }, where: 'id=?', whereArgs: [jobId]);
+      await db.update(
+          'import_jobs',
+          {
+            'total_rows': done,
+            'inserted_rows': inserted,
+            'updated_rows': updated,
+            'skipped_rows': skipped,
+            'error_rows': errors,
+            'status': errors == 0 ? 'COMPLETED' : 'COMPLETED_WITH_ERRORS',
+            'finished_at': DateTime.now().toIso8601String(),
+          },
+          where: 'id=?',
+          whereArgs: [jobId]);
       await _refreshFts(db);
       await AuditService(helper: _helper).record(
-        action: 'CREATE', entityType: 'drugs', entityId: jobId,
+        action: 'CREATE',
+        entityType: 'drugs',
+        entityId: jobId,
         entityLabel: 'Import job #' + jobId.toString(),
-        newValues: {'inserted': inserted, 'updated': updated,
-                    'skipped': skipped, 'errors': errors},
+        newValues: {
+          'inserted': inserted,
+          'updated': updated,
+          'skipped': skipped,
+          'errors': errors
+        },
         severity: errors == 0 ? 'INFO' : 'WARNING',
       );
-      return ImportExecutionResult(jobId: jobId, inserted: inserted,
-          updated: updated, skipped: skipped, errors: errors);
+      return ImportExecutionResult(
+          jobId: jobId,
+          inserted: inserted,
+          updated: updated,
+          skipped: skipped,
+          errors: errors);
     } catch (_) {
-      await db.update('import_jobs', {
-        'total_rows': done,
-        'inserted_rows': inserted, 'updated_rows': updated,
-        'skipped_rows': skipped, 'error_rows': errors + 1,
-        'status': 'FAILED',
-        'finished_at': DateTime.now().toIso8601String(),
-      }, where: 'id=?', whereArgs: [jobId]);
+      await db.update(
+          'import_jobs',
+          {
+            'total_rows': done,
+            'inserted_rows': inserted,
+            'updated_rows': updated,
+            'skipped_rows': skipped,
+            'error_rows': errors + 1,
+            'status': 'FAILED',
+            'finished_at': DateTime.now().toIso8601String(),
+          },
+          where: 'id=?',
+          whereArgs: [jobId]);
       rethrow;
     }
   }
@@ -454,7 +538,8 @@ class _DrugCsvRecordReader {
       if (c == '\n' && !_quoted) {
         final record = _record.toString();
         records.add(record.endsWith('\r')
-            ? record.substring(0, record.length - 1) : record);
+            ? record.substring(0, record.length - 1)
+            : record);
         _record = StringBuffer();
         _length = 0;
       } else {
