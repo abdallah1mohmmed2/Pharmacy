@@ -249,6 +249,17 @@ class OpeningInventoryService {
     if (resolvedUnitsPerStrip < 1) {
       throw StateError('يجب تحديد عدد الحبات في الشريط للصنف ${row.drugName}');
     }
+    // Catalog medicines often have the schema default of 1 unit per strip.
+    // For tablets/capsules or unidentified forms that value is unverified.
+    // Never silently count entire strips as one tablet in opening stock.
+    final form = (drug['dosage_form'] as String? ?? 'OTHER').toUpperCase();
+    if (row.resolveUnitsFromCatalog &&
+        resolvedUnitsPerStrip == 1 &&
+        {'TABLET', 'CAPSULE', 'OTHER'}.contains(form)) {
+      throw StateError(
+          'تعبئة الصنف ${row.drugName} غير مكتملة: تحقق من عدد الحبات '
+          'في الشريط ونوع الدواء ببطاقة الصنف قبل ترحيل الرصيد');
+    }
     final effectiveRow = row.resolveUnitsFromCatalog
         ? row.withUnitsPerPacket(resolvedUnitsPerStrip)
         : row;
