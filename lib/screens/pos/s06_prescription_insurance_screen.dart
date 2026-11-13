@@ -7,6 +7,8 @@ import '../../data/database/database_helper.dart';
 import '../../data/models/drug_model.dart';
 import '../../providers/clinical_and_rx_provider.dart';
 import '../../providers/pos_and_drugs_provider.dart';
+import '../../data/models/drug_model.dart';
+import '../purchases/purchase_medicine_search_sheet.dart';
 import '../../providers/session_and_erp_provider.dart';
 import 's04_clinical_guard_dialog.dart';
 
@@ -31,6 +33,7 @@ class _S06PrescriptionInsuranceScreenState
       paid = TextEditingController(text: '0'),
       walletRef = TextEditingController();
   int? patientId, policyId, drugId, cashId, selectedRxId;
+  DrugModel? selectedRxDrug;
   String type = 'NORMAL', paymentMethod = 'CASH';
   List<Map<String, Object?>> rxRows = [],
       rxItems = [],
@@ -106,7 +109,6 @@ class _S06PrescriptionInsuranceScreenState
   @override
   Widget build(BuildContext context) {
     final p = context.watch<ClinicalAndRxProvider>();
-    final pos = context.watch<PosAndDrugsProvider>();
     final session = context.watch<SessionAndErpProvider>();
     final selectedPatientRows =
         p.patients.where((x) => x.id == patientId).toList();
@@ -278,14 +280,31 @@ class _S06PrescriptionInsuranceScreenState
         const Divider(),
         Text('بنود الوصفة ${selectedRx.first['rx_no']}',
             style: Theme.of(context).textTheme.titleMedium),
-        DropdownButtonFormField<int>(
-            value: drugId,
-            decoration: const InputDecoration(labelText: 'الدواء'),
-            items: pos.drugs
-                .map((d) =>
-                    DropdownMenuItem(value: d.id, child: Text(d.tradeNameAr)))
-                .toList(),
-            onChanged: (v) => setState(() => drugId = v)),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.medication_outlined),
+          label: Text(selectedRxDrug == null
+              ? 'ابحث واختر الدواء'
+              : '${selectedRxDrug!.tradeNameAr} • ${selectedRxDrug!.internalCode}'),
+          onPressed: saving
+              ? null
+              : () async {
+                  final activeBranch = context.read<SessionAndErpProvider>().branchId;
+                  final chosen = await KeyboardSafeModalSheet.show<DrugModel>(
+                    context: context,
+                    heightFactor: .85,
+                    builder: (_) => PurchaseMedicineSearchSheet(
+                      search: (query) => context
+                          .read<PosAndDrugsProvider>()
+                          .searchPurchaseDrugs(query, branchId: activeBranch),
+                    ),
+                  );
+                  if (chosen == null || !mounted) return;
+                  setState(() {
+                    drugId = chosen.id;
+                    selectedRxDrug = chosen;
+                  });
+                },
+        ),
         TextField(
             controller: qty,
             keyboardType: TextInputType.number,
