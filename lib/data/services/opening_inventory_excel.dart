@@ -208,6 +208,11 @@ abstract final class OpeningInventoryExcel {
           }
 
           if (simpleHeaders.every((heading) => cell(heading).isEmpty)) continue;
+          // A searchable master sheet may list thousands of medicines.
+          // Name-only rows are reference items, not pharmacy stock.
+          if (simpleHeaders.skip(1).every((heading) => cell(heading).isEmpty)) {
+            continue;
+          }
           final name = cell('اسم العلاج').trim();
           if (name.isEmpty) {
             throw const FormatException('اسم العلاج مطلوب');
