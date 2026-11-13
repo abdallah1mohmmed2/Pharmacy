@@ -60,7 +60,7 @@ void main() {
     await failure;
     expect(provider.checkoutPending, isFalse);
     expect(provider.cart, hasLength(1),
-        reason: 'failed posting must not discard a customer's cart');
+        reason: "failed posting must keep the customer cart");
   });
 
   test('invalid discounts are rejected before posting', () async {
