@@ -187,8 +187,7 @@ abstract final class OpeningInventoryExcel {
       'إدخال تكلفة الباكت',
       'إدخال تكلفة الحبة',
     ];
-    final sourceCostCount =
-        sourceCosts.where(columnIndex.containsKey).length;
+    final sourceCostCount = sourceCosts.where(columnIndex.containsKey).length;
     if (sourceCostCount != 0 && sourceCostCount != sourceCosts.length) {
       throw const FormatException(
           'يجب أن تكون أعمدة إدخال التكاليف الثلاثة موجودة معاً');
@@ -216,7 +215,8 @@ abstract final class OpeningInventoryExcel {
                   heading == 'سعر الحبة')) {
             return '';
           }
-          if (usesSourceCosts && value is FormulaCellValue &&
+          if (usesSourceCosts &&
+              value is FormulaCellValue &&
               heading == 'تكلفة الحبة') {
             return '';
           }
@@ -254,17 +254,19 @@ abstract final class OpeningInventoryExcel {
         if (packets == 0 || units == 0) {
           throw const FormatException('يجب تحديد تعبئة الكرتون والباكت');
         }
-        final legacyCostUnit = _optionalPrice(cell('تكلفة الحبة'), 'تكلفة الحبة');
+        final legacyCostUnit =
+            _optionalPrice(cell('تكلفة الحبة'), 'تكلفة الحبة');
         double unitCost = legacyCostUnit ?? 0;
         if (usesSourceCosts) {
           final cartonCost = _optionalPrice(
               cell('إدخال تكلفة الكرتون'), 'إدخال تكلفة الكرتون');
-          final packetCost = _optionalPrice(
-              cell('إدخال تكلفة الباكت'), 'إدخال تكلفة الباكت');
-          final unitCostInput = _optionalPrice(
-              cell('إدخال تكلفة الحبة'), 'إدخال تكلفة الحبة');
+          final packetCost =
+              _optionalPrice(cell('إدخال تكلفة الباكت'), 'إدخال تكلفة الباكت');
+          final unitCostInput =
+              _optionalPrice(cell('إدخال تكلفة الحبة'), 'إدخال تكلفة الحبة');
           final sources = [cartonCost, packetCost, unitCostInput]
-              .where((price) => price != null).length;
+              .where((price) => price != null)
+              .length;
           if (sources > 1 || (sources > 0 && legacyCostUnit != null)) {
             throw const FormatException(
                 'أدخل تكلفة شراء واحدة فقط: الكرتون أو الباكت أو الحبة');
