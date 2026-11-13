@@ -133,8 +133,10 @@ extension DrugImportFileStreaming on DrugImportExportService {
       count++;
       try {
         final row = _mapFields(item.values, mapping);
-        final barcode = (row['barcode_international'] ??
-            row['barcode_local'] ?? '').toString().trim();
+        final barcode =
+            (row['barcode_international'] ?? row['barcode_local'] ?? '')
+                .toString()
+                .trim();
         if (barcode.isNotEmpty && !seenBarcodes.add(barcode)) {
           barcodeDuplicates++;
         }
@@ -222,9 +224,16 @@ extension DrugImportFileStreaming on DrugImportExportService {
                 (incoming['internal_code'] ?? '').toString().trim();
             // Stable identifiers make partial imports safe to retry.
             final identity = specifiedCode.isEmpty
-                ? (branchId.toString() + '|' + name.toLowerCase() + '|' +
-                    scientific.toLowerCase() + '|' + barcode)
-                : (branchId.toString() + '|code|' + specifiedCode.toLowerCase());
+                ? (branchId.toString() +
+                    '|' +
+                    name.toLowerCase() +
+                    '|' +
+                    scientific.toLowerCase() +
+                    '|' +
+                    barcode)
+                : (branchId.toString() +
+                    '|code|' +
+                    specifiedCode.toLowerCase());
             final digest = sha1.convert(utf8.encode(identity));
             final code = specifiedCode.isEmpty
                 ? 'IMP-' + digest.toString().substring(0, 24)
@@ -232,15 +241,18 @@ extension DrugImportFileStreaming on DrugImportExportService {
             // Indexed code lookup avoids quadratic full-table scans.
             var matching = await txn.query('drugs',
                 where: 'is_deleted=0 AND internal_code=?',
-                whereArgs: [code], limit: 2);
+                whereArgs: [code],
+                limit: 2);
             if (matching.isEmpty && specifiedCode.isEmpty && barcode.isEmpty) {
               matching = await txn.query('drugs',
                   where: "is_deleted=0 AND branch_id=? AND "
-                         "trade_name_ar=? AND COALESCE(scientific_name,'')=?",
-                  whereArgs: [branchId, name, scientific], limit: 2);
+                      "trade_name_ar=? AND COALESCE(scientific_name,'')=?",
+                  whereArgs: [branchId, name, scientific],
+                  limit: 2);
             }
             if (matching.length > 1 ||
-                (matching.isNotEmpty && matching.first['branch_id'] != branchId)) {
+                (matching.isNotEmpty &&
+                    matching.first['branch_id'] != branchId)) {
               errors++;
               continue;
             }
@@ -252,10 +264,11 @@ extension DrugImportFileStreaming on DrugImportExportService {
               // Shared barcodes must not silently merge unrelated medicines.
               final byBarcode = await txn.rawQuery(
                   'SELECT id FROM drugs WHERE barcode_international=? '
-                  'OR barcode_local=? LIMIT 1', [barcode, barcode]);
+                  'OR barcode_local=? LIMIT 1',
+                  [barcode, barcode]);
               if (byBarcode.isNotEmpty &&
                   (matching.isEmpty ||
-                   byBarcode.single['id'] != matching.single['id'])) {
+                      byBarcode.single['id'] != matching.single['id'])) {
                 incoming.remove('barcode_international');
                 incoming.remove('barcode_local');
                 barcodeConflicts++;
@@ -398,14 +411,18 @@ extension DrugImportFileStreaming on DrugImportExportService {
         newValues: {
           'inserted': inserted,
           'updated': updated,
-          'skipped': skipped, 'errors': errors, 'barcode_conflicts': barcodeConflicts
+          'skipped': skipped,
+          'errors': errors,
+          'barcode_conflicts': barcodeConflicts
         },
         severity: errors == 0 ? 'INFO' : 'WARNING',
       );
       return ImportExecutionResult(
           jobId: jobId,
           inserted: inserted,
-          updated: updated, skipped: skipped, errors: errors,
+          updated: updated,
+          skipped: skipped,
+          errors: errors,
           barcodeConflicts: barcodeConflicts);
     } catch (_) {
       await db.update(

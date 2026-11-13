@@ -125,7 +125,8 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
             result.errors.length.toString() +
             ' خطأ، ' +
             result.duplicates.toString() +
-            ' تكرار، ' + result.barcodeDuplicates.toString() +
+            ' تكرار، ' +
+            result.barcodeDuplicates.toString() +
             ' باركود مكرر'),
       ));
     } catch (e) {
@@ -179,7 +180,8 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
               result.skipped.toString() +
               ' تخطي، ' +
               result.errors.toString() +
-              ' خطأ، ' + result.barcodeConflicts.toString() +
+              ' خطأ، ' +
+              result.barcodeConflicts.toString() +
               ' باركود متعارض لم يُحفظ'),
         ));
     } catch (e) {
