@@ -316,6 +316,7 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
         warehousesByCode: {
           for (final w in inventory.warehouses) w.code: w.id,
         },
+        defaultExpiryDate: expiryDate == null ? null : _date(expiryDate!),
       );
       final validation = await service.preview(
         branchId: inventory.branchId,
@@ -342,7 +343,7 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
 
   Future<void> _saveTemplate() async {
     try {
-      final data = Uint8List.fromList(OpeningInventoryExcel.templateBytes());
+      final data = Uint8List.fromList(OpeningInventoryExcel.simpleTemplateBytes());
       final path = await FilePicker.platform.saveFile(
         dialogTitle: 'حفظ نموذج الأرصدة الافتتاحية',
         fileName: 'pharmacy_opening_inventory_template.xlsx',
@@ -378,8 +379,10 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('اعتماد الأرصدة الافتتاحية؟'),
         content: Text(
-          'سيُضاف ${lines.length} صف بإجمالي ${preview.totalUnits} حبة إلى '
+          'سيُضاف ${lines.length} صف بإجمالي ${preview.totalUnits} وحدة مخزنية إلى '
           'المخزون الحالي، وتُحفظ حركة لكل تشغيلة. '
+          'للملف المبسط: تاريخ الصلاحية المختار هو نفسه لكل الأصناف في الدفعة؛ '
+          'استورد كل صلاحية مختلفة في ملف مستقل. '
           'لا يمكن إلغاء العملية بحذف الملف. تأكد من عدم إدخالها سابقًا.',
         ),
         actions: [
@@ -469,6 +472,14 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
                     icon: const Icon(Icons.add),
                     label: const Text('إضافة دواء جديد للموسوعة')),
               ]),
+          const SizedBox(height: 8),
+          const Text(
+            'قالب Excel المبسط: اسم العلاج، عدد الباكتات في العبوة، عدد الأشرطة في الباكت، '
+            'سعر الباكت، سعر العلاج، والرصيد الافتتاحي بعدد العبوات الخارجية. '
+            'اختر تاريخ انتهاء صلاحية واحدًا لكل دفعة قبل استيراد الملف. '
+            'إذا اختلفت الصلاحيات، استخدم ملفًا مستقلًا لكل تاريخ. '
+            'يُرحّل كل صنف باسمه إلى مخزن الفرع المحدد.',
+          ),
           const SizedBox(height: 16),
           Text('الإدخال اليدوي', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
@@ -597,7 +608,7 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
             ),
           ]),
           const Divider(height: 32),
-          Text('المراجعة قبل الاعتماد — ${lines.length} صف / $unitsTotal حبة',
+          Text('المراجعة قبل الاعتماد — ${lines.length} صف / $unitsTotal وحدة',
               style: Theme.of(context).textTheme.titleLarge),
           if (sourceName != null) Text('الملف: $sourceName'),
           if (issues.isNotEmpty) ...[
@@ -612,7 +623,7 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
               dense: true,
               title: Text(
                   '${i + 1}. ${lines[i].drugName.isNotEmpty ? lines[i].drugName : 'دواء #${lines[i].drugId}'} '
-                  '• ${lines[i].quantityUnits} حبة'),
+                  '• ${lines[i].quantityUnits} وحدة'),
               subtitle: Text(
                   'صلاحية ${lines[i].expiryDate} | تشغيلة ${lines[i].batchNo.isEmpty ? 'تلقائية' : lines[i].batchNo} '
                   '| رف ${lines[i].shelfCode ?? 'غير محدد'}'),
