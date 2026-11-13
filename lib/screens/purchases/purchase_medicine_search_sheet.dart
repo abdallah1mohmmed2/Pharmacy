@@ -83,8 +83,7 @@ class _PurchaseMedicineSearchSheetState
         const SizedBox(height: 10),
         if (query.isEmpty)
           const Text('اكتب جزءًا من الاسم؛ لن تُحمَّل قائمة الأدوية كاملة.'),
-        if (_searching)
-          const LinearProgressIndicator(),
+        if (_searching) const LinearProgressIndicator(),
         if (_error != null)
           Text(_error!, style: const TextStyle(color: Colors.redAccent)),
         if (query.isNotEmpty && !_searching && _error == null)
@@ -107,8 +106,7 @@ class _PurchaseMedicineSearchSheetState
                   [
                     if (medicine.tradeNameEn.isNotEmpty) medicine.tradeNameEn,
                     if (medicine.strengthText.isNotEmpty) medicine.strengthText,
-                    if (medicine.internalCode.isNotEmpty)
-                      medicine.internalCode,
+                    if (medicine.internalCode.isNotEmpty) medicine.internalCode,
                   ].join(' • '),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
