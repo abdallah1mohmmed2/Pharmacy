@@ -126,11 +126,18 @@ extension DrugImportFileStreaming on DrugImportExportService {
   }) async {
     final errors = <ImportRowIssue>[];
     final seen = <String>{};
+    final seenBarcodes = <String>{};
+    var barcodeDuplicates = 0;
     var count = 0, valid = 0, duplicates = 0;
     await for (final item in _fileRows(file, format)) {
       count++;
       try {
         final row = _mapFields(item.values, mapping);
+        final barcode = (row['barcode_international'] ??
+            row['barcode_local'] ?? '').toString().trim();
+        if (barcode.isNotEmpty && !seenBarcodes.add(barcode)) {
+          barcodeDuplicates++;
+        }
         final problem = _rowProblem(row);
         if (problem != null) {
           errors.add(ImportRowIssue(item.number, problem));
@@ -213,8 +220,11 @@ extension DrugImportFileStreaming on DrugImportExportService {
             final specifiedCode =
                 (incoming['internal_code'] ?? '').toString().trim();
             // Stable identifiers make partial imports safe to retry.
-            final digest = sha1
-                .convert(utf8.encode('$branchId|$name|$scientific|$barcode'));
+            final identity = specifiedCode.isEmpty
+                ? (branchId.toString() + '|' + name.toLowerCase() + '|' +
+                    scientific.toLowerCase() + '|' + barcode)
+                : (branchId.toString() + '|code|' + specifiedCode.toLowerCase());
+            final digest = sha1.convert(utf8.encode(identity));
             final code = specifiedCode.isEmpty
                 ? 'IMP-' + digest.toString().substring(0, 24)
                 : specifiedCode;
