@@ -46,6 +46,16 @@ void main() {
       expect([manual.carton, manual.packet, manual.unit], [10000, 1200, 130]);
       expect(() => const OpeningStockPrices(carton: 10).fillMissing(0, 10),
           throwsArgumentError);
+      // Derived amounts must round UP to the next multiple of ten.
+      final rounded = const OpeningStockPrices(carton: 1070).fillMissing(3, 4);
+      expect(rounded.carton, 1070); // The manually entered source is untouched.
+      expect(rounded.packet, 360); // 356.67 => 360.
+      expect(rounded.unit, 90); // 89.17 => 90.
+      final packetSource =
+          const OpeningStockPrices(packet: 107).fillMissing(3, 4);
+      expect(packetSource.packet, 107); // Manual source stays 107.
+      expect(packetSource.carton, 330);
+      expect(packetSource.unit, 30);
     });
 
     test('XLSX template is readable and blank optional shelf stays null', () {
