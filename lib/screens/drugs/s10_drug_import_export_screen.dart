@@ -22,6 +22,8 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
   final searchController = TextEditingController();
   String format = 'CSV', policy = 'SKIP';
   String? fileName;
+  String? selectedFilePath;
+  String? selectedFileContent;
   bool hideCosts = true;
   int? exportCategoryId;
   List<OpenFdaDrugResult> fdaResults = [];
@@ -47,24 +49,36 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
     final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['csv', 'json'],
-        withData: true);
+        withData: false);
     if (result == null || result.files.isEmpty) return;
     final file = result.files.single;
-    final bytes = file.bytes ??
-        (file.path == null ? null : await File(file.path!).readAsBytes());
-    if (bytes == null) return;
+    if (file.path == null && file.bytes == null) {
+      throw const FormatException('تعذر الوصول إلى الملف المحدد');
+    }
+    if (!mounted) return;
     setState(() {
-      sourceController.text = utf8.decode(bytes, allowMalformed: true);
+      // Never render multi-megabyte source files inside an editable TextField.
+      sourceController.clear();
+      selectedFilePath = file.path;
+      selectedFileContent =
+          file.path == null ? utf8.decode(file.bytes!, allowMalformed: true) : null;
       fileName = file.name;
       format = file.extension?.toUpperCase() == 'JSON' ? 'JSON' : 'CSV';
     });
+  }
+
+  Future<String> _importSource() async {
+    if (selectedFilePath != null) {
+      return File(selectedFilePath!).readAsString(encoding: utf8);
+    }
+    return selectedFileContent ?? sourceController.text;
   }
 
   Future<void> dryRun() async {
     final p = context.read<SettingsAndSystemProvider>();
     try {
       final result = await p.dryRun(
-          source: sourceController.text, format: format, mapping: mapping);
+          source: await _importSource(), format: format, mapping: mapping);
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(
@@ -80,7 +94,7 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
     final p = context.read<SettingsAndSystemProvider>();
     try {
       final r = await p.executeImport(
-          source: sourceController.text,
+          source: await _importSource(),
           format: format,
           mapping: mapping,
           conflictPolicy: policy,
@@ -182,9 +196,18 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
                   icon: const Icon(Icons.attach_file),
                   label: const Text('اختيار ملف'))
             ]),
+            if (fileName != null)
+              Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text('الملف المحدد: $fileName — لن يُعرض محتواه بالكامل')),
             const SizedBox(height: 12),
             TextField(
                 controller: sourceController,
+                onChanged: (_) {
+                  selectedFilePath = null;
+                  selectedFileContent = null;
+                  fileName = null;
+                },
                 minLines: 8,
                 maxLines: 14,
                 decoration: const InputDecoration(
@@ -247,7 +270,7 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
                   icon: const Icon(Icons.fact_check),
                   label: const Text('فحص مسبق (Dry-Run)')),
               FilledButton.icon(
-                  onPressed: p.busy || sourceController.text.trim().isEmpty
+                  onPressed: p.busy || (selectedFilePath == null && selectedFileContent == null && sourceController.text.trim().isEmpty)
                       ? null
                       : execute,
                   icon: const Icon(Icons.file_download_done),
