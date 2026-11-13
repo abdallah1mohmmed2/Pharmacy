@@ -28,13 +28,84 @@ class BackupAndSyncService {
     DatabaseHelper? helper,
     http.Client? client,
     Set<String>? allowedTablesForTesting,
+    Directory? backupDirectoryForTesting,
+    bool forceLegacyCopyForTesting = false,
   })  : _helper = helper ?? DatabaseHelper.instance,
+        _backupDirectoryForTesting = backupDirectoryForTesting,
+        _forceLegacyCopyForTesting = forceLegacyCopyForTesting,
         _client = client ?? http.Client(),
         _allowedTables =
             allowedTablesForTesting ?? SyncTablePolicy.outboundTables;
   final DatabaseHelper _helper;
   final Set<String> _allowedTables;
   final http.Client _client;
+  final Directory? _backupDirectoryForTesting;
+  final bool _forceLegacyCopyForTesting;
+
+  // VACUUM INTO was introduced by SQLite 3.27. Android may ship older SQLite.
+  static bool _supportsVacuumInto(String sqliteVersion) {
+    final parts = sqliteVersion.split('.');
+    if (parts.length < 2) return false;
+    final major = int.tryParse(parts[0]);
+    final minor = int.tryParse(parts[1]);
+    if (major == null || minor == null) return false;
+    return major > 3 || (major == 3 && minor >= 27);
+  }
+
+  /// Produces a self-contained SQLite snapshot on both old and new Android.
+  /// On legacy SQLite the connection is closed and the file copied synchronously
+  /// so this isolate cannot schedule a write between close and the copy.
+  /// This is intentionally not a live File.copy while WAL is in use.
+  Future<Database> _snapshot(Database db, File target) async {
+    final versionRows = await db.rawQuery('SELECT sqlite_version() AS version');
+    final sqliteVersion =
+        versionRows.first['version']?.toString() ?? '';
+    if (!_forceLegacyCopyForTesting && _supportsVacuumInto(sqliteVersion)) {
+      final escaped = target.path.replaceAll("'", "''");
+      await db.execute("VACUUM INTO '$escaped'");
+      return db;
+    }
+
+    final checkpoint = await db.rawQuery('PRAGMA wal_checkpoint(TRUNCATE)');
+    final busy = checkpoint.isEmpty
+        ? 0
+        : (checkpoint.first['busy'] as num? ?? 0).toInt();
+    if (busy != 0) {
+      throw StateError(
+          'تعذر إنشاء النسخة الاحتياطية: قاعدة البيانات مشغولة. حاول مرة أخرى.');
+    }
+    final livePath = await _helper.databaseFilePath;
+    if (livePath == ':memory:') {
+      throw StateError('لا يمكن نسخ قاعدة بيانات الذاكرة إلى ملف.');
+    }
+    await _helper.close();
+    try {
+      File(livePath).copySync(target.path);
+    } finally {
+      // Reopen even if the file copy failed so normal application usage resumes.
+      db = await _helper.database;
+    }
+    return db;
+  }
+
+  /// Do not report a backup as successful until SQLite can open and read it.
+  static Future<void> _verifySnapshot(File snapshot) async {
+    final db = await openDatabase(
+      snapshot.path,
+      readOnly: true,
+      singleInstance: false,
+    );
+    try {
+      final result = await db.rawQuery('PRAGMA quick_check');
+      if (result.length != 1 ||
+          result.first.values.first.toString().toLowerCase() != 'ok') {
+        throw StateError('فشل فحص سلامة ملف النسخة الاحتياطية.');
+      }
+    } finally {
+      await db.close();
+    }
+  }
+
   Future<BackupResult> createBackup(
       {String triggerType = 'MANUAL',
       int? userId,
@@ -50,7 +121,7 @@ class BackupAndSyncService {
     };
     if (!triggers.contains(triggerType))
       throw ArgumentError('نوع النسخ الاحتياطي غير صحيح');
-    final db = await _helper.database;
+    var db = await _helper.database;
     final rows =
         await db.query('system_settings', where: 'setting_no=34', limit: 1);
     if (rows.isNotEmpty) {
@@ -59,24 +130,31 @@ class BackupAndSyncService {
       compress = cfg['compress'] is bool ? cfg['compress'] as bool : compress;
     }
     keepLast ??= 10;
-    await db.execute('PRAGMA wal_checkpoint(FULL)');
-    final directory = Directory(
-        p.join((await getApplicationSupportDirectory()).path, 'backups'));
+    final directory = _backupDirectoryForTesting ??
+        Directory(
+            p.join((await getApplicationSupportDirectory()).path, 'backups'));
     await directory.create(recursive: true);
     final stamp = DateTime.now()
         .toIso8601String()
         .replaceAll(':', '-')
         .replaceAll('.', '-');
     final raw = File(p.join(directory.path, 'pharmacy_backup_$stamp.db'));
-    final escaped = raw.path.replaceAll("'", "''");
-    await db.execute("VACUUM INTO '$escaped'");
     File finalFile = raw;
-    if (compress) {
-      final bytes = await raw.readAsBytes();
-      final compressed = GZipCodec().encode(bytes);
-      finalFile = File(raw.path + '.gz');
-      await finalFile.writeAsBytes(compressed, flush: true);
-      await raw.delete();
+    try {
+      db = await _snapshot(db, raw);
+      await _verifySnapshot(raw);
+      if (compress) {
+        final bytes = await raw.readAsBytes();
+        final compressed = GZipCodec().encode(bytes);
+        finalFile = File(raw.path + '.gz');
+        await finalFile.writeAsBytes(compressed, flush: true);
+        await raw.delete();
+      }
+    } catch (_) {
+      if (await raw.exists()) await raw.delete();
+      final compressed = File(raw.path + '.gz');
+      if (await compressed.exists()) await compressed.delete();
+      rethrow;
     }
     final bytes = await finalFile.readAsBytes();
     final digest = sha256.convert(bytes).toString();
