@@ -130,7 +130,7 @@ class OpeningInventoryService {
   }
 
   static String _normalizeName(String value) =>
-      value.trim().replaceAll(RegExp(r'\\s+'), ' ');
+      value.trim().replaceAll(RegExp(r'\s+'), ' ');
 
   static bool _validDate(String s) {
     if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(s)) return false;
