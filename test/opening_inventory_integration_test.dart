@@ -81,7 +81,8 @@ void main() {
   });
 
   group('Opening XLSX with source-price columns', () {
-    test('formula display prices are ignored and raw user price is imported', () {
+    test('formula display prices are ignored and raw user price is imported',
+        () {
       final workbook = Excel.createExcel();
       final sheet = workbook['الرصيد الافتتاحي'];
       final orderedHeaders = <String>[
