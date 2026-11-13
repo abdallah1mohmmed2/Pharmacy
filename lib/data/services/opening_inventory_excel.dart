@@ -10,11 +10,20 @@ class OpeningExcelResult {
 /// Spreadsheet import targets existing branch medicines/warehouses only.
 /// Blank prices are intentionally null, allowing automatic price suggestions.
 abstract final class OpeningInventoryExcel {
-  /// All rows in this worksheet are opening inventory. Each row records
-  /// existing *small boxes* (packs), strips per box and the box selling price.
-  /// Units/tablets per strip are deliberately read from the existing medicine
-  /// record at posting time: the spreadsheet does not contain that dimension.
+  /// All rows are opening inventory. Each row has its own lot expiry date,
+  /// so two batches of the same medicine can have different expirations.
+  /// Units/tablets per strip are read from the existing medicine card.
   static const simpleHeaders = <String>[
+    'اسم العلاج',
+    'عدد الباكتات',
+    'عدد الأشرطة داخل الباكت',
+    'سعر الباكت',
+    'تاريخ الانتهاء',
+  ];
+
+  /// Read-only compatibility with the previous four-column template.
+  /// That format requires an expiry explicitly selected in the app.
+  static const _previousSimpleHeaders = <String>[
     'اسم العلاج',
     'عدد الباكتات',
     'عدد الأشرطة داخل الباكت',
@@ -172,6 +181,281 @@ abstract final class OpeningInventoryExcel {
       throw FormatException('عدد غير صالح في $label');
     }
     return numeric.toInt();
+  }
+
+  static bool _validIsoDate(String value) {
+    if (!RegExp(r'^\d{4}-\d{2}-\d{2}
+    if (value.isEmpty) return null;
+    final parsed = double.tryParse(_normalizeNumber(value));
+    if (parsed == null || !parsed.isFinite || parsed < 0) {
+      throw FormatException('سعر غير صالح في $label');
+    }
+    return parsed;
+  }
+
+  static OpeningExcelResult parse(
+    List<int> bytes, {
+    required int defaultWarehouseId,
+    required Map<String, int> warehousesByCode,
+    String? defaultExpiryDate,
+  }) {
+    if (bytes.isEmpty || bytes.length > 10 * 1024 * 1024) {
+      throw const FormatException('ملف Excel فارغ أو يتجاوز 10 ميجابايت');
+    }
+    final workbook = Excel.decodeBytes(bytes);
+    final sheet = workbook.tables['الرصيد الافتتاحي'] ??
+        workbook.tables.values.firstWhere(
+          (s) => s.rows.isNotEmpty,
+          orElse: () =>
+              throw const FormatException('لا توجد بيانات في ملف Excel'),
+        );
+    if (sheet.rows.isEmpty) {
+      throw const FormatException('ملف Excel لا يحتوي على عناوين');
+    }
+    final headerCells = sheet.rows.first;
+    final columnIndex = <String, int>{};
+    for (var i = 0; i < headerCells.length; i++) {
+      final title = _text(headerCells[i]?.value);
+      if (title.isNotEmpty && columnIndex.containsKey(title)) {
+        throw FormatException('عنوان عمود مكرر: $title');
+      }
+      if (title.isNotEmpty) columnIndex[title] = i;
+    }
+    final isCurrentSimple = simpleHeaders.every(columnIndex.containsKey);
+    final isPreviousSimple =
+        _previousSimpleHeaders.every(columnIndex.containsKey) &&
+        !columnIndex.containsKey('تاريخ الانتهاء');
+    if (isCurrentSimple || isPreviousSimple) {
+      final expectedColumns =
+          isCurrentSimple ? simpleHeaders.length : _previousSimpleHeaders.length;
+      if (columnIndex.length != expectedColumns) {
+        throw const FormatException(
+            'أعمدة قالب الأرصدة الافتتاحية غير متطابقة');
+      }
+      if (isPreviousSimple &&
+          (defaultExpiryDate == null || defaultExpiryDate.trim().isEmpty)) {
+        throw const FormatException(
+            'الملف القديم لا يحتوي على تاريخ انتهاء؛ حدده في التطبيق أو استخدم القالب الجديد');
+      }
+      if (sheet.rows.length > 5001) {
+        throw const FormatException('الحد الأقصى 5000 صف لكل ملف');
+      }
+      final result = <OpeningStockLine>[];
+      final errors = <String>[];
+      for (var index = 1; index < sheet.rows.length; index++) {
+        final row = sheet.rows[index];
+        try {
+          String cell(String heading) {
+            final col = columnIndex[heading]!;
+            return col < row.length ? _text(row[col]?.value) : '';
+          }
+
+          if (_previousSimpleHeaders
+              .every((heading) => cell(heading).isEmpty) &&
+              (!isCurrentSimple || cell('تاريخ الانتهاء').isEmpty)) {
+            continue;
+          }
+          // Name-only reference rows do not imply existing stock.
+          if (_previousSimpleHeaders
+              .skip(1)
+              .every((heading) => cell(heading).isEmpty) &&
+              (!isCurrentSimple || cell('تاريخ الانتهاء').isEmpty)) {
+            continue;
+          }
+          final name = cell('اسم العلاج').trim();
+          if (name.isEmpty) {
+            throw const FormatException('اسم العلاج مطلوب');
+          }
+          final packs = _integer(cell('عدد الباكتات'), 'عدد الباكتات');
+          final stripsPerPack = _integer(
+              cell('عدد الأشرطة داخل الباكت'), 'عدد الأشرطة داخل الباكت');
+          final pricePerPack = _optionalPrice(cell('سعر الباكت'), 'سعر الباكت');
+          if (packs <= 0 || stripsPerPack <= 0) {
+            throw const FormatException(
+                'عدد الباكتات والأشرطة داخل الباكت يجب أن يكون أكبر من الصفر');
+          }
+          if (pricePerPack == null) {
+            throw const FormatException('سعر الباكت مطلوب');
+          }
+          final expiry = isCurrentSimple
+              ? cell('تاريخ الانتهاء')
+              : defaultExpiryDate!.trim();
+          if (!_validIsoDate(expiry)) {
+            throw const FormatException(
+                'تاريخ انتهاء غير صالح؛ استخدم YYYY-MM-DD لكل صنف');
+          }
+          result.add(OpeningStockLine(
+            drugName: name,
+            warehouseId: defaultWarehouseId,
+            cartons: packs,
+            packetsPerCarton: stripsPerPack,
+            // One strip is *not* assumed to contain one tablet.
+            // The posting service looks up this value from the medicine.
+            unitsPerPacket: 1,
+            resolveUnitsFromCatalog: true,
+            prices: OpeningStockPrices(carton: pricePerPack),
+            expiryDate: expiry,
+          ));
+        } catch (e) {
+          errors.add('صف ${index + 1}: $e');
+        }
+      }
+      return OpeningExcelResult(result, errors);
+    }
+
+    // Preserve imports created with the older, detailed Excel format.
+    for (final name in headers) {
+      if (!columnIndex.containsKey(name)) {
+        throw FormatException('العمود المطلوب غير موجود: $name');
+      }
+    }
+    // Optional worksheet source-price columns. They are independent input
+    // cells, while the three standard sell-price columns may hold spreadsheet
+    // formulas. We never trust a formula cache for financial import values.
+    const sourcePrices = <String>[
+      'إدخال سعر الكرتون',
+      'إدخال سعر الباكت',
+      'إدخال سعر الحبة',
+    ];
+    final sourceColumnCount =
+        sourcePrices.where(columnIndex.containsKey).length;
+    if (sourceColumnCount != 0 && sourceColumnCount != sourcePrices.length) {
+      throw const FormatException(
+          'يجب أن تكون أعمدة إدخال الأسعار الثلاثة موجودة معاً');
+    }
+    final usesSourcePrices = sourceColumnCount == sourcePrices.length;
+    // Cost source inputs are financial acquisition costs, not selling prices.
+    // Their calculated displays may be formulas; only raw inputs are trusted.
+    const sourceCosts = <String>[
+      'إدخال تكلفة الكرتون',
+      'إدخال تكلفة الباكت',
+      'إدخال تكلفة الحبة',
+    ];
+    final sourceCostCount = sourceCosts.where(columnIndex.containsKey).length;
+    if (sourceCostCount != 0 && sourceCostCount != sourceCosts.length) {
+      throw const FormatException(
+          'يجب أن تكون أعمدة إدخال التكاليف الثلاثة موجودة معاً');
+    }
+    final usesSourceCosts = sourceCostCount == sourceCosts.length;
+    if (sheet.rows.length > 5001) {
+      throw const FormatException('الحد الأقصى 5000 صف لكل ملف');
+    }
+    final result = <OpeningStockLine>[];
+    final errors = <String>[];
+    for (var index = 1; index < sheet.rows.length; index++) {
+      final row = sheet.rows[index];
+      try {
+        String cell(String heading) {
+          final col = columnIndex[heading]!;
+          if (col >= row.length) return '';
+          final value = row[col]?.value;
+          // Formula cells in the three display-only prices are safe to
+          // ignore only when all three independent input columns are present.
+          // All other formulas are still rejected by _text.
+          if (usesSourcePrices &&
+              value is FormulaCellValue &&
+              (heading == 'سعر الكرتون' ||
+                  heading == 'سعر الباكت' ||
+                  heading == 'سعر الحبة')) {
+            return '';
+          }
+          if (usesSourceCosts &&
+              value is FormulaCellValue &&
+              heading == 'تكلفة الحبة') {
+            return '';
+          }
+          return _text(value);
+        }
+
+        if (headers.every((h) => cell(h).isEmpty)) continue;
+        final drugIdRaw = cell('معرّف الدواء');
+        final drugId =
+            drugIdRaw.isEmpty ? null : _integer(drugIdRaw, 'معرّف الدواء');
+        if (drugId == null && cell('اسم الدواء').isEmpty) {
+          throw const FormatException('معرّف الدواء أو الاسم مطلوب');
+        }
+        final warehouseCode = cell('رمز المخزن');
+        final warehouseId = warehouseCode.isEmpty
+            ? defaultWarehouseId
+            : warehousesByCode[warehouseCode];
+        if (warehouseId == null) {
+          throw FormatException('رمز المخزن غير موجود: $warehouseCode');
+        }
+        final prices = OpeningStockPrices(
+          carton: _optionalPrice(
+              cell(usesSourcePrices ? 'إدخال سعر الكرتون' : 'سعر الكرتون'),
+              'سعر الكرتون'),
+          packet: _optionalPrice(
+              cell(usesSourcePrices ? 'إدخال سعر الباكت' : 'سعر الباكت'),
+              'سعر الباكت'),
+          unit: _optionalPrice(
+              cell(usesSourcePrices ? 'إدخال سعر الحبة' : 'سعر الحبة'),
+              'سعر الحبة'),
+        );
+        final packets =
+            _integer(cell('باكتات في الكرتون'), 'باكتات في الكرتون');
+        final units = _integer(cell('حبات في الباكت'), 'حبات في الباكت');
+        if (packets == 0 || units == 0) {
+          throw const FormatException('يجب تحديد تعبئة الكرتون والباكت');
+        }
+        final legacyCostUnit =
+            _optionalPrice(cell('تكلفة الحبة'), 'تكلفة الحبة');
+        double unitCost = legacyCostUnit ?? 0;
+        if (usesSourceCosts) {
+          final cartonCost = _optionalPrice(
+              cell('إدخال تكلفة الكرتون'), 'إدخال تكلفة الكرتون');
+          final packetCost =
+              _optionalPrice(cell('إدخال تكلفة الباكت'), 'إدخال تكلفة الباكت');
+          final unitCostInput =
+              _optionalPrice(cell('إدخال تكلفة الحبة'), 'إدخال تكلفة الحبة');
+          final sources = [cartonCost, packetCost, unitCostInput]
+              .where((price) => price != null)
+              .length;
+          if (sources > 1 || (sources > 0 && legacyCostUnit != null)) {
+            throw const FormatException(
+                'أدخل تكلفة شراء واحدة فقط: الكرتون أو الباكت أو الحبة');
+          }
+          unitCost = unitCostInput ??
+              (packetCost != null ? packetCost / units : null) ??
+              (cartonCost != null ? cartonCost / (packets * units) : null) ??
+              unitCost;
+        }
+        result.add(OpeningStockLine(
+          drugId: drugId,
+          drugName: cell('اسم الدواء'),
+          dosageForm: columnIndex.containsKey('نوع الدواء')
+              ? _dosageForm(cell('نوع الدواء'))
+              : null,
+          warehouseId: warehouseId,
+          cartons: _integer(cell('عدد الكراتين'), 'عدد الكراتين'),
+          packets: _integer(cell('الباكتات الإضافية'), 'الباكتات الإضافية'),
+          units: _integer(cell('الحبات الإضافية'), 'الحبات الإضافية'),
+          packetsPerCarton: packets,
+          unitsPerPacket: units,
+          prices: prices,
+          batchNo: cell('رقم التشغيلة'),
+          expiryDate: cell('تاريخ الانتهاء'),
+          effectiveDate:
+              cell('تاريخ الإدخال').isEmpty ? null : cell('تاريخ الإدخال'),
+          shelfCode: cell('رقم الرف (اختياري)').isEmpty
+              ? null
+              : cell('رقم الرف (اختياري)'),
+          unitCost: unitCost,
+          note: cell('ملاحظات'),
+        ));
+      } catch (e) {
+        errors.add('صف ${index + 1}: $e');
+      }
+    }
+    return OpeningExcelResult(result, errors);
+  }
+}
+).hasMatch(value)) return false;
+    final parsed = DateTime.tryParse(value);
+    return parsed != null &&
+        parsed.year.toString().padLeft(4, '0') == value.substring(0, 4) &&
+        parsed.month.toString().padLeft(2, '0') == value.substring(5, 7) &&
+        parsed.day.toString().padLeft(2, '0') == value.substring(8, 10);
   }
 
   static double? _optionalPrice(String value, String label) {
