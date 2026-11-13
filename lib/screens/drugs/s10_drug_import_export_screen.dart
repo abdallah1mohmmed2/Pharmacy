@@ -125,7 +125,8 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
             result.errors.length.toString() +
             ' خطأ، ' +
             result.duplicates.toString() +
-            ' تكرار'),
+            ' تكرار، ' + result.barcodeDuplicates.toString() +
+            ' باركود مكرر'),
       ));
     } catch (e) {
       if (mounted)
@@ -178,7 +179,8 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
               result.skipped.toString() +
               ' تخطي، ' +
               result.errors.toString() +
-              ' خطأ'),
+              ' خطأ، ' + result.barcodeConflicts.toString() +
+              ' باركود متعارض لم يُحفظ'),
         ));
     } catch (e) {
       if (mounted)
@@ -370,7 +372,7 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                                'إجمالي الصفوف: ${result.totalRows} • السليم: ${result.validRows} • التكرارات: ${result.duplicates}'),
+                                'إجمالي الصفوف: ${result.totalRows} • السليم: ${result.validRows} • التكرارات: ${result.duplicates} • الباركود المكرر: ${result.barcodeDuplicates}'),
                             ...result.errors.take(30).map((e) => Text(
                                 'صف ${e.rowNumber}: ${e.message}',
                                 style: const TextStyle(
