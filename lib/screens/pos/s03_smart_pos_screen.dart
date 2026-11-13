@@ -175,7 +175,8 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
               const SizedBox(width: 5),
               IconButton(
                 tooltip: 'طباعة آخر فاتورة',
-                onPressed: () => _receiptBuilder.printReceiptNow(context, _lastReceipt!),
+                onPressed: () =>
+                    _receiptBuilder.printReceiptNow(context, _lastReceipt!),
                 icon: const Icon(Icons.print_outlined),
               ),
             ],
@@ -495,7 +496,8 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
             _paymentFields(pos, session),
             if (_lastReceipt != null)
               OutlinedButton.icon(
-                onPressed: () => _receiptBuilder.printReceiptNow(context, _lastReceipt!),
+                onPressed: () =>
+                    _receiptBuilder.printReceiptNow(context, _lastReceipt!),
                 icon: const Icon(Icons.print_outlined),
                 label: const Text('طباعة آخر فاتورة'),
               ),
@@ -551,6 +553,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
       setState(action);
       sheetRefresh?.call(() {});
     }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -629,8 +632,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
               DropdownMenuItem(value: 'CASH', child: Text('نقداً')),
               DropdownMenuItem(value: 'WALLET', child: Text('محفظة إلكترونية')),
             ],
-            onChanged: (value) =>
-                update(() => mixedChannel = value ?? 'CASH'),
+            onChanged: (value) => update(() => mixedChannel = value ?? 'CASH'),
           ),
         if (method == 'WALLET' ||
             (method == 'MIXED' && mixedChannel == 'WALLET'))
@@ -723,7 +725,8 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
     return SmartExpandableCard(
       title: item.drug.tradeNameAr,
       primary: MoneyFormatter.format(item.lineTotal),
-      secondary: '${item.quantity} ${drugSaleUnitLabel(item.drug, item.sellUnit)}',
+      secondary:
+          '${item.quantity} ${drugSaleUnitLabel(item.drug, item.sellUnit)}',
       leading: const CircleAvatar(
         backgroundColor: Color(0x224DB6AC),
         child: Icon(Icons.medication, color: AppColors.primary),
@@ -857,64 +860,65 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, refreshSheet) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text('الدفع وإتمام الفاتورة',
-              style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(child: Text('عدد الأصناف: ${pos.cart.length}')),
-              ValueListenableBuilder<TextEditingValue>(
-                valueListenable: discountField,
-                builder: (_, __, ___) => Text(
-                  MoneyFormatter.format(_net(pos)),
-                  style: const TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.w800),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('الدفع وإتمام الفاتورة',
+                style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(child: Text('عدد الأصناف: ${pos.cart.length}')),
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: discountField,
+                  builder: (_, __, ___) => Text(
+                    MoneyFormatter.format(_net(pos)),
+                    style: const TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.w800),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const Divider(height: 22),
-          _patientSelector(clinical),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 4,
-            runSpacing: 2,
-            children: [
-              _flag(pos, clinical, 'PREGNANT', 'حامل'),
-              _flag(pos, clinical, 'BREASTFEEDING', 'مرضع'),
-              _flag(pos, clinical, 'KIDNEY', 'مريض كلى'),
-              _flag(pos, clinical, 'LIVER', 'مريض كبد'),
-              _flag(pos, clinical, 'CHILD', 'طفل'),
-              _flag(pos, clinical, 'ELDERLY', 'مسن'),
-            ],
-          ),
-          if (pos.clinicalBlock != null)
-            ClinicalAlertBanner(
-              message: pos.clinicalBlock!,
-              level: ClinicalAlertLevel.block,
+              ],
             ),
-          OutlinedButton.icon(
-            onPressed: () => S04ClinicalGuardDialog.show(context),
-            icon: const Icon(Icons.health_and_safety),
-            label: const Text('مراجعة التنبيهات السريرية'),
-          ),
-          const SizedBox(height: 8),
-          _paymentFields(pos, session, sheetRefresh: refreshSheet),
-          const SizedBox(height: 14),
-          FilledButton.icon(
-            onPressed: pos.cart.isEmpty || _checkoutBusy || pos.checkoutPending
-                ? null
-                : () async {
-                    Navigator.pop(sheetContext);
-                    await _finish(pos, session, inventory, clinical);
-                  },
-            icon: const Icon(Icons.check_circle),
-            label: const Text('تأكيد الدفع وحفظ الفاتورة'),
-          ),
-        ],
-      ),
+            const Divider(height: 22),
+            _patientSelector(clinical),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 4,
+              runSpacing: 2,
+              children: [
+                _flag(pos, clinical, 'PREGNANT', 'حامل'),
+                _flag(pos, clinical, 'BREASTFEEDING', 'مرضع'),
+                _flag(pos, clinical, 'KIDNEY', 'مريض كلى'),
+                _flag(pos, clinical, 'LIVER', 'مريض كبد'),
+                _flag(pos, clinical, 'CHILD', 'طفل'),
+                _flag(pos, clinical, 'ELDERLY', 'مسن'),
+              ],
+            ),
+            if (pos.clinicalBlock != null)
+              ClinicalAlertBanner(
+                message: pos.clinicalBlock!,
+                level: ClinicalAlertLevel.block,
+              ),
+            OutlinedButton.icon(
+              onPressed: () => S04ClinicalGuardDialog.show(context),
+              icon: const Icon(Icons.health_and_safety),
+              label: const Text('مراجعة التنبيهات السريرية'),
+            ),
+            const SizedBox(height: 8),
+            _paymentFields(pos, session, sheetRefresh: refreshSheet),
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              onPressed:
+                  pos.cart.isEmpty || _checkoutBusy || pos.checkoutPending
+                      ? null
+                      : () async {
+                          Navigator.pop(sheetContext);
+                          await _finish(pos, session, inventory, clinical);
+                        },
+              icon: const Icon(Icons.check_circle),
+              label: const Text('تأكيد الدفع وحفظ الفاتورة'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -928,111 +932,114 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
     if (_checkoutBusy || pos.checkoutPending) return;
     setState(() => _checkoutBusy = true);
     try {
-    final verdict = await clinical.evaluateCart(
-      pos.cart.map((item) => item.drug).toList(),
-    );
-    if (verdict.hasUnresolvedCritical) {
-      final approved = await S04ClinicalGuardDialog.show(context);
-      if (!approved ||
-          context.read<ClinicalAndRxProvider>().verdict.hasUnresolvedCritical) {
+      final verdict = await clinical.evaluateCart(
+        pos.cart.map((item) => item.drug).toList(),
+      );
+      if (verdict.hasUnresolvedCritical) {
+        final approved = await S04ClinicalGuardDialog.show(context);
+        if (!approved ||
+            context
+                .read<ClinicalAndRxProvider>()
+                .verdict
+                .hasUnresolvedCritical) {
+          return;
+        }
+      }
+      if (pos.clinicalBlock != null) {
+        final approved = await ManagerPinDialog.show(
+          context,
+          verifier: session.verifyManagerPin,
+        );
+        if (!approved) return;
+      }
+      if (method != 'CREDIT' && cashId == null) {
+        _message('اختر الصندوق أو المحفظة');
         return;
       }
-    }
-    if (pos.clinicalBlock != null) {
-      final approved = await ManagerPinDialog.show(
-        context,
-        verifier: session.verifyManagerPin,
-      );
-      if (!approved) return;
-    }
-    if (method != 'CREDIT' && cashId == null) {
-      _message('اختر الصندوق أو المحفظة');
-      return;
-    }
-    final tender = method == 'MIXED' ? mixedChannel : method;
-    final isWallet = tender == 'WALLET';
-    if (isWallet && walletRef.text.trim().length < 6) {
-      _message('أدخل رقم إشعار صحيحاً');
-      return;
-    }
-    final credit = method == 'CREDIT' || method == 'MIXED';
-    if (credit && customerId == null) {
-      _message('اختر العميل');
-      return;
-    }
-    if (!discount.isFinite || discount < 0 || discount > pos.total) {
-      _message('الخصم غير صحيح أو أكبر من إجمالي الفاتورة');
-      return;
-    }
-    final net = _net(pos);
-    final paid = method == 'CREDIT'
-        ? 0.0
-        : method == 'MIXED'
-            ? (double.tryParse(paidAmount.text) ?? -1)
-            : net;
-    if (!paid.isFinite || paid < 0 || paid > net) {
-      _message('أدخل مبلغاً مدفوعاً صحيحاً لا يتجاوز الصافي');
-      return;
-    }
-    if (method == 'CASH' && tenderField.text.trim().isNotEmpty) {
-      final received = double.tryParse(tenderField.text.trim());
-      if (received == null || !received.isFinite || received < net) {
-        _message('المبلغ المستلم أقل من قيمة الفاتورة');
+      final tender = method == 'MIXED' ? mixedChannel : method;
+      final isWallet = tender == 'WALLET';
+      if (isWallet && walletRef.text.trim().length < 6) {
+        _message('أدخل رقم إشعار صحيحاً');
         return;
       }
-    }
-    final List<
-            ({int cashAccountId, double amount, String method, String? walletRef})>
-        payments = paid > 0
-            ? [
-                (
-                  cashAccountId: cashId!,
-                  amount: paid,
-                  method: tender == 'WALLET' ? 'WALLET' : 'CASH',
-                  walletRef: isWallet ? walletRef.text.trim() : null,
-                ),
-              ]
-            : <({
-                int cashAccountId,
-                double amount,
-                String method,
-                String? walletRef
-              })>[];
-    int savedId;
-    try {
-      savedId = await pos.checkout(
-        cashierId: (session.currentUser?['id'] as int?) ?? 1,
-        saleType: method == 'CREDIT'
-            ? 'CREDIT'
-            : method == 'MIXED'
-                ? 'MIXED'
-                : 'CASH',
-        payments: payments,
-        customerId: customerId,
-        discount: discount,
-        managerApproved: pos.clinicalBlock != null,
-        branchId: session.branchId,
-        clinicalVerdict: clinical.verdict,
-      );
-    } catch (error) {
-      _message('لم تُحفظ الفاتورة: $error');
-      return;
-    }
-    // Committed sale must never be described as a failed transaction if a
-    // subsequent receipt query or dashboard refresh fails.
-    discount = 0;
-    discountField.text = '0';
-    tenderField.clear();
-    if (mounted) _message('تم حفظ الفاتورة رقم $savedId');
-    try {
-      if (mounted) await _loadReceipt(savedId);
-      if (mounted) await session.refresh();
-      if (mounted) await inventory.loadAll();
-    } catch (error) {
-      if (mounted) {
-        _message('الفاتورة $savedId محفوظة، لكن تعذر تحديث الشاشة: $error');
+      final credit = method == 'CREDIT' || method == 'MIXED';
+      if (credit && customerId == null) {
+        _message('اختر العميل');
+        return;
       }
-    }
+      if (!discount.isFinite || discount < 0 || discount > pos.total) {
+        _message('الخصم غير صحيح أو أكبر من إجمالي الفاتورة');
+        return;
+      }
+      final net = _net(pos);
+      final paid = method == 'CREDIT'
+          ? 0.0
+          : method == 'MIXED'
+              ? (double.tryParse(paidAmount.text) ?? -1)
+              : net;
+      if (!paid.isFinite || paid < 0 || paid > net) {
+        _message('أدخل مبلغاً مدفوعاً صحيحاً لا يتجاوز الصافي');
+        return;
+      }
+      if (method == 'CASH' && tenderField.text.trim().isNotEmpty) {
+        final received = double.tryParse(tenderField.text.trim());
+        if (received == null || !received.isFinite || received < net) {
+          _message('المبلغ المستلم أقل من قيمة الفاتورة');
+          return;
+        }
+      }
+      final List<
+              ({int cashAccountId, double amount, String method, String? walletRef})>
+          payments = paid > 0
+              ? [
+                  (
+                    cashAccountId: cashId!,
+                    amount: paid,
+                    method: tender == 'WALLET' ? 'WALLET' : 'CASH',
+                    walletRef: isWallet ? walletRef.text.trim() : null,
+                  ),
+                ]
+              : <({
+                  int cashAccountId,
+                  double amount,
+                  String method,
+                  String? walletRef
+                })>[];
+      int savedId;
+      try {
+        savedId = await pos.checkout(
+          cashierId: (session.currentUser?['id'] as int?) ?? 1,
+          saleType: method == 'CREDIT'
+              ? 'CREDIT'
+              : method == 'MIXED'
+                  ? 'MIXED'
+                  : 'CASH',
+          payments: payments,
+          customerId: customerId,
+          discount: discount,
+          managerApproved: pos.clinicalBlock != null,
+          branchId: session.branchId,
+          clinicalVerdict: clinical.verdict,
+        );
+      } catch (error) {
+        _message('لم تُحفظ الفاتورة: $error');
+        return;
+      }
+      // Committed sale must never be described as a failed transaction if a
+      // subsequent receipt query or dashboard refresh fails.
+      discount = 0;
+      discountField.text = '0';
+      tenderField.clear();
+      if (mounted) _message('تم حفظ الفاتورة رقم $savedId');
+      try {
+        if (mounted) await _loadReceipt(savedId);
+        if (mounted) await session.refresh();
+        if (mounted) await inventory.loadAll();
+      } catch (error) {
+        if (mounted) {
+          _message('الفاتورة $savedId محفوظة، لكن تعذر تحديث الشاشة: $error');
+        }
+      }
     } catch (error) {
       _message(error.toString());
     } finally {

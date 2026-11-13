@@ -288,7 +288,8 @@ class _S06PrescriptionInsuranceScreenState
           onPressed: saving
               ? null
               : () async {
-                  final activeBranch = context.read<SessionAndErpProvider>().branchId;
+                  final activeBranch =
+                      context.read<SessionAndErpProvider>().branchId;
                   final chosen = await KeyboardSafeModalSheet.show<DrugModel>(
                     context: context,
                     heightFactor: .85,

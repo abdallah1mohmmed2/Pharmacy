@@ -4,7 +4,8 @@ import 'package:global_enterprise_pharmacy_erp/data/models/sale_unit_labels.dart
 
 void main() {
   test('tablets retain the three-level pack/strip/pill sale', () {
-    const drug = DrugModel(dosageForm: 'TABLET', stripsPerPack: 3, unitsPerStrip: 10);
+    const drug =
+        DrugModel(dosageForm: 'TABLET', stripsPerPack: 3, unitsPerStrip: 10);
     expect(drugAvailableSaleUnits(drug), ['PACK', 'STRIP', 'UNIT']);
     expect(drugSaleUnitLabel(drug, 'STRIP'), 'شريط');
     expect(drugSaleUnitLabel(drug, 'UNIT'), 'حبة');
