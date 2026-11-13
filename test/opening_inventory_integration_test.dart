@@ -80,6 +80,71 @@ void main() {
     });
   });
 
+  group('Opening XLSX with source-price columns', () {
+    test('formula display prices are ignored and raw user price is imported', () {
+      final workbook = Excel.createExcel();
+      final sheet = workbook['الرصيد الافتتاحي'];
+      final orderedHeaders = <String>[
+        'اسم الدواء',
+        'معرّف الدواء',
+        'رمز المخزن',
+        'عدد الكراتين',
+        'الباكتات الإضافية',
+        'الحبات الإضافية',
+        'باكتات في الكرتون',
+        'حبات في الباكت',
+        'إدخال سعر الكرتون',
+        'إدخال سعر الباكت',
+        'إدخال سعر الحبة',
+        'سعر الكرتون',
+        'سعر الباكت',
+        'سعر الحبة',
+        'تاريخ الانتهاء',
+        'رقم التشغيلة',
+        'رقم الرف (اختياري)',
+        'تاريخ الإدخال',
+        'تكلفة الحبة',
+        'ملاحظات',
+      ];
+      sheet.appendRow(orderedHeaders.map((s) => TextCellValue(s)).toList());
+      sheet.appendRow([
+        TextCellValue('دواء تجريبي'),
+        null,
+        null,
+        IntCellValue(2),
+        IntCellValue(3),
+        IntCellValue(4),
+        IntCellValue(10),
+        IntCellValue(10),
+        DoubleCellValue(10000),
+        null,
+        null,
+        FormulaCellValue('I2'),
+        FormulaCellValue('I2/G2'),
+        FormulaCellValue('I2/G2/H2'),
+        TextCellValue('2028-06-30'),
+        TextCellValue('B-01'),
+        null,
+        null,
+        null,
+        null,
+      ]);
+      final parsed = OpeningInventoryExcel.parse(workbook.save()!,
+          defaultWarehouseId: 3, warehousesByCode: {});
+      expect(parsed.errors, isEmpty);
+      expect(parsed.lines, hasLength(1));
+      final price = parsed.lines.single.prices;
+      expect(price.carton, 10000);
+      expect(price.packet, isNull);
+      expect(price.unit, isNull);
+      final suggested = price.fillMissing(10, 10);
+      expect(suggested.packet, 1000);
+      expect(suggested.unit, 100);
+      expect(parsed.lines.single.quantityUnits, 234);
+      expect(parsed.lines.single.shelfCode, isNull);
+    });
+  });
+
   group('Atomic opening inventory in existing SQLite', () {
     late Database db;
     late OpeningInventoryService service;
