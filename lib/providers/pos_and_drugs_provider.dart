@@ -100,9 +100,9 @@ class PosAndDrugsProvider extends ChangeNotifier {
       return;
     }
     final safe = term
-        .replaceAll(r'\', r'\\')
-        .replaceAll('%', r'\%')
-        .replaceAll('_', r'\_');
+        .replaceAll('\\', '\\\\')
+        .replaceAll('%', '\\%')
+        .replaceAll('_', '\\_');
     final like = '%$safe%';
     final rows = await _db.rawQuery(
       "SELECT * FROM drugs WHERE branch_id=? AND is_deleted=0 "
