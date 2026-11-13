@@ -125,11 +125,14 @@ void main() {
       final result = await importer.executeImportFile(
           file: file, format: 'CSV', batchSize: 1);
       expect(result.inserted, 2);
-      final rows = await db.query('drugs', orderBy: 'trade_name_ar');
+      final rows = await db.query('drugs');
       expect(rows, hasLength(2));
-      expect(rows.first['trade_name_ar'], 'دواء, واحد');
-      expect(rows.first['indications'], 'سطر أول\nسطر ثان');
-      expect(rows.last['indications'], 'نص به "اقتباس"');
+      final first = (await db.query('drugs', where: 'trade_name_ar=?',
+          whereArgs: ['دواء, واحد'])).single;
+      final second = (await db.query('drugs', where: 'trade_name_ar=?',
+          whereArgs: ['دواء ثان'])).single;
+      expect(first['indications'], 'سطر أول\nسطر ثان');
+      expect(second['indications'], 'نص به "اقتباس"');
     });
 
     test('UPDATE_EMPTY_ONLY preserves stock and existing price', () async {
