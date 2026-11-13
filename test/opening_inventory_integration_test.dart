@@ -424,14 +424,17 @@ void main() {
       final oldDrug =
           (await db.query('drugs', where: 'id=?', whereArgs: [drugId])).single;
       final newDrug = (await db.query('drugs',
-          where: 'trade_name_ar=?', whereArgs: ['دواء جديد محلي'])).single;
+              where: 'trade_name_ar=?', whereArgs: ['دواء جديد محلي']))
+          .single;
       expect(oldDrug['stock_total_units'], 240);
       expect(oldDrug['sell_price_strip'], 1200);
       expect(oldDrug['sell_price_unit'], 100);
       expect(newDrug['stock_total_units'], 8);
       expect(newDrug['sell_price_strip'], 80);
-      expect((await db.query('drugs', where: 'trade_name_ar=?',
-          whereArgs: ['دواء مرجعي فقط'])), isEmpty);
+      expect(
+          (await db.query('drugs',
+              where: 'trade_name_ar=?', whereArgs: ['دواء مرجعي فقط'])),
+          isEmpty);
       expect(await db.query('stock_movements'), hasLength(2));
       expect(await db.rawQuery('PRAGMA foreign_key_check'), isEmpty);
     });
