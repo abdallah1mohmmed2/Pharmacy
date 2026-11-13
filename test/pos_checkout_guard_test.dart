@@ -19,7 +19,12 @@ class _DelayedPosting extends PostingAndSalesService {
     required List<CartItemModel> items,
     required String saleType,
     required List<
-        ({int cashAccountId, double amount, String method, String? walletRef})>
+            ({
+              int cashAccountId,
+              double amount,
+              String method,
+              String? walletRef
+            })>
         payments,
     int customerPartyId = 0,
     double discountAmount = 0,
@@ -42,13 +47,13 @@ void main() {
     );
     final emptyVerdict = ClinicalVerdict(const []);
     Future<int> submit() => provider.checkout(
-      cashierId: 1,
-      saleType: 'CASH',
-      payments: const [
-        (cashAccountId: 1, amount: 1500.0, method: 'CASH', walletRef: null),
-      ],
-      clinicalVerdict: emptyVerdict,
-    );
+          cashierId: 1,
+          saleType: 'CASH',
+          payments: const [
+            (cashAccountId: 1, amount: 1500.0, method: 'CASH', walletRef: null),
+          ],
+          clinicalVerdict: emptyVerdict,
+        );
 
     final first = submit();
     expect(provider.checkoutPending, isTrue);

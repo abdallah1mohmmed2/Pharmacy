@@ -18,12 +18,14 @@ class _DelayedPosting extends PostingAndSalesService {
     required int cashierUserId,
     required List<CartItemModel> items,
     required String saleType,
-    required List<({
-      int cashAccountId,
-      double amount,
-      String method,
-      String? walletRef
-    })> payments,
+    required List<
+            ({
+              int cashAccountId,
+              double amount,
+              String method,
+              String? walletRef
+            })>
+        payments,
     int customerPartyId = 0,
     double discountAmount = 0,
     required ClinicalVerdict clinicalVerdict,
@@ -77,8 +79,10 @@ void main() {
         ''', [offset, offset, offset]);
       }
       await db.insert('drugs', {
-        'id': 27001, 'branch_id': 1,
-        'internal_code': 'ONLY-ONE', 'trade_name_ar': 'دواء نادر فريد'
+        'id': 27001,
+        'branch_id': 1,
+        'internal_code': 'ONLY-ONE',
+        'trade_name_ar': 'دواء نادر فريد'
       });
       final provider =
           PosAndDrugsProvider(database: DatabaseHelper.forTesting(db));
@@ -104,12 +108,14 @@ void main() {
       Future<int> checkout() => provider.checkout(
             cashierId: 1,
             saleType: 'CASH',
-            payments: [(
-              cashAccountId: 1,
-              amount: 0.0,
-              method: 'CASH',
-              walletRef: null,
-            )],
+            payments: [
+              (
+                cashAccountId: 1,
+                amount: 0.0,
+                method: 'CASH',
+                walletRef: null,
+              )
+            ],
             clinicalVerdict: ClinicalVerdict([]),
           );
       final first = checkout();
