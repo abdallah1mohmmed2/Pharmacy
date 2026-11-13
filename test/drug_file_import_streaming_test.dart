@@ -173,6 +173,42 @@ void main() {
       expect(row['indications'], 'معلومة جديدة');
     });
 
+
+    test('duplicate barcodes do not merge different source medicines',
+        () async {
+      final file = await put('shared-barcode.json', jsonEncode([
+        {
+          'internal_code': 'SHARED-001',
+          'trade_name_ar': 'دواء مختلف',
+          'scientific_name': 'compound-a',
+          'barcode_international': '6221000003295',
+        },
+        {
+          'internal_code': 'SHARED-002',
+          'trade_name_ar': 'دواء مختلف',
+          'scientific_name': 'compound-a',
+          'barcode_international': '6221000003295',
+        }
+      ]));
+      final preview = await importer.dryRunImportFile(
+          file: file, format: 'JSON');
+      expect(preview.validRows, 2);
+      expect(preview.barcodeDuplicates, 1);
+      final result = await importer.executeImportFile(
+          file: file, format: 'JSON');
+      expect(result.inserted, 2);
+      expect(result.errors, 0);
+      expect(result.barcodeConflicts, 1);
+      final rows = await db.query('drugs', orderBy: 'internal_code');
+      expect(rows, hasLength(2));
+      expect(rows.first['barcode_international'], '6221000003295');
+      expect(rows.last['barcode_international'], isNull);
+      final retry = await importer.executeImportFile(
+          file: file, format: 'JSON');
+      expect(retry.inserted, 0);
+      expect(retry.skipped, 2);
+    });
+
     test('JSON drugs envelope and incomplete input validation', () async {
       final file = await put(
           'wrapped.json',
