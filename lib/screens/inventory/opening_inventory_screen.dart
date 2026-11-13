@@ -347,7 +347,7 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
           Uint8List.fromList(OpeningInventoryExcel.simpleTemplateBytes());
       final path = await FilePicker.platform.saveFile(
         dialogTitle: 'حفظ نموذج الأرصدة الافتتاحية',
-        fileName: 'pharmacy_opening_inventory_template.xlsx',
+        fileName: 'pharmacy_opening_stock_4_columns.xlsx',
         type: FileType.custom,
         allowedExtensions: ['xlsx'],
         bytes: data,
@@ -447,7 +447,9 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
 
     final dateLabel = _date(effectiveDate);
     final available = drugProvider.drugs;
+    final usesCompactExcel = lines.any((l) => l.resolveUnitsFromCatalog);
     final unitsTotal = lines.fold<int>(0, (sum, l) => sum + l.quantityUnits);
+    final packsTotal = lines.fold<int>(0, (sum, l) => sum + l.cartons);
     return Scaffold(
       appBar: AppBar(title: const Text('إدخال البضاعة — الرصيد الافتتاحي')),
       body: ListView(
@@ -477,11 +479,11 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
               ]),
           const SizedBox(height: 8),
           const Text(
-            'قالب Excel المبسط: اسم العلاج، عدد الباكتات في العبوة، عدد الأشرطة في الباكت، '
-            'سعر الباكت، سعر العلاج، والرصيد الافتتاحي بعدد العبوات الخارجية. '
-            'اختر تاريخ انتهاء صلاحية واحدًا لكل دفعة قبل استيراد الملف. '
-            'إذا اختلفت الصلاحيات، استخدم ملفًا مستقلًا لكل تاريخ. '
-            'يُرحّل كل صنف باسمه إلى مخزن الفرع المحدد.',
+            'جميع الصفوف في ملف Excel أرصدة افتتاحية. الأعمدة الأربعة: اسم العلاج، '
+            'عدد الباكتات الموجودة، عدد الأشرطة داخل الباكت الواحد، وسعر الباكت الكامل. '
+            'يُؤخذ عدد الحبات في الشريط من بطاقة الدواء الحالية، ولا يُخمّن من الملف. '
+            'أضف أي دواء غير موجود وحدد تعبئته أولًا. '
+            'اختر تاريخ صلاحية واحدًا لكل دفعة؛ واستخدم ملفًا آخر للصلاحيات المختلفة.',
           ),
           const SizedBox(height: 16),
           Text('الإدخال اليدوي', style: Theme.of(context).textTheme.titleLarge),
@@ -611,7 +613,10 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
             ),
           ]),
           const Divider(height: 32),
-          Text('المراجعة قبل الاعتماد — ${lines.length} صف / $unitsTotal وحدة',
+          Text(
+              usesCompactExcel
+                  ? 'المراجعة قبل الاعتماد — ${lines.length} صف / $packsTotal باكت (الأشرطة والحبات تُحسب من التعبئة)'
+                  : 'المراجعة قبل الاعتماد — ${lines.length} صف / $unitsTotal وحدة',
               style: Theme.of(context).textTheme.titleLarge),
           if (sourceName != null) Text('الملف: $sourceName'),
           if (issues.isNotEmpty) ...[
@@ -626,7 +631,7 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
               dense: true,
               title: Text(
                   '${i + 1}. ${lines[i].drugName.isNotEmpty ? lines[i].drugName : 'دواء #${lines[i].drugId}'} '
-                  '• ${lines[i].quantityUnits} وحدة'),
+                  '${lines[i].resolveUnitsFromCatalog ? '• ${lines[i].cartons} باكت، ${lines[i].packetsPerCarton} شريط في كل باكت' : '• ${lines[i].quantityUnits} وحدة'}'),
               subtitle: Text(
                   'صلاحية ${lines[i].expiryDate} | تشغيلة ${lines[i].batchNo.isEmpty ? 'تلقائية' : lines[i].batchNo} '
                   '| رف ${lines[i].shelfCode ?? 'غير محدد'}'),
