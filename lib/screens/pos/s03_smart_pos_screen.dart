@@ -306,27 +306,28 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
             height: MediaQuery.sizeOf(sheetContext).height * .58,
             child: Consumer<PosAndDrugsProvider>(
               builder: (context, current, _) => ListView.builder(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              itemCount: current.drugs.length,
-              itemBuilder: (context, index) {
-                final drug = current.drugs[index];
-                return Card(
-                  child: ListTile(
-                    title: Text(drug.tradeNameAr),
-                    subtitle: Text(
-                      '${drug.scientificName} • المتاح ${drug.stockTotalUnits} حبة',
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                itemCount: current.drugs.length,
+                itemBuilder: (context, index) {
+                  final drug = current.drugs[index];
+                  return Card(
+                    child: ListTile(
+                      title: Text(drug.tradeNameAr),
+                      subtitle: Text(
+                        '${drug.scientificName} • المتاح ${drug.stockTotalUnits} حبة',
+                      ),
+                      trailing: Text(MoneyFormatter.format(drug.sellPricePack)),
+                      onTap: pos.currentTab.held
+                          ? null
+                          : () {
+                              pos.addDrug(drug);
+                              Navigator.pop(sheetContext);
+                            },
                     ),
-                    trailing: Text(MoneyFormatter.format(drug.sellPricePack)),
-                    onTap: pos.currentTab.held
-                        ? null
-                        : () {
-                            pos.addDrug(drug);
-                            Navigator.pop(sheetContext);
-                          },
-                  ),
-                );
-              },
-            ),
+                  );
+                },
+              ),
             ),
           ),
         ],
