@@ -129,8 +129,8 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
             ? null
             : _StickyCheckoutBar(
                 itemCount: pos.cart.length,
-                total: pos.total,
-                onCheckout: pos.cart.isEmpty
+                total: _net(pos),
+                onCheckout: pos.cart.isEmpty || _checkoutBusy || pos.checkoutPending
                     ? null
                     : () => _openCheckout(pos, session, inventory, clinical),
               ),
@@ -476,7 +476,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
               ),
             Expanded(child: _cartList(pos, inventory, clinical)),
             Text(
-              'الإجمالي: ${MoneyFormatter.format(pos.total)}',
+              'الصافي بعد الخصم: ${MoneyFormatter.format(_net(pos))}',
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
@@ -484,11 +484,11 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
             _paymentFields(pos, session),
             const SizedBox(height: 8),
             FilledButton.icon(
-              onPressed: pos.cart.isEmpty
+              onPressed: pos.cart.isEmpty || _checkoutBusy || pos.checkoutPending
                   ? null
                   : () => _finish(pos, session, inventory, clinical),
               icon: const Icon(Icons.check_circle),
-              label: const Text('إتمام الفاتورة'),
+              label: Text(_checkoutBusy ? 'جارٍ حفظ الفاتورة...' : 'إتمام الفاتورة'),
             ),
           ],
         ),
@@ -530,6 +530,40 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        TextField(
+          controller: discountField,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            labelText: 'خصم إجمالي الفاتورة',
+            helperText: 'لا يمكن أن يتجاوز الخصم قيمة الأصناف',
+          ),
+          onChanged: (value) =>
+              setState(() => discount = double.tryParse(value.trim()) ?? -1),
+        ),
+        const SizedBox(height: 8),
+        if (method == 'CASH') ...[
+          TextField(
+            controller: tenderField,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'المبلغ المستلم من العميل (اختياري)',
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: tenderField,
+            builder: (_, value, __) {
+              final given = double.tryParse(value.text);
+              final change = given == null ? null : given - _net(pos);
+              return Text(change == null
+                  ? 'عدم إدخال المبلغ يعني الدفع بقيمة الفاتورة تمامًا'
+                  : change < 0
+                      ? 'المبلغ المستلم أقل من الصافي'
+                      : 'الباقي للعميل: ${MoneyFormatter.format(change)}');
+            },
+          ),
+          const SizedBox(height: 8),
+        ],
         DropdownButtonFormField<String>(
           value: method,
           decoration: const InputDecoration(labelText: 'طريقة الدفع *'),
@@ -779,7 +813,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
     final party = matches.first;
     final paid =
         method == 'CREDIT' ? 0.0 : double.tryParse(paidAmount.text) ?? 0.0;
-    final remaining = (pos.total - paid).clamp(0, double.infinity).toDouble();
+    final remaining = (_net(pos) - paid).clamp(0, double.infinity).toDouble();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -812,9 +846,14 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
           Row(
             children: [
               Expanded(child: Text('عدد الأصناف: ${pos.cart.length}')),
-              Text(MoneyFormatter.format(pos.total),
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: discountField,
+                builder: (_, __, ___) => Text(
+                  MoneyFormatter.format(_net(pos)),
                   style: const TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.w800)),
+                      fontSize: 20, fontWeight: FontWeight.w800),
+                ),
+              ),
             ],
           ),
           const Divider(height: 22),
@@ -846,7 +885,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
           _paymentFields(pos, session),
           const SizedBox(height: 14),
           FilledButton.icon(
-            onPressed: pos.cart.isEmpty
+            onPressed: pos.cart.isEmpty || _checkoutBusy || pos.checkoutPending
                 ? null
                 : () async {
                     Navigator.pop(sheetContext);
@@ -883,7 +922,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
       );
       if (!approved) return;
     }
-    if (cashId == null) {
+    if (method != 'CREDIT' && cashId == null) {
       _message('اختر الصندوق أو المحفظة');
       return;
     }
@@ -898,14 +937,26 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
       _message('اختر العميل');
       return;
     }
+    if (!discount.isFinite || discount < 0 || discount > pos.total) {
+      _message('الخصم غير صحيح أو أكبر من إجمالي الفاتورة');
+      return;
+    }
+    final net = _net(pos);
     final paid = method == 'CREDIT'
         ? 0.0
         : method == 'MIXED'
             ? (double.tryParse(paidAmount.text) ?? -1)
-            : pos.total;
-    if (paid < 0 || paid > pos.total) {
-      _message('أدخل مبلغاً مدفوعاً صحيحاً لا يتجاوز إجمالي الفاتورة');
+            : net;
+    if (!paid.isFinite || paid < 0 || paid > net) {
+      _message('أدخل مبلغاً مدفوعاً صحيحاً لا يتجاوز الصافي');
       return;
+    }
+    if (method == 'CASH' && tenderField.text.trim().isNotEmpty) {
+      final received = double.tryParse(tenderField.text.trim());
+      if (received == null || !received.isFinite || received < net) {
+        _message('المبلغ المستلم أقل من قيمة الفاتورة');
+        return;
+      }
     }
     final List<
             ({int cashAccountId, double amount, String method, String? walletRef})>
@@ -941,7 +992,10 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
       );
       if (mounted) {
         await _loadReceipt(id);
-        _message('تم حفظ الفاتورة رقم $id • اضغط F9 لطباعة الإيصال');
+        discount = 0;
+        discountField.text = '0';
+        tenderField.clear();
+        _message('تم حفظ الفاتورة رقم $id • يمكنك طباعة الإيصال');
         await session.refresh();
         await inventory.loadAll();
       }
