@@ -43,6 +43,33 @@ class PosAndDrugsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Purchase medicine lookup is isolated from POS state. Never put thousands
+  /// of medicines in a DropdownButtonFormField or replace the POS drug list.
+  /// Only the first [limit] matching rows are loaded from SQLite.
+  Future<List<DrugModel>> searchPurchaseDrugs(
+    String text, {
+    required int branchId,
+    int limit = 40,
+  }) async {
+    final term = text.trim();
+    if (term.isEmpty) return const <DrugModel>[];
+    final safeTerm = term.replaceAll('%', r'\%').replaceAll('_', r'\_');
+    final like = '%$safeTerm%';
+    final rows = await _db.rawQuery(
+      "SELECT * FROM drugs WHERE branch_id=? AND is_deleted=0 "
+      "AND is_active=1 AND "
+      "(trade_name_ar LIKE ? ESCAPE '\\' OR "
+      "trade_name_en LIKE ? ESCAPE '\\' OR "
+      "scientific_name LIKE ? ESCAPE '\\' OR "
+      "internal_code LIKE ? ESCAPE '\\' OR "
+      "barcode_local LIKE ? ESCAPE '\\' OR "
+      "barcode_international LIKE ? ESCAPE '\\') "
+      "ORDER BY trade_name_ar LIMIT ?",
+      [branchId, like, like, like, like, like, like, limit.clamp(1, 40)],
+    );
+    return rows.map(DrugModel.fromMap).toList();
+  }
+
   Future<void> searchDrugs(String value) async {
     search = value;
     final rows = await _db.rawQuery(
