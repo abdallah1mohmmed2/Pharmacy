@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:csv/csv.dart';
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
@@ -9,6 +10,8 @@ import '../database/database_helper.dart';
 import '../models/drug_model.dart';
 import '../models/settings_audit_sync_models.dart';
 import 'settings_and_audit_service.dart';
+
+part 'drug_import_export_streaming.dart';
 
 class ImportRowIssue {
   const ImportRowIssue(this.rowNumber, this.message);
@@ -133,13 +136,22 @@ class DrugImportExportService {
   Map<String, Object?> _mapFields(
       Map<String, Object?> source, Map<String, String> mapping) {
     final result = <String, Object?>{};
+    bool meaningful(Object? value) =>
+        value != null && (value is! String || value.trim().isNotEmpty);
     if (mapping.isEmpty) {
       for (final e in source.entries) {
-        if (_knownColumns.contains(e.key)) result[e.key] = e.value;
+        if (_knownColumns.contains(e.key) && meaningful(e.value)) {
+          result[e.key] = e.value;
+        }
       }
     } else {
       for (final e in mapping.entries) {
-        if (source.containsKey(e.key)) result[e.value] = source[e.key];
+        if (!_knownColumns.contains(e.value)) {
+          throw FormatException('حقل ربط غير معروف: ' + e.value);
+        }
+        if (source.containsKey(e.key) && meaningful(source[e.key])) {
+          result[e.value] = source[e.key];
+        }
       }
     }
     const intFields = [
@@ -222,6 +234,10 @@ class DrugImportExportService {
 
   static const Set<String> _knownColumns = {
     'internal_code',
+    'manufacturer_id',
+    'active_ingredient_id',
+    'is_active',
+    'is_strip_based',
     'trade_name_ar',
     'trade_name_en',
     'scientific_name',
