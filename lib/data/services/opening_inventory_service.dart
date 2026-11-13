@@ -72,6 +72,7 @@ class OpeningStockLine {
   final String expiryDate;
   final String? effectiveDate;
   final int cartons, packets, units, packetsPerCarton, unitsPerPacket;
+
   /// Four-column Excel omits tablet count per strip. Resolve from the
   /// medicine's saved packaging rather than assuming it is one.
   final bool resolveUnitsFromCatalog;

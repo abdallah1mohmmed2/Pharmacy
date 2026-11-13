@@ -215,8 +215,7 @@ abstract final class OpeningInventoryExcel {
           final packs = _integer(cell('عدد الباكتات'), 'عدد الباكتات');
           final stripsPerPack = _integer(
               cell('عدد الأشرطة داخل الباكت'), 'عدد الأشرطة داخل الباكت');
-          final pricePerPack =
-              _optionalPrice(cell('سعر الباكت'), 'سعر الباكت');
+          final pricePerPack = _optionalPrice(cell('سعر الباكت'), 'سعر الباكت');
           if (packs <= 0 || stripsPerPack <= 0) {
             throw const FormatException(
                 'عدد الباكتات والأشرطة داخل الباكت يجب أن يكون أكبر من الصفر');
