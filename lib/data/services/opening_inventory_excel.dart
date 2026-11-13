@@ -66,6 +66,9 @@ abstract final class OpeningInventoryExcel {
     sheet.appendRow([
       ...headers.map((h) => TextCellValue(h)),
       TextCellValue('نوع الدواء'),
+      TextCellValue('إدخال تكلفة الكرتون'),
+      TextCellValue('إدخال تكلفة الباكت'),
+      TextCellValue('إدخال تكلفة الحبة'),
     ]);
     final help = excel['إرشادات'];
     for (final description in [
