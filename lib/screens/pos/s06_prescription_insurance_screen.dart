@@ -7,7 +7,6 @@ import '../../data/database/database_helper.dart';
 import '../../data/models/drug_model.dart';
 import '../../providers/clinical_and_rx_provider.dart';
 import '../../providers/pos_and_drugs_provider.dart';
-import '../../data/models/drug_model.dart';
 import '../purchases/purchase_medicine_search_sheet.dart';
 import '../../providers/session_and_erp_provider.dart';
 import 's04_clinical_guard_dialog.dart';
