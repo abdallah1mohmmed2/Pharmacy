@@ -47,7 +47,8 @@ class PosAndDrugsProvider extends ChangeNotifier {
           whereArgs: [requestedBranch],
           orderBy: 'trade_name_ar',
           limit: catalogPageLimit);
-      if (generation != _searchGeneration || requestedBranch != branchId) return;
+      if (generation != _searchGeneration || requestedBranch != branchId)
+        return;
       drugs = rows.map(DrugModel.fromMap).toList(growable: false);
       search = '';
     } finally {
@@ -98,7 +99,8 @@ class PosAndDrugsProvider extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    final safe = term.replaceAll(r'\', r'\\')
+    final safe = term
+        .replaceAll(r'\', r'\\')
         .replaceAll('%', r'\%')
         .replaceAll('_', r'\_');
     final like = '%$safe%';
