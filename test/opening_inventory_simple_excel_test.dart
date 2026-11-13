@@ -63,6 +63,38 @@ void main() {
     expect(parsed.lines[1].prices.unit, 20);
   });
 
+  test('unselected catalog names are skipped without posting stock', () {
+    final workbook =
+        Excel.decodeBytes(OpeningInventoryExcel.simpleTemplateBytes());
+    final sheet = workbook['الرصيد الافتتاحي'];
+    sheet.appendRow([
+      TextCellValue('دواء غير موجود في الصيدلية'),
+      null,
+      null,
+      null,
+      null,
+      null,
+    ]);
+    sheet.appendRow([
+      TextCellValue('دواء داخل الصيدلية'),
+      IntCellValue(2),
+      IntCellValue(10),
+      IntCellValue(100),
+      IntCellValue(10),
+      IntCellValue(5),
+    ]);
+    final parsed = OpeningInventoryExcel.parse(
+      workbook.save()!,
+      defaultWarehouseId: 1,
+      warehousesByCode: const {},
+      defaultExpiryDate: '2028-12-31',
+    );
+    expect(parsed.errors, isEmpty);
+    expect(parsed.lines, hasLength(1));
+    expect(parsed.lines.single.drugName, 'دواء داخل الصيدلية');
+    expect(parsed.lines.single.quantityUnits, 100);
+  });
+
   test('simple template never invents expiry dates', () {
     final workbook =
         Excel.decodeBytes(OpeningInventoryExcel.simpleTemplateBytes());
