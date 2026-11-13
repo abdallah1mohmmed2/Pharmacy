@@ -20,6 +20,9 @@ class PosAndDrugsProvider extends ChangeNotifier {
   int branchId = 1;
   String search = '';
   bool loading = false;
+  bool checkoutPending = false;
+  int _searchGeneration = 0;
+  static const int catalogPageLimit = 100;
   String? clinicalBlock;
   PosTabSession get currentTab => tabs[activeTab];
   List<CartItemModel> get cart => currentTab.items;
@@ -31,16 +34,28 @@ class PosAndDrugsProvider extends ChangeNotifier {
     await loadDrugs();
   }
 
+  /// Initial POS catalog is deliberately bounded for pharmacies with 27k+ items.
+  /// Additional items are retrieved by search, without loading the entire DB.
   Future<void> loadDrugs() async {
+    final generation = ++_searchGeneration;
+    final requestedBranch = branchId;
     loading = true;
     notifyListeners();
-    final rows = await _db.query('drugs',
-        where: 'branch_id=? AND is_deleted=0 AND is_active=1',
-        whereArgs: [branchId],
-        orderBy: 'trade_name_ar');
-    drugs = rows.map(DrugModel.fromMap).toList();
-    loading = false;
-    notifyListeners();
+    try {
+      final rows = await _db.query('drugs',
+          where: 'branch_id=? AND is_deleted=0 AND is_active=1',
+          whereArgs: [requestedBranch],
+          orderBy: 'trade_name_ar',
+          limit: catalogPageLimit);
+      if (generation != _searchGeneration || requestedBranch != branchId) return;
+      drugs = rows.map(DrugModel.fromMap).toList(growable: false);
+      search = '';
+    } finally {
+      if (generation == _searchGeneration) {
+        loading = false;
+        notifyListeners();
+      }
+    }
   }
 
   /// Purchase medicine lookup is isolated from POS state. Never put thousands
@@ -70,19 +85,37 @@ class PosAndDrugsProvider extends ChangeNotifier {
     return rows.map(DrugModel.fromMap).toList();
   }
 
+  /// Prevent stale asynchronous searches from replacing the latest results.
+  /// Never materialize the full catalog in Dart. Search is branch scoped.
   Future<void> searchDrugs(String value) async {
-    search = value;
+    final term = value.trim();
+    if (term.isEmpty) return loadDrugs();
+    final generation = ++_searchGeneration;
+    final requestedBranch = branchId;
+    search = term;
+    if (term.length < 2) {
+      drugs = const <DrugModel>[];
+      notifyListeners();
+      return;
+    }
+    final safe = term.replaceAll(r'\', r'\\')
+        .replaceAll('%', r'\%')
+        .replaceAll('_', r'\_');
+    final like = '%$safe%';
     final rows = await _db.rawQuery(
-        "SELECT * FROM drugs WHERE branch_id=? AND is_deleted=0 AND is_active=1 AND (trade_name_ar LIKE ? OR trade_name_en LIKE ? OR scientific_name LIKE ? OR barcode_local LIKE ? OR barcode_international LIKE ?) ORDER BY trade_name_ar LIMIT 100",
-        [
-          branchId,
-          '%' + value + '%',
-          '%' + value + '%',
-          '%' + value + '%',
-          '%' + value + '%',
-          '%' + value + '%'
-        ]);
-    drugs = rows.map(DrugModel.fromMap).toList();
+      "SELECT * FROM drugs WHERE branch_id=? AND is_deleted=0 "
+      "AND is_active=1 AND "
+      "(trade_name_ar LIKE ? ESCAPE '\\' OR "
+      "trade_name_en LIKE ? ESCAPE '\\' OR "
+      "scientific_name LIKE ? ESCAPE '\\' OR "
+      "internal_code LIKE ? ESCAPE '\\' OR "
+      "barcode_local LIKE ? ESCAPE '\\' OR "
+      "barcode_international LIKE ? ESCAPE '\\') "
+      "ORDER BY trade_name_ar LIMIT ?",
+      [requestedBranch, like, like, like, like, like, like, catalogPageLimit],
+    );
+    if (generation != _searchGeneration || requestedBranch != branchId) return;
+    drugs = rows.map(DrugModel.fromMap).toList(growable: false);
     notifyListeners();
   }
 
@@ -286,22 +319,39 @@ class PosAndDrugsProvider extends ChangeNotifier {
       bool managerApproved = false,
       int branchId = 1,
       required ClinicalVerdict clinicalVerdict}) async {
+    if (checkoutPending) throw StateError('الفاتورة قيد الحفظ بالفعل');
     if (currentTab.held) throw StateError('استرجع الفاتورة قبل إتمامها');
     if (clinicalBlock != null && !managerApproved)
       throw StateError('يلزم حذف الدواء المتعارض أو اعتماد المدير');
-    final id = await _posting.postSale(
-        branchId: branchId,
-        cashierUserId: cashierId,
-        items: List<CartItemModel>.from(cart),
-        saleType: saleType,
-        payments: payments,
-        customerPartyId: customerId ?? 0,
-        discountAmount: discount,
-        clinicalVerdict: clinicalVerdict);
-    currentTab.items.clear();
-    currentTab.held = false;
-    await loadDrugs();
+    if (!discount.isFinite || discount < 0 || discount > total) {
+      throw StateError('الخصم يتجاوز إجمالي الفاتورة');
+    }
+    checkoutPending = true;
     notifyListeners();
-    return id;
+    final postingTab = currentTab;
+    try {
+      final id = await _posting.postSale(
+          branchId: branchId,
+          cashierUserId: cashierId,
+          items: List<CartItemModel>.from(postingTab.items),
+          saleType: saleType,
+          payments: payments,
+          customerPartyId: customerId ?? 0,
+          discountAmount: discount,
+          clinicalVerdict: clinicalVerdict);
+      // Do not submit the same cart again even if a refresh fails.
+      postingTab.items.clear();
+      postingTab.held = false;
+      notifyListeners();
+      try {
+        await loadDrugs();
+      } catch (_) {
+        // The committed sale must not be reported as failed due to a reload.
+      }
+      return id;
+    } finally {
+      checkoutPending = false;
+      notifyListeners();
+    }
   }
 }
