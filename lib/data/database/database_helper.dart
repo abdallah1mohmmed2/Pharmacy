@@ -26,10 +26,12 @@ class DatabaseHelper {
   /// Production code must use [DatabaseHelper.instance].
   DatabaseHelper.forTesting(Database database)
       : _db = database,
-        _openedPath = database.path;
+        _openedPath = database.path,
+        _testingPath = database.path;
   static final DatabaseHelper instance = DatabaseHelper._();
   Database? _db;
   String? _openedPath;
+  String? _testingPath;
   Future<String> get databaseFilePath async {
     await database;
     return _openedPath!;
@@ -37,6 +39,10 @@ class DatabaseHelper {
 
   Future<Database> get database async => _db ??= await _open();
   Future<Database> _open() async {
+    // A file-backed injected database must reopen its own test file.
+    if (_testingPath != null) {
+      return openDatabase(_testingPath!, singleInstance: false);
+    }
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       sqfliteFfiInit();
       databaseFactory = databaseFactoryFfi;
