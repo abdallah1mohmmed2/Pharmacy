@@ -45,6 +45,7 @@ class OpeningStockLine {
   const OpeningStockLine({
     this.drugId,
     this.drugName = '',
+    this.dosageForm,
     required this.warehouseId,
     this.shelfCode,
     this.batchNo = '',
@@ -62,6 +63,7 @@ class OpeningStockLine {
 
   final int? drugId;
   final String drugName;
+  final String? dosageForm;
   final int warehouseId;
   final String? shelfCode;
   final String batchNo;
@@ -174,6 +176,13 @@ class OpeningInventoryService {
     if (drugs.isEmpty) throw StateError('الدواء غير موجود في الفرع');
     final drug = drugs.first;
     final drugId = drug['id'] as int;
+    final storedForm = (drug['dosage_form'] as String?) ?? 'OTHER';
+    if (row.dosageForm != null &&
+        storedForm != 'OTHER' &&
+        storedForm != row.dosageForm) {
+      throw StateError(
+          'نوع الدواء لا يطابق الصنف المسجل: ${row.drugName} ($storedForm)');
+    }
     final currentRatio =
         (drug['strips_per_pack'] as int) * (drug['units_per_strip'] as int);
     final newRatio = row.packetsPerCarton * row.unitsPerPacket;
@@ -313,6 +322,7 @@ class OpeningInventoryService {
       final previewResult = <_Prepared>[];
       final perDrugRatio = <int, String>{};
       final perDrugPrices = <int, OpeningStockPrices>{};
+      final perDrugForms = <int, String>{};
       for (var i = 0; i < lines.length; i++) {
         final value = await _prepare(txn, branchId, lines[i], effectiveDate);
         final key = '${lines[i].packetsPerCarton}x${lines[i].unitsPerPacket}';
@@ -321,6 +331,14 @@ class OpeningInventoryService {
           throw StateError('تعبئة مختلفة لنفس الدواء في الصف ${i + 2}');
         }
         perDrugRatio[value.drugId] = key;
+        final form = lines[i].dosageForm;
+        if (form != null) {
+          final previousForm = perDrugForms[value.drugId];
+          if (previousForm != null && previousForm != form) {
+            throw StateError('أنواع مختلفة لنفس الدواء في الصف ${i + 2}');
+          }
+          perDrugForms[value.drugId] = form;
+        }
         _verifyRepeatedPrices(perDrugPrices, value);
         previewResult.add(value);
       }
@@ -360,6 +378,11 @@ class OpeningInventoryService {
           'strip_price_mode': 'MANUAL',
           'updated_at': now,
         };
+        // Populate only an unclassified medicine, never overwrite a known form.
+        if (((drug['dosage_form'] as String?) ?? 'OTHER') == 'OTHER' &&
+            perDrugForms[p.drugId] != null) {
+          update['dosage_form'] = perDrugForms[p.drugId];
+        }
         if (resolvedPrices.carton != null)
           update['sell_price_pack'] = resolvedPrices.carton;
         if (resolvedPrices.packet != null)
