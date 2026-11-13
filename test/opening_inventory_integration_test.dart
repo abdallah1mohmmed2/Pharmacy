@@ -435,6 +435,33 @@ void main() {
       expect(await db.rawQuery('PRAGMA foreign_key_check'), isEmpty);
     });
 
+    test('unverified one-tablet-per-strip defaults block compact posting',
+        () async {
+      final book =
+          Excel.decodeBytes(OpeningInventoryExcel.simpleTemplateBytes());
+      book['الرصيد الافتتاحي'].appendRow([
+        TextCellValue('دواء تجريبي'),
+        IntCellValue(12),
+        IntCellValue(3),
+        DoubleCellValue(1000),
+      ]);
+      final parsed = OpeningInventoryExcel.parse(
+        book.save()!,
+        defaultWarehouseId: warehouseId,
+        warehousesByCode: const {},
+        defaultExpiryDate: futureExpiry,
+      );
+      final preview = await service.preview(
+        branchId: branchId,
+        effectiveDate: DateTime.now().toIso8601String().substring(0, 10),
+        lines: parsed.lines,
+      );
+      expect(preview.errors, hasLength(1));
+      expect(preview.errors.single, contains('تعبئة الصنف'));
+      expect((await db.query('drugs',
+          where: 'id=?', whereArgs: [drugId])).single['stock_total_units'], 0);
+    });
+
     test('simple template does not invent missing tablets-per-strip', () async {
       final book =
           Excel.decodeBytes(OpeningInventoryExcel.simpleTemplateBytes());
