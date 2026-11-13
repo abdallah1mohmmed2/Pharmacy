@@ -60,8 +60,9 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
       // Never render multi-megabyte source files inside an editable TextField.
       sourceController.clear();
       selectedFilePath = file.path;
-      selectedFileContent =
-          file.path == null ? utf8.decode(file.bytes!, allowMalformed: true) : null;
+      selectedFileContent = file.path == null
+          ? utf8.decode(file.bytes!, allowMalformed: true)
+          : null;
       fileName = file.name;
       format = file.extension?.toUpperCase() == 'JSON' ? 'JSON' : 'CSV';
     });
@@ -199,7 +200,8 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
             if (fileName != null)
               Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text('الملف المحدد: $fileName — لن يُعرض محتواه بالكامل')),
+                  child: Text(
+                      'الملف المحدد: $fileName — لن يُعرض محتواه بالكامل')),
             const SizedBox(height: 12),
             TextField(
                 controller: sourceController,
@@ -270,7 +272,10 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
                   icon: const Icon(Icons.fact_check),
                   label: const Text('فحص مسبق (Dry-Run)')),
               FilledButton.icon(
-                  onPressed: p.busy || (selectedFilePath == null && selectedFileContent == null && sourceController.text.trim().isEmpty)
+                  onPressed: p.busy ||
+                          (selectedFilePath == null &&
+                              selectedFileContent == null &&
+                              sourceController.text.trim().isEmpty)
                       ? null
                       : execute,
                   icon: const Icon(Icons.file_download_done),
