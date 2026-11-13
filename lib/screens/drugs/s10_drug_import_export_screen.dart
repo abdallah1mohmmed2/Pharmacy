@@ -70,8 +70,9 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
         previewReady = false;
       });
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.toString())));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
     }
   }
 
@@ -94,8 +95,8 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
       final selectedMapping = _checkedMapping();
       late ImportDryRunResult result;
       if (path != null) {
-        result = await p.dryRunFile(filePath: path,
-            format: format, mapping: selectedMapping);
+        result = await p.dryRunFile(
+            filePath: path, format: format, mapping: selectedMapping);
       } else {
         final source = selectedFileContent ?? sourceController.text;
         if (source.trim().isEmpty) {
@@ -105,8 +106,8 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
           throw const FormatException(
               'النص كبير جداً؛ اختر ملفاً بدلاً من لصقه');
         }
-        result = await p.dryRun(source: source,
-            format: format, mapping: selectedMapping);
+        result = await p.dryRun(
+            source: source, format: format, mapping: selectedMapping);
       }
       if (!mounted) return;
       final stat = path == null ? null : await File(path).stat();
@@ -118,13 +119,18 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
         previewFileModified = stat?.modified;
       });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('الفحص: ' + result.validRows.toString() +
-            ' سليم، ' + result.errors.length.toString() + ' خطأ، ' +
-            result.duplicates.toString() + ' تكرار'),
+        content: Text('الفحص: ' +
+            result.validRows.toString() +
+            ' سليم، ' +
+            result.errors.length.toString() +
+            ' خطأ، ' +
+            result.duplicates.toString() +
+            ' تكرار'),
       ));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.toString())));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
       if (mounted) setState(() => previewRunning = false);
     }
@@ -143,30 +149,41 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
             previewFileSize != stat.size ||
             previewFileModified != stat.modified) {
           setState(() => previewReady = false);
-          throw const FormatException(
-              'تغير الملف، أعد الفحص قبل الاستيراد');
+          throw const FormatException('تغير الملف، أعد الفحص قبل الاستيراد');
         }
         result = await p.executeImportFile(
-          filePath: path, format: format, mapping: selectedMapping,
-          conflictPolicy: policy, fileName: fileName,
+          filePath: path,
+          format: format,
+          mapping: selectedMapping,
+          conflictPolicy: policy,
+          fileName: fileName,
           expectedRows: p.dryRunResult?.totalRows ?? 0,
         );
       } else {
         result = await p.executeImport(
           source: selectedFileContent ?? sourceController.text,
-          format: format, mapping: selectedMapping,
-          conflictPolicy: policy, fileName: fileName,
+          format: format,
+          mapping: selectedMapping,
+          conflictPolicy: policy,
+          fileName: fileName,
         );
       }
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('اكتمل الاستيراد: ' + result.inserted.toString() +
-            ' إضافة، ' + result.updated.toString() + ' تحديث، ' +
-            result.skipped.toString() + ' تخطي، ' +
-            result.errors.toString() + ' خطأ'),
-      ));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('اكتمل الاستيراد: ' +
+              result.inserted.toString() +
+              ' إضافة، ' +
+              result.updated.toString() +
+              ' تحديث، ' +
+              result.skipped.toString() +
+              ' تخطي، ' +
+              result.errors.toString() +
+              ' خطأ'),
+        ));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.toString())));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
     }
   }
 
@@ -249,10 +266,12 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
                         DropdownMenuItem(value: 'CSV', child: Text('CSV')),
                         DropdownMenuItem(value: 'JSON', child: Text('JSON'))
                       ],
-                      onChanged: p.busy ? null : (v) => setState(() {
-                        format = v ?? 'CSV';
-                        previewReady = false;
-                      }))),
+                      onChanged: p.busy
+                          ? null
+                          : (v) => setState(() {
+                                format = v ?? 'CSV';
+                                previewReady = false;
+                              }))),
               const SizedBox(width: 12),
               OutlinedButton.icon(
                   onPressed: p.busy || previewRunning ? null : pickFile,
@@ -268,11 +287,11 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
             TextField(
                 controller: sourceController,
                 onChanged: (_) => setState(() {
-                   selectedFilePath = null;
-                   selectedFileContent = null;
-                   fileName = null;
-                   previewReady = false;
-                 }),
+                      selectedFilePath = null;
+                      selectedFileContent = null;
+                      fileName = null;
+                      previewReady = false;
+                    }),
                 minLines: 8,
                 maxLines: 14,
                 decoration: const InputDecoration(
@@ -338,7 +357,8 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
                   label: const Text('فحص مسبق (Dry-Run)')),
               FilledButton.icon(
                   onPressed: p.busy || previewRunning || !previewReady
-                       ? null : execute,
+                      ? null
+                      : execute,
                   icon: const Icon(Icons.file_download_done),
                   label: const Text('بدء الاستيراد الفعلي'))
             ]),
