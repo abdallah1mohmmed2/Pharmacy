@@ -347,7 +347,7 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
           Uint8List.fromList(OpeningInventoryExcel.simpleTemplateBytes());
       final path = await FilePicker.platform.saveFile(
         dialogTitle: 'حفظ نموذج الأرصدة الافتتاحية',
-        fileName: 'pharmacy_opening_stock_4_columns.xlsx',
+        fileName: 'pharmacy_opening_stock_5_columns_with_expiry.xlsx',
         type: FileType.custom,
         allowedExtensions: ['xlsx'],
         bytes: data,
@@ -382,8 +382,7 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
         content: Text(
           'سيُضاف ${lines.length} صف بإجمالي ${preview.totalUnits} وحدة مخزنية إلى '
           'المخزون الحالي، وتُحفظ حركة لكل تشغيلة. '
-          'للملف المبسط: تاريخ الصلاحية المختار هو نفسه لكل الأصناف في الدفعة؛ '
-          'استورد كل صلاحية مختلفة في ملف مستقل. '
+          'يتحدد تاريخ الانتهاء لكل صف من عمود Excel، ويُسجّل لكل تشغيلة على حدة. '
           'القالب لا يحتوي على تكلفة الشراء؛ ستُسجل تكلفة الوحدات الجديدة بصفر '
           'وقد تتأثر تقارير الأرباح حتى تُراجع التكاليف. '
           'لا يمكن إلغاء العملية بحذف الملف. تأكد من عدم إدخالها سابقًا.',
@@ -479,11 +478,11 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
               ]),
           const SizedBox(height: 8),
           const Text(
-            'جميع الصفوف في ملف Excel أرصدة افتتاحية. الأعمدة الأربعة: اسم العلاج، '
-            'عدد الباكتات الموجودة، عدد الأشرطة داخل الباكت الواحد، وسعر الباكت الكامل. '
-            'يُؤخذ عدد الحبات في الشريط من بطاقة الدواء الحالية، ولا يُخمّن من الملف. '
-            'أضف أي دواء غير موجود وحدد تعبئته أولًا. '
-            'اختر تاريخ صلاحية واحدًا لكل دفعة؛ واستخدم ملفًا آخر للصلاحيات المختلفة.',
+            'جميع الصفوف في Excel أرصدة افتتاحية. الأعمدة الخمسة: اسم العلاج، '
+            'عدد الباكتات الموجودة، عدد الأشرطة في الباكت، سعر الباكت، وتاريخ الانتهاء لكل صف (YYYY-MM-DD). '
+            'يمكن إدخال الصنف نفسه في صفوف متعددة عند اختلاف تواريخ الصلاحية. '
+            'يؤخذ عدد الحبات في الشريط من بطاقة الدواء، ولا يُخمّن. '
+            'الأدوية غير الموجودة تحتاج إلى بطاقة دواء مكتملة التعبئة قبل الترحيل.',
           ),
           const SizedBox(height: 16),
           Text('الإدخال اليدوي', style: Theme.of(context).textTheme.titleLarge),
