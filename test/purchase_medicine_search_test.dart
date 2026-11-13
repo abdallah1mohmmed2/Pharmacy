@@ -86,6 +86,21 @@ void main() {
       expect(otherBranch.single.id, 27001);
       expect(await provider.searchPurchaseDrugs('', branchId: 1), isEmpty);
       expect(await provider.searchPurchaseDrugs('%', branchId: 1), isEmpty);
+      // Checkout is never allowed to load all 27k medicine objects.
+      await provider.loadDrugs();
+      expect(provider.drugs, hasLength(100));
+      expect(provider.drugs.every((d) => d.branchId == 1), isTrue);
+      await provider.searchDrugs('مميز');
+      expect(provider.drugs.map((d) => d.id), [27002]);
+      await provider.searchDrugs('1234567890123');
+      expect(provider.drugs.single.id, 27002);
+      await provider.searchDrugs('');
+      expect(provider.drugs.length, lessThanOrEqualTo(100));
+      expect(provider.search, isEmpty);
+      await provider.setBranchId(2);
+      expect(provider.drugs.every((d) => d.branchId == 2), isTrue);
+      await provider.searchDrugs('مميز');
+      expect(provider.drugs.map((d) => d.id), [27001]);
     } finally {
       await db.close();
     }
