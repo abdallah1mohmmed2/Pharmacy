@@ -135,18 +135,48 @@ abstract final class OpeningInventoryExcel {
     throw const FormatException('نوع خلية غير مدعوم');
   }
 
+  // Excel apps may encode whole numbers as floating-point cells, and users
+  // may enter Arabic-Indic digits in text cells.
+  static String _normalizeNumber(String raw) {
+    const arabicDigits = '٠١٢٣٤٥٦٧٨٩';
+    const easternDigits = '۰۱۲۳۴۵۶۷۸۹';
+    final output = StringBuffer();
+    for (final rune in raw.trim().runes) {
+      final ch = String.fromCharCode(rune);
+      final a = arabicDigits.indexOf(ch);
+      final e = easternDigits.indexOf(ch);
+      if (a >= 0) {
+        output.write(a);
+      } else if (e >= 0) {
+        output.write(e);
+      } else if (ch == '٬' || ch == ',') {
+        // Thousands separator.
+      } else if (ch == '٫') {
+        output.write('.');
+      } else {
+        output.write(ch);
+      }
+    }
+    return output.toString();
+  }
+
   static int _integer(String value, String label, {int defaultValue = 0}) {
     if (value.isEmpty) return defaultValue;
-    final parsed = int.tryParse(value);
-    if (parsed == null || parsed < 0) {
+    final normalized = _normalizeNumber(value);
+    final numeric = double.tryParse(normalized);
+    if (numeric == null ||
+        !numeric.isFinite ||
+        numeric < 0 ||
+        numeric > 9007199254740991 ||
+        numeric != numeric.truncateToDouble()) {
       throw FormatException('عدد غير صالح في $label');
     }
-    return parsed;
+    return numeric.toInt();
   }
 
   static double? _optionalPrice(String value, String label) {
     if (value.isEmpty) return null;
-    final parsed = double.tryParse(value);
+    final parsed = double.tryParse(_normalizeNumber(value));
     if (parsed == null || !parsed.isFinite || parsed < 0) {
       throw FormatException('سعر غير صالح في $label');
     }
