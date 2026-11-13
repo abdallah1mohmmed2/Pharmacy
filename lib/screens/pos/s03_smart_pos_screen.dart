@@ -7,6 +7,7 @@ import '../../providers/session_and_erp_provider.dart';
 import '../../core/theme/enterprise_dark_theme.dart';
 import '../../core/widgets/shared_widgets.dart';
 import '../../data/models/erp_models.dart';
+import '../../data/models/sale_unit_labels.dart';
 import '../../providers/inventory_and_purchase_provider.dart';
 import '../../providers/clinical_and_rx_provider.dart';
 import 's04_clinical_guard_dialog.dart';
@@ -722,7 +723,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
     return SmartExpandableCard(
       title: item.drug.tradeNameAr,
       primary: MoneyFormatter.format(item.lineTotal),
-      secondary: '${item.quantity} ${_unitLabel(item.sellUnit)}',
+      secondary: '${item.quantity} ${drugSaleUnitLabel(item.drug, item.sellUnit)}',
       leading: const CircleAvatar(
         backgroundColor: Color(0x224DB6AC),
         child: Icon(Icons.medication, color: AppColors.primary),
@@ -740,11 +741,12 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
             const SizedBox(width: 8),
             DropdownButton<String>(
               value: item.sellUnit,
-              items: const [
-                DropdownMenuItem(value: 'PACK', child: Text('باكت')),
-                DropdownMenuItem(value: 'STRIP', child: Text('شريط')),
-                DropdownMenuItem(value: 'UNIT', child: Text('حبة')),
-              ],
+              items: drugAvailableSaleUnits(item.drug, selected: item.sellUnit)
+                  .map((unit) => DropdownMenuItem(
+                        value: unit,
+                        child: Text(drugSaleUnitLabel(item.drug, unit)),
+                      ))
+                  .toList(),
               onChanged: (value) => pos.changeUnit(item, value ?? 'UNIT'),
             ),
             const Spacer(),
@@ -818,13 +820,6 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
       ],
     );
   }
-
-  String _unitLabel(String unit) => switch (unit) {
-        'PACK' => 'باكت',
-        'STRIP' => 'شريط',
-        'UNIT' => 'حبة',
-        _ => unit,
-      };
 
   Widget _creditPreview(
     PosAndDrugsProvider pos,
