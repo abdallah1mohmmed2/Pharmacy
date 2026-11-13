@@ -431,7 +431,6 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
   @override
   Widget build(BuildContext context) {
     final inventory = context.watch<InventoryAndPurchaseProvider>();
-    final drugProvider = context.watch<PosAndDrugsProvider>();
     final warehouses = inventory.warehouses;
     final activeWarehouseId = warehouses.any((w) => w.id == warehouseId)
         ? warehouseId
@@ -445,7 +444,6 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
     if (shelfCode != selectedShelf) shelfCode = selectedShelf;
 
     final dateLabel = _date(effectiveDate);
-    final available = drugProvider.drugs;
     final usesCompactExcel = lines.any((l) => l.resolveUnitsFromCatalog);
     final unitsTotal = lines.fold<int>(0, (sum, l) => sum + l.quantityUnits);
     final packsTotal = lines.fold<int>(0, (sum, l) => sum + l.cartons);
@@ -490,16 +488,14 @@ class _OpeningInventoryScreenState extends State<OpeningInventoryScreen> {
           Autocomplete<DrugModel>(
             displayStringForOption: (d) =>
                 '${d.tradeNameAr} • ${d.strengthText} [${d.internalCode}]',
-            optionsBuilder: (value) {
-              if (value.text.trim().isEmpty)
-                return const Iterable<DrugModel>.empty();
-              final term = value.text.trim().toLowerCase();
-              return available
-                  .where((d) =>
-                      d.tradeNameAr.toLowerCase().contains(term) ||
-                      d.tradeNameEn.toLowerCase().contains(term) ||
-                      d.internalCode.toLowerCase().contains(term))
-                  .take(30);
+            optionsBuilder: (value) async {
+              final term = value.text.trim();
+              if (term.length < 2) return const <DrugModel>[];
+              return context.read<PosAndDrugsProvider>().searchPurchaseDrugs(
+                    term,
+                    branchId: inventory.branchId,
+                    limit: 30,
+                  );
             },
             onSelected: _selectDrug,
             fieldViewBuilder: (context, controller, focusNode, submit) =>
