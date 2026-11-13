@@ -572,7 +572,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
             decoration: const InputDecoration(
               labelText: 'المبلغ المستلم من العميل (اختياري)',
             ),
-            onChanged: (_) => setState(() {}),
+            onChanged: (_) => update(() {}),
           ),
           ValueListenableBuilder<TextEditingValue>(
             valueListenable: tenderField,
@@ -619,7 +619,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
             decoration: const InputDecoration(
               labelText: 'المبلغ المدفوع الآن والباقي على حساب العميل',
             ),
-            onChanged: (_) => setState(() {}),
+            onChanged: (_) => update(() {}),
           ),
         if (method == 'MIXED')
           DropdownButtonFormField<String>(
@@ -998,8 +998,9 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
                 String method,
                 String? walletRef
               })>[];
+    int savedId;
     try {
-      final id = await pos.checkout(
+      savedId = await pos.checkout(
         cashierId: (session.currentUser?['id'] as int?) ?? 1,
         saleType: method == 'CREDIT'
             ? 'CREDIT'
@@ -1013,17 +1014,24 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
         branchId: session.branchId,
         clinicalVerdict: clinical.verdict,
       );
-      if (mounted) {
-        await _loadReceipt(id);
-        discount = 0;
-        discountField.text = '0';
-        tenderField.clear();
-        _message('تم حفظ الفاتورة رقم $id • يمكنك طباعة الإيصال');
-        await session.refresh();
-        await inventory.loadAll();
-      }
     } catch (error) {
-      _message(error.toString());
+      _message('لم تُحفظ الفاتورة: $error');
+      return;
+    }
+    // Committed sale must never be described as a failed transaction if a
+    // subsequent receipt query or dashboard refresh fails.
+    discount = 0;
+    discountField.text = '0';
+    tenderField.clear();
+    if (mounted) _message('تم حفظ الفاتورة رقم $savedId');
+    try {
+      if (mounted) await _loadReceipt(savedId);
+      if (mounted) await session.refresh();
+      if (mounted) await inventory.loadAll();
+    } catch (error) {
+      if (mounted) {
+        _message('الفاتورة $savedId محفوظة، لكن تعذر تحديث الشاشة: $error');
+      }
     }
     } catch (error) {
       _message(error.toString());
