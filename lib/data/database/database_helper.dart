@@ -24,7 +24,9 @@ class DatabaseHelper {
 
   /// Injects an isolated SQLite connection for deterministic integration tests.
   /// Production code must use [DatabaseHelper.instance].
-  DatabaseHelper.forTesting(Database database) : _db = database;
+  DatabaseHelper.forTesting(Database database)
+      : _db = database,
+        _openedPath = database.path;
   static final DatabaseHelper instance = DatabaseHelper._();
   Database? _db;
   String? _openedPath;
