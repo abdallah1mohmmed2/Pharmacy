@@ -144,6 +144,66 @@ class SettingsAndSystemProvider extends ChangeNotifier {
     }
   }
 
+
+  /// Bounded-memory validation of a file picked on Android.
+  Future<ImportDryRunResult> dryRunFile({
+    required String filePath,
+    required String format,
+    Map<String, String> mapping = const {},
+  }) async {
+    if (busy) throw StateError('توجد عملية استيراد قيد التنفيذ');
+    busy = true;
+    dryRunResult = null;
+    notifyListeners();
+    try {
+      final result = await importer.dryRunImportFile(
+          file: File(filePath), format: format, mapping: mapping);
+      dryRunResult = result;
+      notifyListeners();
+      return result;
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<ImportExecutionResult> executeImportFile({
+    required String filePath,
+    required String format,
+    Map<String, String> mapping = const {},
+    String conflictPolicy = 'SKIP',
+    String? fileName,
+    int expectedRows = 0,
+  }) async {
+    if (busy) throw StateError('توجد عملية استيراد قيد التنفيذ');
+    busy = true;
+    importProgress = 0;
+    importTotal = expectedRows;
+    notifyListeners();
+    try {
+      final result = await importer.executeImportFile(
+        file: File(filePath),
+        format: format,
+        mapping: mapping,
+        conflictPolicy: conflictPolicy,
+        fileName: fileName,
+        branchId: _activeBranchId(),
+        expectedRows: expectedRows,
+        onProgress: (done, total) {
+          importProgress = done;
+          importTotal = total;
+          notifyListeners();
+        },
+      );
+      importResult = result;
+      await refreshSystemData();
+      return result;
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
   Future<List<OpenFdaDrugResult>> searchOpenFda(String query) =>
       importer.searchOpenFda(query);
   Future<File> exportDrugs(
