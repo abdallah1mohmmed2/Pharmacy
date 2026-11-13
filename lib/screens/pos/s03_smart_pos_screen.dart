@@ -170,6 +170,14 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
               onPressed: () => _showDrugPicker(pos),
               icon: const Icon(Icons.add_shopping_cart),
             ),
+            if (_lastReceipt != null) ...[
+              const SizedBox(width: 5),
+              IconButton(
+                tooltip: 'طباعة آخر فاتورة',
+                onPressed: () => _receiptBuilder.printReceiptNow(context, _lastReceipt!),
+                icon: const Icon(Icons.print_outlined),
+              ),
+            ],
           ],
         ),
         const SizedBox(height: 7),
@@ -484,6 +492,12 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
             ),
             const SizedBox(height: 8),
             _paymentFields(pos, session),
+            if (_lastReceipt != null)
+              OutlinedButton.icon(
+                onPressed: () => _receiptBuilder.printReceiptNow(context, _lastReceipt!),
+                icon: const Icon(Icons.print_outlined),
+                label: const Text('طباعة آخر فاتورة'),
+              ),
             const SizedBox(height: 8),
             FilledButton.icon(
               onPressed:
@@ -529,8 +543,13 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
 
   Widget _paymentFields(
     PosAndDrugsProvider pos,
-    SessionAndErpProvider session,
-  ) {
+    SessionAndErpProvider session, {
+    StateSetter? sheetRefresh,
+  }) {
+    void update(VoidCallback action) {
+      setState(action);
+      sheetRefresh?.call(() {});
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -542,7 +561,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
             helperText: 'لا يمكن أن يتجاوز الخصم قيمة الأصناف',
           ),
           onChanged: (value) =>
-              setState(() => discount = double.tryParse(value.trim()) ?? -1),
+              update(() => discount = double.tryParse(value.trim()) ?? -1),
         ),
         const SizedBox(height: 8),
         if (method == 'CASH') ...[
@@ -577,7 +596,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
             DropdownMenuItem(value: 'CREDIT', child: Text('آجل')),
             DropdownMenuItem(value: 'MIXED', child: Text('مختلط')),
           ],
-          onChanged: (value) => setState(() => method = value ?? 'CASH'),
+          onChanged: (value) => update(() => method = value ?? 'CASH'),
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<int>(
@@ -590,7 +609,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
                     child: Text(account.nameAr),
                   ))
               .toList(),
-          onChanged: (value) => setState(() => cashId = value),
+          onChanged: (value) => update(() => cashId = value),
         ),
         if (method == 'MIXED')
           TextField(
@@ -610,7 +629,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
               DropdownMenuItem(value: 'WALLET', child: Text('محفظة إلكترونية')),
             ],
             onChanged: (value) =>
-                setState(() => mixedChannel = value ?? 'CASH'),
+                update(() => mixedChannel = value ?? 'CASH'),
           ),
         if (method == 'WALLET' ||
             (method == 'MIXED' && mixedChannel == 'WALLET'))
@@ -627,7 +646,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
                       child: Text(party.nameAr),
                     ))
                 .toList(),
-            onChanged: (value) => setState(() => customerId = value),
+            onChanged: (value) => update(() => customerId = value),
           ),
         if (method == 'CREDIT' || method == 'MIXED')
           _creditPreview(pos, session),
@@ -841,7 +860,8 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
       context: context,
       heightFactor: .94,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      builder: (sheetContext) => Column(
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, refreshSheet) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text('الدفع وإتمام الفاتورة',
@@ -886,7 +906,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
             label: const Text('مراجعة التنبيهات السريرية'),
           ),
           const SizedBox(height: 8),
-          _paymentFields(pos, session),
+          _paymentFields(pos, session, sheetRefresh: refreshSheet),
           const SizedBox(height: 14),
           FilledButton.icon(
             onPressed: pos.cart.isEmpty || _checkoutBusy || pos.checkoutPending
@@ -900,6 +920,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
           ),
         ],
       ),
+      ),
     );
   }
 
@@ -909,6 +930,9 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
     InventoryAndPurchaseProvider inventory,
     ClinicalAndRxProvider clinical,
   ) async {
+    if (_checkoutBusy || pos.checkoutPending) return;
+    setState(() => _checkoutBusy = true);
+    try {
     final verdict = await clinical.evaluateCart(
       pos.cart.map((item) => item.drug).toList(),
     );
@@ -1005,6 +1029,11 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
       }
     } catch (error) {
       _message(error.toString());
+    }
+    } catch (error) {
+      _message(error.toString());
+    } finally {
+      if (mounted) setState(() => _checkoutBusy = false);
     }
   }
 
