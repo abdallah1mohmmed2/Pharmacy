@@ -28,6 +28,10 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
   int? exportCategoryId;
   List<OpenFdaDrugResult> fdaResults = [];
   bool searching = false;
+  bool previewReady = false, previewRunning = false;
+  String? previewFilePath;
+  int? previewFileSize;
+  DateTime? previewFileModified;
   @override
   void dispose() {
     sourceController.dispose();
@@ -46,68 +50,123 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
   }
 
   Future<void> pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['csv', 'json'],
-        withData: false);
-    if (result == null || result.files.isEmpty) return;
-    final file = result.files.single;
-    if (file.path == null && file.bytes == null) {
-      throw const FormatException('تعذر الوصول إلى الملف المحدد');
+    try {
+      final result = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['csv', 'json'],
+          withData: false);
+      if (result == null || result.files.isEmpty) return;
+      final picked = result.files.single;
+      if (picked.path == null || !await File(picked.path!).exists()) {
+        throw const FormatException('تعذر فتح الملف المختار من الهاتف');
+      }
+      if (!mounted) return;
+      setState(() {
+        sourceController.clear();
+        selectedFilePath = picked.path;
+        selectedFileContent = null;
+        fileName = picked.name;
+        format = picked.extension?.toUpperCase() == 'JSON' ? 'JSON' : 'CSV';
+        previewReady = false;
+      });
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.toString())));
     }
-    if (!mounted) return;
-    setState(() {
-      // Never render multi-megabyte source files inside an editable TextField.
-      sourceController.clear();
-      selectedFilePath = file.path;
-      selectedFileContent = file.path == null
-          ? utf8.decode(file.bytes!, allowMalformed: true)
-          : null;
-      fileName = file.name;
-      format = file.extension?.toUpperCase() == 'JSON' ? 'JSON' : 'CSV';
-    });
   }
 
-  Future<String> _importSource() async {
-    if (selectedFilePath != null) {
-      return File(selectedFilePath!).readAsString(encoding: utf8);
+  Map<String, String> _checkedMapping() {
+    if (mappingController.text.trim().isNotEmpty && mapping.isEmpty) {
+      throw const FormatException('ربط الأعمدة ليس JSON صالحاً');
     }
-    return selectedFileContent ?? sourceController.text;
+    return mapping;
   }
 
   Future<void> dryRun() async {
-    final p = context.read<SettingsAndSystemProvider>();
+    if (previewRunning) return;
+    setState(() {
+      previewRunning = true;
+      previewReady = false;
+    });
     try {
-      final result = await p.dryRun(
-          source: await _importSource(), format: format, mapping: mapping);
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(
-                'الفحص: ${result.validRows} سليم، ${result.errors.length} خطأ، ${result.duplicates} تكرار')));
+      final p = context.read<SettingsAndSystemProvider>();
+      final path = selectedFilePath;
+      final selectedMapping = _checkedMapping();
+      late ImportDryRunResult result;
+      if (path != null) {
+        result = await p.dryRunFile(filePath: path,
+            format: format, mapping: selectedMapping);
+      } else {
+        final source = selectedFileContent ?? sourceController.text;
+        if (source.trim().isEmpty) {
+          throw const FormatException('اختر ملفاً أو أدخل بيانات');
+        }
+        if (source.length > 200000) {
+          throw const FormatException(
+              'النص كبير جداً؛ اختر ملفاً بدلاً من لصقه');
+        }
+        result = await p.dryRun(source: source,
+            format: format, mapping: selectedMapping);
+      }
+      if (!mounted) return;
+      final stat = path == null ? null : await File(path).stat();
+      if (!mounted) return;
+      setState(() {
+        previewReady = result.validRows > 0 && result.errors.isEmpty;
+        previewFilePath = path;
+        previewFileSize = stat?.size;
+        previewFileModified = stat?.modified;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('الفحص: ' + result.validRows.toString() +
+            ' سليم، ' + result.errors.length.toString() + ' خطأ، ' +
+            result.duplicates.toString() + ' تكرار'),
+      ));
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.toString())));
+      if (mounted) ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) setState(() => previewRunning = false);
     }
   }
 
   Future<void> execute() async {
+    if (!previewReady) return;
     final p = context.read<SettingsAndSystemProvider>();
     try {
-      final r = await p.executeImport(
-          source: await _importSource(),
-          format: format,
-          mapping: mapping,
-          conflictPolicy: policy,
-          fileName: fileName);
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(
-                'اكتمل الاستيراد: ${r.inserted} إضافة، ${r.updated} تحديث، ${r.skipped} تخطي، ${r.errors} خطأ')));
+      final path = selectedFilePath;
+      final selectedMapping = _checkedMapping();
+      late ImportExecutionResult result;
+      if (path != null) {
+        final stat = await File(path).stat();
+        if (previewFilePath != path ||
+            previewFileSize != stat.size ||
+            previewFileModified != stat.modified) {
+          setState(() => previewReady = false);
+          throw const FormatException(
+              'تغير الملف، أعد الفحص قبل الاستيراد');
+        }
+        result = await p.executeImportFile(
+          filePath: path, format: format, mapping: selectedMapping,
+          conflictPolicy: policy, fileName: fileName,
+          expectedRows: p.dryRunResult?.totalRows ?? 0,
+        );
+      } else {
+        result = await p.executeImport(
+          source: selectedFileContent ?? sourceController.text,
+          format: format, mapping: selectedMapping,
+          conflictPolicy: policy, fileName: fileName,
+        );
+      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('اكتمل الاستيراد: ' + result.inserted.toString() +
+            ' إضافة، ' + result.updated.toString() + ' تحديث، ' +
+            result.skipped.toString() + ' تخطي، ' +
+            result.errors.toString() + ' خطأ'),
+      ));
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.toString())));
+      if (mounted) ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.toString())));
     }
   }
 
@@ -190,10 +249,13 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
                         DropdownMenuItem(value: 'CSV', child: Text('CSV')),
                         DropdownMenuItem(value: 'JSON', child: Text('JSON'))
                       ],
-                      onChanged: (v) => setState(() => format = v ?? 'CSV'))),
+                      onChanged: p.busy ? null : (v) => setState(() {
+                        format = v ?? 'CSV';
+                        previewReady = false;
+                      }))),
               const SizedBox(width: 12),
               OutlinedButton.icon(
-                  onPressed: pickFile,
+                  onPressed: p.busy || previewRunning ? null : pickFile,
                   icon: const Icon(Icons.attach_file),
                   label: const Text('اختيار ملف'))
             ]),
@@ -205,11 +267,12 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
             const SizedBox(height: 12),
             TextField(
                 controller: sourceController,
-                onChanged: (_) {
-                  selectedFilePath = null;
-                  selectedFileContent = null;
-                  fileName = null;
-                },
+                onChanged: (_) => setState(() {
+                   selectedFilePath = null;
+                   selectedFileContent = null;
+                   fileName = null;
+                   previewReady = false;
+                 }),
                 minLines: 8,
                 maxLines: 14,
                 decoration: const InputDecoration(
@@ -226,15 +289,17 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
                     .toList(),
                 onChanged: (template) {
                   if (template != null)
-                    setState(() =>
-                        mappingController.text = jsonEncode(template.columns));
+                    setState(() {
+                      mappingController.text = jsonEncode(template.columns);
+                      previewReady = false;
+                    });
                 }),
             const SizedBox(height: 12),
             TextField(
                 controller: mappingController,
                 minLines: 2,
                 maxLines: 5,
-                onChanged: (_) => setState(() => {}),
+                onChanged: (_) => setState(() => previewReady = false),
                 decoration: const InputDecoration(
                     labelText: 'ربط الأعمدة بصيغة JSON (اختياري)',
                     hintText: '{"اسم الدواء":"trade_name_ar"}',
@@ -268,16 +333,12 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
             const SizedBox(height: 16),
             Wrap(spacing: 8, runSpacing: 8, children: [
               OutlinedButton.icon(
-                  onPressed: dryRun,
+                  onPressed: p.busy || previewRunning ? null : dryRun,
                   icon: const Icon(Icons.fact_check),
                   label: const Text('فحص مسبق (Dry-Run)')),
               FilledButton.icon(
-                  onPressed: p.busy ||
-                          (selectedFilePath == null &&
-                              selectedFileContent == null &&
-                              sourceController.text.trim().isEmpty)
-                      ? null
-                      : execute,
+                  onPressed: p.busy || previewRunning || !previewReady
+                       ? null : execute,
                   icon: const Icon(Icons.file_download_done),
                   label: const Text('بدء الاستيراد الفعلي'))
             ]),
