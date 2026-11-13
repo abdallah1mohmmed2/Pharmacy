@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../providers/inventory_and_purchase_provider.dart';
 import '../../providers/session_and_erp_provider.dart';
 import '../../providers/pos_and_drugs_provider.dart';
+import '../../data/models/drug_model.dart';
+import 'purchase_medicine_search_sheet.dart';
 import '../../core/widgets/shared_widgets.dart';
 import '../../data/services/purchase_and_bonus_service.dart';
 
@@ -19,7 +21,8 @@ class _S16PurchaseInvoiceBonusScreenState
     extends State<S16PurchaseInvoiceBonusScreen> {
   int? supplier;
   int? warehouse;
-  int? drug;
+  DrugModel? selectedPurchaseDrug;
+  final Map<int, String> itemDrugNames = {};
   int? location;
   int? cash;
   String payment = 'CREDIT';
@@ -66,7 +69,6 @@ class _S16PurchaseInvoiceBonusScreenState
   Widget build(BuildContext context) {
     final inventory = context.watch<InventoryAndPurchaseProvider>();
     final session = context.watch<SessionAndErpProvider>();
-    final pos = context.watch<PosAndDrugsProvider>();
     final suppliers = session.parties
         .where((party) => party.partyType == 'SUPPLIER')
         .toList();
@@ -201,7 +203,7 @@ class _S16PurchaseInvoiceBonusScreenState
                   FilledButton.icon(
                     onPressed: saving
                         ? null
-                        : () => _showAddPurchaseItemSheet(pos, inventory),
+                        : () => _showAddPurchaseItemSheet(inventory),
                     icon: const Icon(Icons.add_shopping_cart),
                     label: const Text('إضافة بند شراء'),
                   ),
@@ -212,10 +214,8 @@ class _S16PurchaseInvoiceBonusScreenState
           if (lines.isNotEmpty) ...[
             const Divider(),
             ...lines.map((item) {
-              final matches = pos.drugs.where((drug) => drug.id == item.drugId);
-              final name = matches.isEmpty
-                  ? 'دواء رقم ${item.drugId}'
-                  : matches.first.tradeNameAr;
+              final name = itemDrugNames[item.drugId] ??
+                  'دواء رقم ${item.drugId}';
               final lineTotal = item.qtyPacksPaid *
                   item.packPrice *
                   (1 - item.lineDiscountPct / 100);
@@ -285,18 +285,19 @@ class _S16PurchaseInvoiceBonusScreenState
   }
 
   Future<void> _showAddPurchaseItemSheet(
-    PosAndDrugsProvider pos,
     InventoryAndPurchaseProvider inventory,
   ) async {
+    final branchId = context.read<SessionAndErpProvider>().branchId;
+    if (selectedPurchaseDrug?.branchId != branchId) {
+      selectedPurchaseDrug = null;
+    }
     await KeyboardSafeModalSheet.show<void>(
       context: context,
       heightFactor: .94,
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, refreshSheet) {
-          final selectedDrug =
-              pos.drugs.where((item) => item.id == drug).toList();
-          final coldRequired = selectedDrug.isNotEmpty &&
-              selectedDrug.first.requiresRefrigeration;
+          final coldRequired =
+              selectedPurchaseDrug?.requiresRefrigeration ?? false;
           final shelves = inventory.shelves
               .where((shelf) => shelf.warehouseId == warehouse)
               .where((shelf) => !coldRequired || shelf.isFridge)
@@ -319,21 +320,37 @@ class _S16PurchaseInvoiceBonusScreenState
                     style:
                         TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<int>(
-                  value: drug,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'الدواء *'),
-                  items: pos.drugs
-                      .map((item) => DropdownMenuItem(
-                            value: item.id,
-                            child: Text(item.tradeNameAr),
-                          ))
-                      .toList(),
-                  onChanged: saving
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.search),
+                  label: Text(
+                    selectedPurchaseDrug == null
+                        ? 'ابحث واختر الدواء *'
+                        : '${selectedPurchaseDrug!.tradeNameAr} • ${selectedPurchaseDrug!.internalCode}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onPressed: saving
                       ? null
-                      : (value) {
+                      : () async {
+                          final picked =
+                              await KeyboardSafeModalSheet.show<DrugModel>(
+                            context: sheetContext,
+                            heightFactor: .85,
+                            builder: (_) => PurchaseMedicineSearchSheet(
+                              search: (query) => context
+                                  .read<PosAndDrugsProvider>()
+                                  .searchPurchaseDrugs(
+                                    query,
+                                    branchId: branchId,
+                                  ),
+                            ),
+                          );
+                          if (picked == null ||
+                              !mounted ||
+                              !sheetContext.mounted) {
+                            return;
+                          }
                           setState(() {
-                            drug = value;
+                            selectedPurchaseDrug = picked;
                             location = null;
                           });
                           refreshSheet(() {});
@@ -463,7 +480,7 @@ class _S16PurchaseInvoiceBonusScreenState
                       ? null
                       : () async {
                           final previousCount = lines.length;
-                          await _addLine(pos, inventory);
+                          await _addLine(inventory);
                           if (lines.length > previousCount &&
                               sheetContext.mounted) {
                             Navigator.pop(sheetContext);
@@ -491,16 +508,17 @@ class _S16PurchaseInvoiceBonusScreenState
       );
 
   Future<void> _addLine(
-    PosAndDrugsProvider pos,
     InventoryAndPurchaseProvider inventory,
   ) async {
-    final selected = pos.drugs.where((item) => item.id == drug).toList();
+    final selected = selectedPurchaseDrug;
     final packs = int.tryParse(paidPacks.text) ?? 0;
     final free = int.tryParse(bonus.text) ?? 0;
     final cost = double.tryParse(price.text) ?? -1;
     final discountPct = double.tryParse(lineDiscount.text) ?? 0;
     final expiryDate = DateTime.tryParse(expiry.text.trim());
-    if (selected.isEmpty ||
+    if (selected == null ||
+        selected.id == null ||
+        selected.branchId != context.read<SessionAndErpProvider>().branchId ||
         warehouse == null ||
         batchNo.text.trim().isEmpty ||
         expiryDate == null ||
@@ -515,7 +533,7 @@ class _S16PurchaseInvoiceBonusScreenState
       _message('تحقق من الدواء والتشغيلة والصلاحية والكميات والسعر والخصم');
       return;
     }
-    if (selected.first.requiresRefrigeration) {
+    if (selected.requiresRefrigeration) {
       final shelf = inventory.shelves.where((item) => item.id == location);
       if (shelf.isEmpty || !shelf.first.isFridge) {
         _message('الدواء المبرد يجب وضعه على رف مبرد');
@@ -535,9 +553,10 @@ class _S16PurchaseInvoiceBonusScreenState
       return;
     }
     setState(() {
+      itemDrugNames[selected.id!] = selected.tradeNameAr;
       lines.add(
         PurchaseLineInput(
-          drugId: drug!,
+          drugId: selected.id!,
           batchNo: batchNo.text.trim(),
           expiryDate: expiry.text.trim(),
           warehouseId: warehouse!,
@@ -601,6 +620,7 @@ class _S16PurchaseInvoiceBonusScreenState
       if (!mounted) return;
       setState(() {
         lines.clear();
+        itemDrugNames.clear();
         paid.text = '0';
         invoiceDiscount.text = '0';
         tax.text = '0';
