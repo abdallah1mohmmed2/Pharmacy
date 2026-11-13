@@ -35,8 +35,9 @@ class ImportExecutionResult {
       required this.inserted,
       required this.updated,
       required this.skipped,
-      required this.errors});
-  final int jobId, inserted, updated, skipped, errors;
+      required this.errors,
+      this.barcodeConflicts = 0});
+  final int jobId, inserted, updated, skipped, errors, barcodeConflicts;
 }
 
 class DrugImportExportService {
