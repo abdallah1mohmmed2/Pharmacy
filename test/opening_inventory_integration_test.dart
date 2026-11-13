@@ -378,17 +378,24 @@ void main() {
         () async {
       // The template specifies 3 strips per pack, not tablets per strip.
       // The latter comes from the existing drug card (10 tablets/strip).
-      await db.update('drugs', {
-        'strips_per_pack': 3,
-        'units_per_strip': 10,
-        'units_per_pack': 30,
-      }, where: 'id=?', whereArgs: [drugId]);
+      await db.update(
+          'drugs',
+          {
+            'strips_per_pack': 3,
+            'units_per_strip': 10,
+            'units_per_pack': 30,
+          },
+          where: 'id=?',
+          whereArgs: [drugId]);
 
       final book =
           Excel.decodeBytes(OpeningInventoryExcel.simpleTemplateBytes());
       final sheet = book['الرصيد الافتتاحي'];
       sheet.appendRow([
-        TextCellValue('دواء مرجعي فقط'), null, null, null,
+        TextCellValue('دواء مرجعي فقط'),
+        null,
+        null,
+        null,
       ]);
       sheet.appendRow([
         TextCellValue('دواء تجريبي'),
@@ -414,8 +421,8 @@ void main() {
       expect(preview.totalUnits, 360); // 12 packs * 3 strips * 10 tablets
       await post('simple-stock-first', parsed.lines, hash: 'simple-file-1');
 
-      final stored = (await db.query('drugs',
-          where: 'id=?', whereArgs: [drugId])).single;
+      final stored =
+          (await db.query('drugs', where: 'id=?', whereArgs: [drugId])).single;
       expect(stored['stock_total_units'], 360);
       expect(stored['sell_price_pack'], 1000);
       expect(stored['strips_per_pack'], 3);
@@ -428,8 +435,7 @@ void main() {
       expect(await db.rawQuery('PRAGMA foreign_key_check'), isEmpty);
     });
 
-    test('simple template does not invent missing tablets-per-strip',
-        () async {
+    test('simple template does not invent missing tablets-per-strip', () async {
       final book =
           Excel.decodeBytes(OpeningInventoryExcel.simpleTemplateBytes());
       book['الرصيد الافتتاحي'].appendRow([
@@ -452,8 +458,10 @@ void main() {
       );
       expect(preview.errors, hasLength(1));
       expect(preview.errors.single, contains('الصنف غير موجود'));
-      expect(await db.query('drugs',
-          where: 'trade_name_ar=?', whereArgs: ['صنف غير موجود']), isEmpty);
+      expect(
+          await db.query('drugs',
+              where: 'trade_name_ar=?', whereArgs: ['صنف غير موجود']),
+          isEmpty);
     });
 
     test('unknown Excel drug is created automatically only on approval',
