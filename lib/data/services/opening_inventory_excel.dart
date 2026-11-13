@@ -214,10 +214,9 @@ abstract final class OpeningInventoryExcel {
           }
           final packetsPerCarton =
               _integer(cell('عدد الباكتات'), 'عدد الباكتات');
-          final unitsPerPacket =
-              _integer(cell('عدد الأشرطة'), 'عدد الأشرطة');
-          final openingCartons = _integer(
-              cell('الأرصدة الافتتاحية'), 'الأرصدة الافتتاحية');
+          final unitsPerPacket = _integer(cell('عدد الأشرطة'), 'عدد الأشرطة');
+          final openingCartons =
+              _integer(cell('الأرصدة الافتتاحية'), 'الأرصدة الافتتاحية');
           if (packetsPerCarton <= 0 || unitsPerPacket <= 0) {
             throw const FormatException(
                 'عدد الباكتات والأشرطة يجب أن يكون أكبر من الصفر');
@@ -226,8 +225,7 @@ abstract final class OpeningInventoryExcel {
             throw const FormatException(
                 'الرصيد الافتتاحي يجب أن يكون أكبر من الصفر');
           }
-          final packetPrice =
-              _optionalPrice(cell('سعر الباكت'), 'سعر الباكت');
+          final packetPrice = _optionalPrice(cell('سعر الباكت'), 'سعر الباكت');
           final medicinePrice =
               _optionalPrice(cell('سعر العلاج'), 'سعر العلاج');
           result.add(OpeningStockLine(
@@ -236,8 +234,8 @@ abstract final class OpeningInventoryExcel {
             cartons: openingCartons,
             packetsPerCarton: packetsPerCarton,
             unitsPerPacket: unitsPerPacket,
-            prices: OpeningStockPrices(
-                packet: packetPrice, unit: medicinePrice),
+            prices:
+                OpeningStockPrices(packet: packetPrice, unit: medicinePrice),
             expiryDate: defaultExpiryDate,
           ));
         } catch (e) {
