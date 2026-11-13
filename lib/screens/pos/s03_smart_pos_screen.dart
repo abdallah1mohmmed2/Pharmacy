@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -26,6 +27,10 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
   final search = TextEditingController();
   final walletRef = TextEditingController();
   final paidAmount = TextEditingController();
+  final discountField = TextEditingController(text: '0');
+  final tenderField = TextEditingController();
+  Timer? _searchDebounce;
+  bool _checkoutBusy = false;
   String method = 'CASH';
   String mixedChannel = 'CASH';
   int? customerId;
@@ -34,11 +39,33 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
   ReceiptData? _lastReceipt;
   final _receiptBuilder = const ReceiptAndLabelBuilder();
 
+  double _net(PosAndDrugsProvider pos) =>
+      (pos.total - discount).clamp(0, double.infinity).toDouble();
+
+  void _scheduleSearch(PosAndDrugsProvider pos, String query) {
+    _searchDebounce?.cancel();
+    final term = query.trim();
+    if (term.isEmpty) {
+      pos.loadDrugs();
+      return;
+    }
+    if (term.length < 2) {
+      pos.searchDrugs(term);
+      return;
+    }
+    _searchDebounce = Timer(const Duration(milliseconds: 260), () {
+      if (mounted) pos.searchDrugs(term);
+    });
+  }
+
   @override
   void dispose() {
     search.dispose();
     walletRef.dispose();
     paidAmount.dispose();
+    discountField.dispose();
+    tenderField.dispose();
+    _searchDebounce?.cancel();
     super.dispose();
   }
 
@@ -127,7 +154,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
               child: TextField(
                 controller: search,
                 textInputAction: TextInputAction.search,
-                onChanged: pos.searchDrugs,
+                onChanged: (value) => _scheduleSearch(pos, value),
                 onSubmitted: (_) => _showDrugPicker(pos),
                 decoration: const InputDecoration(
                   prefixIcon: Icon(Icons.search),
@@ -230,7 +257,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
               prefixIcon: Icon(Icons.search),
               hintText: 'اسم تجاري أو علمي أو باركود',
             ),
-            onChanged: pos.searchDrugs,
+            onChanged: (value) => _scheduleSearch(pos, value),
           ),
           const SizedBox(height: 8),
           Expanded(
@@ -267,7 +294,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
           const SizedBox(height: 10),
           TextField(
             autofocus: true,
-            onChanged: pos.searchDrugs,
+            onChanged: (value) => _scheduleSearch(pos, value),
             textInputAction: TextInputAction.search,
             decoration: const InputDecoration(
               prefixIcon: Icon(Icons.search),
@@ -277,11 +304,12 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
           const SizedBox(height: 10),
           SizedBox(
             height: MediaQuery.sizeOf(sheetContext).height * .58,
-            child: ListView.builder(
+            child: Consumer<PosAndDrugsProvider>(
+              builder: (context, current, _) => ListView.builder(
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              itemCount: pos.drugs.length,
+              itemCount: current.drugs.length,
               itemBuilder: (context, index) {
-                final drug = pos.drugs[index];
+                final drug = current.drugs[index];
                 return Card(
                   child: ListTile(
                     title: Text(drug.tradeNameAr),
@@ -298,6 +326,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
                   ),
                 );
               },
+            ),
             ),
           ),
         ],
