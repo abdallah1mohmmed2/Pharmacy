@@ -10,8 +10,9 @@ class OpeningStockPrices {
   final double? packet;
   final double? unit;
 
-  static double _rounded(double value) =>
-      double.parse(value.toStringAsFixed(2));
+  // Only automatically calculated prices are rounded upward to a full 10.
+  // Explicitly entered carton/packet/unit prices always remain unchanged.
+  static double _rounded(double value) => (value / 10).ceil() * 10.0;
 
   OpeningStockPrices fillMissing(int packetsPerCarton, int unitsPerPacket) {
     if (packetsPerCarton <= 0 || unitsPerPacket <= 0) {
