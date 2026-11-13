@@ -374,6 +374,73 @@ void main() {
           sourceHash: hash,
         );
 
+    test('unknown Excel drug is created automatically only on approval',
+        () async {
+      final imported = OpeningStockLine(
+        drugName: 'باراسيتامول - أدكو 1 جم 20 قرص',
+        dosageForm: 'TABLET',
+        warehouseId: warehouseId,
+        expiryDate: futureExpiry,
+        cartons: 0,
+        packets: 0,
+        units: 140,
+        packetsPerCarton: 1,
+        unitsPerPacket: 20,
+        prices: const OpeningStockPrices(unit: 50),
+      );
+      final before = await db.query('drugs');
+      final preview = await service.preview(
+          branchId: branchId,
+          effectiveDate: DateTime.now().toIso8601String().substring(0, 10),
+          lines: [imported]);
+      expect(preview.errors, isEmpty);
+      expect(preview.totalUnits, 140);
+      expect(await db.query('drugs'), before,
+          reason: 'Preview must never persist provisional medicines');
+      await post('opening-auto-new', [imported], hash: 'auto-hash-1');
+      final drugs = await db.query('drugs',
+          where: 'trade_name_ar=?',
+          whereArgs: ['باراسيتامول - أدكو 1 جم 20 قرص']);
+      expect(drugs, hasLength(1));
+      expect(drugs.single['dosage_form'], 'TABLET');
+      expect(drugs.single['units_per_pack'], 20);
+      expect(drugs.single['stock_total_units'], 140);
+      expect(await db.query('stock_movements'), hasLength(1));
+      expect(await db.query('batches_fefo'), hasLength(1));
+      expect(await db.rawQuery('PRAGMA foreign_key_check'), isEmpty);
+      await expectLater(
+          post('opening-auto-repeat', [imported], hash: 'auto-hash-1'),
+          throwsStateError);
+      expect(await db.query('drugs',
+          where: 'trade_name_ar=?',
+          whereArgs: ['باراسيتامول - أدكو 1 جم 20 قرص']), hasLength(1));
+    });
+
+    test('failed import rolls back newly created medicine and its stock',
+        () async {
+      final missing = OpeningStockLine(
+        drugName: 'دواء غير مسجل',
+        warehouseId: warehouseId,
+        expiryDate: futureExpiry,
+        cartons: 0,
+        packets: 0,
+        units: 10,
+        packetsPerCarton: 1,
+        unitsPerPacket: 10,
+      );
+      await expectLater(
+          post('opening-auto-rollback', [
+            missing,
+            row(lot: 'INVALID-SHELF', shelf: 'MISSING-SHELF'),
+          ]),
+          throwsStateError);
+      expect(await db.query('drugs',
+          where: 'trade_name_ar=?',
+          whereArgs: ['دواء غير مسجل']), isEmpty);
+      expect(await db.query('stock_movements'), isEmpty);
+      expect(await db.query('opening_inventory_posts'), isEmpty);
+    });
+
     test('280 units are posted to FEFO, movements, existing drug fields',
         () async {
       final settingsBefore =
