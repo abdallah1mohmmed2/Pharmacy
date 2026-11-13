@@ -732,10 +732,13 @@ class _S08S09DrugEncyclopediaScreenState
           'OTHER': 'أخرى',
         };
         final current = controller.text.trim().toUpperCase();
+        final selected = formLabels.containsKey(current) ? current : 'OTHER';
+        // Keep the backing form controller in sync even for legacy bad values.
+        if (controller.text != selected) controller.text = selected;
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: DropdownButtonFormField<String>(
-            value: formLabels.containsKey(current) ? current : 'OTHER',
+            value: selected,
             decoration: InputDecoration(labelText: labels[key]),
             isExpanded: true,
             items: [
