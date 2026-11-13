@@ -411,9 +411,11 @@ void main() {
       await expectLater(
           post('opening-auto-repeat', [imported], hash: 'auto-hash-1'),
           throwsStateError);
-      expect(await db.query('drugs',
-          where: 'trade_name_ar=?',
-          whereArgs: ['باراسيتامول - أدكو 1 جم 20 قرص']), hasLength(1));
+      expect(
+          await db.query('drugs',
+              where: 'trade_name_ar=?',
+              whereArgs: ['باراسيتامول - أدكو 1 جم 20 قرص']),
+          hasLength(1));
     });
 
     test('failed import rolls back newly created medicine and its stock',
@@ -434,9 +436,10 @@ void main() {
             row(lot: 'INVALID-SHELF', shelf: 'MISSING-SHELF'),
           ]),
           throwsStateError);
-      expect(await db.query('drugs',
-          where: 'trade_name_ar=?',
-          whereArgs: ['دواء غير مسجل']), isEmpty);
+      expect(
+          await db.query('drugs',
+              where: 'trade_name_ar=?', whereArgs: ['دواء غير مسجل']),
+          isEmpty);
       expect(await db.query('stock_movements'), isEmpty);
       expect(await db.query('opening_inventory_posts'), isEmpty);
     });

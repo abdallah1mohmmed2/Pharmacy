@@ -209,8 +209,8 @@ class OpeningInventoryService {
           'units_per_pack': row.packetsPerCarton * row.unitsPerPacket,
           'stock_total_units': 0,
         });
-        drugs = await txn.query('drugs', where: 'id=?', whereArgs: [id],
-            limit: 1);
+        drugs =
+            await txn.query('drugs', where: 'id=?', whereArgs: [id], limit: 1);
       }
     }
     final drug = drugs.first;
@@ -312,26 +312,27 @@ class OpeningInventoryService {
     final db = await _helper.database;
     try {
       await db.transaction((txn) async {
-      for (var i = 0; i < lines.length; i++) {
-        try {
-          final prepared =
-              await _prepare(txn, branchId, lines[i], effectiveDate);
-          final key = '${lines[i].packetsPerCarton}x${lines[i].unitsPerPacket}';
-          if (seenRatio[prepared.drugId] != null &&
-              seenRatio[prepared.drugId] != key) {
-            throw StateError('تعبئة مختلفة لنفس الدواء داخل الملف');
+        for (var i = 0; i < lines.length; i++) {
+          try {
+            final prepared =
+                await _prepare(txn, branchId, lines[i], effectiveDate);
+            final key =
+                '${lines[i].packetsPerCarton}x${lines[i].unitsPerPacket}';
+            if (seenRatio[prepared.drugId] != null &&
+                seenRatio[prepared.drugId] != key) {
+              throw StateError('تعبئة مختلفة لنفس الدواء داخل الملف');
+            }
+            seenRatio[prepared.drugId] = key;
+            _verifyRepeatedPrices(seenPrices, prepared);
+            total += prepared.qty;
+          } catch (e) {
+            errors.add('الصف ${i + 2}: $e');
           }
-          seenRatio[prepared.drugId] = key;
-          _verifyRepeatedPrices(seenPrices, prepared);
-          total += prepared.qty;
-        } catch (e) {
-          errors.add('الصف ${i + 2}: $e');
         }
-      }
-      // Preview may provision missing catalog rows for validation, but must
-      // never persist them. All provisional inserts are rolled back here.
-      throw const _PreviewRollback();
-    });
+        // Preview may provision missing catalog rows for validation, but must
+        // never persist them. All provisional inserts are rolled back here.
+        throw const _PreviewRollback();
+      });
     } on _PreviewRollback {
       // Validation completed; database remains unchanged.
     }
