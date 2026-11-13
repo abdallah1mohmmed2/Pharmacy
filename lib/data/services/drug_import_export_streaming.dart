@@ -182,6 +182,7 @@ extension DrugImportFileStreaming on DrugImportExportService {
       'started_at': DateTime.now().toIso8601String(),
     });
     var inserted = 0, updated = 0, skipped = 0, errors = 0, done = 0;
+    var barcodeConflicts = 0;
     final pending = <_DrugFileRow>[];
     final seen = <String>{};
 
@@ -217,30 +218,37 @@ extension DrugImportFileStreaming on DrugImportExportService {
             final code = specifiedCode.isEmpty
                 ? 'IMP-' + digest.toString().substring(0, 24)
                 : specifiedCode;
-            final matching = await txn.rawQuery(
-              '''SELECT * FROM drugs WHERE is_deleted=0 AND branch_id=? AND
-              (internal_code=? OR
-              (LOWER(TRIM(trade_name_ar))=? AND
-               LOWER(TRIM(COALESCE(scientific_name,'')))=?) OR
-              (?<>'' AND (barcode_international=? OR barcode_local=?)))
-              LIMIT 2''',
-              [
-                branchId,
-                code,
-                name.toLowerCase(),
-                scientific.toLowerCase(),
-                barcode,
-                barcode,
-                barcode
-              ],
-            );
-            if (matching.length > 1) {
+            // Indexed code lookup avoids quadratic full-table scans.
+            var matching = await txn.query('drugs',
+                where: 'is_deleted=0 AND internal_code=?',
+                whereArgs: [code], limit: 2);
+            if (matching.isEmpty && specifiedCode.isEmpty && barcode.isEmpty) {
+              matching = await txn.query('drugs',
+                  where: "is_deleted=0 AND branch_id=? AND "
+                         "trade_name_ar=? AND COALESCE(scientific_name,'')=?",
+                  whereArgs: [branchId, name, scientific], limit: 2);
+            }
+            if (matching.length > 1 ||
+                (matching.isNotEmpty && matching.first['branch_id'] != branchId)) {
               errors++;
               continue;
             }
             if (matching.isNotEmpty && conflictPolicy == 'SKIP') {
               skipped++;
               continue;
+            }
+            if (barcode.isNotEmpty) {
+              // Shared barcodes must not silently merge unrelated medicines.
+              final byBarcode = await txn.rawQuery(
+                  'SELECT id FROM drugs WHERE barcode_international=? '
+                  'OR barcode_local=? LIMIT 1', [barcode, barcode]);
+              if (byBarcode.isNotEmpty &&
+                  (matching.isEmpty ||
+                   byBarcode.single['id'] != matching.single['id'])) {
+                incoming.remove('barcode_international');
+                incoming.remove('barcode_local');
+                barcodeConflicts++;
+              }
             }
             final drug = DrugModel.fromMap(incoming).toMap();
             drug.remove('id');
@@ -379,17 +387,15 @@ extension DrugImportFileStreaming on DrugImportExportService {
         newValues: {
           'inserted': inserted,
           'updated': updated,
-          'skipped': skipped,
-          'errors': errors
+          'skipped': skipped, 'errors': errors, 'barcode_conflicts': barcodeConflicts
         },
         severity: errors == 0 ? 'INFO' : 'WARNING',
       );
       return ImportExecutionResult(
           jobId: jobId,
           inserted: inserted,
-          updated: updated,
-          skipped: skipped,
-          errors: errors);
+          updated: updated, skipped: skipped, errors: errors,
+          barcodeConflicts: barcodeConflicts);
     } catch (_) {
       await db.update(
           'import_jobs',
