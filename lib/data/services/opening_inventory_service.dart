@@ -57,6 +57,7 @@ class OpeningStockLine {
     this.units = 0,
     required this.packetsPerCarton,
     required this.unitsPerPacket,
+    this.resolveUnitsFromCatalog = false,
     this.prices = const OpeningStockPrices(),
     this.unitCost = 0,
     this.note = '',
@@ -71,6 +72,9 @@ class OpeningStockLine {
   final String expiryDate;
   final String? effectiveDate;
   final int cartons, packets, units, packetsPerCarton, unitsPerPacket;
+  /// Four-column Excel omits tablet count per strip. Resolve from the
+  /// medicine's saved packaging rather than assuming it is one.
+  final bool resolveUnitsFromCatalog;
   final OpeningStockPrices prices;
   final double unitCost;
   final String note;
@@ -79,6 +83,25 @@ class OpeningStockLine {
       cartons * packetsPerCarton * unitsPerPacket +
       packets * unitsPerPacket +
       units;
+
+  OpeningStockLine withUnitsPerPacket(int resolved) => OpeningStockLine(
+        drugId: drugId,
+        drugName: drugName,
+        dosageForm: dosageForm,
+        warehouseId: warehouseId,
+        shelfCode: shelfCode,
+        batchNo: batchNo,
+        expiryDate: expiryDate,
+        effectiveDate: effectiveDate,
+        cartons: cartons,
+        packets: packets,
+        units: units,
+        packetsPerCarton: packetsPerCarton,
+        unitsPerPacket: resolved,
+        prices: prices,
+        unitCost: unitCost,
+        note: note,
+      );
 }
 
 class OpeningStockPreview {
@@ -191,6 +214,11 @@ class OpeningInventoryService {
       if (drugs.isNotEmpty && drugs.first['is_active'] != 1) {
         throw StateError('الدواء موجود ولكنه غير نشط: $name');
       }
+      if (drugs.isEmpty && row.resolveUnitsFromCatalog) {
+        throw StateError(
+            'الصنف غير موجود: $name. أضفه أولاً وحدد عدد الحبات في الشريط '
+            'حتى لا يُسجّل الرصيد بوحدات غير صحيحة');
+      }
       if (drugs.isEmpty) {
         // The user explicitly enabled automatic catalog creation on posting.
         // Only data present in Excel is used. Never infer clinical properties.
@@ -214,6 +242,19 @@ class OpeningInventoryService {
       }
     }
     final drug = drugs.first;
+    final resolvedUnitsPerStrip = row.resolveUnitsFromCatalog
+        ? (drug['units_per_strip'] as int? ?? 0)
+        : row.unitsPerPacket;
+    if (resolvedUnitsPerStrip < 1) {
+      throw StateError('يجب تحديد عدد الحبات في الشريط للصنف ${row.drugName}');
+    }
+    final effectiveRow = row.resolveUnitsFromCatalog
+        ? row.withUnitsPerPacket(resolvedUnitsPerStrip)
+        : row;
+    if (effectiveRow.quantityUnits <= 0 ||
+        effectiveRow.quantityUnits > 9007199254740991) {
+      throw StateError('حجم الرصيد غير صالح');
+    }
     final drugId = drug['id'] as int;
     final storedForm = (drug['dosage_form'] as String?) ?? 'OTHER';
     if (row.dosageForm != null &&
@@ -224,10 +265,11 @@ class OpeningInventoryService {
     }
     final currentRatio =
         (drug['strips_per_pack'] as int) * (drug['units_per_strip'] as int);
-    final newRatio = row.packetsPerCarton * row.unitsPerPacket;
+    final newRatio =
+        effectiveRow.packetsPerCarton * effectiveRow.unitsPerPacket;
     if (currentRatio != newRatio ||
-        drug['strips_per_pack'] != row.packetsPerCarton ||
-        drug['units_per_strip'] != row.unitsPerPacket) {
+        drug['strips_per_pack'] != effectiveRow.packetsPerCarton ||
+        drug['units_per_strip'] != effectiveRow.unitsPerPacket) {
       final anyBatches = await txn.query('batches_fefo',
           columns: ['id'], where: 'drug_id=?', whereArgs: [drugId], limit: 1);
       if (anyBatches.isNotEmpty ||
@@ -254,12 +296,13 @@ class OpeningInventoryService {
       shelfId = shelves.first['id'] as int;
     }
     return _Prepared(
-      row: row,
+      row: effectiveRow,
       drugId: drugId,
       drug: drug,
-      qty: row.quantityUnits,
+      qty: effectiveRow.quantityUnits,
       shelfId: shelfId,
-      prices: row.prices.fillMissing(row.packetsPerCarton, row.unitsPerPacket),
+      prices: effectiveRow.prices.fillMissing(
+          effectiveRow.packetsPerCarton, effectiveRow.unitsPerPacket),
       effectiveDate: effective,
     );
   }
@@ -317,7 +360,7 @@ class OpeningInventoryService {
             final prepared =
                 await _prepare(txn, branchId, lines[i], effectiveDate);
             final key =
-                '${lines[i].packetsPerCarton}x${lines[i].unitsPerPacket}';
+                '${prepared.row.packetsPerCarton}x${prepared.row.unitsPerPacket}';
             if (seenRatio[prepared.drugId] != null &&
                 seenRatio[prepared.drugId] != key) {
               throw StateError('تعبئة مختلفة لنفس الدواء داخل الملف');
@@ -372,7 +415,7 @@ class OpeningInventoryService {
       final perDrugForms = <int, String>{};
       for (var i = 0; i < lines.length; i++) {
         final value = await _prepare(txn, branchId, lines[i], effectiveDate);
-        final key = '${lines[i].packetsPerCarton}x${lines[i].unitsPerPacket}';
+        final key = '${value.row.packetsPerCarton}x${value.row.unitsPerPacket}';
         if (perDrugRatio[value.drugId] != null &&
             perDrugRatio[value.drugId] != key) {
           throw StateError('تعبئة مختلفة لنفس الدواء في الصف ${i + 2}');
