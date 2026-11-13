@@ -60,8 +60,7 @@ void main() {
               await SchemaIteration15.upgrade(d);
             },
           ));
-      importer = DrugImportExportService(
-          helper: DatabaseHelper.forTesting(db));
+      importer = DrugImportExportService(helper: DatabaseHelper.forTesting(db));
     });
 
     tearDown(() async {
@@ -77,30 +76,34 @@ void main() {
 
     test('1,201 JSON drugs import in small transactions; retry skips all',
         () async {
-      final source = List.generate(1201, (i) => {
-        'internal_code': 'STREAM-$i',
-        'trade_name_ar': 'دواء تجريبي $i',
-        'trade_name_en': 'Test medicine $i',
-        'scientific_name': 'substance-$i',
-        'indications': 'تجربة فقط',
-        'barcode_international': '',
-      });
+      final source = List.generate(
+          1201,
+          (i) => {
+                'internal_code': 'STREAM-$i',
+                'trade_name_ar': 'دواء تجريبي $i',
+                'trade_name_en': 'Test medicine $i',
+                'scientific_name': 'substance-$i',
+                'indications': 'تجربة فقط',
+                'barcode_international': '',
+              });
       final file = await put('bulk.json', jsonEncode(source));
-      final preview = await importer.dryRunImportFile(
-          file: file, format: 'JSON');
+      final preview =
+          await importer.dryRunImportFile(file: file, format: 'JSON');
       expect(preview.validRows, 1201);
       expect(preview.errors, isEmpty);
       final calls = <int>[];
       final first = await importer.executeImportFile(
-          file: file, format: 'JSON', batchSize: 37,
+          file: file,
+          format: 'JSON',
+          batchSize: 37,
           expectedRows: 1201,
           onProgress: (done, _) => calls.add(done));
       expect(first.inserted, 1201);
       expect(first.errors, 0);
       expect(calls.last, 1201);
       expect(calls.length, greaterThan(20));
-      expect((await db.rawQuery('SELECT COUNT(*) AS n FROM drugs'))
-          .single['n'], 1201);
+      expect((await db.rawQuery('SELECT COUNT(*) AS n FROM drugs')).single['n'],
+          1201);
       final retry = await importer.executeImportFile(
           file: file, format: 'JSON', batchSize: 31);
       expect(retry.inserted, 0);
@@ -110,12 +113,13 @@ void main() {
 
     test('CSV handles UTF-8, BOM, commas, multiline cells, blank numbers',
         () async {
-      final file = await put('multiline.csv',
+      final file = await put(
+          'multiline.csv',
           '\uFEFFtrade_name_ar,scientific_name,indications,strips_per_pack\n'
-          '"دواء, واحد",x,"سطر أول\nسطر ثان",\n'
-          'دواء ثان,y,"نص به ""اقتباس""",2\n');
-      final preview = await importer.dryRunImportFile(
-          file: file, format: 'CSV');
+              '"دواء, واحد",x,"سطر أول\nسطر ثان",\n'
+              'دواء ثان,y,"نص به ""اقتباس""",2\n');
+      final preview =
+          await importer.dryRunImportFile(file: file, format: 'CSV');
       expect(preview.validRows, 2);
       expect(preview.errors, isEmpty);
       final result = await importer.executeImportFile(
@@ -129,18 +133,24 @@ void main() {
     });
 
     test('UPDATE_EMPTY_ONLY preserves stock and existing price', () async {
-      final file = await put('update.json', jsonEncode([{
-        'internal_code': 'PRICE-KEEP',
-        'trade_name_ar': 'دواء السعر',
-        'scientific_name': 'active',
-        'indications': 'معلومة جديدة',
-        'sell_price_pack': 200,
-        'stock_total_units': 0,
-      }]));
+      final file = await put(
+          'update.json',
+          jsonEncode([
+            {
+              'internal_code': 'PRICE-KEEP',
+              'trade_name_ar': 'دواء السعر',
+              'scientific_name': 'active',
+              'indications': 'معلومة جديدة',
+              'sell_price_pack': 200,
+              'stock_total_units': 0,
+            }
+          ]));
       final now = DateTime.now().toIso8601String();
       await db.insert('drugs', {
-        'uuid': 'existing-price-fixture', 'branch_id': 1,
-        'created_at': now, 'updated_at': now,
+        'uuid': 'existing-price-fixture',
+        'branch_id': 1,
+        'created_at': now,
+        'updated_at': now,
         'internal_code': 'PRICE-KEEP',
         'trade_name_ar': 'دواء السعر',
         'scientific_name': 'active',
@@ -148,35 +158,38 @@ void main() {
         'stock_total_units': 70,
       });
       final result = await importer.executeImportFile(
-        file: file, format: 'JSON', conflictPolicy: 'UPDATE_EMPTY_ONLY');
+          file: file, format: 'JSON', conflictPolicy: 'UPDATE_EMPTY_ONLY');
       expect(result.updated, 1);
-      final row = (await db.query('drugs', where: 'internal_code=?',
-          whereArgs: ['PRICE-KEEP'])).single;
+      final row = (await db.query('drugs',
+              where: 'internal_code=?', whereArgs: ['PRICE-KEEP']))
+          .single;
       expect(row['sell_price_pack'], 120);
       expect(row['stock_total_units'], 70);
       expect(row['indications'], 'معلومة جديدة');
     });
 
     test('JSON drugs envelope and incomplete input validation', () async {
-      final file = await put('wrapped.json',
+      final file = await put(
+          'wrapped.json',
           '{"drugs":[{"trade_name_ar":"دواء بغلاف",'
-          '"scientific_name":"x"}]}');
-      final result = await importer.dryRunImportFile(
-          file: file, format: 'JSON');
+              '"scientific_name":"x"}]}');
+      final result =
+          await importer.dryRunImportFile(file: file, format: 'JSON');
       expect(result.validRows, 1);
-      final bad = await put('incomplete.json',
-          '[{"trade_name_ar":"x"}');
-      expect(() => importer.dryRunImportFile(
-          file: bad, format: 'JSON'), throwsFormatException);
+      final bad = await put('incomplete.json', '[{"trade_name_ar":"x"}');
+      expect(() => importer.dryRunImportFile(file: bad, format: 'JSON'),
+          throwsFormatException);
     });
 
     test('duplicate codes inside one file are flagged by dry-run', () async {
-      final file = await put('duplicate.json', jsonEncode([
-        {'internal_code': 'DUP-1', 'trade_name_ar': 'دواء أ'},
-        {'internal_code': 'DUP-1', 'trade_name_ar': 'دواء ب'},
-      ]));
-      final result = await importer.dryRunImportFile(
-          file: file, format: 'JSON');
+      final file = await put(
+          'duplicate.json',
+          jsonEncode([
+            {'internal_code': 'DUP-1', 'trade_name_ar': 'دواء أ'},
+            {'internal_code': 'DUP-1', 'trade_name_ar': 'دواء ب'},
+          ]));
+      final result =
+          await importer.dryRunImportFile(file: file, format: 'JSON');
       expect(result.totalRows, 2);
       expect(result.validRows, 1);
       expect(result.duplicates, 1);
