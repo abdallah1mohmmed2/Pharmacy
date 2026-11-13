@@ -10,6 +10,30 @@ class OpeningExcelResult {
 /// Spreadsheet import targets existing branch medicines/warehouses only.
 /// Blank prices are intentionally null, allowing automatic price suggestions.
 abstract final class OpeningInventoryExcel {
+  /// Simple six-column opening-stock template used by pharmacy staff.
+  ///
+  /// "الأرصدة الافتتاحية" counts outer packs (cartons). Packet/strip counts
+  /// describe the units inside one outer pack, not additional stock. The
+  /// expiry date is deliberately selected in the app for each import batch,
+  /// never fabricated or read from an unrelated column.
+  static const simpleHeaders = <String>[
+    'اسم العلاج',
+    'عدد الباكتات',
+    'عدد الأشرطة',
+    'سعر الباكت',
+    'سعر العلاج',
+    'الأرصدة الافتتاحية',
+  ];
+
+  static List<int> simpleTemplateBytes() {
+    final excel = Excel.createExcel();
+    final sheet = excel['الرصيد الافتتاحي'];
+    sheet.appendRow(simpleHeaders.map((h) => TextCellValue(h)).toList());
+    excel.delete('Sheet1');
+    excel.setDefaultSheet('الرصيد الافتتاحي');
+    return excel.save()!;
+  }
+
   static const headers = <String>[
     'معرّف الدواء',
     'اسم الدواء',
@@ -137,6 +161,7 @@ abstract final class OpeningInventoryExcel {
     List<int> bytes, {
     required int defaultWarehouseId,
     required Map<String, int> warehousesByCode,
+    String? defaultExpiryDate,
   }) {
     if (bytes.isEmpty || bytes.length > 10 * 1024 * 1024) {
       throw const FormatException('ملف Excel فارغ أو يتجاوز 10 ميجابايت');
@@ -160,6 +185,69 @@ abstract final class OpeningInventoryExcel {
       }
       if (title.isNotEmpty) columnIndex[title] = i;
     }
+    if (simpleHeaders.every(columnIndex.containsKey)) {
+      if (columnIndex.length != simpleHeaders.length) {
+        throw const FormatException(
+            'القالب المبسط يجب أن يحتوي على الأعمدة الستة فقط');
+      }
+      if (defaultExpiryDate == null || defaultExpiryDate.trim().isEmpty) {
+        throw const FormatException(
+            'اختر تاريخ انتهاء الصلاحية لهذه الدفعة من شاشة التطبيق أولاً');
+      }
+      if (sheet.rows.length > 5001) {
+        throw const FormatException('الحد الأقصى 5000 صف لكل ملف');
+      }
+      final result = <OpeningStockLine>[];
+      final errors = <String>[];
+      for (var index = 1; index < sheet.rows.length; index++) {
+        final row = sheet.rows[index];
+        try {
+          String cell(String heading) {
+            final col = columnIndex[heading]!;
+            return col < row.length ? _text(row[col]?.value) : '';
+          }
+
+          if (simpleHeaders.every((heading) => cell(heading).isEmpty)) continue;
+          final name = cell('اسم العلاج').trim();
+          if (name.isEmpty) {
+            throw const FormatException('اسم العلاج مطلوب');
+          }
+          final packetsPerCarton =
+              _integer(cell('عدد الباكتات'), 'عدد الباكتات');
+          final unitsPerPacket =
+              _integer(cell('عدد الأشرطة'), 'عدد الأشرطة');
+          final openingCartons = _integer(
+              cell('الأرصدة الافتتاحية'), 'الأرصدة الافتتاحية');
+          if (packetsPerCarton <= 0 || unitsPerPacket <= 0) {
+            throw const FormatException(
+                'عدد الباكتات والأشرطة يجب أن يكون أكبر من الصفر');
+          }
+          if (openingCartons <= 0) {
+            throw const FormatException(
+                'الرصيد الافتتاحي يجب أن يكون أكبر من الصفر');
+          }
+          final packetPrice =
+              _optionalPrice(cell('سعر الباكت'), 'سعر الباكت');
+          final medicinePrice =
+              _optionalPrice(cell('سعر العلاج'), 'سعر العلاج');
+          result.add(OpeningStockLine(
+            drugName: name,
+            warehouseId: defaultWarehouseId,
+            cartons: openingCartons,
+            packetsPerCarton: packetsPerCarton,
+            unitsPerPacket: unitsPerPacket,
+            prices: OpeningStockPrices(
+                packet: packetPrice, unit: medicinePrice),
+            expiryDate: defaultExpiryDate,
+          ));
+        } catch (e) {
+          errors.add('صف ${index + 1}: $e');
+        }
+      }
+      return OpeningExcelResult(result, errors);
+    }
+
+    // Preserve imports created with the older, detailed Excel format.
     for (final name in headers) {
       if (!columnIndex.containsKey(name)) {
         throw FormatException('العمود المطلوب غير موجود: $name');
