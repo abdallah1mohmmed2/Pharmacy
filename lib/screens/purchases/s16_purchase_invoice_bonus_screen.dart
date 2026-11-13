@@ -214,8 +214,8 @@ class _S16PurchaseInvoiceBonusScreenState
           if (lines.isNotEmpty) ...[
             const Divider(),
             ...lines.map((item) {
-              final name = itemDrugNames[item.drugId] ??
-                  'دواء رقم ${item.drugId}';
+              final name =
+                  itemDrugNames[item.drugId] ?? 'دواء رقم ${item.drugId}';
               final lineTotal = item.qtyPacksPaid *
                   item.packPrice *
                   (1 - item.lineDiscountPct / 100);

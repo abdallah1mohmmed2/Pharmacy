@@ -14,7 +14,8 @@ void main() {
     databaseFactory = databaseFactoryFfi;
   });
 
-  test('purchase medicine search remains bounded with 27,000 records', () async {
+  test('purchase medicine search remains bounded with 27,000 records',
+      () async {
     final db = await databaseFactoryFfi.openDatabase(
       inMemoryDatabasePath,
       options: OpenDatabaseOptions(
@@ -67,23 +68,21 @@ void main() {
       });
       final provider =
           PosAndDrugsProvider(database: DatabaseHelper.forTesting(db));
-      final results =
-          await provider.searchPurchaseDrugs('دواء', branchId: 1);
+      final results = await provider.searchPurchaseDrugs('دواء', branchId: 1);
       expect(results.length, 40);
       expect(provider.drugs, isEmpty,
           reason: 'Purchase search must not mutate the POS medicines cache');
 
-      final special =
-          await provider.searchPurchaseDrugs('مميز', branchId: 1);
+      final special = await provider.searchPurchaseDrugs('مميز', branchId: 1);
       expect(special.map((d) => d.id).toList(), [27002]);
       expect(special.single.requiresRefrigeration, isTrue);
 
-      final barcode = await provider.searchPurchaseDrugs(
-        '1234567890123', branchId: 1);
+      final barcode =
+          await provider.searchPurchaseDrugs('1234567890123', branchId: 1);
       expect(barcode.single.id, 27002);
 
-      final otherBranch = await provider.searchPurchaseDrugs(
-        'مميز', branchId: 2);
+      final otherBranch =
+          await provider.searchPurchaseDrugs('مميز', branchId: 2);
       expect(otherBranch.single.id, 27001);
       expect(await provider.searchPurchaseDrugs('', branchId: 1), isEmpty);
       expect(await provider.searchPurchaseDrugs('%', branchId: 1), isEmpty);
