@@ -24,8 +24,9 @@ class ImportDryRunResult {
       {required this.totalRows,
       required this.validRows,
       required this.errors,
-      required this.duplicates});
-  final int totalRows, validRows, duplicates;
+      required this.duplicates,
+      this.barcodeDuplicates = 0});
+  final int totalRows, validRows, duplicates, barcodeDuplicates;
   final List<ImportRowIssue> errors;
 }
 
