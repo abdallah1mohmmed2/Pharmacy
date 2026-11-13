@@ -374,7 +374,7 @@ void main() {
           sourceHash: hash,
         );
 
-    test('four-column Excel uses stored tablets per strip and pack price',
+    test('five-column Excel uses stored tablets per strip and pack price',
         () async {
       // The template specifies 3 strips per pack, not tablets per strip.
       // The latter comes from the existing drug card (10 tablets/strip).
@@ -396,12 +396,14 @@ void main() {
         null,
         null,
         null,
+        null,
       ]);
       sheet.appendRow([
         TextCellValue('دواء تجريبي'),
         IntCellValue(12),
         IntCellValue(3),
         DoubleCellValue(1000),
+        TextCellValue(futureExpiry),
       ]);
       final parsed = OpeningInventoryExcel.parse(
         book.save()!,
@@ -444,6 +446,7 @@ void main() {
         IntCellValue(12),
         IntCellValue(3),
         DoubleCellValue(1000),
+        TextCellValue(futureExpiry),
       ]);
       final parsed = OpeningInventoryExcel.parse(
         book.save()!,
@@ -472,6 +475,7 @@ void main() {
         IntCellValue(2),
         IntCellValue(3),
         DoubleCellValue(400),
+        TextCellValue(futureExpiry),
       ]);
       final parsed = OpeningInventoryExcel.parse(
         book.save()!,
