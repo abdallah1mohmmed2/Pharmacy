@@ -126,6 +126,21 @@ abstract final class OpeningInventoryExcel {
         throw FormatException('العمود المطلوب غير موجود: $name');
       }
     }
+    // Optional worksheet source-price columns. They are independent input
+    // cells, while the three standard sell-price columns may hold spreadsheet
+    // formulas. We never trust a formula cache for financial import values.
+    const sourcePrices = <String>[
+      'إدخال سعر الكرتون',
+      'إدخال سعر الباكت',
+      'إدخال سعر الحبة',
+    ];
+    final sourceColumnCount =
+        sourcePrices.where(columnIndex.containsKey).length;
+    if (sourceColumnCount != 0 && sourceColumnCount != sourcePrices.length) {
+      throw const FormatException(
+          'يجب أن تكون أعمدة إدخال الأسعار الثلاثة موجودة معاً');
+    }
+    final usesSourcePrices = sourceColumnCount == sourcePrices.length;
     if (sheet.rows.length > 5001) {
       throw const FormatException('الحد الأقصى 5000 صف لكل ملف');
     }
@@ -136,7 +151,19 @@ abstract final class OpeningInventoryExcel {
       try {
         String cell(String heading) {
           final col = columnIndex[heading]!;
-          return col < row.length ? _text(row[col]?.value) : '';
+          if (col >= row.length) return '';
+          final value = row[col]?.value;
+          // Formula cells in the three display-only prices are safe to
+          // ignore only when all three independent input columns are present.
+          // All other formulas are still rejected by _text.
+          if (usesSourcePrices &&
+              value is FormulaCellValue &&
+              (heading == 'سعر الكرتون' ||
+                  heading == 'سعر الباكت' ||
+                  heading == 'سعر الحبة')) {
+            return '';
+          }
+          return _text(value);
         }
 
         if (headers.every((h) => cell(h).isEmpty)) continue;
@@ -154,9 +181,15 @@ abstract final class OpeningInventoryExcel {
           throw FormatException('رمز المخزن غير موجود: $warehouseCode');
         }
         final prices = OpeningStockPrices(
-          carton: _optionalPrice(cell('سعر الكرتون'), 'سعر الكرتون'),
-          packet: _optionalPrice(cell('سعر الباكت'), 'سعر الباكت'),
-          unit: _optionalPrice(cell('سعر الحبة'), 'سعر الحبة'),
+          carton: _optionalPrice(
+              cell(usesSourcePrices ? 'إدخال سعر الكرتون' : 'سعر الكرتون'),
+              'سعر الكرتون'),
+          packet: _optionalPrice(
+              cell(usesSourcePrices ? 'إدخال سعر الباكت' : 'سعر الباكت'),
+              'سعر الباكت'),
+          unit: _optionalPrice(
+              cell(usesSourcePrices ? 'إدخال سعر الحبة' : 'سعر الحبة'),
+              'سعر الحبة'),
         );
         final packets =
             _integer(cell('باكتات في الكرتون'), 'باكتات في الكرتون');
