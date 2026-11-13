@@ -76,6 +76,7 @@ abstract final class OpeningInventoryExcel {
       'نوع الدواء اختياري؛ اختر الشكل الصيدلاني بالعربية من القائمة المعتمدة.',
       'إذا كان نوع الدواء معروفًا ويختلف عن المسجل في الفرع، يتوقف الاستيراد لمراجعة الصنف.',
       'يمكن إدخال سعر الكرتون أو الباكت أو الحبة وحده؛ تحسب الأسعار الناقصة.',
+      'أدخل تكلفة شراء واحدة فقط: الكرتون أو الباكت أو الحبة، لحساب تكلفة الوحدة دون تقريب محاسبي.',
       'أي سعر مُدخل يدويًا لا يُستبدل بالحساب الآلي.',
       'تواريخ الانتهاء والإدخال بصيغة YYYY-MM-DD، ولا تدخل كميات سالبة.',
       'يتم التحقق من جميع الصفوف وعرض الأخطاء قبل الترحيل؛ لا يُعدّل الملف إعدادات النظام.',
@@ -176,6 +177,20 @@ abstract final class OpeningInventoryExcel {
           'يجب أن تكون أعمدة إدخال الأسعار الثلاثة موجودة معاً');
     }
     final usesSourcePrices = sourceColumnCount == sourcePrices.length;
+    // Cost source inputs are financial acquisition costs, not selling prices.
+    // Their calculated displays may be formulas; only raw inputs are trusted.
+    const sourceCosts = <String>[
+      'إدخال تكلفة الكرتون',
+      'إدخال تكلفة الباكت',
+      'إدخال تكلفة الحبة',
+    ];
+    final sourceCostCount =
+        sourceCosts.where(columnIndex.containsKey).length;
+    if (sourceCostCount != 0 && sourceCostCount != sourceCosts.length) {
+      throw const FormatException(
+          'يجب أن تكون أعمدة إدخال التكاليف الثلاثة موجودة معاً');
+    }
+    final usesSourceCosts = sourceCostCount == sourceCosts.length;
     if (sheet.rows.length > 5001) {
       throw const FormatException('الحد الأقصى 5000 صف لكل ملف');
     }
@@ -196,6 +211,10 @@ abstract final class OpeningInventoryExcel {
               (heading == 'سعر الكرتون' ||
                   heading == 'سعر الباكت' ||
                   heading == 'سعر الحبة')) {
+            return '';
+          }
+          if (usesSourceCosts && value is FormulaCellValue &&
+              heading == 'تكلفة الحبة') {
             return '';
           }
           return _text(value);
@@ -232,6 +251,26 @@ abstract final class OpeningInventoryExcel {
         if (packets == 0 || units == 0) {
           throw const FormatException('يجب تحديد تعبئة الكرتون والباكت');
         }
+        final legacyCostUnit = _optionalPrice(cell('تكلفة الحبة'), 'تكلفة الحبة');
+        double unitCost = legacyCostUnit ?? 0;
+        if (usesSourceCosts) {
+          final cartonCost = _optionalPrice(
+              cell('إدخال تكلفة الكرتون'), 'إدخال تكلفة الكرتون');
+          final packetCost = _optionalPrice(
+              cell('إدخال تكلفة الباكت'), 'إدخال تكلفة الباكت');
+          final unitCostInput = _optionalPrice(
+              cell('إدخال تكلفة الحبة'), 'إدخال تكلفة الحبة');
+          final sources = [cartonCost, packetCost, unitCostInput]
+              .where((price) => price != null).length;
+          if (sources > 1 || (sources > 0 && legacyCostUnit != null)) {
+            throw const FormatException(
+                'أدخل تكلفة شراء واحدة فقط: الكرتون أو الباكت أو الحبة');
+          }
+          unitCost = unitCostInput ??
+              (packetCost != null ? packetCost / units : null) ??
+              (cartonCost != null ? cartonCost / (packets * units) : null) ??
+              unitCost;
+        }
         result.add(OpeningStockLine(
           drugId: drugId,
           drugName: cell('اسم الدواء'),
@@ -252,7 +291,7 @@ abstract final class OpeningInventoryExcel {
           shelfCode: cell('رقم الرف (اختياري)').isEmpty
               ? null
               : cell('رقم الرف (اختياري)'),
-          unitCost: _optionalPrice(cell('تكلفة الحبة'), 'تكلفة الحبة') ?? 0,
+          unitCost: unitCost,
           note: cell('ملاحظات'),
         ));
       } catch (e) {
