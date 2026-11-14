@@ -317,6 +317,9 @@ void main() {
   });
 
   test('payment transfers with inverse journal sides', () async {
+    // Source has opening cash available; destination applies the imported delta.
+    await source.db.update('cash_accounts', {'current_balance': 125.0},
+        where: 'id=?', whereArgs: [source.cashId]);
     await source.post('PAYMENT');
     expect((await importInto(target, await source.outbox())).applied, isTrue);
     final posted = (await target.db.query('vouchers')).single;
