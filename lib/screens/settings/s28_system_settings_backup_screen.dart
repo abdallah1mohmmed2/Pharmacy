@@ -647,7 +647,7 @@ class _S28SystemSettingsBackupScreenState
                   onChanged: role == 'OWNER'
                       ? null
                       : (v) => _updateRolePermission(
-                          role, row['permission_code'] as String, v),),
+                          role, row['permission_code'] as String, v)),
           ]),
         const Divider(),
         const Text('إدارة المستخدمين وحسابات الدخول',
