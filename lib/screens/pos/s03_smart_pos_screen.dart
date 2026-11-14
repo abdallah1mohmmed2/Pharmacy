@@ -1,12 +1,15 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+
 import '../../providers/pos_and_drugs_provider.dart';
 import '../../providers/session_and_erp_provider.dart';
 import '../../core/theme/enterprise_dark_theme.dart';
 import '../../core/widgets/shared_widgets.dart';
 import '../../data/models/erp_models.dart';
+import '../../data/models/drug_model.dart';
 import '../../data/models/sale_unit_labels.dart';
 import '../../providers/inventory_and_purchase_provider.dart';
 import '../../providers/clinical_and_rx_provider.dart';
@@ -45,6 +48,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
 
   void _scheduleSearch(PosAndDrugsProvider pos, String query) {
     _searchDebounce?.cancel();
+    pos.invalidateSearch(query);
     final term = query.trim();
     if (term.isEmpty) {
       pos.loadDrugs();
@@ -80,6 +84,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
 
     return Focus(
       onKeyEvent: (node, event) {
+        if (_checkoutBusy || pos.checkoutPending) return KeyEventResult.handled;
         if (event is KeyDownEvent &&
             event.logicalKey == LogicalKeyboardKey.f9) {
           if (_lastReceipt != null) {
@@ -108,35 +113,38 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
         }
         return KeyEventResult.ignored;
       },
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        resizeToAvoidBottomInset: true,
-        body: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-          child: wide
-              ? Row(
-                  children: [
-                    Expanded(flex: 3, child: _catalog(pos)),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 2,
-                      child: _checkout(pos, session, inventory, clinical),
-                    ),
-                  ],
-                )
-              : _mobileWorkspace(pos, session, inventory, clinical),
+      child: AbsorbPointer(
+        absorbing: _checkoutBusy || pos.checkoutPending,
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          resizeToAvoidBottomInset: true,
+          body: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            child: wide
+                ? Row(
+                    children: [
+                      Expanded(flex: 3, child: _catalog(pos)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: _checkout(pos, session, inventory, clinical),
+                      ),
+                    ],
+                  )
+                : _mobileWorkspace(pos, session, inventory, clinical),
+          ),
+          bottomNavigationBar: wide
+              ? null
+              : _StickyCheckoutBar(
+                  itemCount: pos.cart.length,
+                  total: _net(pos),
+                  onCheckout: pos.cart.isEmpty ||
+                          _checkoutBusy ||
+                          pos.checkoutPending
+                      ? null
+                      : () => _openCheckout(pos, session, inventory, clinical),
+                ),
         ),
-        bottomNavigationBar: wide
-            ? null
-            : _StickyCheckoutBar(
-                itemCount: pos.cart.length,
-                total: _net(pos),
-                onCheckout: pos.cart.isEmpty ||
-                        _checkoutBusy ||
-                        pos.checkoutPending
-                    ? null
-                    : () => _openCheckout(pos, session, inventory, clinical),
-              ),
       ),
     );
   }
@@ -186,8 +194,10 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
         Align(
           alignment: AlignmentDirectional.centerStart,
           child: ActionChip(
-            avatar: const Icon(Icons.health_and_safety_outlined,
-                color: AppColors.primary),
+            avatar: const Icon(
+              Icons.health_and_safety_outlined,
+              color: AppColors.primary,
+            ),
             label: Text(
               clinical.currentPatient == null
                   ? 'حالة المريض والمحرك السريري'
@@ -301,8 +311,10 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
       builder: (sheetContext) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('اختيار دواء للسلة',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            'اختيار دواء للسلة',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 10),
           TextField(
             autofocus: true,
@@ -357,14 +369,17 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
       builder: (sheetContext) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('ملف المريض والحماية السريرية',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            'ملف المريض والحماية السريرية',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 12),
           DropdownButtonFormField<int?>(
             value: clinical.currentPatient?.id,
             isExpanded: true,
-            decoration:
-                const InputDecoration(labelText: 'المريض / الملف السريري'),
+            decoration: const InputDecoration(
+              labelText: 'المريض / الملف السريري',
+            ),
             items: [
               const DropdownMenuItem<int?>(
                 value: null,
@@ -386,8 +401,10 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
             },
           ),
           const SizedBox(height: 12),
-          const Text('الحالات السريعة',
-              style: TextStyle(fontWeight: FontWeight.w700)),
+          const Text(
+            'الحالات السريعة',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
           Wrap(
             spacing: 6,
             runSpacing: 4,
@@ -509,7 +526,8 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
                       : () => _finish(pos, session, inventory, clinical),
               icon: const Icon(Icons.check_circle),
               label: Text(
-                  _checkoutBusy ? 'جارٍ حفظ الفاتورة...' : 'إتمام الفاتورة'),
+                _checkoutBusy ? 'جارٍ حفظ الفاتورة...' : 'إتمام الفاتورة',
+              ),
             ),
           ],
         ),
@@ -523,10 +541,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
       isExpanded: true,
       decoration: const InputDecoration(labelText: 'المريض / الملف السريري'),
       items: [
-        const DropdownMenuItem<int?>(
-          value: null,
-          child: Text('بدون ملف مريض'),
-        ),
+        const DropdownMenuItem<int?>(value: null, child: Text('بدون ملف مريض')),
         ...clinical.patients.map(
           (patient) => DropdownMenuItem<int?>(
             value: patient.id,
@@ -582,11 +597,13 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
             builder: (_, value, __) {
               final given = double.tryParse(value.text);
               final change = given == null ? null : given - _net(pos);
-              return Text(change == null
-                  ? 'عدم إدخال المبلغ يعني الدفع بقيمة الفاتورة تمامًا'
-                  : change < 0
-                      ? 'المبلغ المستلم أقل من الصافي'
-                      : 'الباقي للعميل: ${MoneyFormatter.format(change)}');
+              return Text(
+                change == null
+                    ? 'عدم إدخال المبلغ يعني الدفع بقيمة الفاتورة تمامًا'
+                    : change < 0
+                        ? 'المبلغ المستلم أقل من الصافي'
+                        : 'الباقي للعميل: ${MoneyFormatter.format(change)}',
+              );
             },
           ),
           const SizedBox(height: 8),
@@ -608,10 +625,12 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
           isExpanded: true,
           decoration: const InputDecoration(labelText: 'الصندوق / المحفظة *'),
           items: session.cashAccounts
-              .map((account) => DropdownMenuItem(
-                    value: account.id,
-                    child: Text(account.nameAr),
-                  ))
+              .map(
+                (account) => DropdownMenuItem(
+                  value: account.id,
+                  child: Text(account.nameAr),
+                ),
+              )
               .toList(),
           onChanged: (value) => update(() => cashId = value),
         ),
@@ -644,10 +663,12 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
             decoration: const InputDecoration(labelText: 'العميل *'),
             items: session.parties
                 .where((party) => party.partyType == 'CUSTOMER')
-                .map((party) => DropdownMenuItem(
-                      value: party.id,
-                      child: Text(party.nameAr),
-                    ))
+                .map(
+                  (party) => DropdownMenuItem(
+                    value: party.id,
+                    child: Text(party.nameAr),
+                  ),
+                )
                 .toList(),
             onChanged: (value) => update(() => customerId = value),
           ),
@@ -712,9 +733,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
     for (final lot in lots) {
       if (remaining <= 0) break;
       final take = lot.totalUnits < remaining ? lot.totalUnits : remaining;
-      plan.add(
-        '${lot.batchNo} • ${lot.expiryDate} ($take حبة)',
-      );
+      plan.add('${lot.batchNo} • ${lot.expiryDate} ($take حبة)');
       remaining -= take;
     }
     final fefoText = plan.isEmpty
@@ -732,11 +751,13 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
         child: Icon(Icons.medication, color: AppColors.primary),
       ),
       details: [
-        Text(fefoText,
-            style: TextStyle(
-              color: remaining > 0 ? AppColors.danger : AppColors.success,
-              fontSize: 12,
-            )),
+        Text(
+          fefoText,
+          style: TextStyle(
+            color: remaining > 0 ? AppColors.danger : AppColors.success,
+            fontSize: 12,
+          ),
+        ),
         const SizedBox(height: 10),
         Row(
           children: [
@@ -745,10 +766,12 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
             DropdownButton<String>(
               value: item.sellUnit,
               items: drugAvailableSaleUnits(item.drug, selected: item.sellUnit)
-                  .map((unit) => DropdownMenuItem(
-                        value: unit,
-                        child: Text(drugSaleUnitLabel(item.drug, unit)),
-                      ))
+                  .map(
+                    (unit) => DropdownMenuItem(
+                      value: unit,
+                      child: Text(drugSaleUnitLabel(item.drug, unit)),
+                    ),
+                  )
                   .toList(),
               onChanged: (value) => pos.changeUnit(item, value ?? 'UNIT'),
             ),
@@ -764,9 +787,12 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 10),
               child: Text(
                 item.quantity.toStringAsFixed(
-                    item.quantity.truncateToDouble() == item.quantity ? 0 : 2),
-                style:
-                    const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  item.quantity.truncateToDouble() == item.quantity ? 0 : 2,
+                ),
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             IconButton.filledTonal(
@@ -838,8 +864,10 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text('المتبقي عليه بعد الفاتورة',
-            style: TextStyle(color: Colors.white70, fontSize: 12)),
+        const Text(
+          'المتبقي عليه بعد الفاتورة',
+          style: TextStyle(color: Colors.white70, fontSize: 12),
+        ),
         PartyBalanceChip(
           totalAlayh: party.totalAlayh + remaining,
           totalLah: party.totalLah,
@@ -862,8 +890,10 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
         builder: (sheetContext, refreshSheet) => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('الدفع وإتمام الفاتورة',
-                style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+            const Text(
+              'الدفع وإتمام الفاتورة',
+              style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -873,7 +903,9 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
                   builder: (_, __, ___) => Text(
                     MoneyFormatter.format(_net(pos)),
                     style: const TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.w800),
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               ],
@@ -932,6 +964,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
     if (_checkoutBusy || pos.checkoutPending) return;
     setState(() => _checkoutBusy = true);
     try {
+      final checkoutTab = pos.currentTab;
       final verdict = await clinical.evaluateCart(
         pos.cart.map((item) => item.drug).toList(),
       );
@@ -952,6 +985,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
         );
         if (!approved) return;
       }
+      if (!mounted || pos.currentTab != checkoutTab) return;
       if (method != 'CREDIT' && cashId == null) {
         _message('اختر الصندوق أو المحفظة');
         return;
@@ -1003,7 +1037,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
                   int cashAccountId,
                   double amount,
                   String method,
-                  String? walletRef
+                  String? walletRef,
                 })>[];
       int savedId;
       try {
@@ -1027,6 +1061,9 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
       }
       // Committed sale must never be described as a failed transaction if a
       // subsequent receipt query or dashboard refresh fails.
+      _lastReceipt = null;
+      paidAmount.clear();
+      walletRef.clear();
       discount = 0;
       discountField.text = '0';
       tenderField.clear();
@@ -1047,26 +1084,31 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
     }
   }
 
-  void _message(String text) => ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(text)),
-      );
+  void _message(String text) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
 
   Future<void> _loadReceipt(int invoiceId) async {
     final db = DatabaseHelper.instance;
-    final invoiceRows = await db.rawQuery('''
+    final invoiceRows = await db.rawQuery(
+      '''
       SELECT i.*,COALESCE(p.name_ar,'عميل نقدي') AS customer_name,
         b.name_ar AS branch_name,b.phone AS branch_phone
       FROM sales_invoices i LEFT JOIN parties p ON p.id=i.customer_party_id
       LEFT JOIN branches b ON b.id=i.branch_id
       WHERE i.id=? LIMIT 1
-    ''', [invoiceId]);
+    ''',
+      [invoiceId],
+    );
     if (invoiceRows.isEmpty) return;
     final row = invoiceRows.first;
-    final items = await db.rawQuery('''
-      SELECT d.trade_name_ar,si.sell_unit,si.qty_in_sell_unit,si.unit_price_sell_unit,si.line_total
+    final items = await db.rawQuery(
+      '''
+      SELECT d.trade_name_ar,d.dosage_form,d.is_strip_based,si.sell_unit,si.qty_in_sell_unit,si.unit_price_sell_unit,si.line_total
       FROM sales_invoice_items si JOIN drugs d ON d.id=si.drug_id
       WHERE si.invoice_id=? ORDER BY si.id
-    ''', [invoiceId]);
+    ''',
+      [invoiceId],
+    );
     final payments = await db.rawQuery(
       'SELECT method,wallet_ref_no FROM sales_payments WHERE invoice_id=? ORDER BY id',
       [invoiceId],
@@ -1094,12 +1136,10 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
           .map(
             (entry) => ReceiptLine(
               name: entry['trade_name_ar']?.toString() ?? '',
-              unit: switch (entry['sell_unit']) {
-                'PACK' => 'باكت',
-                'STRIP' => 'شريط',
-                'UNIT' => 'حبة',
-                _ => entry['sell_unit']?.toString() ?? '',
-              },
+              unit: drugSaleUnitLabel(
+                DrugModel.fromMap(entry),
+                entry['sell_unit']?.toString() ?? '',
+              ),
               quantity: (entry['qty_in_sell_unit'] as num?) ?? 0,
               unitPrice: (entry['unit_price_sell_unit'] as num?) ?? 0,
               total: (entry['line_total'] as num?) ?? 0,
@@ -1146,12 +1186,16 @@ class _StickyCheckoutBar extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('$itemCount أصناف',
-                      style: const TextStyle(color: Colors.white60)),
+                  Text(
+                    '$itemCount أصناف',
+                    style: const TextStyle(color: Colors.white60),
+                  ),
                   Text(
                     MoneyFormatter.format(total),
                     style: const TextStyle(
-                        fontSize: 19, fontWeight: FontWeight.w800),
+                      fontSize: 19,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ],
               ),
@@ -1181,8 +1225,11 @@ class _EmptyCart extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.shopping_basket_outlined,
-                size: 48, color: Colors.white38),
+            const Icon(
+              Icons.shopping_basket_outlined,
+              size: 48,
+              color: Colors.white38,
+            ),
             const SizedBox(height: 10),
             const Text('السلة فارغة', style: TextStyle(color: Colors.white70)),
             const SizedBox(height: 10),
