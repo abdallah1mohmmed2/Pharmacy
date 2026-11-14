@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:flutter/rendering.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -73,6 +76,21 @@ void main() {
       size: const Size(1280, 900),
     );
   });
+  Future<void> captureLayout(WidgetTester tester, String filename) async {
+    final boundary = tester.renderObject<RenderRepaintBoundary>(
+        find.byKey(const ValueKey('treasury-test-render')));
+    await tester.runAsync(() async {
+      final image = await boundary.toImage(pixelRatio: 1);
+      try {
+        final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+        await Directory('test_artifacts').create(recursive: true);
+        await File('test_artifacts/$filename').writeAsBytes(bytes!.buffer.asUint8List());
+      } finally {
+        image.dispose();
+      }
+    });
+  }
+
   Future<void> mountFromEmptyProvider(WidgetTester tester,
       TreasuryHrPartnerProvider provider, Size size) async {
     tester.view.devicePixelRatio = 1;
@@ -90,7 +108,9 @@ void main() {
       await tester.pumpWidget(MultiProvider(providers: [
         ChangeNotifierProvider<TreasuryHrPartnerProvider>.value(value: provider),
         ChangeNotifierProvider<SessionAndErpProvider>.value(value: session),
-      ], child: const MaterialApp(home: S22TreasuryWalletsScreen())));
+      ], child: RepaintBoundary(key: const ValueKey('treasury-test-render'),
+          child: MaterialApp(theme: ThemeData(platform: size.width >= 700 ? TargetPlatform.windows : TargetPlatform.android),
+              home: const S22TreasuryWalletsScreen()))));
       await loaded.future.timeout(const Duration(seconds: 15));
     });
     provider.removeListener(listener);
@@ -111,6 +131,7 @@ void main() {
       expect(provider.treasuryError, isNull);
       expect(provider.cashAccounts.length, greaterThanOrEqualTo(6));
       expect(provider.cashAccounts.any((a) => a['name_ar'] == 'محفظة جيب'), isTrue);
+      await captureLayout(tester, 'treasury_${size.width.toInt()}_top.png');
       for (final account in provider.cashAccounts) {
         final card = find.byKey(ValueKey('treasury-account-${account['id']}'));
         expect(card, findsOneWidget);
@@ -120,6 +141,9 @@ void main() {
         expect(rect.width, greaterThan(0));
         expect(rect.height, greaterThan(0));
         expect(rect.overlaps(Offset.zero & size), isTrue);
+        if (account['code'] == 'W-JAIB') {
+          await captureLayout(tester, 'treasury_${size.width.toInt()}_wallets.png');
+        }
       }
       expect(tester.takeException(), isNull);
     });
