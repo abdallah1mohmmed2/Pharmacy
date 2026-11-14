@@ -5,6 +5,8 @@ import 'package:global_enterprise_pharmacy_erp/core/theme/enterprise_dark_theme.
 import 'package:global_enterprise_pharmacy_erp/data/models/erp_models.dart';
 import 'package:global_enterprise_pharmacy_erp/providers/session_and_erp_provider.dart';
 import 'package:global_enterprise_pharmacy_erp/screens/accounts/party_details_screen.dart';
+import 'package:global_enterprise_pharmacy_erp/data/services/manual_message_service.dart';
+import 'package:global_enterprise_pharmacy_erp/screens/accounts/manual_message_composer_screen.dart';
 import 'package:global_enterprise_pharmacy_erp/screens/accounts/s19_s20_s21_parties_and_vouchers_screen.dart';
 
 class _Session extends SessionAndErpProvider {
@@ -25,6 +27,13 @@ class _Session extends SessionAndErpProvider {
       },
     ];
   }
+}
+
+class _Templates implements ManualMessageTemplateRepository {
+  @override
+  Future<String> load(String id) async => ManualMessageKind.byId(id).defaultText;
+  @override
+  Future<void> save(String id, String text) async {}
 }
 
 void main() {
@@ -126,4 +135,51 @@ void main() {
     expect(session.requested, [7, 7]);
     expect(tester.takeException(), isNull);
   });
+  testWidgets('party SMS action opens editable composer without sending',
+      (tester) async {
+    final session = _Session()
+      ..parties = [
+        const PartyModel(
+          id: 20,
+          partyType: 'CUSTOMER',
+          nameAr: 'عميل برسالة',
+          phone: '+967777123456',
+          totalAlayh: 150,
+          totalLah: 50,
+        ),
+      ];
+    addTearDown(session.dispose);
+    final launches = <Uri>[];
+    await tester.pumpWidget(
+      ChangeNotifierProvider<SessionAndErpProvider>.value(
+        value: session,
+        child: MaterialApp(
+          theme: EnterpriseDarkTheme.data,
+          home: PartyDetailsScreen(
+            party: session.parties.first,
+            onPrint: (_) async {},
+            onVoucher: (_) async {},
+            messageTemplates: _Templates(),
+            openExternal: (uri) async {
+              launches.add(uri);
+              return true;
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('party-message-sms')));
+    await tester.pumpAndSettle();
+    expect(find.byType(ManualMessageComposerScreen), findsOneWidget);
+    expect(find.text('عميل برسالة'), findsWidgets);
+    expect(launches, isEmpty);
+    await tester.ensureVisible(find.text('فتح SMS'));
+    await tester.tap(find.text('فتح SMS'));
+    await tester.pumpAndSettle();
+    expect(launches, hasLength(1));
+    expect(launches.first.scheme, 'sms');
+    expect(launches.first.queryParameters['body'], contains('100'));
+  });
+
 }
