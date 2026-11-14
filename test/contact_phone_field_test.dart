@@ -3,7 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:global_enterprise_pharmacy_erp/core/widgets/contact_phone_field.dart';
 
 void main() {
-  testWidgets('fills phone and blank party name from a selected Android contact',
+  testWidgets(
+      'fills phone and blank party name from a selected Android contact',
       (tester) async {
     final name = TextEditingController();
     final phone = TextEditingController();
@@ -89,8 +90,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('pick-party-contact')));
     await tester.pumpAndSettle();
     expect(phone.text, '123456789');
-    await tester.enterText(find.byKey(const ValueKey('party-contact-phone')),
-        '+967777888999');
+    await tester.enterText(
+        find.byKey(const ValueKey('party-contact-phone')), '+967777888999');
     expect(phone.text, '+967777888999');
   });
 }

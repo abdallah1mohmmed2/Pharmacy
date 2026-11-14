@@ -201,6 +201,7 @@ class SessionAndErpProvider extends ChangeNotifier {
           where: 'party_id=? AND is_deleted=0',
           whereArgs: [partyId],
           orderBy: 'entry_date,id');
+
   /// Updates only the selected party's contact fields in this branch.
   /// Financial opening balances, ledger, UUID, and other party fields are unchanged.
   Future<void> updatePartyContact({
@@ -227,14 +228,17 @@ class SessionAndErpProvider extends ChangeNotifier {
       final oldName = before['name_ar'] as String;
       final oldPhone = (before['phone'] as String?) ?? '';
       if (oldName == cleanName && oldPhone == cleanPhone) return;
-      final updated = await txn.update('parties', {
-        'name_ar': cleanName,
-        'phone': cleanPhone,
-        'updated_at': DateTime.now().toUtc().toIso8601String(),
-        'sync_status': 'LOCAL',
-        'sync_version': ((before['sync_version'] as num?) ?? 1).toInt() + 1,
-      }, where: 'id=? AND branch_id=? AND is_deleted=0',
-         whereArgs: [partyId, branchId]);
+      final updated = await txn.update(
+          'parties',
+          {
+            'name_ar': cleanName,
+            'phone': cleanPhone,
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+            'sync_status': 'LOCAL',
+            'sync_version': ((before['sync_version'] as num?) ?? 1).toInt() + 1,
+          },
+          where: 'id=? AND branch_id=? AND is_deleted=0',
+          whereArgs: [partyId, branchId]);
       if (updated != 1) {
         throw StateError('تعذر تحديث الطرف المطلوب');
       }
@@ -245,8 +249,14 @@ class SessionAndErpProvider extends ChangeNotifier {
         entityType: 'parties',
         entityId: partyId,
         entityLabel: cleanName,
-        oldValues: {'name_ar': oldName, 'phone_changed': oldPhone != cleanPhone},
-        newValues: {'name_ar': cleanName, 'phone_changed': oldPhone != cleanPhone},
+        oldValues: {
+          'name_ar': oldName,
+          'phone_changed': oldPhone != cleanPhone
+        },
+        newValues: {
+          'name_ar': cleanName,
+          'phone_changed': oldPhone != cleanPhone
+        },
         reason: 'PARTY_CONTACT_UPDATE',
       );
     });

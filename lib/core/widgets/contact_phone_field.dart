@@ -70,7 +70,8 @@ class _ContactPhoneFieldState extends State<ContactPhoneField> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('تعذر اختيار رقم الهاتف من جهات الاتصال. يمكنك إدخاله يدوياً.'),
+            content: Text(
+                'تعذر اختيار رقم الهاتف من جهات الاتصال. يمكنك إدخاله يدوياً.'),
           ),
         );
       }

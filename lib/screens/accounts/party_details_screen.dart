@@ -96,7 +96,8 @@ class _PartyDetailsScreenState extends State<PartyDetailsScreen> {
                     selector: widget.contactSelector,
                   ),
                   const SizedBox(height: 8),
-                  const Text('اختيار جهة اتصال يملأ رقم الهاتف، مع إبقاء الاسم الموجود قابلًا للتعديل.'),
+                  const Text(
+                      'اختيار جهة اتصال يملأ رقم الهاتف، مع إبقاء الاسم الموجود قابلًا للتعديل.'),
                 ],
               ),
             ),
@@ -106,38 +107,46 @@ class _PartyDetailsScreenState extends State<PartyDetailsScreen> {
                 child: const Text('إلغاء'),
               ),
               FilledButton(
-                onPressed: saving ? null : () async {
-                  if (name.text.trim().isEmpty) {
-                    ScaffoldMessenger.of(dialogContext).showSnackBar(
-                      const SnackBar(content: Text('اسم الطرف مطلوب.')),
-                    );
-                    return;
-                  }
-                  setDialogState(() => saving = true);
-                  try {
-                    await context.read<SessionAndErpProvider>().updatePartyContact(
-                      partyId: party.id!,
-                      nameAr: name.text,
-                      phone: phone.text,
-                    );
-                    if (dialogContext.mounted) Navigator.pop(dialogContext);
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('تم تحديث بيانات الاتصال.')),
-                      );
-                    }
-                  } catch (_) {
-                    if (dialogContext.mounted) {
-                      ScaffoldMessenger.of(dialogContext).showSnackBar(
-                        const SnackBar(content: Text('تعذر حفظ بيانات الاتصال. حاول مرة أخرى.')),
-                      );
-                    }
-                  } finally {
-                    if (dialogContext.mounted) {
-                      setDialogState(() => saving = false);
-                    }
-                  }
-                },
+                onPressed: saving
+                    ? null
+                    : () async {
+                        if (name.text.trim().isEmpty) {
+                          ScaffoldMessenger.of(dialogContext).showSnackBar(
+                            const SnackBar(content: Text('اسم الطرف مطلوب.')),
+                          );
+                          return;
+                        }
+                        setDialogState(() => saving = true);
+                        try {
+                          await context
+                              .read<SessionAndErpProvider>()
+                              .updatePartyContact(
+                                partyId: party.id!,
+                                nameAr: name.text,
+                                phone: phone.text,
+                              );
+                          if (dialogContext.mounted)
+                            Navigator.pop(dialogContext);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text('تم تحديث بيانات الاتصال.')),
+                            );
+                          }
+                        } catch (_) {
+                          if (dialogContext.mounted) {
+                            ScaffoldMessenger.of(dialogContext).showSnackBar(
+                              const SnackBar(
+                                  content: Text(
+                                      'تعذر حفظ بيانات الاتصال. حاول مرة أخرى.')),
+                            );
+                          }
+                        } finally {
+                          if (dialogContext.mounted) {
+                            setDialogState(() => saving = false);
+                          }
+                        }
+                      },
                 child: const Text('حفظ التعديل'),
               ),
             ],
