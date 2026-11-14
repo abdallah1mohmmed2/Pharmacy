@@ -386,7 +386,6 @@ class PosAndDrugsProvider extends ChangeNotifier {
       // Do not submit the same cart again even if a refresh fails.
       postingTab.items.clear();
       postingTab.held = false;
-      postingTab.patientFlags.clear();
       clinicalBlock = null;
       notifyListeners();
       try {
