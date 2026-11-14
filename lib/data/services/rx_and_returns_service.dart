@@ -214,6 +214,7 @@ class RxAndReturnsService {
             needUnits: qty,
             unitsPerPack: drug.unitsPerPack ?? drug.effectiveUnitsPerPack,
             invoiceItemId: invoiceItemId,
+            branchId: branchId,
             unitPrice: line / qty,
             docType: 'PRESCRIPTION',
             docId: invoiceId);
