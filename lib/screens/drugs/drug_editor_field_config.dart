@@ -164,8 +164,7 @@ abstract final class DrugEditorFieldConfig {
   };
 
   static String labelFor(String key, String legacyLabel) =>
-      shortLabels[key] ??
-      legacyLabel.replaceFirst(RegExp(r'^\d+\.\s*'), '');
+      shortLabels[key] ?? legacyLabel.replaceFirst(RegExp(r'^\d+\.\s*'), '');
 
   static bool boolValue(String raw) =>
       raw.trim() == '1' || raw.trim().toLowerCase() == 'true';

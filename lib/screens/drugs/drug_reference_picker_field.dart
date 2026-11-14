@@ -21,7 +21,8 @@ class DrugReferenceLookup {
 
   Future<List<DrugReferenceChoice>> search(
       DrugReferenceKind kind, String query, int branchId) async {
-    final (table, labelExpression, searchColumns, branchScoped) = switch (kind) {
+    final (table, labelExpression, searchColumns, branchScoped) =
+        switch (kind) {
       DrugReferenceKind.manufacturer => (
           'manufacturers',
           "COALESCE(NULLIF(name_ar,''),name_en)",
@@ -139,25 +140,32 @@ class _DrugReferencePickerFieldState extends State<DrugReferencePickerField> {
                       child: FutureBuilder<List<DrugReferenceChoice>>(
                         future: results,
                         builder: (context, snapshot) {
-                          if (snapshot.connectionState != ConnectionState.done) {
-                            return const Center(child: CircularProgressIndicator());
+                          if (snapshot.connectionState !=
+                              ConnectionState.done) {
+                            return const Center(
+                                child: CircularProgressIndicator());
                           }
                           if (snapshot.hasError) {
                             return const Center(
                               child: Text('تعذر البحث. يمكنك المحاولة مجدداً.'),
                             );
                           }
-                          final items = snapshot.data ?? const <DrugReferenceChoice>[];
+                          final items =
+                              snapshot.data ?? const <DrugReferenceChoice>[];
                           if (items.isEmpty) {
-                            return const Center(child: Text('لا توجد نتائج مطابقة.'));
+                            return const Center(
+                                child: Text('لا توجد نتائج مطابقة.'));
                           }
                           return ListView.builder(
                             itemCount: items.length,
                             itemBuilder: (context, index) => ListTile(
-                              key: ValueKey('drug-ref-choice-${items[index].id}'),
+                              key: ValueKey(
+                                  'drug-ref-choice-${items[index].id}'),
                               title: Text(items[index].title),
-                              subtitle: Text('الرقم المرجعي: ${items[index].id}'),
-                              onTap: () => Navigator.of(context).pop(items[index]),
+                              subtitle:
+                                  Text('الرقم المرجعي: ${items[index].id}'),
+                              onTap: () =>
+                                  Navigator.of(context).pop(items[index]),
                             ),
                           );
                         },
