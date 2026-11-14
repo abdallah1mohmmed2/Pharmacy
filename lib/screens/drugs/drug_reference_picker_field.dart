@@ -104,11 +104,8 @@ class _DrugReferencePickerFieldState extends State<DrugReferencePickerField> {
 
   Future<void> _pick() async {
     final search = widget.searcher ?? DrugReferenceLookup().search;
-    final searchController = TextEditingController();
     var results = search(widget.kind, '', widget.branchId);
-    DrugReferenceChoice? chosen;
-    try {
-      chosen = await showModalBottomSheet<DrugReferenceChoice>(
+    final chosen = await showModalBottomSheet<DrugReferenceChoice>(
         context: context,
         isScrollControlled: true,
         builder: (sheetContext) => StatefulBuilder(
@@ -125,7 +122,6 @@ class _DrugReferencePickerFieldState extends State<DrugReferencePickerField> {
                     const SizedBox(height: 10),
                     TextField(
                       key: ValueKey('drug-ref-search-${widget.fieldKey}'),
-                      controller: searchController,
                       autofocus: true,
                       decoration: const InputDecoration(
                         prefixIcon: Icon(Icons.search),
@@ -178,9 +174,6 @@ class _DrugReferencePickerFieldState extends State<DrugReferencePickerField> {
           ),
         ),
       );
-    } finally {
-      searchController.dispose();
-    }
     if (!mounted || chosen == null) return;
     setState(() => _selectedTitle = chosen!.title);
     widget.controller.text = chosen.id.toString();
