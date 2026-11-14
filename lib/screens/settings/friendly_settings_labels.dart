@@ -126,12 +126,17 @@ abstract final class FriendlySettingsLabels {
     'firestore': 'Firebase / Firestore',
   };
   static String choice(String raw) => choices[raw] ?? raw;
+  static String choiceFor(SettingKey key, String raw) =>
+      key == SettingKey.shiftDiffHandling && raw == 'none'
+          ? 'عدم تسجيل فرق الوردية' : choice(raw);
 
   static String summary(SettingSpec spec, Object? value) {
     if (spec.type == SettingValueType.boolean) {
       return value == true ? 'مفعّل' : 'متوقف';
     }
-    if (spec.allowedValues.isNotEmpty && value is String) return choice(value);
+    if (spec.allowedValues.isNotEmpty && value is String) {
+      return choiceFor(spec.key, value);
+    }
     if (spec.type == SettingValueType.json && value is Map) {
       final data = Map<String, Object?>.from(value);
       switch (spec.key) {
