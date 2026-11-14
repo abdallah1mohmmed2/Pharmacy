@@ -1,10 +1,29 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:global_enterprise_pharmacy_erp/data/database/database_helper.dart';
+import 'package:global_enterprise_pharmacy_erp/data/services/shift_and_treasury_service.dart';
+import 'package:global_enterprise_pharmacy_erp/providers/session_and_erp_provider.dart';
+import 'treasury_integrity_integration_test.dart' show openSaleDatabase;
 import 'package:global_enterprise_pharmacy_erp/providers/treasury_hr_partner_provider.dart';
 import 'package:global_enterprise_pharmacy_erp/screens/finance/s22_treasury_wallets_screen.dart';
 
+class _FailMovementsOnce extends ShiftAndTreasuryService {
+  _FailMovementsOnce(DatabaseHelper helper) : super(helper: helper);
+  bool fail = true;
+  @override
+  Future<List<Map<String, Object?>>> transactions(int branchId,
+      {int? accountId, String? from, String? to}) {
+    if (fail) return Future.error(StateError('test movement read failure'));
+    return super.transactions(branchId, accountId: accountId, from: from, to: to);
+  }
+}
+
 void main() {
+  setUpAll(() { sqfliteFfiInit(); databaseFactory = databaseFactoryFfi; });
+
   Future<void> expectTreasuryCardsAtSize(
     WidgetTester tester, {
     required Size size,
@@ -27,10 +46,10 @@ void main() {
       ..transactions = [];
 
     await tester.pumpWidget(
-      ChangeNotifierProvider<TreasuryHrPartnerProvider>.value(
-        value: provider,
-        child: const MaterialApp(home: S22TreasuryWalletsScreen()),
-      ),
+      MultiProvider(providers: [
+        ChangeNotifierProvider<TreasuryHrPartnerProvider>.value(value: provider),
+        ChangeNotifierProvider(create: (_) => SessionAndErpProvider()),
+      ], child: const MaterialApp(home: S22TreasuryWalletsScreen())),
     );
     await tester.pumpAndSettle();
 
@@ -54,4 +73,93 @@ void main() {
       size: const Size(1280, 900),
     );
   });
+  Future<void> mountFromEmptyProvider(WidgetTester tester,
+      TreasuryHrPartnerProvider provider, Size size) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = size;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final session = SessionAndErpProvider()..currentUser = {'id': 1};
+    final loaded = Completer<void>();
+    void listener() {
+      if (!provider.treasuryLoading && !loaded.isCompleted) loaded.complete();
+    }
+    provider.addListener(listener);
+    expect(provider.cashAccounts, isEmpty);
+    await tester.runAsync(() async {
+      await tester.pumpWidget(MultiProvider(providers: [
+        ChangeNotifierProvider<TreasuryHrPartnerProvider>.value(value: provider),
+        ChangeNotifierProvider<SessionAndErpProvider>.value(value: session),
+      ], child: const MaterialApp(home: S22TreasuryWalletsScreen())));
+      await loaded.future.timeout(const Duration(seconds: 15));
+    });
+    provider.removeListener(listener);
+    await tester.pumpAndSettle();
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox());
+      provider.dispose();
+      session.dispose();
+    });
+  }
+
+  for (final size in [const Size(360, 640), const Size(390, 844), const Size(1280, 900), const Size(1366, 768)]) {
+    testWidgets('seeded SQLite accounts load on entry and every card is visible at $size', (tester) async {
+      final db = await tester.runAsync(() => openSaleDatabase(inMemoryDatabasePath));
+      addTearDown(() => db!.close());
+      final provider = TreasuryHrPartnerProvider(database: DatabaseHelper.forTesting(db!));
+      await mountFromEmptyProvider(tester, provider, size);
+      expect(provider.treasuryError, isNull);
+      expect(provider.cashAccounts.length, greaterThanOrEqualTo(6));
+      expect(provider.cashAccounts.any((a) => a['name_ar'] == 'محفظة جيب'), isTrue);
+      for (final account in provider.cashAccounts) {
+        final card = find.byKey(ValueKey('treasury-account-${account['id']}'));
+        expect(card, findsOneWidget);
+        await tester.ensureVisible(card);
+        await tester.pumpAndSettle();
+        final rect = tester.getRect(card);
+        expect(rect.width, greaterThan(0));
+        expect(rect.height, greaterThan(0));
+        expect(rect.overlaps(Offset.zero & size), isTrue);
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('failed movements do not hide seeded wallet cards and retry recovers', (tester) async {
+    final db = await tester.runAsync(() => openSaleDatabase(inMemoryDatabasePath));
+    addTearDown(() => db!.close());
+    final helper = DatabaseHelper.forTesting(db!);
+    final service = _FailMovementsOnce(helper);
+    final provider = TreasuryHrPartnerProvider(database: helper, treasury: service);
+    await mountFromEmptyProvider(tester, provider, const Size(1280, 900));
+    expect(find.textContaining('تعذر تحميل بيانات الخزينة'), findsOneWidget);
+    expect(provider.cashAccounts, isNotEmpty);
+    expect(find.byKey(ValueKey('treasury-account-${provider.cashAccounts.first['id']}')), findsOneWidget);
+    service.fail = false;
+    final loaded = Completer<void>();
+    void listener() {
+      if (!provider.treasuryLoading && !loaded.isCompleted) loaded.complete();
+    }
+    provider.addListener(listener);
+    await tester.runAsync(() async {
+      await tester.tap(find.text('إعادة المحاولة'));
+      await loaded.future.timeout(const Duration(seconds: 15));
+    });
+    provider.removeListener(listener);
+    await tester.pumpAndSettle();
+    expect(provider.treasuryError, isNull);
+    expect(find.textContaining('تعذر تحميل بيانات الخزينة'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('empty branch explains missing accounts instead of showing only table headings', (tester) async {
+    final db = await tester.runAsync(() => openSaleDatabase(inMemoryDatabasePath));
+    addTearDown(() => db!.close());
+    await tester.runAsync(() => db!.update('cash_accounts', {'is_deleted': 1}));
+    final provider = TreasuryHrPartnerProvider(database: DatabaseHelper.forTesting(db!));
+    await mountFromEmptyProvider(tester, provider, const Size(390, 844));
+    expect(find.text('لا توجد حسابات خزينة أو محافظ في الفرع الحالي'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
 }
