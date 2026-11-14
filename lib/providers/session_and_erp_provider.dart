@@ -312,18 +312,18 @@ class SessionAndErpProvider extends ChangeNotifier {
     voucherPending = true;
     notifyListeners();
     try {
-    final id = await _posting.postVoucher(
-        branchId: branchId,
-        voucherNo: voucherNo,
-        voucherType: type,
-        partyId: partyId,
-        cashAccountId: cashAccountId ?? -1,
-        amount: amount,
-        method: method,
-        walletRefNo: walletRef,
-        description: description);
-    await refresh();
-    return id;
+      final id = await _posting.postVoucher(
+          branchId: branchId,
+          voucherNo: voucherNo,
+          voucherType: type,
+          partyId: partyId,
+          cashAccountId: cashAccountId ?? -1,
+          amount: amount,
+          method: method,
+          walletRefNo: walletRef,
+          description: description);
+      await refresh();
+      return id;
     } finally {
       voucherPending = false;
       notifyListeners();
