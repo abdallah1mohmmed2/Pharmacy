@@ -1,0 +1,467 @@
+name: Pharmacy Flutter CI
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: pharmacy-ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  finance-relay-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Verify trusted financial relay contract and authorization
+        run: node --test firebase/financial_relay/*.test.js
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Verify the actual source branch, not the synthetic PR merge ref.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify SQLite sync inventory and classifications
+        run: |
+          python3 tools/schema_inventory/check.py --check
+          python3 -m unittest discover -s tools/schema_inventory -p "test_*.py"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter create --platforms=android,windows --org com.globalpharmacy .
+      - name: Set Android compile SDK to 36 for current plugins
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          candidates = [Path("android/app/build.gradle.kts"), Path("android/app/build.gradle")]
+          replacements = {
+              "compileSdk = flutter.compileSdkVersion": "compileSdk = 36",
+              "compileSdkVersion flutter.compileSdkVersion": "compileSdkVersion 36",
+          }
+          for path in candidates:
+              if not path.exists():
+                  continue
+              content = path.read_text()
+              updated = content
+              for old, new in replacements.items():
+                  updated = updated.replace(old, new)
+              if updated != content:
+                  path.write_text(updated)
+                  print(f"Configured compile SDK 36 in {path}")
+                  break
+          else:
+              raise SystemExit("Could not locate Flutter Android compileSdk declaration")
+          PY
+      - run: flutter pub get
+      - name: Normalize Android plugin compile SDK when explicitly declared
+        shell: bash
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          # Plugin compile SDK overrides are optional. The app module is already
+          # pinned to API 36 above; only normalize plugin declarations that exist.
+          roots = [
+              Path.home() / ".pub-cache" / "hosted" / "pub.dev",
+              Path("/root/.pub-cache/hosted/pub.dev"),
+          ]
+          root = next((candidate for candidate in roots if candidate.exists()), None)
+          if root is None:
+              print("Pub cache directory not found; keeping app compile SDK 36.")
+              raise SystemExit(0)
+
+          pattern = re.compile(
+              r"(?m)^(\s*compileSdk(?:Version)?\s*(?:=\s*)?)"
+              r"(?:flutter\.compileSdkVersion|\d+)"
+          )
+          changed = []
+          scanned = 0
+          for gradle_file in root.rglob("build.gradle*"):
+              if "android" not in gradle_file.parts:
+                  continue
+              try:
+                  original = gradle_file.read_text(encoding="utf-8")
+              except (OSError, UnicodeError):
+                  continue
+              scanned += 1
+              updated = pattern.sub(r"\g<1>36", original)
+              if updated != original:
+                  gradle_file.write_text(updated, encoding="utf-8")
+                  changed.append(str(gradle_file))
+
+          print(f"Scanned {scanned} Android plugin Gradle files.")
+          if changed:
+              print("Normalized explicit plugin compile SDK declarations to API 36:")
+              print("\n".join(changed))
+          else:
+              print(
+                  "No explicit plugin compile SDK declarations needed normalization; "
+                  "the app compile SDK remains pinned to API 36."
+              )
+          PY
+      - name: Format and commit Dart sources
+        # A single writer prevents push and PR runners racing to format HEAD.
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          dart format .
+          if ! git diff --quiet -- '*.dart'; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -- '*.dart'
+            git commit -m "chore: format Dart sources [skip ci]"
+            git push origin "HEAD:refs/heads/${{ github.event.pull_request.head.ref || github.ref_name }}"
+          fi
+      - name: Format Dart sources for PR test workspace only
+        if: github.event_name == 'pull_request'
+        run: dart format .
+      - name: Verify Dart formatting across the repository
+        run: dart format --output=none --set-exit-if-changed .
+      - name: Set up Node.js for Firebase Emulator tests
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Test one-time signed branch identity provisioning
+        run: node --test tools/provisioning/issuer.test.js
+      - name: Set up Java for Firebase Emulator
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Install Firebase security test dependencies
+        working-directory: firebase
+        run: npm install --no-audit --no-fund
+      - name: Run Firestore Emulator security tests
+        working-directory: firebase
+        run: npm test
+      - name: Validate Firebase deployment JSON
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          config = json.loads(Path("firebase/firebase.json").read_text(encoding="utf-8"))
+          assert config["hosting"]["public"] == "firebase_public"
+          assert config["firestore"]["rules"] == "firebase/firestore.rules"
+          assert any(header["key"] == "Cache-Control" for route in config["hosting"]["headers"] if route["source"] == "/v1/catalog/**" for header in route["headers"])
+          assert any(header["key"] == "Access-Control-Allow-Origin" for route in config["hosting"]["headers"] if route["source"] == "/v1/catalog/**" for header in route["headers"])
+          print("Firebase Hosting configuration JSON is valid.")
+          PY
+      - run: flutter analyze --no-fatal-infos
+      - name: Use runner SQLite for Linux FFI tests without release-asset download
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsqlite3-0
+          cat >> pubspec.yaml <<'YAML'
+
+          # CI Linux tests use the runner's system SQLite because GitHub release
+          # asset downloads can be replaced by proxy error pages on hosted runners.
+          hooks:
+            user_defines:
+              sqlite3:
+                source: system
+          YAML
+          tail -n 10 pubspec.yaml
+      - name: Run Flutter sync integration against Firestore Emulator
+        working-directory: firebase
+        env:
+          FIRESTORE_EMULATOR_HOST: 127.0.0.1:8080
+        run: |
+          npx firebase emulators:exec --config firebase.emulator.json --only firestore --project pharmacy-dafb6 "cd .. && FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 flutter test test/firestore_sync_worker_integration_test.dart"
+      - run: flutter test
+      - name: Upload treasury card layout renders
+        uses: actions/upload-artifact@v4
+        with:
+          name: pharmacy-treasury-ui
+          path: test_artifacts/treasury_*.png
+          if-no-files-found: error
+      - name: Download and verify Gradle distribution through GitHub API
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          archive="$RUNNER_TEMP/gradle-9.5.1-bin.zip"
+          curl --fail --location --retry 3 --retry-all-errors \
+            -H "Accept: application/octet-stream" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "User-Agent: Pharmacy-Android-CI" \
+            "https://api.github.com/repos/gradle/gradle-distributions/releases/assets/418398387" \
+            --output "$archive"
+          expected="bafc141b619ad6350fd975fc903156dd5c151998cc8b058e8c1044ab5f7b031f"
+          printf '%s  %s\n' "$expected" "$archive" | sha256sum --check -
+          python - "$archive" <<'PY'
+          from pathlib import Path
+          import sys
+
+          archive = Path(sys.argv[1]).resolve()
+          properties = Path("android/gradle/wrapper/gradle-wrapper.properties")
+          if not properties.is_file():
+              raise SystemExit(f"Gradle wrapper properties not found: {properties}")
+          lines = properties.read_text(encoding="utf-8").splitlines()
+          uri = archive.as_uri().replace(":", r"\:")
+          output = []
+          found_url = False
+          found_hash = False
+          for line in lines:
+              if line.startswith("distributionUrl="):
+                  output.append(f"distributionUrl={uri}")
+                  found_url = True
+              elif line.startswith("distributionSha256Sum="):
+                  output.append("distributionSha256Sum=bafc141b619ad6350fd975fc903156dd5c151998cc8b058e8c1044ab5f7b031f")
+                  found_hash = True
+              else:
+                  output.append(line)
+          if not found_url:
+              raise SystemExit("Gradle wrapper distributionUrl was not found.")
+          if not found_hash:
+              output.append("distributionSha256Sum=bafc141b619ad6350fd975fc903156dd5c151998cc8b058e8c1044ab5f7b031f")
+          properties.write_text("\n".join(output) + "\n", encoding="utf-8")
+          print(f"Gradle wrapper configured to use verified local distribution: {archive}")
+          PY
+      - name: Add Maven Central mirror for Kotlin compiler artifacts
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          mirror = 'maven { url = uri("https://maven.wso2.org/nexus/content/repositories/central/") }'
+          groovy_mirror = "maven { url 'https://maven.wso2.org/nexus/content/repositories/central/' }"
+          paths = [
+              Path("android/settings.gradle.kts"),
+              Path("android/settings.gradle"),
+              Path("android/build.gradle.kts"),
+              Path("android/build.gradle"),
+              Path(os.environ["FLUTTER_ROOT"]) / "packages/flutter_tools/gradle/settings.gradle.kts",
+          ]
+          changed = []
+          for path in paths:
+              if not path.is_file():
+                  continue
+              original = path.read_text(encoding="utf-8")
+              if "maven.wso2.org/nexus/content/repositories/central" in original:
+                  continue
+              replacement = groovy_mirror if path.suffix == ".gradle" else mirror
+              updated, count = re.subn(
+                  r"(?m)^([ ]*)mavenCentral[(][)][ ]*$",
+                  lambda match: f"{match.group(1)}{replacement}\n{match.group(1)}mavenCentral()",
+                  original,
+              )
+              if count:
+                  path.write_text(updated, encoding="utf-8")
+                  changed.append(str(path))
+          if not changed:
+              raise SystemExit("Could not add the Maven mirror to any Gradle repository block.")
+          print("Added Maven Central mirror before mavenCentral() in:")
+          print("\n".join(changed))
+
+          # Resolve Kotlin through its published implementation module instead
+          # of relying on the separate plugin-marker artifact.
+          settings = Path("android/settings.gradle.kts")
+          if not settings.is_file():
+              raise SystemExit("Generated Android settings.gradle.kts was not found.")
+          content = settings.read_text(encoding="utf-8")
+          mapping = 'useModule("org.jetbrains.kotlin:kotlin-gradle-plugin:' + "${requested.version}" + '")'
+          if mapping not in content:
+              marker = re.search(r"(?m)^pluginManagement\s*\{", content)
+              if not marker:
+                  raise SystemExit("Could not find pluginManagement block in Android settings.")
+              strategy = """pluginManagement {
+              resolutionStrategy {
+                  eachPlugin {
+                      if (requested.id.id == "org.jetbrains.kotlin.android") {
+                          useModule("org.jetbrains.kotlin:kotlin-gradle-plugin:${requested.version}")
+                      }
+                  }
+              }
+          """
+              content = content[:marker.start()] + strategy + content[marker.end():]
+              settings.write_text(content, encoding="utf-8")
+          if mapping not in settings.read_text(encoding="utf-8"):
+              raise SystemExit("Kotlin plugin implementation mapping was not applied.")
+          print("Configured Kotlin Android plugin to resolve its implementation from Maven Central.")
+          PY
+      - name: Build Android APK with retry for transient Gradle distribution failures
+        shell: bash
+        env:
+          PROVISIONING_ED25519_PUBLIC_KEY_PEM_BASE64: ${{ vars.PROVISIONING_ED25519_PUBLIC_KEY_PEM_BASE64 }}
+        run: |
+          for attempt in 1 2 3; do
+            echo "Android release build attempt $attempt/3"
+            if flutter build apk --release --dart-define="PROVISIONING_ED25519_PUBLIC_KEY_PEM_BASE64=$PROVISIONING_ED25519_PUBLIC_KEY_PEM_BASE64"; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Build failed; waiting 20 seconds before retrying transient dependency downloads."
+              sleep 20
+            fi
+          done
+          echo "Android release build failed after three attempts."
+          exit 1
+      - name: Package Android APK into one ZIP
+        run: zip -j pharmacy-android.zip build/app/outputs/flutter-apk/app-release.apk
+      - name: Upload Android ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: pharmacy-android
+          path: pharmacy-android.zip
+          if-no-files-found: error
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Verify the actual source branch, not the synthetic PR merge ref.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter config --enable-windows-desktop
+      - run: flutter create --platforms=windows --org com.globalpharmacy .
+      - name: Pin verified PDFium release for Windows printing
+        shell: pwsh
+        run: |
+          $path = "windows/CMakeLists.txt"
+          $content = Get-Content -Raw $path
+          if ($content -notmatch 'PDFIUM_VERSION') {
+            # CMake accepts cache variables before project() and before Flutter
+            # adds plugin subdirectories. Prepending avoids template-specific markers.
+            $settings = @'
+          # Keep the printing plugin on a verified, available PDFium release.
+          set(PDFIUM_VERSION "8138" CACHE STRING "PDFium version" FORCE)
+          set(PDFIUM_ARCH "x64" CACHE STRING "PDFium architecture" FORCE)
+
+          '@
+            $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+            [System.IO.File]::WriteAllText($path, $settings + $content, $utf8NoBom)
+          }
+          Select-String -Path $path -Pattern 'PDFIUM_VERSION|PDFIUM_ARCH'
+      - run: flutter pub get
+      - name: Use Windows system SQLite for native FFI build hooks
+        shell: pwsh
+        run: |
+          $hookConfig = @'
+          # CI Windows uses the operating system SQLite DLL to avoid untrusted
+          # proxy responses when fetching sqlite3 release binaries.
+          hooks:
+            user_defines:
+              sqlite3:
+                source: system
+                name: winsqlite3
+          '@
+          Add-Content -Path pubspec.yaml -Value $hookConfig
+          Get-Content pubspec.yaml -Tail 10
+      - name: Download and verify PDFium through GitHub API
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $assetUrl = "https://api.github.com/repos/bblanchon/pdfium-binaries/releases/assets/709415678"
+          $archive = Join-Path $env:RUNNER_TEMP "pdfium-win-x64.tgz"
+          $headers = @{
+            Accept = "application/octet-stream"
+            Authorization = "Bearer $env:GITHUB_TOKEN"
+            "X-GitHub-Api-Version" = "2022-11-28"
+            "User-Agent" = "Pharmacy-Windows-CI"
+          }
+          $downloaded = $false
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            try {
+              Invoke-WebRequest -Uri $assetUrl -Headers $headers -OutFile $archive
+              $downloaded = $true
+              break
+            } catch {
+              if ($attempt -eq 3) { throw }
+              Write-Warning "PDFium API download attempt $attempt failed; retrying."
+              Start-Sleep -Seconds 15
+            }
+          }
+          if (-not $downloaded) { throw "Could not download the PDFium asset." }
+          $actualHash = (Get-FileHash -Path $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expectedHash = "8d48973e3eb472dda0f5f2435e595ac043f9f2219dd71883392f549445afa8a5"
+          if ($actualHash -ne $expectedHash) {
+            throw "PDFium SHA-256 mismatch. Expected $expectedHash but received $actualHash."
+          }
+          $pdfiumSource = Join-Path $env:GITHUB_WORKSPACE "build/windows/x64/pdfium-src"
+          New-Item -ItemType Directory -Force -Path $pdfiumSource | Out-Null
+          tar -xzf $archive -C $pdfiumSource
+          $config = Join-Path $pdfiumSource "PDFiumConfig.cmake"
+          if (-not (Test-Path $config)) {
+            throw "Verified PDFium archive did not contain PDFiumConfig.cmake at its root."
+          }
+          $pluginCmake = "windows/flutter/ephemeral/.plugin_symlinks/printing/windows/CMakeLists.txt"
+          if (-not (Test-Path $pluginCmake)) {
+            throw "Could not find the resolved printing Windows CMakeLists."
+          }
+          $content = Get-Content -Raw $pluginCmake
+          # The installed printing plugin already includes the local
+          # PDFiumConfig.cmake. Keep that declaration intact; only reject
+          # unexpected network download instructions, never rewrite CMake.
+          if (-not $content.Contains('include(${pdfium_SOURCE_DIR}/PDFiumConfig.cmake)')) {
+            throw "Printing plugin no longer includes verified local PDFiumConfig.cmake."
+          }
+          # Some printing releases invoke download_project even after we
+          # verified the PDFium archive. Replace ONLY the known upstream CMake
+          # download block with our SHA-256 verified local directory. Abort on
+          # unfamiliar download instructions rather than allowing a second,
+          # unverified dependency download during compilation.
+          if ($content.Contains('download_project(')) {
+            $knownDownload = '(?m)^\s*# Download pdfium\r?\n\s*include\(\.\./windows/DownloadProject\.cmake\)\r?\n\s*download_project\(\s*PROJ\s+pdfium\s+URL\s+\$\{PDFIUM_URL\}\s*\)'
+            $regex = [regex]::new($knownDownload)
+            if ($regex.Matches($content).Count -ne 1) {
+              throw "Unknown printing plugin PDFium download instructions."
+            }
+            $verifiedPath = $pdfiumSource.Replace('\', '/')
+            $replacement = 'set(pdfium_SOURCE_DIR "' + $verifiedPath + '")'
+            $content = $regex.Replace($content, $replacement)
+            if ($content.Contains('download_project(')) {
+              throw "Unverified PDFium download remains in printing plugin."
+            }
+            Set-Content -Path $pluginCmake -Value $content
+            Write-Host "Redirected recognized PDFium download to verified local archive."
+          }
+          Write-Host "Verified PDFium archive SHA-256: $actualHash"
+          Write-Host "Using local verified PDFium source: $pdfiumSource"
+      - run: flutter analyze --no-fatal-infos
+      - name: Build Windows release
+        shell: pwsh
+        env:
+          PROVISIONING_ED25519_PUBLIC_KEY_PEM_BASE64: ${{ vars.PROVISIONING_ED25519_PUBLIC_KEY_PEM_BASE64 }}
+        run: |
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            Write-Host "Windows release build attempt $attempt/3"
+            flutter build windows --release -v "--dart-define=PROVISIONING_ED25519_PUBLIC_KEY_PEM_BASE64=$env:PROVISIONING_ED25519_PUBLIC_KEY_PEM_BASE64"
+            if ($LASTEXITCODE -eq 0) {
+              exit 0
+            }
+            if ($attempt -lt 3) {
+              Write-Warning "Build failed; waiting 20 seconds before retrying dependency downloads."
+              Start-Sleep -Seconds 20
+            }
+          }
+          throw "Windows release build failed after three attempts."
+      - name: Package Windows release into one ZIP
+        shell: pwsh
+        run: Compress-Archive -Path "build/windows/x64/runner/Release/*" -DestinationPath "pharmacy-windows.zip" -Force
+      - name: Upload Windows ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: pharmacy-windows
+          path: pharmacy-windows.zip
+          if-no-files-found: error

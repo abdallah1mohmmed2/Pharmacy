@@ -1,0 +1,570 @@
+{
+  "schema_version": 18,
+  "reviewed_commit": "3dd6ec22e335d544ba4869e7e9597e836c129a73",
+  "objects": {
+    "active_ingredients": {
+      "classification": "syncable",
+      "sync_allowed": true,
+      "reason_ar": "مرجع المواد الفعالة؛ نقل الحقول المعتمدة فقط.",
+      "lifecycle": "schema"
+    },
+    "app_settings": {
+      "classification": "local",
+      "sync_allowed": false,
+      "reason_ar": "إعدادات تشغيل محلية قد تتضمن JSON؛ لا ترفع عبر المزامنة العامة.",
+      "lifecycle": "schema"
+    },
+    "audit_logs": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "سجل تدقيق يتضمن قيم قبل/بعد وهوية مستخدم؛ قد يحتوي أسراراً ولا يرفع.",
+      "lifecycle": "schema"
+    },
+    "audit_logs_legacy_i5": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "اسم وسيط لسجل تدقيق قديم؛ يبقى محلياً وحساساً.",
+      "lifecycle": "legacy"
+    },
+    "audit_logs_legacy_i5_migrated": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "أرشيف تدقيق مرحّل يحتفظ ببيانات قديمة؛ لا يرفع.",
+      "lifecycle": "legacy"
+    },
+    "backup_log": {
+      "classification": "local",
+      "sync_allowed": false,
+      "reason_ar": "مسارات نسخ احتياطية وبصمات ونتائج مرتبطة بالجهاز.",
+      "lifecycle": "schema"
+    },
+    "batches_fefo": {
+      "classification": "syncable",
+      "sync_allowed": true,
+      "reason_ar": "مرجع التشغيلات وبياناتها غير الرصيدية فقط؛ الكميات وحالة النفاد المشتقة تنقل عبر العمليات الذرية لا عبر last-write-wins.",
+      "lifecycle": "schema"
+    },
+    "branch_identity_provisioning": {
+      "classification": "local",
+      "sync_allowed": false,
+      "reason_ar": "سجل اعتماد هوية محلي موثوق؛ توزيعه يتم بملف موقع، لا عبر بيانات المزامنة.",
+      "lifecycle": "conditional"
+    },
+    "branches": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "هوية الفرع وعنوانه وترخيصه؛ تُعتمد بواسطة provisioning ولا تعدلها المزامنة العامة.",
+      "lifecycle": "schema"
+    },
+    "cash_accounts": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "الصناديق والمحافظ والأرصدة وبيانات الاتصال؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "cash_transactions": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "حركات الخزينة والرصيد الناتج؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "cashier_shifts": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "عهد وإقفال الكاشير وهوية المستخدم؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "catalog_cache": {
+      "classification": "derived",
+      "sync_allowed": false,
+      "reason_ar": "نسخة محلية قابلة لإعادة الجلب من مصدر الموسوعة؛ ليست مصدراً تشغيلياً للتبادل بين الأجهزة.",
+      "lifecycle": "schema"
+    },
+    "catalog_cache_fts": {
+      "classification": "derived",
+      "sync_allowed": false,
+      "reason_ar": "فهرس FTS5 مشتق من catalog_cache وينشأ اختيارياً وقت البحث.",
+      "lifecycle": "conditional"
+    },
+    "catalog_sync_state": {
+      "classification": "local",
+      "sync_allowed": false,
+      "reason_ar": "إصدار وETag خاصان بذاكرة الموسوعة المحلية.",
+      "lifecycle": "schema"
+    },
+    "chart_of_accounts": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "دليل الحسابات المرتبط بالقيود؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "chronic_medication_schedules": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "جدول أدوية مزمنة مرتبط بعميل ووصفة؛ بيانات شخصية وسريرية.",
+      "lifecycle": "schema"
+    },
+    "clinical_alert_logs": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "تنبيهات وقرارات سريرية مرتبطة بمرضى ومستخدمين؛ محظورة.",
+      "lifecycle": "schema"
+    },
+    "cold_chain_log": {
+      "classification": "local",
+      "sync_allowed": false,
+      "reason_ar": "سجل حرارة يتضمن recorded_by وتصحيحاً حراً؛ خارج العقد الحالي حتى مراجعة الحقول.",
+      "lifecycle": "schema"
+    },
+    "controlled_drug_log": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "أسماء وهويات المرضى والمستلمين والأطباء؛ محظورة.",
+      "lifecycle": "schema"
+    },
+    "disposal_items": {
+      "classification": "syncable",
+      "sync_allowed": true,
+      "reason_ar": "تفاصيل كميات التالف وتكاليفها؛ اعتماد العملية المركبة قيد P0-05.",
+      "lifecycle": "schema"
+    },
+    "disposals": {
+      "classification": "syncable",
+      "sync_allowed": true,
+      "reason_ar": "محاضر التالف؛ اسم الشاهد ومراجع الجهات والنصوص غير المعتمدة مستبعدة. ارتباط القيد المالي قيد P0-05.",
+      "lifecycle": "schema"
+    },
+    "drug_categories": {
+      "classification": "syncable",
+      "sync_allowed": true,
+      "reason_ar": "تصنيفات الأدوية وعلاقاتها؛ ضمن العقد المشترك.",
+      "lifecycle": "schema"
+    },
+    "drug_hepatic_rules": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "قواعد جرعات الكبد السريرية؛ تحتاج اعتماداً منفصلاً.",
+      "lifecycle": "schema"
+    },
+    "drug_interactions": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "قواعد ومراجع تداخلات سريرية؛ تحتاج اعتماد مصدر وإصدار قبل التبادل.",
+      "lifecycle": "schema"
+    },
+    "drug_pediatric_rules": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "قواعد جرعات الأطفال؛ تحتاج اعتماداً سريرياً ومصدراً موثوقاً.",
+      "lifecycle": "schema"
+    },
+    "drug_renal_rules": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "قواعد جرعات الكلى السريرية؛ ليست ضمن إسقاط الكتالوج المعتمد.",
+      "lifecycle": "schema"
+    },
+    "drugs": {
+      "classification": "syncable",
+      "sync_allowed": true,
+      "reason_ar": "مرجع الصنف العام؛ حقول الأرصدة المشتقة محظورة على المزامنة العامة، ولا يجوز أن تستبدل نتائج ترحيل المبيعات.",
+      "lifecycle": "schema"
+    },
+    "employee_attendance": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "حضور وأجور مرتبطة بالموظف؛ بيانات شخصية ومالية.",
+      "lifecycle": "schema"
+    },
+    "employees": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "بيانات موظفين ورواتب وتراخيص؛ شخصية ومالية.",
+      "lifecycle": "schema"
+    },
+    "expense_categories": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "تصنيفات مصروفات وميزانية وحساب مقابل؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "expenses": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "مصروفات وجهة الصرف ومرفقاتها؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "financial_operation_inbox": {
+      "classification": "local",
+      "sync_allowed": false,
+      "reason_ar": "إيصال منع تطبيق السند المالي مرتين على هذا الجهاز؛ محلي وممنوع في المزامنة العامة.",
+      "lifecycle": "schema"
+    },
+    "financial_operation_outbox": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "غلاف عملية سند مالي يحتوي مراجع وأرصدة مالية؛ لا يمر عبر المزامنة العامة ولا يرسل قبل تحقق موثوق.",
+      "lifecycle": "schema"
+    },
+    "financial_sale_capture_outbox": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "لقطة فاتورة بيع مالية ومخزنية محلية؛ تحتوي معرفات محلية ولا تصلح للترحيل أو المزامنة العامة.",
+      "lifecycle": "schema"
+    },
+    "financial_sale_delivery_acks": {
+      "classification": "local",
+      "sync_allowed": false,
+      "reason_ar": "إيصال تأكيد إرسال فاتورة البيع المالية عبر Relay؛ محلي ولا يمر بالمزامنة العامة.",
+      "lifecycle": "schema"
+    },
+    "fiscal_periods": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "الفترات المحاسبية وإقفالها؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "import_jobs": {
+      "classification": "local",
+      "sync_allowed": false,
+      "reason_ar": "سجل استيراد وتصدير محلي يتضمن أسماء ملفات وتعيين أعمدة.",
+      "lifecycle": "schema"
+    },
+    "insurance_companies": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "مرجع تأمين مرتبط بطرف مالي؛ غير معتمد في العقد الحالي.",
+      "lifecycle": "schema"
+    },
+    "insurance_policies": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "أرقام بوالص وعميل وتغطية مالية وصحية؛ غير معتمدة.",
+      "lifecycle": "schema"
+    },
+    "journal_entries": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "رؤوس القيود المزدوجة؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "journal_lines": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "تفاصيل المدين والدائن؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "lah_alayh_ledger": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "دفتر أرصدة الأطراف؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "manufacturers": {
+      "classification": "syncable",
+      "sync_allowed": true,
+      "reason_ar": "مرجع الشركات المصنعة؛ ضمن الحقول المعتمدة.",
+      "lifecycle": "schema"
+    },
+    "number_sequences": {
+      "classification": "local",
+      "sync_allowed": false,
+      "reason_ar": "عدادات ترقيم المستندات؛ نسخها كسجلات مستقلة قد يولد أرقاماً متصادمة. يحتاج سياسة ترقيم مستقلة.",
+      "lifecycle": "schema"
+    },
+    "opening_inventory_posts": {
+      "classification": "local",
+      "sync_allowed": false,
+      "reason_ar": "سجل منع تكرار اعتماد الرصيد الافتتاحي وبصمة الملف محلي؛ لا ينقل عبر مزامنة السجلات العامة.",
+      "lifecycle": "schema"
+    },
+    "parties": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "أسماء وهواتف وهويات وعناوين وأرصدة؛ يحتاج عقد خصوصية ومجال مالي.",
+      "lifecycle": "schema"
+    },
+    "partner_distribution_lines": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "استحقاقات كل شريك؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "partner_distributions": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "توزيع الأرباح المرتبط بالفترة والقيد؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "partners": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "هويات الشركاء ورأس المال والحصص؛ شخصية ومالية.",
+      "lifecycle": "schema"
+    },
+    "party_settlements": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "تسويات بين حسابات الأطراف؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "patients": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "بيانات شخصية وقياسات وحالات صحية؛ غير معتمدة للنقل.",
+      "lifecycle": "schema"
+    },
+    "payroll_runs": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "رواتب وسلف واستقطاعات؛ تنتظر عقداً مالياً وخصوصية.",
+      "lifecycle": "schema"
+    },
+    "prescription_items": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "جرعات وتفاصيل وصفة؛ بيانات سريرية مرتبطة بالمريض.",
+      "lifecycle": "schema"
+    },
+    "prescriptions": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "وصفات وبيانات طبيب ومريض وتأمين؛ محظورة.",
+      "lifecycle": "schema"
+    },
+    "price_history": {
+      "classification": "syncable",
+      "sync_allowed": true,
+      "reason_ar": "تاريخ الأسعار والتكاليف؛ مراجع المستندات تحتاج عقد العلاقات في P0-05.",
+      "lifecycle": "schema"
+    },
+    "purchase_invoice_items": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "بنود الشراء والتكلفة والبونص؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "purchase_invoices": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "رؤوس فواتير الشراء والالتزامات؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "purchase_order_items": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "بنود أوامر الشراء وتكاليفها؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "purchase_orders": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "أوامر شراء مرتبطة بمورد؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "purchase_return_items": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "تفاصيل مرتجعات الشراء؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "purchase_returns": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "رؤوس مرتجعات الشراء والتسوية؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "report_favorites": {
+      "classification": "local",
+      "sync_allowed": false,
+      "reason_ar": "تفضيلات تقارير مستخدم الجهاز؛ محلية.",
+      "lifecycle": "schema"
+    },
+    "representative_visit_days": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "زيارات مرتبطة بهوية مندوب وملاحظات؛ غير معتمدة للنقل.",
+      "lifecycle": "schema"
+    },
+    "role_permissions": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "صلاحيات الأدوار؛ مسار إدارة موثوق مستقل.",
+      "lifecycle": "schema"
+    },
+    "roles": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "تعريف أدوار أمنية؛ لا تُقبل تعديلات قادمة من سجل مزامنة عام.",
+      "lifecycle": "schema"
+    },
+    "sales_invoice_item_batches": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "تخصيص دفعات فاتورة البيع مرتبط برأس وبند مالي محظور؛ ينقل فقط ضمن عقد CASH_SALE الذري.",
+      "lifecycle": "schema"
+    },
+    "sales_invoice_items": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "بنود البيع وتكاليفها؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "sales_invoices": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "رؤوس فواتير البيع المرتبطة بعميل وكاشير؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "sales_payments": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "دفعات البيع ومراجع المحافظ؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "sales_return_items": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "بنود مرتجعات البيع والمبالغ والتشغيلات؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "sales_returns": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "مرتجعات البيع والعميل وسبب الإرجاع؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "shelf_locations": {
+      "classification": "syncable",
+      "sync_allowed": true,
+      "reason_ar": "تعريفات الأرفف وعلاقتها بالمستودع؛ الوصف الحر مستبعد.",
+      "lifecycle": "schema"
+    },
+    "stock_movements": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "حركات المخزون مرتبطة بمستندات مالية وتشغيلية مركبة؛ منع نقل الصف منفرداً تجنباً لتكرار خصم البيع والقيود.",
+      "lifecycle": "schema"
+    },
+    "stock_transfer_items": {
+      "classification": "syncable",
+      "sync_allowed": true,
+      "reason_ar": "تفاصيل التحويل والتشغيلات؛ لا يثبت السماح اكتمال الاستلام الذري.",
+      "lifecycle": "schema"
+    },
+    "stock_transfers": {
+      "classification": "syncable",
+      "sync_allowed": true,
+      "reason_ar": "رؤوس التحويل بين المستودعات؛ الاتساق مع تفاصيل العملية قيد P0-06.",
+      "lifecycle": "schema"
+    },
+    "stocktaking_lines": {
+      "classification": "syncable",
+      "sync_allowed": true,
+      "reason_ar": "تفاصيل العد والفروق؛ تحتاج اتساق اعتماد الجرد مع قيوده المالية.",
+      "lifecycle": "schema"
+    },
+    "stocktaking_sessions": {
+      "classification": "syncable",
+      "sync_allowed": true,
+      "reason_ar": "رؤوس الجرد؛ هوية المعتمد مستبعدة من الإسقاط.",
+      "lifecycle": "schema"
+    },
+    "sync_inbox": {
+      "classification": "local",
+      "sync_allowed": false,
+      "reason_ar": "حالة استقبال ومنع تكرار خاصة بقاعدة الجهاز؛ لا ترفع كجدول.",
+      "lifecycle": "schema"
+    },
+    "sync_inbox_batches": {
+      "classification": "local",
+      "sync_allowed": false,
+      "reason_ar": "سجل الدفعات المستقبلة محلياً؛ لا يعاد بثه.",
+      "lifecycle": "schema"
+    },
+    "sync_inbox_cursors": {
+      "classification": "local",
+      "sync_allowed": false,
+      "reason_ar": "مؤشر تقدم الاستقبال لكل جهاز؛ نسخه قد يسقط دفعات.",
+      "lifecycle": "schema"
+    },
+    "sync_queue": {
+      "classification": "local",
+      "sync_allowed": false,
+      "reason_ar": "طابور صادر محلي؛ قد يحتفظ بالبيانات الخام، يرفع الإسقاط المعتمد فقط وليس جدول الطابور.",
+      "lifecycle": "schema"
+    },
+    "system_settings": {
+      "classification": "local",
+      "sync_allowed": false,
+      "reason_ar": "إعدادات الجهاز والاتصال والمفاتيح المحتملة؛ تبقى محلية.",
+      "lifecycle": "schema"
+    },
+    "system_settings_legacy_i5": {
+      "classification": "local",
+      "sync_allowed": false,
+      "reason_ar": "نسخة إعدادات قديمة ناتجة عن ترحيل؛ قد تحتوي قيماً حساسة، لا ترفع.",
+      "lifecycle": "legacy"
+    },
+    "tenants": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "هوية المؤسسة؛ موثوقة وثابتة بعد التأسيس وليست حدثاً تشغيلياً عادياً.",
+      "lifecycle": "schema"
+    },
+    "user_permissions": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "صلاحيات المستخدم؛ لا ترفع أو تطبق عبر المزامنة العامة.",
+      "lifecycle": "schema"
+    },
+    "users": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "حسابات وأسماء وتجزئات كلمات المرور ورموز المدير؛ ممنوع رفعها.",
+      "lifecycle": "schema"
+    },
+    "v_drug_alternatives": {
+      "classification": "derived",
+      "sync_allowed": false,
+      "reason_ar": "عرض بدائل دوائية محسوب من الأصناف والمخزون؛ لا ينقل كجدول.",
+      "lifecycle": "schema"
+    },
+    "v_fefo_batch_balances": {
+      "classification": "derived",
+      "sync_allowed": false,
+      "reason_ar": "عرض التشغيلات وترتيب الصلاحية؛ مشتق محلياً.",
+      "lifecycle": "schema"
+    },
+    "v_inventory_by_drug": {
+      "classification": "derived",
+      "sync_allowed": false,
+      "reason_ar": "عرض أرصدة مشتق من الأصناف والتشغيلات؛ لا يزامن.",
+      "lifecycle": "schema"
+    },
+    "v_party_balance": {
+      "classification": "derived",
+      "sync_allowed": false,
+      "reason_ar": "عرض محسوب من الأطراف والدفتر؛ يعاد حسابه محلياً.",
+      "lifecycle": "schema"
+    },
+    "vouchers": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "سندات القبض والدفع؛ محظور حالياً حتى عقد P0-05 وتتبع المعاملة في P0-06.",
+      "lifecycle": "schema"
+    },
+    "warehouses": {
+      "classification": "syncable",
+      "sync_allowed": true,
+      "reason_ar": "تعريفات المستودعات؛ قائمة السماح الحالية.",
+      "lifecycle": "schema"
+    },
+    "work_shifts": {
+      "classification": "local",
+      "sync_allowed": false,
+      "reason_ar": "تعريف أوقات الدوام غير معتمد للمزامنة الحالية؛ يبقى محلياً حتى اعتماد مجال الموظفين.",
+      "lifecycle": "schema"
+    }
+  }
+}

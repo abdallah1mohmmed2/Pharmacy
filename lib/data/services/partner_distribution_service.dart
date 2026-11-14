@@ -1,0 +1,471 @@
+// lib/data/services/partner_distribution_service.dart
+import 'package:sqflite/sqflite.dart';
+import '../database/database_helper.dart';
+
+class PolicyViolation implements Exception {
+  const PolicyViolation(this.code);
+  final String code;
+  @override
+  String toString() => code;
+}
+
+class PartnerPolicy {
+  const PartnerPolicy(this.mode);
+  final String mode;
+  bool get percentageEditable => mode == 'percentage';
+  bool get sharesEditable => mode == 'shares';
+  void validate({int? sharesCount, double? percentage}) {
+    if (mode == 'shares' && percentage != null)
+      throw const PolicyViolation('PARTNER_PCT_LOCKED_IN_SHARES_MODE');
+    if (mode == 'percentage' && sharesCount != null)
+      throw const PolicyViolation('PARTNER_SHARES_LOCKED_IN_PERCENTAGE_MODE');
+    if (mode != 'shares' && mode != 'percentage')
+      throw StateError('نمط توزيع الأرباح غير معروف');
+    if (sharesCount != null && sharesCount < 0)
+      throw ArgumentError('عدد الحصص لا يمكن أن يكون سالباً');
+    if (percentage != null && (percentage < 0 || percentage > 100))
+      throw ArgumentError('النسبة يجب أن تكون بين صفر و100');
+  }
+}
+
+class PartnerDistributionService {
+  PartnerDistributionService({DatabaseHelper? helper})
+      : _helper = helper ?? DatabaseHelper.instance;
+  final DatabaseHelper _helper;
+  String _now() => DateTime.now().toIso8601String();
+  static List<double> allocateProfitExactly(
+      {required double profit, required List<double> basis}) {
+    final total = basis.fold<double>(0, (a, b) => a + b);
+    if (profit < 0 || basis.isEmpty || basis.any((v) => v < 0) || total <= 0)
+      throw ArgumentError('أساس توزيع الأرباح غير صالح');
+    final amounts = basis
+        .map((v) => ((profit * v / total) * 100).roundToDouble() / 100)
+        .toList();
+    var largest = 0;
+    for (var i = 1; i < basis.length; i++) {
+      if (basis[i] > basis[largest]) largest = i;
+    }
+    final allocated = amounts.fold<double>(0, (a, b) => a + b);
+    amounts[largest] =
+        ((amounts[largest] + profit - allocated) * 100).roundToDouble() / 100;
+    return amounts;
+  }
+
+  String _uuid(String p) => '$p-${DateTime.now().microsecondsSinceEpoch}';
+  double _n(Object? v) => v is num ? v.toDouble() : double.tryParse('$v') ?? 0;
+
+  Future<PartnerPolicy> policy() async {
+    final rows = await _helper.query('app_settings',
+        where: "setting_key='accounting.partner_distribution_mode'", limit: 1);
+    final mode = rows.isEmpty ? 'shares' : rows.first['value_text'] as String;
+    if (mode != 'shares' && mode != 'percentage')
+      throw StateError('قيمة نمط توزيع الشركاء غير صالحة');
+    return PartnerPolicy(mode);
+  }
+
+  Future<void> validatePartnerFields(
+          {int? sharesCount, double? percentage}) async =>
+      (await policy())
+          .validate(sharesCount: sharesCount, percentage: percentage);
+
+  Future<Map<String, double>> calculatePeriodNetProfit(
+      {required int branchId,
+      required String periodCode,
+      double additionalLosses = 0,
+      double inventoryGain = 0}) async {
+    if (!RegExp(r'^\d{4}-\d{2}$').hasMatch(periodCode))
+      throw ArgumentError('صيغة الفترة يجب أن تكون YYYY-MM');
+    final db = await _helper.database;
+    final sales = await db.rawQuery(
+        "SELECT COALESCE(SUM(subtotal),0) gross,COALESCE(SUM(discount_amount),0) discounts,COALESCE(SUM(total_cost),0) cogs FROM sales_invoices WHERE branch_id=? AND status='COMPLETED' AND substr(invoice_date,1,7)=?",
+        [branchId, periodCode]);
+    final returns = await db.rawQuery(
+        "SELECT COALESCE(SUM(total_refund),0) refunds FROM sales_returns WHERE substr(return_date,1,7)=?",
+        [periodCode]);
+    final returnedCost = await db.rawQuery(
+        "SELECT COALESCE(SUM(CASE WHEN i.qty_units>0 THEN i.line_cost*1.0*r.qty_units/i.qty_units ELSE 0 END),0) total FROM sales_return_items r JOIN sales_returns s ON s.id=r.sales_return_id JOIN sales_invoice_items i ON i.id=r.invoice_item_id WHERE r.disposition='RESTOCK' AND substr(s.return_date,1,7)=?",
+        [periodCode]);
+    final expense = await db.rawQuery(
+        "SELECT COALESCE(SUM(amount),0) total FROM expenses WHERE branch_id=? AND substr(expense_date,1,7)=?",
+        [branchId, periodCode]);
+    final dailyWages = await db.rawQuery(
+        "SELECT COALESCE(SUM(a.wage_earned),0) total FROM employee_attendance a JOIN employees e ON e.id=a.employee_id WHERE e.branch_id=? AND substr(a.work_date,1,7)=? AND e.pay_type='DAILY'",
+        [branchId, periodCode]);
+    final monthlyWages = await db.rawQuery(
+        "SELECT COALESCE(SUM(e.pay_rate),0) total FROM employees e WHERE e.branch_id=? AND e.pay_type='MONTHLY' AND e.termination_date IS NULL AND e.hire_date<=?",
+        [branchId, '$periodCode-31']);
+    final employeeBonuses = await db.rawQuery(
+        "SELECT COALESCE(SUM(l.lah_amount),0) total FROM lah_alayh_ledger l JOIN parties p ON p.id=l.party_id JOIN employees e ON e.party_id=p.id WHERE e.branch_id=? AND l.entry_type='EMPLOYEE_BONUS' AND substr(l.entry_date,1,7)=?",
+        [branchId, periodCode]);
+    final disposalLosses = await db.rawQuery(
+        "SELECT COALESCE(SUM(total_cost_value),0) total FROM disposals WHERE substr(disposal_date,1,7)=? AND status IN('APPROVED','POSTED')",
+        [periodCode]);
+    final stockAdjustments = await db.rawQuery(
+        "SELECT COALESCE(SUM(CASE WHEN l.diff_value<0 THEN -l.diff_value ELSE 0 END),0) losses,COALESCE(SUM(CASE WHEN l.diff_value>0 THEN l.diff_value ELSE 0 END),0) gains FROM stocktaking_lines l JOIN stocktaking_sessions s ON s.id=l.session_id WHERE s.status='APPROVED' AND substr(COALESCE(s.approved_at,s.created_at),1,7)=?",
+        [periodCode]);
+    final revenue = _n(sales.first['gross']);
+    final discounts = _n(sales.first['discounts']);
+    final refund = _n(returns.first['refunds']);
+    final netSales = revenue - discounts - refund;
+    final cogs = (_n(sales.first['cogs']) - _n(returnedCost.first['total']))
+        .clamp(0, double.infinity)
+        .toDouble();
+    final expenses = _n(expense.first['total']);
+    final wages = _n(dailyWages.first['total']) +
+        _n(monthlyWages.first['total']) +
+        _n(employeeBonuses.first['total']);
+    final losses = _n(disposalLosses.first['total']) +
+        _n(stockAdjustments.first['losses']) +
+        additionalLosses;
+    final totalExpenses = expenses + wages + losses;
+    final stockGain = _n(stockAdjustments.first['gains']);
+    final totalInventoryGain = stockGain + inventoryGain;
+    final netProfit = netSales - cogs - totalExpenses + totalInventoryGain;
+    return {
+      'gross_sales': revenue,
+      'discounts': discounts,
+      'returns': refund,
+      'net_sales': netSales,
+      'cogs': cogs,
+      'operating_expenses': expenses,
+      'wages': wages,
+      'additional_losses': losses,
+      'inventory_gain': totalInventoryGain,
+      'total_expenses_and_losses': totalExpenses,
+      'net_profit': netProfit
+    };
+  }
+
+  Future<List<Map<String, Object?>>> planDistribution(
+      {required int branchId,
+      required String periodCode,
+      required double distributableProfit}) async {
+    if (distributableProfit < 0)
+      throw StateError('لا يمكن توزيع خسارة كأنها أرباح');
+    final p = await policy();
+    final db = await _helper.database;
+    final partners = await db.rawQuery(
+        'SELECT p.*,t.name_ar FROM partners p JOIN parties t ON t.id=p.party_id WHERE p.branch_id=? AND p.is_active=1 AND t.is_deleted=0 ORDER BY p.id',
+        [branchId]);
+    if (partners.isEmpty) throw StateError('لا يوجد شركاء نشطون');
+    double basisTotal = 0;
+    if (p.mode == 'shares') {
+      basisTotal =
+          partners.fold<double>(0, (s, r) => s + _n(r['shares_count']));
+      if (basisTotal <= 0)
+        throw StateError('إجمالي حصص الشركاء النشطين يجب أن يكون أكبر من صفر');
+    } else {
+      basisTotal = partners.fold<double>(0, (s, r) => s + _n(r['percentage']));
+      if ((basisTotal - 100).abs() > 0.000001)
+        throw StateError('مجموع نسب الشركاء النشطين يجب أن يساوي 100%');
+    }
+    final result = <Map<String, Object?>>[];
+    final basisValues = partners
+        .map((partner) => p.mode == 'shares'
+            ? _n(partner['shares_count'])
+            : _n(partner['percentage']))
+        .toList();
+    final allocatedAmounts =
+        allocateProfitExactly(profit: distributableProfit, basis: basisValues);
+    for (var partnerIndex = 0; partnerIndex < partners.length; partnerIndex++) {
+      final partner = partners[partnerIndex];
+      final basis = basisValues[partnerIndex];
+      final amount = allocatedAmounts[partnerIndex];
+      final withdrawals = await db.rawQuery(
+          "SELECT COALESCE(SUM(alayh_amount),0) total FROM lah_alayh_ledger WHERE party_id=? AND substr(entry_date,1,7)=? AND entry_type IN('PARTNER_WITHDRAWAL','PARTNER_PERSONAL_WITHDRAWAL')",
+          [partner['party_id'], periodCode]);
+      final withdrawn = _n(withdrawals.first['total']);
+      result.add({
+        'partner_id': partner['id'],
+        'party_id': partner['party_id'],
+        'name_ar': partner['name_ar'],
+        'basis_value': basis,
+        'share_amount_lah': amount,
+        'withdrawals_alayh': withdrawn,
+        'net_payable': amount - withdrawn
+      });
+    }
+    return result;
+  }
+
+  Future<int> createDistribution(
+      {required int branchId,
+      required String periodCode,
+      required double reservePct,
+      double additionalLosses = 0,
+      double inventoryGain = 0}) async {
+    if (reservePct < 0 || reservePct > 100)
+      throw ArgumentError('الاحتياطي يجب أن يكون بين 0 و100');
+    final profit = await calculatePeriodNetProfit(
+        branchId: branchId,
+        periodCode: periodCode,
+        additionalLosses: additionalLosses,
+        inventoryGain: inventoryGain);
+    final net = _n(profit['net_profit']);
+    if (net < 0)
+      throw StateError(
+          'الفترة حققت خسارة مقدارها ${net.abs().toStringAsFixed(2)} ولا يوجد ربح قابل للتوزيع');
+    final distributable =
+        ((net * (1 - reservePct / 100)) * 100).roundToDouble() / 100;
+    final p = await policy();
+    final lines = await planDistribution(
+        branchId: branchId,
+        periodCode: periodCode,
+        distributableProfit: distributable);
+    final db = await _helper.database;
+    return db.transaction((tx) async {
+      final no = 'DIST-${DateTime.now().millisecondsSinceEpoch}';
+      final id = await tx.insert('partner_distributions', {
+        'distribution_no': no,
+        'period_code': periodCode,
+        'distribution_mode': p.mode,
+        'total_revenue': _n(profit['gross_sales']),
+        'total_cogs': _n(profit['cogs']),
+        'total_expenses_and_losses': _n(profit['total_expenses_and_losses']),
+        'net_profit': net,
+        'reserve_pct': reservePct,
+        'distributable_profit': distributable,
+        'status': 'DRAFT',
+        'branch_id': branchId
+      });
+      for (final line in lines) {
+        await tx.insert('partner_distribution_lines', {
+          'distribution_id': id,
+          'partner_id': line['partner_id'],
+          'basis_value': line['basis_value'],
+          'share_amount_lah': line['share_amount_lah'],
+          'withdrawals_alayh': line['withdrawals_alayh'],
+          'net_payable': line['net_payable']
+        });
+      }
+      return id;
+    });
+  }
+
+  Future<void> postPartnerDistribution({required int distributionId}) async {
+    final db = await _helper.database;
+    await db.transaction((tx) async {
+      final distributions = await tx.query('partner_distributions',
+          where: "id=? AND status='DRAFT'",
+          whereArgs: [distributionId],
+          limit: 1);
+      if (distributions.isEmpty)
+        throw StateError('التوزيع غير موجود أو تم ترحيله مسبقاً');
+      final d = distributions.first;
+      final branchId = d['branch_id'] as int;
+      final lines = await tx.query('partner_distribution_lines',
+          where: 'distribution_id=?', whereArgs: [distributionId]);
+      if (lines.isEmpty) throw StateError('لا توجد تفاصيل توزيع');
+      final total = _n(d['distributable_profit']);
+      final retained = await _gl(tx, '3201');
+      final payable = await _gl(tx, '2301');
+      final je = await tx.insert('journal_entries', {
+        'uuid': _uuid('je'),
+        'branch_id': branchId,
+        'created_at': _now(),
+        'updated_at': _now(),
+        'entry_no': 'DIST-JE-${DateTime.now().microsecondsSinceEpoch}',
+        'entry_date': _now(),
+        'description': 'توزيع أرباح الفترة ${d['period_code']}',
+        'source_type': 'PARTNER_DISTRIBUTION',
+        'source_id': distributionId,
+        'is_posted': 1
+      });
+      if (total > 0) {
+        await _line(tx, branchId, je, retained, dr: total, memo: 'توزيع أرباح');
+        await _line(tx, branchId, je, payable,
+            cr: total, memo: 'مستحقات الشركاء');
+      }
+      for (final line in lines) {
+        final partner = (await tx.query('partners',
+                where: 'id=?', whereArgs: [line['partner_id']], limit: 1))
+            .first;
+        final partyId = partner['party_id'] as int;
+        final amount = _n(line['share_amount_lah']);
+        if (amount > 0) {
+          await tx.insert('lah_alayh_ledger', {
+            'uuid': _uuid('profit-share'),
+            'branch_id': branchId,
+            'created_at': _now(),
+            'updated_at': _now(),
+            'party_id': partyId,
+            'entry_date': _now(),
+            'entry_type': 'PROFIT_SHARE',
+            'alayh_amount': 0,
+            'lah_amount': amount,
+            'doc_type': 'PARTNER_DISTRIBUTION',
+            'doc_id': distributionId,
+            'journal_entry_id': je,
+            'statement_ar': 'نصيب أرباح الفترة ${d['period_code']}'
+          });
+        }
+      }
+      await tx.update(
+          'partner_distributions', {'status': 'POSTED', 'journal_entry_id': je},
+          where: 'id=?', whereArgs: [distributionId]);
+    });
+  }
+
+  Future<void> switchDistributionMode(
+      {required int branchId,
+      required String newMode,
+      required int managerUserId}) async {
+    if (newMode != 'shares' && newMode != 'percentage')
+      throw ArgumentError('نمط التوزيع غير صالح');
+    final db = await _helper.database;
+    final manager = await db.query('users',
+        columns: ['id'],
+        where:
+            "id=? AND branch_id=? AND role_code IN('OWNER','MANAGER') AND is_active=1 AND is_deleted=0",
+        whereArgs: [managerUserId, branchId],
+        limit: 1);
+    if (manager.isEmpty)
+      throw StateError('هوية اعتماد المالك أو المدير غير صالحة');
+    await db.transaction((tx) async {
+      final row = await tx.query('app_settings',
+          columns: ['value_text'],
+          where: "setting_key='accounting.partner_distribution_mode'",
+          limit: 1);
+      final current =
+          row.isEmpty ? 'shares' : row.first['value_text'] as String;
+      if (current == newMode) return;
+      if (newMode == 'shares') {
+        await tx.update('partners', {'percentage': null, 'needs_input': 1},
+            where: '1=1');
+      } else {
+        await tx.update('partners', {'shares_count': null, 'needs_input': 1},
+            where: '1=1');
+      }
+      await tx.insert(
+          'app_settings',
+          {
+            'setting_key': 'accounting.partner_distribution_mode',
+            'value_text': newMode,
+            'updated_at': _now()
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace);
+    });
+  }
+
+  Future<void> savePartner(
+      {required int partyId,
+      required int branchId,
+      double capitalAmount = 0,
+      int? sharesCount,
+      double? percentage,
+      bool needsInput = false,
+      String? joinDate,
+      bool isActive = true}) async {
+    final p = await policy();
+    p.validate(sharesCount: sharesCount, percentage: percentage);
+    final db = await _helper.database;
+    await db.insert(
+        'partners',
+        {
+          'party_id': partyId,
+          'capital_amount': capitalAmount,
+          'shares_count': sharesCount,
+          'percentage': percentage,
+          'needs_input': needsInput ? 1 : 0,
+          'join_date': joinDate ?? _now().substring(0, 10),
+          'is_active': isActive ? 1 : 0,
+          'branch_id': branchId
+        },
+        conflictAlgorithm: ConflictAlgorithm.abort);
+  }
+
+  Future<int> recordPartnerWithdrawal(
+      {required int partnerId,
+      required int cashAccountId,
+      required double amount,
+      required String note}) async {
+    if (amount <= 0 || note.trim().length < 3)
+      throw ArgumentError('أدخل مبلغاً وبياناً صحيحين');
+    final db = await _helper.database;
+    return db.transaction((tx) async {
+      final rows = await tx.query('partners',
+          where: 'id=? AND is_active=1', whereArgs: [partnerId], limit: 1);
+      if (rows.isEmpty) throw StateError('الشريك غير موجود أو غير نشط');
+      final partner = rows.first;
+      final partyId = partner['party_id'] as int;
+      final branchId = partner['branch_id'] as int;
+      final cash = await tx.query('cash_accounts',
+          columns: ['current_balance', 'gl_account_id'],
+          where: 'id=? AND branch_id=?',
+          whereArgs: [cashAccountId, branchId],
+          limit: 1);
+      if (cash.isEmpty || _n(cash.first['current_balance']) < amount)
+        throw StateError('رصيد حساب الدفع لا يكفي');
+      final cashGl = cash.first['gl_account_id'] as int;
+      final payable = await _gl(tx, '2301');
+      final je = await tx.insert('journal_entries', {
+        'uuid': _uuid('je'),
+        'branch_id': branchId,
+        'created_at': _now(),
+        'updated_at': _now(),
+        'entry_no': 'PART-WD-${DateTime.now().microsecondsSinceEpoch}',
+        'entry_date': _now(),
+        'description': note,
+        'source_type': 'PARTNER_WITHDRAWAL',
+        'is_posted': 1
+      });
+      await _line(tx, branchId, je, payable,
+          dr: amount, partyId: partyId, memo: note);
+      await _line(tx, branchId, je, cashGl, cr: amount, memo: note);
+      final balance = _n(cash.first['current_balance']) - amount;
+      await tx.update(
+          'cash_accounts', {'current_balance': balance, 'updated_at': _now()},
+          where: 'id=?', whereArgs: [cashAccountId]);
+      final txId = await tx.insert('cash_transactions', {
+        'cash_account_id': cashAccountId,
+        'tx_date': _now(),
+        'direction': 'OUT',
+        'amount': amount,
+        'tx_type': 'PARTNER_WITHDRAWAL',
+        'doc_type': 'JOURNAL',
+        'doc_id': je,
+        'balance_after': balance,
+        'note': note,
+        'branch_id': branchId
+      });
+      return tx.insert('lah_alayh_ledger', {
+        'uuid': _uuid('partner-withdrawal'),
+        'branch_id': branchId,
+        'created_at': _now(),
+        'updated_at': _now(),
+        'party_id': partyId,
+        'entry_date': _now(),
+        'entry_type': 'PARTNER_WITHDRAWAL',
+        'alayh_amount': amount,
+        'lah_amount': 0,
+        'doc_type': 'CASH_TRANSACTION',
+        'doc_id': txId,
+        'journal_entry_id': je,
+        'statement_ar': note
+      });
+    });
+  }
+
+  Future<int> _gl(DatabaseExecutor tx, String code) async {
+    final r = await tx.query('chart_of_accounts',
+        columns: ['id'], where: 'code=?', whereArgs: [code], limit: 1);
+    if (r.isEmpty) throw StateError('الحساب المحاسبي $code غير موجود');
+    return r.first['id'] as int;
+  }
+
+  Future<void> _line(DatabaseExecutor tx, int branchId, int je, int account,
+      {double dr = 0, double cr = 0, int? partyId, String? memo}) async {
+    await tx.insert('journal_lines', {
+      'uuid': _uuid('jl'),
+      'branch_id': branchId,
+      'created_at': _now(),
+      'updated_at': _now(),
+      'journal_entry_id': je,
+      'account_id': account,
+      'party_id': partyId,
+      'dr_amount': dr,
+      'cr_amount': cr,
+      'memo': memo
+    });
+  }
+}

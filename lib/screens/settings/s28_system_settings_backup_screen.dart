@@ -1,0 +1,1696 @@
+// lib/screens/settings/s28_system_settings_backup_screen.dart
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:provider/provider.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:pdf/pdf.dart';
+import 'package:printing/printing.dart';
+import 'package:path/path.dart' as path_util;
+import 'package:path_provider/path_provider.dart';
+import '../../core/constants/setting_keys.dart';
+import '../../providers/settings_and_system_provider.dart';
+import '../../providers/session_and_erp_provider.dart';
+import '../../providers/pos_and_drugs_provider.dart';
+import '../../providers/inventory_and_purchase_provider.dart';
+import '../../providers/clinical_and_rx_provider.dart';
+import '../../providers/treasury_hr_partner_provider.dart';
+import '../../data/database/database_helper.dart';
+import '../../data/services/firebase_branch_auth_service.dart';
+import '../../data/services/branch_identity_provisioning_service.dart';
+import '../../data/services/device_identity_service.dart';
+import '../../data/services/manual_backup_file_service.dart';
+import '../../core/widgets/manager_pin_dialog.dart';
+import 'friendly_settings_labels.dart';
+import 'friendly_json_setting_editor.dart';
+
+class S28SystemSettingsBackupScreen extends StatefulWidget {
+  const S28SystemSettingsBackupScreen({super.key});
+  @override
+  State<S28SystemSettingsBackupScreen> createState() =>
+      _S28SystemSettingsBackupScreenState();
+}
+
+class _S28SystemSettingsBackupScreenState
+    extends State<S28SystemSettingsBackupScreen> {
+  static const groups = [
+    SettingGroup.general,
+    SettingGroup.sales,
+    SettingGroup.clinical,
+    SettingGroup.inventory,
+    SettingGroup.accounting,
+    SettingGroup.printBackup
+  ];
+  String? auditUserFilter, auditActionFilter, auditSeverityFilter;
+  bool _backupBusy = false;
+  Future<Map<String, Object?>>? _identityStatusFuture;
+
+  Future<Map<String, Object?>> _loadIdentityStatus() async {
+    final db = await DatabaseHelper.instance.database;
+    final tenants = await db.query('tenants', limit: 1);
+    final branches = await db.query('branches', limit: 1);
+    final provisioningTable = await db.rawQuery(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='branch_identity_provisioning'",
+    );
+    final provisioned = provisioningTable.isNotEmpty &&
+        (await db.query('branch_identity_provisioning', limit: 1)).isNotEmpty;
+    final deviceId = await DeviceIdentityService.instance.getOrCreateDeviceId();
+    return {
+      'tenant_uuid': tenants.isEmpty ? 'غير متوفر' : tenants.first['uuid'],
+      'tenant_name': tenants.isEmpty ? 'غير معروف' : tenants.first['name_ar'],
+      'branch_uuid': branches.isEmpty ? 'غير متوفر' : branches.first['uuid'],
+      'branch_name': branches.isEmpty ? 'غير معروف' : branches.first['name_ar'],
+      'provisioned': provisioned,
+      'device_id': deviceId,
+    };
+  }
+
+  Widget _identityStatusCard() {
+    _identityStatusFuture ??= _loadIdentityStatus();
+    return FutureBuilder<Map<String, Object?>>(
+      future: _identityStatusFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Card(
+            child: ListTile(
+              leading: Icon(Icons.fingerprint),
+              title: Text('هوية المؤسسة والجهاز'),
+              subtitle: Text('جارٍ قراءة الهوية المحلية...'),
+            ),
+          );
+        }
+        if (snapshot.hasError || !snapshot.hasData) {
+          return Card(
+            child: ListTile(
+              leading: const Icon(Icons.error_outline),
+              title: const Text('تعذر قراءة الهوية المحلية'),
+              subtitle: Text(snapshot.error?.toString() ?? 'لا توجد بيانات'),
+            ),
+          );
+        }
+        final value = snapshot.data!;
+        final provisioned = value['provisioned'] == true;
+        return Card(
+          child: ExpansionTile(
+            leading: Icon(
+              provisioned ? Icons.verified_user : Icons.warning_amber,
+              color: provisioned ? Colors.green : Colors.orange,
+            ),
+            title: Text(provisioned
+                ? 'هوية المنشأة معتمدة على هذا الجهاز'
+                : 'هذا الجهاز لم يكتمل تأسيس هويته'),
+            subtitle: Text(
+              'المؤسسة: ' +
+                  (value['tenant_name']?.toString() ?? 'غير معروفة') +
+                  ' • الفرع: ' +
+                  (value['branch_name']?.toString() ?? 'غير معروف'),
+            ),
+            children: [
+              ListTile(
+                title: const Text('تفاصيل التعريف الفنية'),
+                subtitle: SelectableText(
+                  'معرّف المؤسسة: ' +
+                      (value['tenant_uuid']?.toString() ?? '') +
+                      '\nمعرّف الفرع: ' +
+                      (value['branch_uuid']?.toString() ?? '') +
+                      '\nمعرّف الجهاز: ' +
+                      (value['device_id']?.toString() ?? ''),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<String?> _managerPin({String title = 'تأكيد صلاحية المدير'}) =>
+      ManagerPinDialog.show(context, title: title);
+  static const _trustedProvisioningPublicKeyBase64 = String.fromEnvironment(
+    'PROVISIONING_ED25519_PUBLIC_KEY_PEM_BASE64',
+  );
+
+  String get _trustedProvisioningPublicKey {
+    if (_trustedProvisioningPublicKeyBase64.isEmpty) return '';
+    try {
+      return utf8.decode(base64Decode(_trustedProvisioningPublicKeyBase64));
+    } catch (_) {
+      return '';
+    }
+  }
+
+  Future<void> _importBranchIdentity() async {
+    if (FirebaseBranchAuthService.instance.isSignedIn) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('سجّل الخروج من Firebase قبل تأسيس هوية هذا الجهاز.'),
+      ));
+      return;
+    }
+    final pin =
+        await _managerPin(title: 'تأكيد رمز المالك لتأسيس هوية المؤسسة والفرع');
+    if (pin == null || pin.isEmpty || !mounted) return;
+    final ownerVerified =
+        await context.read<SessionAndErpProvider>().verifyOwnerPin(pin);
+    if (!ownerVerified) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('رمز المالك غير صحيح؛ لم يتم استيراد الملف.'),
+        ));
+      }
+      return;
+    }
+    try {
+      final selection = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+        withData: true,
+      );
+      if (selection == null || selection.files.isEmpty) return;
+      final file = selection.files.single;
+      final bytes = file.bytes ??
+          (file.path == null ? null : await File(file.path!).readAsBytes());
+      if (bytes == null) {
+        throw StateError('تعذر قراءة ملف التأسيس المحدد.');
+      }
+      final service = BranchIdentityProvisioningService(
+        trustedPublicKeyPem: _trustedProvisioningPublicKey,
+      );
+      await service.installManifest(
+        database: await DatabaseHelper.instance.database,
+        manifestBytes: bytes,
+      );
+      if (!mounted) return;
+      setState(() {
+        _identityStatusFuture = _loadIdentityStatus();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('تم اعتماد هوية المؤسسة والفرع على هذا الجهاز بنجاح.'),
+      ));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذر تأسيس الهوية: $error')),
+      );
+    }
+  }
+
+  Future<bool> _confirmSensitiveChange(
+      SettingSpec spec, Object? oldValue, Object value) async {
+    String? explanation;
+    switch (spec.key) {
+      case SettingKey.allowNegativeStock:
+        if (value == true) {
+          explanation = 'سيُسمح بعمليات قد تنقص المخزون دون توفر كمية كافية. '
+              'هل تريد المتابعة؟';
+        }
+        break;
+      case SettingKey.enforceFefo:
+        if (value == false) {
+          explanation = 'إيقاف صرف الدفعات الأقرب انتهاءً قد يترك كميات '
+              'أقدم في المخزون. هل تريد المتابعة؟';
+        }
+        break;
+      case SettingKey.blockExpiredSale:
+        if (value == false) {
+          explanation = 'قد يسمح هذا بإجراء بيع لأدوية منتهية الصلاحية. '
+              'يرجى التأكد من السياسة المعتمدة قبل المتابعة.';
+        }
+        break;
+      case SettingKey.blockPregnancyX:
+        if (value == false) {
+          explanation = 'سيتم تعطيل منع صرف الأدوية من فئة الحمل X. '
+              'هل تريد المتابعة؟';
+        }
+        break;
+      case SettingKey.partnerDistributionMode:
+        explanation = 'تغيير طريقة توزيع الأرباح قد يُفرغ قيم الحصص أو '
+            'النسب السابقة للشركاء وفق منطق النظام الحالي. '
+            'تأكد من وجود نسخة احتياطية ومراجعة محاسب قبل المتابعة.';
+        break;
+      case SettingKey.currency:
+        final oldCode = oldValue is Map ? oldValue['code'] : null;
+        final newCode = value is Map ? value['code'] : null;
+        if (oldCode != newCode) {
+          explanation = 'تغيير اسم العملة ورمزها لا يحوّل الأرصدة والفواتير '
+              'السابقة إلى العملة الجديدة. هل تريد حفظ هذا التغيير؟';
+        }
+        break;
+      case SettingKey.periodLock:
+        final oldDate = oldValue is Map ? oldValue['locked_through'] : null;
+        final newDate = value is Map ? value['locked_through'] : null;
+        if (oldDate != null &&
+            (newDate == null ||
+                newDate.toString().compareTo(oldDate.toString()) < 0)) {
+          explanation = 'أنت تقلص مدة القفل المالي أو تلغيها. قد تصبح '
+              'بعض التواريخ السابقة قابلة لتسجيل عمليات جديدة.';
+        }
+        break;
+      case SettingKey.cloudSync:
+        if (value is Map &&
+            value['enabled'] == true &&
+            (oldValue is! Map || oldValue['enabled'] != true)) {
+          explanation = 'يجب التأكد من جاهزية الخادم وصلاحيات الحساب '
+              'وهوية الفرع قبل تفعيل المزامنة.';
+        }
+        break;
+      default:
+        break;
+    }
+    if (explanation == null) return true;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('تأكيد تغيير: ' + FriendlySettingsLabels.title(spec)),
+        content: Text(explanation!),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('العودة'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('تأكيد التغيير'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
+  Future<void> _change(SettingSpec spec, Object value) async {
+    final p = context.read<SettingsAndSystemProvider>();
+    final oldValue = p.settings.getValue(spec.key);
+    if (jsonEncode(oldValue) == jsonEncode(value)) return;
+    if (!await _confirmSensitiveChange(spec, oldValue, value) || !mounted) {
+      return;
+    }
+    final session = context.read<SessionAndErpProvider>();
+    String? pin;
+    if (spec.requiresManager) {
+      pin = await _managerPin(
+          title: spec.key == SettingKey.partnerDistributionMode
+              ? 'تأكيد صلاحية المالك'
+              : 'تأكيد صلاحية المدير');
+      if (pin == null || pin.isEmpty) return;
+    }
+    try {
+      await p.changeSetting(spec.key, value,
+          managerPin: pin,
+          userId: session.currentUser?['id'] as int?,
+          branchId: session.branchId);
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('تم حفظ الإعداد وتسجيله في سجل الرقابة')));
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => DefaultTabController(
+      length: 11,
+      child: Scaffold(
+        appBar: AppBar(
+            title: const Text('إعدادات النظام والنسخ الاحتياطي'),
+            bottom: const TabBar(isScrollable: true, tabs: [
+              Tab(text: 'المنشأة والمظهر'),
+              Tab(text: 'المبيعات'),
+              Tab(text: 'السلامة الدوائية'),
+              Tab(text: 'المخزون'),
+              Tab(text: 'المحاسبة'),
+              Tab(text: 'الطباعة'),
+              Tab(text: 'المستخدمون والصلاحيات'),
+              Tab(text: 'النسخ الاحتياطي'),
+              Tab(text: 'الربط السحابي'),
+              Tab(text: 'سجل الأنشطة'),
+              Tab(text: 'الفترات المالية')
+            ])),
+        body: Consumer<SettingsAndSystemProvider>(
+            builder: (context, p, _) => p.loading
+                ? const Center(child: CircularProgressIndicator())
+                : TabBarView(children: [
+                    for (var i = 0; i < 6; i++) _settingsGroup(groups[i], p),
+                    _rolesTab(p),
+                    _backupTab(p),
+                    _syncTab(p),
+                    _auditTab(p),
+                    _periodTab(p),
+                  ])),
+      ));
+  Widget _settingsGroup(SettingGroup group, SettingsAndSystemProvider p) {
+    final specs = SettingKeys.all
+        .where((s) =>
+            s.group == group &&
+            (group != SettingGroup.printBackup || s.number <= 33))
+        .toList();
+    return ListView(padding: const EdgeInsets.all(12), children: [
+      const Padding(
+        padding: EdgeInsets.only(bottom: 8),
+        child: Text(
+            'اختر الإعداد الذي تريد تغييره. تحفظ التعديلات في النظام بنفس طريقة الحفظ السابقة.'),
+      ),
+      for (final spec in specs) _settingTile(spec, p),
+      if (group == SettingGroup.general)
+        Card(
+            child: ListTile(
+                leading: const Icon(Icons.preview),
+                title: const Text('معاينة الترويسة والتذييل'),
+                subtitle: Text(
+                    'الترويسة: ${p.settings.getJson(SettingKey.reportHeaderFooter)['header'] ?? ''}\nالتذييل: ${p.settings.getJson(SettingKey.reportHeaderFooter)['footer'] ?? ''}'),
+                isThreeLine: true)),
+      if (group == SettingGroup.accounting)
+        const Card(
+            child: ListTile(
+                leading: Icon(Icons.lock, color: Colors.green),
+                title: Text('مصطلحات «له وعليه» مقفولة دائماً'),
+                subtitle: Text('لا يمكن تعطيل هذا القيد من أي دور.'))),
+      if (group == SettingGroup.printBackup)
+        Card(
+            child: ListTile(
+                title: const Text('طباعة تجريبية'),
+                subtitle: const Text('اختبر إعدادات الورق الحالية'),
+                trailing: IconButton(
+                    onPressed: () => _testPrint(p),
+                    icon: const Icon(Icons.print)))),
+    ]);
+  }
+
+  Widget _settingTile(SettingSpec spec, SettingsAndSystemProvider p) {
+    final value = p.settings.getValue(spec.key);
+    final label = FriendlySettingsLabels.title(spec);
+    final explanation = FriendlySettingsLabels.explanation(spec);
+    if (spec.type == SettingValueType.boolean) {
+      return Card(
+        key: ValueKey('friendly-setting-' + spec.key.name),
+        child: SwitchListTile.adaptive(
+          value: value == true,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          title: Text(label),
+          subtitle: Text(explanation),
+          secondary:
+              spec.requiresManager ? const Icon(Icons.lock_outline) : null,
+          onChanged: spec.key == SettingKey.lahAlayhTermsOnly
+              ? null
+              : (next) => _change(spec, next),
+        ),
+      );
+    }
+    if (spec.allowedValues.isNotEmpty) {
+      final raw = value?.toString() ?? '';
+      final allowed = [
+        ...spec.allowedValues,
+        if (!spec.allowedValues.contains(raw)) raw,
+      ];
+      return Card(
+        key: ValueKey('friendly-setting-' + spec.key.name),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(label, style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 4),
+              Text(explanation, style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                key: ValueKey('friendly-choice-' + spec.key.name),
+                value: raw,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'اختر القيمة المناسبة',
+                ),
+                items: [
+                  for (final item in allowed)
+                    DropdownMenuItem(
+                      value: item,
+                      child: Text(
+                        FriendlySettingsLabels.choiceFor(spec.key, item),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+                onChanged: allowed.length <= 1
+                    ? null
+                    : (next) {
+                        if (next != null && next != raw) _change(spec, next);
+                      },
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    return Card(
+      key: ValueKey('friendly-setting-' + spec.key.name),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(label,
+                      style: Theme.of(context).textTheme.titleSmall),
+                ),
+                if (spec.requiresManager)
+                  const Tooltip(
+                    message: 'يتطلب تأكيد صلاحية المدير',
+                    child: Icon(Icons.lock_outline, size: 18),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(explanation, style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 6),
+            Text(FriendlySettingsLabels.summary(spec, value)),
+            const SizedBox(height: 10),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: OutlinedButton.icon(
+                key: ValueKey('friendly-edit-' + spec.key.name),
+                onPressed: spec.key == SettingKey.logoPath
+                    ? () => _pickPharmacyLogo(spec)
+                    : () => _editValue(spec, value),
+                icon: Icon(spec.key == SettingKey.logoPath
+                    ? Icons.image_outlined
+                    : Icons.tune),
+                label: Text(spec.key == SettingKey.logoPath
+                    ? 'اختيار صورة الشعار'
+                    : 'تعديل الإعداد'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickPharmacyLogo(SettingSpec spec) async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
+        allowMultiple: false,
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty || !mounted) return;
+      final selected = result.files.single;
+      if (selected.size > 3 * 1024 * 1024) {
+        throw StateError('يجب ألا يتجاوز حجم الشعار 3 ميجابايت.');
+      }
+      final ext = path_util.extension(selected.name).toLowerCase();
+      if (!{'.png', '.jpg', '.jpeg', '.webp'}.contains(ext)) {
+        throw StateError('نوع ملف الشعار غير مدعوم.');
+      }
+      final bytes = selected.bytes ??
+          (selected.path == null
+              ? null
+              : await File(selected.path!).readAsBytes());
+      if (bytes == null || bytes.isEmpty) {
+        throw StateError('تعذر قراءة صورة الشعار.');
+      }
+      final dir = Directory(path_util.join(
+          (await getApplicationSupportDirectory()).path, 'logos'));
+      await dir.create(recursive: true);
+      final saved = File(path_util.join(
+          dir.path,
+          'pharmacy_logo_' +
+              DateTime.now().microsecondsSinceEpoch.toString() +
+              ext));
+      await saved.writeAsBytes(bytes, flush: true);
+      if (!mounted) return;
+      await _change(spec, saved.path);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('تعذر اختيار صورة الشعار: ' + error.toString())),
+        );
+      }
+    }
+  }
+
+  Future<void> _editValue(SettingSpec spec, Object? current) async {
+    if (spec.type == SettingValueType.json) {
+      final initial = current is Map
+          ? Map<String, Object?>.from(current)
+          : <String, Object?>{};
+      final changed = await showDialog<Map<String, Object?>>(
+        context: context,
+        builder: (_) => FriendlyJsonSettingEditor(
+          spec: spec,
+          initialValue: initial,
+        ),
+      );
+      if (changed != null && mounted) await _change(spec, changed);
+      return;
+    }
+    String input = current?.toString() ?? '';
+    final form = GlobalKey<FormState>();
+    final edited = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(FriendlySettingsLabels.title(spec)),
+        content: Form(
+          key: form,
+          child: TextFormField(
+            key: ValueKey('friendly-setting-input-' + spec.key.name),
+            initialValue: input,
+            autofocus: true,
+            keyboardType: spec.type == SettingValueType.integer
+                ? const TextInputType.numberWithOptions()
+                : spec.type == SettingValueType.real
+                    ? const TextInputType.numberWithOptions(decimal: true)
+                    : TextInputType.text,
+            decoration: InputDecoration(
+              labelText: FriendlySettingsLabels.title(spec),
+              helperText: FriendlySettingsLabels.explanation(spec),
+              helperMaxLines: 3,
+            ),
+            onChanged: (text) => input = text,
+            validator: (text) {
+              final value = text?.trim() ?? '';
+              if (spec.key == SettingKey.pharmacyName && value.isEmpty) {
+                return 'يرجى كتابة اسم الصيدلية.';
+              }
+              if (spec.type == SettingValueType.integer) {
+                final n = int.tryParse(value);
+                if (n == null) return 'يجب كتابة عدد صحيح.';
+                if (spec.key == SettingKey.expiryWarningDays &&
+                    (n < 0 || n > 3650)) {
+                  return 'عدد الأيام يجب أن يكون من 0 إلى 3650.';
+                }
+              }
+              if (spec.type == SettingValueType.real) {
+                final n = double.tryParse(value);
+                if (n == null || !n.isFinite) {
+                  return 'أدخل رقمًا صحيحًا أو عشريًا.';
+                }
+                if (spec.key == SettingKey.maxCashierDiscountPct &&
+                    (n < 0 || n > 100)) {
+                  return 'النسبة يجب أن تكون من 0 إلى 100.';
+                }
+              }
+              return null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (form.currentState!.validate()) {
+                Navigator.pop(dialogContext, input.trim());
+              }
+            },
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+    if (edited == null || !mounted) return;
+    Object parsed = edited;
+    if (spec.type == SettingValueType.integer) parsed = int.parse(edited);
+    if (spec.type == SettingValueType.real) parsed = double.parse(edited);
+    await _change(spec, parsed);
+  }
+
+  Future<void> _updateRolePermission(
+      String role, String permission, bool allowed) async {
+    try {
+      await context.read<SettingsAndSystemProvider>().setRolePermission(
+            role,
+            permission,
+            allowed,
+            actorRole: context
+                    .read<SessionAndErpProvider>()
+                    .currentUser?['role_code'] as String? ??
+                '',
+          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم تحديث صلاحية المستخدم بنجاح.')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('لم يتم تغيير الصلاحية: ' + error.toString())),
+        );
+      }
+    }
+  }
+
+  Widget _rolesTab(SettingsAndSystemProvider p) =>
+      ListView(padding: const EdgeInsets.all(12), children: [
+        const Text('من يمكنه القيام بكل مهمة؟',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const Padding(
+          padding: EdgeInsets.only(top: 4, bottom: 10),
+          child: Text(
+              'افتح دور المستخدم وعدّل الأذونات من مفاتيح التشغيل. صلاحيات المالك محمية ولا يمكن تعطيلها.'),
+        ),
+        for (final role in [
+          'OWNER',
+          'MANAGER',
+          'PHARMACIST',
+          'CASHIER',
+          'STOREKEEPER',
+          'ACCOUNTANT',
+          'AUDITOR'
+        ])
+          ExpansionTile(title: Text(_roleName(role)), children: [
+            for (final row in p.roleRows.where((r) => r['role_code'] == role))
+              SwitchListTile(
+                  dense: true,
+                  title: Text(FriendlySettingsLabels.permission(
+                      row['permission_code'].toString())),
+                  value: (row['is_allowed'] as num) == 1,
+                  onChanged: role == 'OWNER'
+                      ? null
+                      : (v) => _updateRolePermission(
+                          role, row['permission_code'] as String, v)),
+          ]),
+        const Divider(),
+        const Text('إدارة المستخدمين وحسابات الدخول',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        FilledButton.icon(
+            onPressed: _createUser,
+            icon: const Icon(Icons.person_add),
+            label: const Text('إضافة مستخدم')),
+        for (final user in p.userRows)
+          Card(
+              child: ListTile(
+                  title: Text(user['full_name'].toString()),
+                  subtitle: Text(
+                      '${user['username']} • ${_roleName(user['role_code'] as String)}'),
+                  trailing: Wrap(children: [
+                    IconButton(
+                        tooltip: 'تغيير الدور',
+                        icon: const Icon(Icons.badge_outlined),
+                        onPressed: () => _editUserRole(user)),
+                    IconButton(
+                        tooltip: 'كلمة المرور ورمز المدير',
+                        icon: const Icon(Icons.key),
+                        onPressed: () => _editUserSecurity(user)),
+                  ]))),
+      ]);
+  Future<void> _createUser() async {
+    final name = TextEditingController(),
+        username = TextEditingController(),
+        password = TextEditingController();
+    String role = 'CASHIER';
+    final values = await showDialog<Map<String, String>>(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+            builder: (ctx, setLocal) => AlertDialog(
+                    title: const Text('إضافة مستخدم'),
+                    content: SingleChildScrollView(
+                        child:
+                            Column(mainAxisSize: MainAxisSize.min, children: [
+                      TextField(
+                          controller: name,
+                          decoration:
+                              const InputDecoration(labelText: 'الاسم الكامل')),
+                      TextField(
+                          controller: username,
+                          decoration:
+                              const InputDecoration(labelText: 'اسم المستخدم')),
+                      TextField(
+                          controller: password,
+                          obscureText: true,
+                          decoration: const InputDecoration(
+                              labelText: 'كلمة المرور (8 خانات على الأقل)')),
+                      DropdownButtonFormField<String>(
+                          value: role,
+                          decoration: const InputDecoration(labelText: 'الدور'),
+                          items: const [
+                            'OWNER',
+                            'MANAGER',
+                            'PHARMACIST',
+                            'CASHIER',
+                            'STOREKEEPER',
+                            'ACCOUNTANT',
+                            'AUDITOR'
+                          ]
+                              .map((v) => DropdownMenuItem(
+                                  value: v, child: Text(_roleName(v))))
+                              .toList(),
+                          onChanged: (v) =>
+                              setLocal(() => role = v ?? 'CASHIER')),
+                    ])),
+                    actions: [
+                      TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text('إلغاء')),
+                      FilledButton(
+                          onPressed: () => Navigator.pop(ctx, {
+                                'name': name.text,
+                                'username': username.text,
+                                'password': password.text,
+                                'role': role
+                              }),
+                          child: const Text('إنشاء'))
+                    ])));
+    if (values == null) return;
+    final session = context.read<SessionAndErpProvider>();
+    final pin = await _managerPin();
+    if (pin == null || !await session.verifyManagerPin(pin)) return;
+    session.consumeVerifiedManagerUserId();
+    try {
+      await context.read<SettingsAndSystemProvider>().createUser(
+          username: values['username']!,
+          fullName: values['name']!,
+          password: values['password']!,
+          roleCode: values['role']!,
+          branchId: session.branchId,
+          actorUserId: session.currentUser?['id'] as int? ?? 0,
+          actorRole: session.currentUser?['role_code'] as String? ?? '');
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('تم إنشاء المستخدم')));
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+    name.dispose();
+    username.dispose();
+    password.dispose();
+  }
+
+  Future<void> _editUserRole(Map<String, Object?> user) async {
+    String role = user['role_code'] as String;
+    final selected = await showDialog<String>(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+            builder: (ctx, setLocal) => AlertDialog(
+                    title: const Text('تغيير دور المستخدم'),
+                    content: DropdownButtonFormField<String>(
+                        value: role,
+                        items: const [
+                          'OWNER',
+                          'MANAGER',
+                          'PHARMACIST',
+                          'CASHIER',
+                          'STOREKEEPER',
+                          'ACCOUNTANT',
+                          'AUDITOR'
+                        ]
+                            .map((v) => DropdownMenuItem(
+                                value: v, child: Text(_roleName(v))))
+                            .toList(),
+                        onChanged: (v) => setLocal(() => role = v ?? role)),
+                    actions: [
+                      TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text('إلغاء')),
+                      FilledButton(
+                          onPressed: () => Navigator.pop(ctx, role),
+                          child: const Text('حفظ'))
+                    ])));
+    if (selected == null) return;
+    final session = context.read<SessionAndErpProvider>();
+    final pin = await _managerPin();
+    if (pin == null || !await session.verifyManagerPin(pin)) return;
+    session.consumeVerifiedManagerUserId();
+    try {
+      await context.read<SettingsAndSystemProvider>().updateUserRole(
+          targetUserId: user['id'] as int,
+          roleCode: selected,
+          actorUserId: session.currentUser?['id'] as int? ?? 0,
+          actorRole: session.currentUser?['role_code'] as String? ?? '');
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
+  Future<void> _editUserSecurity(Map<String, Object?> user) async {
+    final password = TextEditingController(),
+        pinController = TextEditingController();
+    final values = await showDialog<Map<String, String>>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+                title: Text('تحديث بيانات ${user['username']}'),
+                content: Column(mainAxisSize: MainAxisSize.min, children: [
+                  TextField(
+                      controller: password,
+                      obscureText: true,
+                      decoration:
+                          const InputDecoration(labelText: 'كلمة مرور جديدة')),
+                  TextField(
+                      controller: pinController,
+                      obscureText: true,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                          labelText: 'رمز مدير جديد (اختياري)')),
+                ]),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('إلغاء')),
+                  FilledButton(
+                      onPressed: () => Navigator.pop(ctx, {
+                            'password': password.text,
+                            'pin': pinController.text
+                          }),
+                      child: const Text('حفظ'))
+                ]));
+    if (values == null) return;
+    final session = context.read<SessionAndErpProvider>();
+    final verified = await _managerPin();
+    if (verified == null || !await session.verifyManagerPin(verified)) return;
+    session.consumeVerifiedManagerUserId();
+    try {
+      await context.read<SettingsAndSystemProvider>().updateUserSecurity(
+          targetUserId: user['id'] as int,
+          actorUserId: session.currentUser?['id'] as int? ?? 0,
+          actorRole: session.currentUser?['role_code'] as String? ?? '',
+          newPassword: values['password'],
+          newManagerPin: values['pin']);
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('تم تحديث بيانات الدخول')));
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+    password.dispose();
+    pinController.dispose();
+  }
+
+  String _roleName(String r) => switch (r) {
+        'OWNER' => 'المالك',
+        'MANAGER' => 'المدير',
+        'PHARMACIST' => 'الصيدلي',
+        'CASHIER' => 'الكاشير',
+        'STOREKEEPER' => 'أمين المخزن',
+        'ACCOUNTANT' => 'المحاسب',
+        _ => 'المراجع'
+      };
+  Widget _backupTab(SettingsAndSystemProvider p) =>
+      ListView(padding: const EdgeInsets.all(12), children: [
+        _settingTile(SettingKeys.byKey(SettingKey.autoLocalOnClose), p),
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Text(
+            'يمكنك تسمية النسخة واختيار مكان حفظها على الجهاز. '
+            'يحتفظ التطبيق أيضًا بنسخة داخلية موثوقة للاستعادة. '
+            'تظهر النسخ الداخلية في القائمة أدناه.',
+          ),
+        ),
+        FilledButton.icon(
+          key: const ValueKey('backup-create-with-destination'),
+          onPressed: _backupBusy ? null : () => _createBackup(p),
+          icon: _backupBusy
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.backup),
+          label: Text(
+            _backupBusy ? 'جارٍ تنفيذ العملية...' : 'إنشاء نسخة احتياطية',
+          ),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          key: const ValueKey('backup-restore-from-device'),
+          onPressed: _backupBusy ? null : () => _restoreFromDevice(p),
+          icon: const Icon(Icons.folder_open_outlined),
+          label: const Text('استعادة نسخة من ملف على الجهاز'),
+        ),
+        const SizedBox(height: 12),
+        if (p.backupLogs.isNotEmpty)
+          const Text('النسخ الداخلية المحفوظة',
+              style: TextStyle(fontWeight: FontWeight.bold)),
+        for (final row in p.backupLogs)
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.verified_user),
+              title: Text(row['file_path']
+                  .toString()
+                  .split(Platform.pathSeparator)
+                  .last),
+              subtitle: Text(
+                  'الحالة: ${row['result']} • الحجم: ${row['size_bytes']} بايت\nSHA-256: ${row['sha256']}'),
+              isThreeLine: true,
+              trailing: IconButton(
+                tooltip: 'استعادة هذه النسخة',
+                icon: const Icon(Icons.restore),
+                onPressed: _backupBusy
+                    ? null
+                    : () => _restoreBackup(p, row['file_path'] as String),
+              ),
+            ),
+          ),
+      ]);
+
+  Future<({String name, bool saveAs})?> _requestBackupOptions() async {
+    final stamp =
+        DateTime.now().toIso8601String().substring(0, 19).replaceAll(':', '-');
+    String name = 'pharmacy_backup_$stamp';
+    bool saveAs = true;
+    String? nameError;
+    return showDialog<({String name, bool saveAs})>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('إعداد النسخة الاحتياطية'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextFormField(
+                  key: const ValueKey('backup-custom-name'),
+                  initialValue: name,
+                  maxLength: 100,
+                  enabled: saveAs,
+                  decoration: InputDecoration(
+                    labelText: 'اسم النسخة الاحتياطية',
+                    helperText: 'سيضاف امتداد .db أو .db.gz تلقائيًا.',
+                    errorText: nameError,
+                  ),
+                  onChanged: (value) {
+                    name = value;
+                    if (nameError != null) {
+                      setDialogState(() => nameError = null);
+                    }
+                  },
+                ),
+                SwitchListTile.adaptive(
+                  key: const ValueKey('backup-custom-destination'),
+                  contentPadding: EdgeInsets.zero,
+                  value: saveAs,
+                  title: const Text('اختيار مكان الحفظ'),
+                  subtitle: const Text(
+                    'بعد إنشاء نسخة داخلية سليمة، ستفتح نافذة النظام '
+                    'لاختيار المجلد والاسم النهائي.',
+                  ),
+                  onChanged: (value) => setDialogState(() {
+                    saveAs = value;
+                    nameError = null;
+                  }),
+                ),
+                if (saveAs)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text(
+                      'تنبيه: ملف النسخة غير مشفّر حاليًا؛ اختر مجلدًا آمنًا ولا تشاركه مع غير المخولين.',
+                    ),
+                  ),
+                if (!saveAs)
+                  const Text(
+                    'ستُحفظ نسخة داخل التطبيق بالاسم التلقائي فقط.',
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              key: const ValueKey('backup-confirm-create'),
+              onPressed: () {
+                String requested = name;
+                if (saveAs) {
+                  try {
+                    requested = BackupFileName.baseName(requested);
+                  } on FormatException catch (error) {
+                    setDialogState(() => nameError = error.message);
+                    return;
+                  }
+                }
+                Navigator.pop(dialogContext, (name: requested, saveAs: saveAs));
+              },
+              child: const Text('متابعة'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _createBackup(SettingsAndSystemProvider p) async {
+    if (_backupBusy) return;
+    final selected = await _requestBackupOptions();
+    if (selected == null || !mounted) return;
+    setState(() => _backupBusy = true);
+    var privateSaved = false;
+    try {
+      final result = await p.createBackup(
+          userId:
+              context.read<SessionAndErpProvider>().currentUser?['id'] as int?);
+      privateSaved = true;
+      if (!mounted) return;
+      if (!selected.saveAs) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم إنشاء النسخة الداخلية بنجاح.')),
+        );
+        return;
+      }
+      final external = await ManualBackupFileService().saveVerifiedCopy(
+        source: result,
+        requestedName: selected.name,
+      );
+      if (!mounted) return;
+      final label = BackupFileName.fileName(
+        selected.name,
+        compressed: result.compressed,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(external == null
+            ? 'النسخة الداخلية محفوظة، لكنك ألغيت اختيار مكان الحفظ الخارجي.'
+            : 'تم حفظ النسخة الداخلية، وحفظ نسخة باسم $label في الموقع الذي اخترته.'),
+      ));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(privateSaved
+            ? 'النسخة الداخلية محفوظة، لكن تعذر حفظ النسخة في الموقع المختار: $error'
+            : 'تعذر إنشاء النسخة الاحتياطية: $error'),
+      ));
+    } finally {
+      if (mounted) setState(() => _backupBusy = false);
+    }
+  }
+
+  Future<bool> _confirmRestore() async {
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('تأكيد الاستعادة'),
+        content: const Text(
+          'سيتم استبدال قاعدة البيانات الحالية ببيانات النسخة المختارة. '
+          'ينشئ التطبيق نسخة داخلية تلقائية قبل الاستعادة.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('استعادة'),
+          ),
+        ],
+      ),
+    );
+    return yes == true;
+  }
+
+  Future<void> _refreshAfterRestore() async {
+    if (!mounted) return;
+    await context.read<SessionAndErpProvider>().refresh();
+    await context.read<PosAndDrugsProvider>().loadDrugs();
+    await context.read<InventoryAndPurchaseProvider>().loadAll();
+    await context.read<ClinicalAndRxProvider>().loadAll();
+    await context.read<TreasuryHrPartnerProvider>().refresh();
+  }
+
+  Future<void> _restoreBackup(SettingsAndSystemProvider p, String path) async {
+    if (_backupBusy || !await _confirmRestore() || !mounted) return;
+    setState(() => _backupBusy = true);
+    try {
+      final session = context.read<SessionAndErpProvider>();
+      await p.restoreBackup(File(path),
+          userId: session.currentUser?['id'] as int?);
+      await _refreshAfterRestore();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('اكتملت الاستعادة وإعادة تحميل بيانات النظام.'),
+        ));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _backupBusy = false);
+    }
+  }
+
+  Future<void> _restoreFromDevice(SettingsAndSystemProvider p) async {
+    if (_backupBusy) return;
+    try {
+      final picked = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+        allowMultiple: false,
+        withData: false,
+      );
+      if (picked == null || picked.files.isEmpty || !mounted) return;
+      final path = picked.files.single.path;
+      if (path == null || path.isEmpty) {
+        throw StateError('تعذر قراءة الملف المختار على هذا الجهاز.');
+      }
+      if (!await _confirmRestore() || !mounted) return;
+      setState(() => _backupBusy = true);
+      final session = context.read<SessionAndErpProvider>();
+      await p.restoreBackupFromDevice(
+        File(path),
+        userId: session.currentUser?['id'] as int?,
+      );
+      await _refreshAfterRestore();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('اكتملت استعادة النسخة المختارة والتحقق من سلامتها.'),
+        ));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر استعادة النسخة: $error')),
+        );
+      }
+    } finally {
+      if (mounted && _backupBusy) setState(() => _backupBusy = false);
+    }
+  }
+
+  Future<void> _signInFirebase(SettingsAndSystemProvider p) async {
+    final config = p.settings.getJson(SettingKey.cloudSync);
+    try {
+      await FirebaseBranchAuthService.instance.configure(
+        apiKey: config['api_key']?.toString() ?? '',
+        projectId: config['project_id']?.toString() ?? '',
+      );
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
+      return;
+    }
+    final email = TextEditingController();
+    final password = TextEditingController();
+    final values = await showDialog<List<String>>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تسجيل الدخول إلى Firebase'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(
+              controller: email,
+              keyboardType: TextInputType.emailAddress,
+              decoration:
+                  const InputDecoration(labelText: 'البريد الإلكتروني')),
+          TextField(
+              controller: password,
+              obscureText: true,
+              decoration:
+                  const InputDecoration(labelText: 'كلمة مرور Firebase')),
+        ]),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, [email.text, password.text]),
+              child: const Text('دخول')),
+        ],
+      ),
+    );
+    if (values == null) {
+      email.dispose();
+      password.dispose();
+      return;
+    }
+    try {
+      await FirebaseBranchAuthService.instance
+          .signIn(email: values[0], password: values[1]);
+      await p.refreshCloudSyncSchedule();
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('تم تسجيل الدخول إلى Firebase: ' +
+                (FirebaseBranchAuthService.instance.email ?? ''))));
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('تعذر تسجيل الدخول إلى Firebase: $e')));
+    } finally {
+      email.dispose();
+      password.dispose();
+    }
+  }
+
+  Future<void> _refreshFirebaseClaims(SettingsAndSystemProvider p) async {
+    try {
+      final token =
+          await FirebaseBranchAuthService.instance.forceRefreshIdToken();
+      if (token == null || token.isEmpty) {
+        throw StateError('لا توجد جلسة Firebase قابلة للتحديث');
+      }
+      await p.refreshCloudSyncSchedule();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('تم تحديث صلاحيات الاتصال السحابي'),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    }
+  }
+
+  Future<void> _signOutFirebase() async {
+    await FirebaseBranchAuthService.instance.signOut();
+    await context.read<SettingsAndSystemProvider>().refreshCloudSyncSchedule();
+    if (mounted)
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم تسجيل الخروج من Firebase')));
+  }
+
+  Widget _syncTab(SettingsAndSystemProvider p) =>
+      ListView(padding: const EdgeInsets.all(12), children: [
+        _identityStatusCard(),
+        _settingTile(SettingKeys.byKey(SettingKey.cloudSync), p),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.verified_user_outlined),
+            title: const Text('تأسيس هوية المؤسسة والفرع'),
+            subtitle: Text(
+              _trustedProvisioningPublicKey.isEmpty
+                  ? 'مفتاح التحقق الموثوق غير مضمّن في هذا الإصدار؛ لن يتم قبول أي ملف.'
+                  : 'استيراد ملف تأسيس موقع. العملية لمرة واحدة ولا يمكن تغيير الهوية بعد اعتمادها.',
+            ),
+            trailing: FilledButton.tonalIcon(
+              onPressed: _trustedProvisioningPublicKey.isEmpty
+                  ? null
+                  : _importBranchIdentity,
+              icon: const Icon(Icons.file_open),
+              label: const Text('استيراد ملف'),
+            ),
+          ),
+        ),
+        Card(
+            child: ListTile(
+          leading: Icon(FirebaseBranchAuthService.instance.isSignedIn
+              ? Icons.verified_user
+              : Icons.no_accounts),
+          title: Text(FirebaseBranchAuthService.instance.isSignedIn
+              ? 'حساب Firebase: ' +
+                  (FirebaseBranchAuthService.instance.email ?? '')
+              : 'حساب Firebase غير مسجل الدخول'),
+          subtitle: const Text(
+              'بيانات الدخول تخص Firebase Auth ولا تُخزن في قاعدة بيانات الصيدلية.'),
+          trailing: FirebaseBranchAuthService.instance.isSignedIn
+              ? Wrap(
+                  spacing: 4,
+                  children: [
+                    TextButton(
+                      onPressed: () => _refreshFirebaseClaims(p),
+                      child: const Text('تحديث الصلاحيات'),
+                    ),
+                    TextButton(
+                      onPressed: _signOutFirebase,
+                      child: const Text('خروج'),
+                    ),
+                  ],
+                )
+              : FilledButton(
+                  onPressed: () => _signInFirebase(p),
+                  child: const Text('تسجيل الدخول')),
+        )),
+        if (p.cloudSyncStatus != null)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Icon(p.cloudSyncRunning
+                      ? Icons.sync
+                      : Icons.cloud_sync_outlined),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(p.cloudSyncStatus!)),
+                ],
+              ),
+            ),
+          ),
+        Wrap(spacing: 8, children: [
+          OutlinedButton.icon(
+              onPressed: () async {
+                final ok = await p.testCloudConnection();
+                if (mounted)
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text(ok
+                          ? 'الاتصال بالخادم ناجح'
+                          : 'تعذر الاتصال بالخادم')));
+              },
+              icon: const Icon(Icons.wifi),
+              label: const Text('فحص إعدادات الربط')),
+          FilledButton.icon(
+              onPressed: () async {
+                try {
+                  final sent = await p.syncNow();
+                  if (mounted)
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('تمت معالجة $sent سجل مزامنة')));
+                } catch (e) {
+                  if (mounted)
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(SnackBar(content: Text(e.toString())));
+                }
+              },
+              icon: const Icon(Icons.sync),
+              label: const Text('مزامنة الآن'))
+        ]),
+        const SizedBox(height: 12),
+        const Text('حالة طابور المزامنة',
+            style: TextStyle(fontWeight: FontWeight.bold)),
+        for (final row in p.syncSummary)
+          ListTile(
+              title: Text(
+                  FriendlySettingsLabels.queueStatus(row['status'].toString())),
+              trailing: Text(row['count'].toString())),
+      ]);
+  String _friendlyAuditEntity(String? type, String? label) {
+    if (type == 'system_settings') {
+      for (final spec in SettingKeys.all) {
+        if (spec.name == label) return FriendlySettingsLabels.title(spec);
+      }
+    }
+    if (type == 'role_permissions' && label != null) {
+      final split = label.indexOf('.');
+      if (split > 0) {
+        final role = label.substring(0, split);
+        final permission = label.substring(split + 1);
+        return _roleName(role) +
+            ': ' +
+            FriendlySettingsLabels.permission(permission);
+      }
+    }
+    return label ?? type ?? 'تفاصيل النظام';
+  }
+
+  String _friendlyAuditValue(String raw, String? settingName) {
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map &&
+          decoded.containsKey('value') &&
+          settingName != null) {
+        for (final spec in SettingKeys.all) {
+          if (spec.name == settingName) {
+            return FriendlySettingsLabels.summary(spec, decoded['value']);
+          }
+        }
+      }
+      if (decoded is Map && decoded.containsKey('is_allowed')) {
+        return decoded['is_allowed'] == 1
+            ? 'صلاحية مفعّلة'
+            : 'صلاحية غير مفعّلة';
+      }
+    } catch (_) {
+      // Audit records are never mutated or rejected because of display text.
+    }
+    return 'تم تسجيل تفاصيل هذا التغيير. يمكن عرض بياناته الفنية أدناه.';
+  }
+
+  Widget _auditTab(SettingsAndSystemProvider p) {
+    final users = p.auditLogs
+        .map((e) => e.userId?.toString() ?? '')
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    final actions = p.auditLogs.map((e) => e.action).toSet().toList()..sort();
+    final severities = p.auditLogs.map((e) => e.severity).toSet().toList()
+      ..sort();
+    final filtered = p.auditLogs
+        .where((e) =>
+            (auditUserFilter == null ||
+                e.userId?.toString() == auditUserFilter) &&
+            (auditActionFilter == null || e.action == auditActionFilter) &&
+            (auditSeverityFilter == null || e.severity == auditSeverityFilter))
+        .toList();
+    return ListView(padding: const EdgeInsets.all(12), children: [
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        SizedBox(
+            width: 150,
+            child: DropdownButtonFormField<String?>(
+                value: auditUserFilter,
+                decoration: const InputDecoration(labelText: 'المستخدم'),
+                items: [
+                  const DropdownMenuItem<String?>(
+                      value: null, child: Text('كل المستخدمين')),
+                  ...users.map((v) =>
+                      DropdownMenuItem<String?>(value: v, child: Text(v)))
+                ],
+                onChanged: (v) => setState(() => auditUserFilter = v))),
+        SizedBox(
+            width: 170,
+            child: DropdownButtonFormField<String?>(
+                value: auditActionFilter,
+                decoration: const InputDecoration(labelText: 'نوع الحدث'),
+                items: [
+                  const DropdownMenuItem<String?>(
+                      value: null, child: Text('كل الأحداث')),
+                  ...actions.map((v) => DropdownMenuItem<String?>(
+                      value: v,
+                      child: Text(FriendlySettingsLabels.auditAction(v))))
+                ],
+                onChanged: (v) => setState(() => auditActionFilter = v))),
+        SizedBox(
+            width: 150,
+            child: DropdownButtonFormField<String?>(
+                value: auditSeverityFilter,
+                decoration: const InputDecoration(labelText: 'الخطورة'),
+                items: [
+                  const DropdownMenuItem<String?>(
+                      value: null, child: Text('كل المستويات')),
+                  ...severities.map((v) => DropdownMenuItem<String?>(
+                      value: v,
+                      child: Text(FriendlySettingsLabels.severity(v))))
+                ],
+                onChanged: (v) => setState(() => auditSeverityFilter = v))),
+      ]),
+      const SizedBox(height: 8),
+      FilledButton.icon(
+          onPressed: () async {
+            final r = await p.verifyAuditChain();
+            if (mounted)
+              showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                          title: Text(
+                              r.isValid ? 'السلسلة سليمة' : 'تم اكتشاف اختلاف'),
+                          content: Text(
+                              'السجلات المفحوصة: ${r.checkedRows}\nأول سجل غير سليم: ${r.firstInvalidId ?? 'لا يوجد'}\nالبصمة المتوقعة: ${r.expectedHash ?? '-'}\nالبصمة الفعلية: ${r.actualHash ?? '-'}'),
+                          actions: [
+                            TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: const Text('إغلاق'))
+                          ]));
+          },
+          icon: const Icon(Icons.verified),
+          label: const Text('فحص سلامة سجل العمليات')),
+      if (p.chainResult != null)
+        Card(
+            child: ListTile(
+                leading: Icon(
+                    p.chainResult!.isValid ? Icons.check_circle : Icons.error,
+                    color: p.chainResult!.isValid ? Colors.green : Colors.red),
+                title: Text(p.chainResult!.isValid
+                    ? 'السلسلة سليمة 100%'
+                    : 'السلسلة تحتاج مراجعة'),
+                subtitle: Text('تم فحص ${p.chainResult!.checkedRows} سجلاً'))),
+      for (final row in filtered)
+        Card(
+          child: ExpansionTile(
+            title: Text(
+              FriendlySettingsLabels.auditAction(row.action) +
+                  ' • ' +
+                  _friendlyAuditEntity(row.entityType, row.entityLabel),
+            ),
+            subtitle: Text(row.eventAt +
+                ' • ' +
+                FriendlySettingsLabels.severity(row.severity) +
+                ' • المستخدم ' +
+                (row.userId?.toString() ?? 'غير محدد')),
+            children: [
+              if (row.oldValuesJson != null)
+                ListTile(
+                  title: const Text('قبل التغيير'),
+                  subtitle: Text(
+                      _friendlyAuditValue(row.oldValuesJson!, row.entityLabel)),
+                ),
+              if (row.newValuesJson != null)
+                ListTile(
+                  title: const Text('بعد التغيير'),
+                  subtitle: Text(
+                      _friendlyAuditValue(row.newValuesJson!, row.entityLabel)),
+                ),
+              if (row.reason != null)
+                ListTile(
+                  title: const Text('سبب التغيير'),
+                  subtitle: Text(row.reason!),
+                ),
+              ExpansionTile(
+                title: const Text('معلومات فنية للمراجعة المتقدمة'),
+                subtitle: const Text(
+                    'البيانات الأصلية محفوظة دون تعديل لفحص سجل الرقابة.'),
+                children: [
+                  if (row.oldValuesJson != null)
+                    ListTile(
+                      title: const Text('البيانات الأصلية قبل التغيير'),
+                      subtitle: SelectableText(row.oldValuesJson!),
+                    ),
+                  if (row.newValuesJson != null)
+                    ListTile(
+                      title: const Text('البيانات الأصلية بعد التغيير'),
+                      subtitle: SelectableText(row.newValuesJson!),
+                    ),
+                  ListTile(
+                    title: const Text('بصمة التحقق من سلامة السجل'),
+                    subtitle: SelectableText(row.rowHash ?? ''),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+    ]);
+  }
+
+  Future<void> _testPrint(SettingsAndSystemProvider p) async {
+    final receipt = p.settings.getString(SettingKey.receiptPaper);
+    final receiptWidth = receipt == '58mm' ? 58.0 : 80.0;
+    final reportConfig = p.settings.getJson(SettingKey.reportPaper);
+    final reportSize = (reportConfig['size'] ?? 'A4').toString().toUpperCase();
+    final reportFormat =
+        reportSize == 'A4' ? PdfPageFormat.a4 : PdfPageFormat.a4;
+    try {
+      final report = pw.Document();
+      report.addPage(pw.Page(
+          pageFormat: reportFormat,
+          build: (_) => pw.Center(
+                  child: pw.Column(children: [
+                pw.Text('PHARMACY REPORT PRINT TEST',
+                    style: pw.TextStyle(
+                        fontSize: 22, fontWeight: pw.FontWeight.bold)),
+                pw.SizedBox(height: 12),
+                pw.Text('Report paper: $reportSize'),
+                pw.Text('Generated: ${DateTime.now().toIso8601String()}')
+              ]))));
+      await Printing.layoutPdf(onLayout: (_) => report.save());
+      final receiptDoc = pw.Document();
+      receiptDoc.addPage(pw.Page(
+          pageFormat: PdfPageFormat(
+              receiptWidth * PdfPageFormat.mm, 180 * PdfPageFormat.mm,
+              marginAll: 4 * PdfPageFormat.mm),
+          build: (_) => pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    pw.Text('PHARMACY RECEIPT TEST',
+                        style: pw.TextStyle(
+                            fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                    pw.Divider(),
+                    pw.Text(
+                        'Receipt width: ${receiptWidth.toStringAsFixed(0)}mm'),
+                    pw.Text(DateTime.now().toIso8601String())
+                  ])));
+      await Printing.layoutPdf(onLayout: (_) => receiptDoc.save());
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('تعذر فتح نافذة الطباعة: $e')));
+    }
+  }
+
+  Widget _periodTab(SettingsAndSystemProvider p) =>
+      ListView(padding: const EdgeInsets.all(12), children: [
+        FilledButton.icon(
+            onPressed: () => _createCurrentPeriod(),
+            icon: const Icon(Icons.add),
+            label: const Text('إنشاء فترة الشهر والسنة الحالية')),
+        for (final row in p.periodRows)
+          Card(
+              child: ListTile(
+                  title: Text('${row['period_code']} • ${row['period_type']}'),
+                  subtitle: Text(
+                      '${row['start_date']} إلى ${row['end_date']} • ${row['status']}'),
+                  trailing: row['status'] == 'OPEN'
+                      ? IconButton(
+                          icon: const Icon(Icons.lock),
+                          onPressed: () =>
+                              _closePeriod(p, row['period_code'] as String))
+                      : const Icon(Icons.lock_outline))),
+      ]);
+  Future<void> _createCurrentPeriod() async {
+    final now = DateTime.now(),
+        monthStart = DateTime(now.year, now.month, 1),
+        monthEnd = DateTime(now.year, now.month + 1, 0),
+        yearStart = DateTime(now.year, 1, 1),
+        yearEnd = DateTime(now.year, 12, 31);
+    final db = await DatabaseHelper.instance.database;
+    for (final v in [
+      {
+        'period_code': '${now.year}-${now.month.toString().padLeft(2, '0')}',
+        'period_type': 'MONTH',
+        'start_date': monthStart,
+        'end_date': monthEnd
+      },
+      {
+        'period_code': '${now.year}',
+        'period_type': 'YEAR',
+        'start_date': yearStart,
+        'end_date': yearEnd
+      }
+    ]) {
+      await db.insert(
+          'fiscal_periods',
+          {
+            'period_code': v['period_code'],
+            'period_type': v['period_type'],
+            'start_date': (v['start_date'] as DateTime)
+                .toIso8601String()
+                .substring(0, 10),
+            'end_date':
+                (v['end_date'] as DateTime).toIso8601String().substring(0, 10)
+          },
+          conflictAlgorithm: ConflictAlgorithm.ignore);
+    }
+    await context.read<SettingsAndSystemProvider>().refreshSystemData();
+  }
+
+  Future<void> _closePeriod(SettingsAndSystemProvider p, String code) async {
+    final session = context.read<SessionAndErpProvider>();
+    final pin = await _managerPin();
+    if (pin == null || !await session.verifyManagerPin(pin)) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('رمز المدير غير صحيح')));
+      return;
+    }
+    session.consumeVerifiedManagerUserId();
+    try {
+      await p.closeFiscalPeriod(code,
+          userId: session.currentUser?['id'] as int? ?? 0,
+          createPreCloseBackup: () async {
+        await p.createBackup(
+            triggerType: 'BEFORE_PERIOD_CLOSE',
+            userId: session.currentUser?['id'] as int?);
+      });
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('تم إغلاق الفترة المالية')));
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+}
