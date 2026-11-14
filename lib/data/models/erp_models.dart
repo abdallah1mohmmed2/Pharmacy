@@ -179,6 +179,7 @@ class PosTabSession {
       List<CartItemModel>? items,
       this.held = false,
       this.customerPartyId,
+      this.warehouseId,
       this.createdAt,
       Set<String>? patientFlags})
       : items = items ?? [],
@@ -189,6 +190,7 @@ class PosTabSession {
   final Set<String> patientFlags;
   bool held;
   int? customerPartyId;
+  int? warehouseId;
   final DateTime? createdAt;
   double get total => items.fold(0, (sum, item) => sum + item.lineTotal);
 }
