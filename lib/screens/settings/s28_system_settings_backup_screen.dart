@@ -1346,6 +1346,45 @@ class _S28SystemSettingsBackupScreenState
                   row['status'].toString())),
               trailing: Text(row['count'].toString())),
       ]);
+  String _friendlyAuditEntity(String? type, String? label) {
+    if (type == 'system_settings') {
+      for (final spec in SettingKeys.all) {
+        if (spec.name == label) return FriendlySettingsLabels.title(spec);
+      }
+    }
+    if (type == 'role_permissions' && label != null) {
+      final split = label.indexOf('.');
+      if (split > 0) {
+        final role = label.substring(0, split);
+        final permission = label.substring(split + 1);
+        return _roleName(role) + ': ' +
+            FriendlySettingsLabels.permission(permission);
+      }
+    }
+    return label ?? type ?? 'تفاصيل النظام';
+  }
+
+  String _friendlyAuditValue(String raw, String? settingName) {
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map && decoded.containsKey('value') &&
+          settingName != null) {
+        for (final spec in SettingKeys.all) {
+          if (spec.name == settingName) {
+            return FriendlySettingsLabels.summary(spec, decoded['value']);
+          }
+        }
+      }
+      if (decoded is Map && decoded.containsKey('is_allowed')) {
+        return decoded['is_allowed'] == 1
+            ? 'صلاحية مفعّلة' : 'صلاحية غير مفعّلة';
+      }
+    } catch (_) {
+      // Audit records are never mutated or rejected because of display text.
+    }
+    return 'تم تسجيل تفاصيل هذا التغيير. يمكن عرض بياناته الفنية أدناه.';
+  }
+
   Widget _auditTab(SettingsAndSystemProvider p) {
     final users = p.auditLogs
         .map((e) => e.userId?.toString() ?? '')
@@ -1436,27 +1475,56 @@ class _S28SystemSettingsBackupScreenState
                 subtitle: Text('تم فحص ${p.chainResult!.checkedRows} سجلاً'))),
       for (final row in filtered)
         Card(
-            child: ExpansionTile(
-                title: Text(
-                    '${FriendlySettingsLabels.auditAction(row.action)} • ${row.entityLabel ?? row.entityType ?? ''}'),
-                subtitle: Text(
-                    '${row.eventAt} • ${FriendlySettingsLabels.severity(row.severity)} • المستخدم ${row.userId ?? '-'}'),
-                children: [
+          child: ExpansionTile(
+            title: Text(
+              FriendlySettingsLabels.auditAction(row.action) + ' • ' +
+              _friendlyAuditEntity(row.entityType, row.entityLabel),
+            ),
+            subtitle: Text(row.eventAt + ' • ' +
+                FriendlySettingsLabels.severity(row.severity) +
+                ' • المستخدم ' + (row.userId?.toString() ?? 'غير محدد')),
+            children: [
               if (row.oldValuesJson != null)
                 ListTile(
-                    title: const Text('القيم القديمة'),
-                    subtitle: SelectableText(row.oldValuesJson!)),
+                  title: const Text('قبل التغيير'),
+                  subtitle: Text(_friendlyAuditValue(
+                      row.oldValuesJson!, row.entityLabel)),
+                ),
               if (row.newValuesJson != null)
                 ListTile(
-                    title: const Text('القيم الجديدة'),
-                    subtitle: SelectableText(row.newValuesJson!)),
+                  title: const Text('بعد التغيير'),
+                  subtitle: Text(_friendlyAuditValue(
+                      row.newValuesJson!, row.entityLabel)),
+                ),
               if (row.reason != null)
                 ListTile(
-                    title: const Text('السبب'), subtitle: Text(row.reason!)),
-              ListTile(
-                  title: const Text('SHA-256'),
-                  subtitle: SelectableText(row.rowHash ?? ''))
-            ])),
+                  title: const Text('سبب التغيير'),
+                  subtitle: Text(row.reason!),
+                ),
+              ExpansionTile(
+                title: const Text('معلومات فنية للمراجعة المتقدمة'),
+                subtitle: const Text(
+                    'البيانات الأصلية محفوظة دون تعديل لفحص سجل الرقابة.'),
+                children: [
+                  if (row.oldValuesJson != null)
+                    ListTile(
+                      title: const Text('البيانات الأصلية قبل التغيير'),
+                      subtitle: SelectableText(row.oldValuesJson!),
+                    ),
+                  if (row.newValuesJson != null)
+                    ListTile(
+                      title: const Text('البيانات الأصلية بعد التغيير'),
+                      subtitle: SelectableText(row.newValuesJson!),
+                    ),
+                  ListTile(
+                    title: const Text('بصمة التحقق من سلامة السجل'),
+                    subtitle: SelectableText(row.rowHash ?? ''),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
     ]);
   }
 
