@@ -195,7 +195,125 @@ class _FriendlyJsonSettingEditorState extends State<FriendlyJsonSettingEditor> {
           whenChanged: (code) {
         final defaults = <String, (String, int)>{
           'YER': ('ر.ي', 0), 'SAR': ('ر.س', 2),
-          'USD': ('$', 2), 'EUR': ('€', 2),
+          'USD': (r', 'EUR': ('€', 2),
+        };
+        if (defaults.containsKey(code)) {
+          values['symbol'] = defaults[code]!.$1;
+          values['decimals'] = defaults[code]!.$2;
+        }
+      }),
+      _text('symbol', 'رمز العملة'),
+      _choice('decimals', 'عدد المنازل العشرية', ['0', '2', '3']),
+      const Text('تغيير العملة لا يحوّل أرصدة العمليات السابقة أو أسعارها.'),
+    ],
+  );
+
+  Widget _sections() {
+    switch (widget.spec.key) {
+      case SettingKey.reportHeaderFooter:
+        return Column(children: [
+          _text('header', 'النص الذي يظهر أعلى التقرير', maxLines: 3),
+          _text('footer', 'النص الذي يظهر أسفل التقرير', maxLines: 3),
+        ]);
+      case SettingKey.currency:
+        return _currency();
+      case SettingKey.periodLock:
+        return _lockDate();
+      case SettingKey.vat:
+        return Column(children: [
+          _switch('enabled', 'تفعيل ضريبة القيمة المضافة'),
+          _number('rate_pct', 'نسبة الضريبة (%)',
+              minimum: 0, maximum: 100, hint: 'مثال: 15'),
+        ]);
+      case SettingKey.reportPaper:
+        return Column(children: [
+          _choice('size', 'حجم الورق', ['A4']),
+          _choice('orientation', 'اتجاه الصفحة', ['portrait', 'landscape']),
+          const Text(
+            'يتوفر حجم A4 حاليًا في قالب الطباعة التجريبي. '
+            'قد تختلف إعدادات التقارير الأخرى بحسب نوع التقرير.',
+          ),
+        ]);
+      case SettingKey.autoLocalOnClose:
+        return Column(children: [
+          _switch('enabled', 'إنشاء نسخة احتياطية تلقائيًا'),
+          _number('keep_last', 'عدد النسخ الداخلية المحتفظ بها',
+              minimum: 1, maximum: 1000, integer: true),
+          _switch('compress', 'ضغط النسخة لتوفير مساحة التخزين'),
+        ]);
+      case SettingKey.cloudSync:
+        return Column(children: [
+          _switch('enabled', 'تشغيل المزامنة السحابية',
+              hint: 'لا تُفعّلها قبل إكمال الربط والصلاحيات.'),
+          const SizedBox(height: 4),
+          ExpansionTile(
+            key: const ValueKey('setting-cloud-advanced'),
+            title: const Text('إعداد الاتصال بالخادم'),
+            subtitle: const Text('مخصص لمسؤول تهيئة النظام'),
+            children: [
+              _choice('provider', 'خدمة المزامنة', ['firestore']),
+              _text('project_id', 'معرّف مشروع Firebase'),
+              _text('api_key', 'مفتاح ربط Firebase', isSecret: true),
+              _text('database_id', 'معرّف قاعدة Firestore',
+                  hint: 'استخدم (default) عند الاعتماد على القاعدة الرئيسية.'),
+              _number('batch_size', 'عدد السجلات في كل دفعة',
+                  minimum: 1, maximum: 1000, integer: true),
+            ],
+          ),
+        ]);
+      default:
+        return const Text('هذا الإعداد غير متاح للتحرير هنا.');
+    }
+  }
+
+  void _save() {
+    if (!_form.currentState!.validate()) return;
+    _form.currentState!.save();
+    // Preserve data types, including integers, when a choice is selected.
+    if (widget.spec.key == SettingKey.currency) {
+      values['decimals'] = int.tryParse(values['decimals'].toString()) ??
+          widget.initialValue['decimals'] ?? 0;
+    }
+    Navigator.of(context).pop(Map<String, Object?>.from(values));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(FriendlySettingsLabels.title(widget.spec)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      content: SizedBox(
+        width: 480,
+        child: SingleChildScrollView(
+          child: Form(
+            key: _form,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(FriendlySettingsLabels.explanation(widget.spec)),
+                const SizedBox(height: 16),
+                _sections(),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('إلغاء'),
+        ),
+        FilledButton(
+          key: const ValueKey('friendly-settings-save'),
+          onPressed: _save,
+          child: const Text('حفظ الإعداد'),
+        ),
+      ],
+    );
+  }
+}
+, 2), 'EUR': ('€', 2),
         };
         if (defaults.containsKey(code)) {
           values['symbol'] = defaults[code]!.$1;
