@@ -183,8 +183,94 @@ class _S28SystemSettingsBackupScreenState
     }
   }
 
+  Future<bool> _confirmSensitiveChange(
+      SettingSpec spec, Object? oldValue, Object value) async {
+    String? explanation;
+    switch (spec.key) {
+      case SettingKey.allowNegativeStock:
+        if (value == true) {
+          explanation = 'سيُسمح بعمليات قد تنقص المخزون دون توفر كمية كافية. '
+              'هل تريد المتابعة؟';
+        }
+        break;
+      case SettingKey.enforceFefo:
+        if (value == false) {
+          explanation = 'إيقاف صرف الدفعات الأقرب انتهاءً قد يترك كميات '
+              'أقدم في المخزون. هل تريد المتابعة؟';
+        }
+        break;
+      case SettingKey.blockExpiredSale:
+        if (value == false) {
+          explanation = 'قد يسمح هذا بإجراء بيع لأدوية منتهية الصلاحية. '
+              'يرجى التأكد من السياسة المعتمدة قبل المتابعة.';
+        }
+        break;
+      case SettingKey.blockPregnancyX:
+        if (value == false) {
+          explanation = 'سيتم تعطيل منع صرف الأدوية من فئة الحمل X. '
+              'هل تريد المتابعة؟';
+        }
+        break;
+      case SettingKey.partnerDistributionMode:
+        explanation = 'تغيير طريقة توزيع الأرباح قد يُفرغ قيم الحصص أو '
+            'النسب السابقة للشركاء وفق منطق النظام الحالي. '
+            'تأكد من وجود نسخة احتياطية ومراجعة محاسب قبل المتابعة.';
+        break;
+      case SettingKey.currency:
+        final oldCode = oldValue is Map ? oldValue['code'] : null;
+        final newCode = value is Map ? value['code'] : null;
+        if (oldCode != newCode) {
+          explanation = 'تغيير اسم العملة ورمزها لا يحوّل الأرصدة والفواتير '
+              'السابقة إلى العملة الجديدة. هل تريد حفظ هذا التغيير؟';
+        }
+        break;
+      case SettingKey.periodLock:
+        final oldDate = oldValue is Map ? oldValue['locked_through'] : null;
+        final newDate = value is Map ? value['locked_through'] : null;
+        if (oldDate != null && (newDate == null ||
+            newDate.toString().compareTo(oldDate.toString()) < 0)) {
+          explanation = 'أنت تقلص مدة القفل المالي أو تلغيها. قد تصبح '
+              'بعض التواريخ السابقة قابلة لتسجيل عمليات جديدة.';
+        }
+        break;
+      case SettingKey.cloudSync:
+        if (value is Map && value['enabled'] == true &&
+            (oldValue is! Map || oldValue['enabled'] != true)) {
+          explanation = 'يجب التأكد من جاهزية الخادم وصلاحيات الحساب '
+              'وهوية الفرع قبل تفعيل المزامنة.';
+        }
+        break;
+      default:
+        break;
+    }
+    if (explanation == null) return true;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('تأكيد تغيير: ' + FriendlySettingsLabels.title(spec)),
+        content: Text(explanation!),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('العودة'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('تأكيد التغيير'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
   Future<void> _change(SettingSpec spec, Object value) async {
     final p = context.read<SettingsAndSystemProvider>();
+    final oldValue = p.settings.getValue(spec.key);
+    if (jsonEncode(oldValue) == jsonEncode(value)) return;
+    if (!await _confirmSensitiveChange(spec, oldValue, value) || !mounted) {
+      return;
+    }
     final session = context.read<SessionAndErpProvider>();
     String? pin;
     if (spec.requiresManager) {
