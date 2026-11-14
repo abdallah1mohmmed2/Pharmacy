@@ -530,23 +530,21 @@ class _LoginScreenState extends State<_LoginScreen> {
     final finance = context.read<TreasuryHrPartnerProvider>();
     setState(() => busy = true);
     final ok = await session.login(user.text, pass.text);
-    if (!mounted) return;
-    setState(() {
-      busy = false;
-      error = ok ? null : 'بيانات الدخول غير صحيحة';
-    });
-    if (ok) {
+    if (mounted) {
+      setState(() {
+        busy = false;
+        error = ok ? null : 'بيانات الدخول غير صحيحة';
+      });
+    }
+    if (ok && session.currentUser != null) {
       final activeBranch = session.branchId;
-      await pos.setBranchId(activeBranch);
-      if (!mounted) return;
-      await inventory.setBranch(activeBranch);
-      if (!mounted) return;
-      await clinical.setBranch(activeBranch);
-      if (!mounted) return;
       await finance.loadAll(
         branchId: activeBranch,
         userId: session.currentUser!['id'] as int,
       );
+      await pos.setBranchId(activeBranch);
+      await inventory.setBranch(activeBranch);
+      await clinical.setBranch(activeBranch);
     }
   }
 }
