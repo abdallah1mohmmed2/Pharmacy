@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:global_enterprise_pharmacy_erp/core/theme/enterprise_dark_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -25,7 +27,14 @@ class _FailMovementsOnce extends ShiftAndTreasuryService {
 }
 
 void main() {
-  setUpAll(() { sqfliteFfiInit(); databaseFactory = databaseFactoryFfi; });
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() async {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+    final arabic = FontLoader('TreasuryArabic')
+      ..addFont(rootBundle.load('assets/fonts/NotoNaskhArabic-Regular.ttf'));
+    await arabic.load();
+  });
 
   Future<void> expectTreasuryCardsAtSize(
     WidgetTester tester, {
@@ -109,7 +118,10 @@ void main() {
         ChangeNotifierProvider<TreasuryHrPartnerProvider>.value(value: provider),
         ChangeNotifierProvider<SessionAndErpProvider>.value(value: session),
       ], child: RepaintBoundary(key: const ValueKey('treasury-test-render'),
-          child: MaterialApp(theme: ThemeData(platform: size.width >= 700 ? TargetPlatform.windows : TargetPlatform.android),
+          child: MaterialApp(theme: EnterpriseDarkTheme.data.copyWith(
+              platform: size.width >= 700 ? TargetPlatform.windows : TargetPlatform.android,
+              textTheme: EnterpriseDarkTheme.data.textTheme.apply(fontFamily: 'TreasuryArabic')),
+              builder: (context, child) => Directionality(textDirection: TextDirection.rtl, child: child!),
               home: const S22TreasuryWalletsScreen()))));
       await loaded.future.timeout(const Duration(seconds: 15));
     });
