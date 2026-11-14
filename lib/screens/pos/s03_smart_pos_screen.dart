@@ -36,6 +36,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
   final tenderField = TextEditingController();
   Timer? _searchDebounce;
   bool _checkoutBusy = false;
+  int? _initializedSaleBranch;
   String method = 'CASH';
   String mixedChannel = 'CASH';
   int? customerId;
@@ -49,18 +50,36 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
 
   void _scheduleSearch(PosAndDrugsProvider pos, String query) {
     _searchDebounce?.cancel();
-    pos.invalidateSearch(query);
+    pos.invalidateSaleSearch(query);
     final term = query.trim();
     if (term.isEmpty) {
-      pos.loadDrugs();
+      pos.loadSaleDrugs();
       return;
     }
     if (term.length < 2) {
-      pos.searchDrugs(term);
+      pos.loadSaleDrugs(term);
       return;
     }
     _searchDebounce = Timer(const Duration(milliseconds: 260), () {
-      if (mounted) pos.searchDrugs(term);
+      if (mounted) pos.loadSaleDrugs(term);
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final session = context.watch<SessionAndErpProvider>();
+    if (session.currentUser == null || _initializedSaleBranch == session.branchId) return;
+    final branch = session.branchId;
+    _initializedSaleBranch = branch;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final pos = context.read<PosAndDrugsProvider>();
+      if (pos.branchId != branch) {
+        pos.setBranchId(branch);
+      } else {
+        pos.loadSaleWarehouses();
+      }
     });
   }
 
@@ -109,6 +128,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
             context,
             item.drug,
             (replacement) => pos.replaceCartItem(item, replacement),
+            warehouseId: pos.saleWarehouseId,
           );
           return KeyEventResult.handled;
         }
@@ -158,6 +178,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
   ) {
     return Column(
       children: [
+        _warehouseSelector(pos),
         _tabStrip(pos),
         const SizedBox(height: 8),
         Row(
@@ -244,7 +265,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
                             (pos.tabs[i].held ? ' • معلقة' : ''),
                       ),
                       selected: i == pos.activeTab,
-                      onSelected: (_) => pos.selectTab(i),
+                      onSelected: (_) { _searchDebounce?.cancel(); search.clear(); pos.selectTab(i); },
                     ),
                   ),
               ],
@@ -270,9 +291,36 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
     );
   }
 
+  Widget _warehouseSelector(PosAndDrugsProvider pos) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      DropdownButtonFormField<int>(
+        key: ValueKey('sale-warehouse-${pos.currentTab.id}-${pos.saleWarehouseId}'),
+        value: pos.saleWarehouses.any((w) => w['id'] == pos.saleWarehouseId) ? pos.saleWarehouseId : null,
+        isExpanded: true,
+        decoration: const InputDecoration(labelText: 'مخزن البيع', hintText: 'اختر مخزن البيع'),
+        items: pos.saleWarehouses.map((w) => DropdownMenuItem<int>(
+            value: w['id'] as int, child: Text(w['name_ar'].toString()))).toList(),
+        onChanged: pos.checkoutPending || pos.cart.isNotEmpty || pos.currentTab.held ? null : (id) async {
+          if (id == null) return;
+          _searchDebounce?.cancel();
+          search.clear();
+          await pos.selectSaleWarehouse(id);
+        },
+      ),
+      if (pos.saleLoading) const LinearProgressIndicator(),
+      if (pos.saleError != null)
+        Text('تعذر تحميل أدوية المخزن: ${pos.saleError}', style: const TextStyle(color: AppColors.danger)),
+      if (!pos.saleLoading && pos.saleDrugs.isEmpty)
+        const Text('لا توجد أدوية متاحة في المخزن المحدد'),
+      const SizedBox(height: 8),
+    ],
+  );
+
   Widget _catalog(PosAndDrugsProvider pos) => Column(
         children: [
-          _tabStrip(pos),
+          _warehouseSelector(pos),
+        _tabStrip(pos),
           TextField(
             controller: search,
             textInputAction: TextInputAction.search,
@@ -286,9 +334,9 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
           Expanded(
             child: ListView.builder(
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              itemCount: pos.drugs.length,
+              itemCount: pos.saleDrugs.length,
               itemBuilder: (context, i) {
-                final drug = pos.drugs[i];
+                final drug = pos.saleDrugs[i];
                 return Card(
                   child: ListTile(
                     title: Text(drug.tradeNameAr),
@@ -333,9 +381,9 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
               builder: (context, current, _) => ListView.builder(
                 keyboardDismissBehavior:
                     ScrollViewKeyboardDismissBehavior.onDrag,
-                itemCount: current.drugs.length,
+                itemCount: current.saleDrugs.length,
                 itemBuilder: (context, index) {
-                  final drug = current.drugs[index];
+                  final drug = current.saleDrugs[index];
                   return Card(
                     child: ListTile(
                       title: Text(drug.tradeNameAr),
@@ -477,7 +525,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
                     const SizedBox(width: 8),
                     const Expanded(
                       child: Text(
-                        'تنبيه قبل إتمام البيع: أضف دواءً واحداً على الأقل وتأكد من الكمية، واختر الصندوق/المحفظة. '
+                        'تنبيه قبل إتمام البيع: أضف دواءً واحداً على الأقل وتأكد من الكمية ومخزن البيع. الصندوق النقدي تلقائي ما لم تختَر غيره. '
                         'للبيع الآجل أو المختلط اختر العميل. عند الدفع بالمحفظة أدخل رقم إشعار صحيحاً (6 خانات على الأقل). '
                         'في البيع المختلط أدخل المبلغ المدفوع الآن وحدد وسيلة دفعه، ثم راجع الإجمالي قبل التأكيد.',
                       ),
@@ -626,7 +674,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
         DropdownButtonFormField<int>(
           value: cashId,
           isExpanded: true,
-          decoration: const InputDecoration(labelText: 'الصندوق / المحفظة *'),
+          decoration: const InputDecoration(labelText: 'الصندوق / المحفظة', helperText: 'للبيع النقدي: يُستخدم الصندوق النقدي تلقائياً عند تركه فارغاً'),
           items: session.cashAccounts
               .map(
                 (account) => DropdownMenuItem(
@@ -720,12 +768,13 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
         .where(
           (batch) =>
               batch.drugId == item.drug.id &&
+              batch.warehouseId == pos.saleWarehouseId &&
               batch.status == 'ACTIVE' &&
               batch.daysUntilExpiry >= 0 &&
               batch.totalUnits > 0 &&
               inventory.warehouses.any(
                 (warehouse) =>
-                    warehouse.id == batch.warehouseId && warehouse.isSellable,
+                    warehouse.id == batch.warehouseId && (warehouse.isSellable || warehouse.whType == 'MAIN_STORE'),
               ),
         )
         .toList()
@@ -840,6 +889,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
             context,
             item.drug,
             (replacement) => pos.replaceCartItem(item, replacement),
+            warehouseId: pos.saleWarehouseId,
           ),
           icon: const Icon(Icons.swap_horiz),
           label: const Text('البدائل'),
@@ -989,10 +1039,7 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
         if (!approved) return;
       }
       if (!mounted || pos.currentTab != checkoutTab) return;
-      if (method != 'CREDIT' && cashId == null) {
-        _message('اختر الصندوق أو المحفظة');
-        return;
-      }
+      if (pos.saleWarehouseId == null) { _message('اختر مخزن البيع'); return; }
       final tender = method == 'MIXED' ? mixedChannel : method;
       final isWallet = tender == 'WALLET';
       if (isWallet && walletRef.text.trim().length < 6) {
@@ -1017,6 +1064,10 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
       if (!paid.isFinite || paid < 0 || paid > net) {
         _message('أدخل مبلغاً مدفوعاً صحيحاً لا يتجاوز الصافي');
         return;
+      }
+      if (paid > 0 && cashId == null) {
+        if (isWallet) { _message('اختر المحفظة'); return; }
+        cashId = await pos.defaultCashAccountId();
       }
       if (method == 'CASH') {
         try {
