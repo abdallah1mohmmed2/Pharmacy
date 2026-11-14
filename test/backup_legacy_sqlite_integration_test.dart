@@ -44,6 +44,9 @@ CREATE TABLE audit_logs (
   entity_id INTEGER, entity_label TEXT, old_values_json TEXT,
   new_values_json TEXT, reason TEXT, severity TEXT, prev_hash TEXT, row_hash TEXT
 )''');
+    await source.execute('CREATE TABLE users (id INTEGER PRIMARY KEY)');
+    await source.execute('CREATE TABLE drugs (id INTEGER PRIMARY KEY)');
+    await source.execute('CREATE TABLE parties (id INTEGER PRIMARY KEY)');
     await source.execute(
         'CREATE TABLE test_data (id INTEGER PRIMARY KEY, payload TEXT NOT NULL)');
     await source.insert('test_data', {'id': 1, 'payload': 'كميات الصيدلية'});
@@ -115,4 +118,51 @@ CREATE TABLE audit_logs (
       await snapshot.close();
     }
   });
+  test('external uncompressed backup restores through verified import with pre-restore safety copy',
+      () async {
+    final created = await service.createBackup(compress: false);
+    final outside = await created.file.copy('${root.path}/نسخة خارجية.db');
+    await (await helper.database)
+        .update('test_data', {'payload': 'تعديل قبل الاستعادة'},
+            where: 'id=?', whereArgs: [1]);
+    await service.restoreBackupFromDevice(selectedFile: outside);
+    final db = await helper.database;
+    expect((await db.query('test_data')).single['payload'], 'كميات الصيدلية');
+    final backups = await db.query('backup_log');
+    expect(backups.any((row) => row['trigger_type'] == 'IMPORTED'), isTrue);
+    expect(
+        backups.any((row) => row['trigger_type'] == 'BEFORE_RESTORE'), isTrue);
+    final imported =
+        backups.where((row) => row['trigger_type'] == 'IMPORTED').last;
+    final localCopy = File(imported['file_path'] as String);
+    expect(await localCopy.exists(), isTrue);
+    expect(sha256.convert(await localCopy.readAsBytes()).toString(),
+        imported['sha256']);
+  });
+
+  test('external compressed backup restores without depending on selected filename',
+      () async {
+    final created = await service.createBackup(compress: true);
+    final outside = await created.file.copy('${root.path}/my-backup.bin');
+    await (await helper.database)
+        .update('test_data', {'payload': 'قيمة مؤقتة'},
+            where: 'id=?', whereArgs: [1]);
+    await service.restoreBackupFromDevice(selectedFile: outside);
+    expect((await (await helper.database).query('test_data'))
+        .single['payload'], 'كميات الصيدلية');
+  });
+
+  test('invalid external backup never overwrites live data', () async {
+    final outside = File('${root.path}/garbage.db');
+    await outside.writeAsString('This is not a Pharmacy SQLite backup');
+    await expectLater(
+      service.restoreBackupFromDevice(selectedFile: outside),
+      throwsStateError,
+    );
+    expect((await (await helper.database).query('test_data'))
+        .single['payload'], 'كميات الصيدلية');
+    final backups = await (await helper.database).query('backup_log');
+    expect(backups, isEmpty);
+  });
+
 }
