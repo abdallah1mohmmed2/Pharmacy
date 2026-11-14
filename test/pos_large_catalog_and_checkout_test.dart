@@ -26,6 +26,7 @@ class _DelayedPosting extends PostingAndSalesService {
               String? walletRef
             })>
         payments,
+    int? warehouseId,
     int customerPartyId = 0,
     double discountAmount = 0,
     required ClinicalVerdict clinicalVerdict,
@@ -146,6 +147,7 @@ void main() {
             ],
             clinicalVerdict: ClinicalVerdict([]),
           );
+      provider.currentTab.warehouseId = 1;
       final first = checkout();
       expect(provider.checkoutPending, isTrue);
       await expectLater(checkout(), throwsA(isA<StateError>()));
