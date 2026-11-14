@@ -14,3 +14,12 @@
 - تعذر تشغيل Flutter محلياً: منعت المراجعة التلقائية طلباً إلى عنوان بيانات البيئة الداخلية أثناء تهيئة الأداة.
 - شُغلت فحوص GitHub على commit ec4fac1211bbf5e037f4d382c5eb59a0ef1f0df1؛ النتائج والبناء في https://github.com/abdallah1mohmmed2/Pharmacy/actions/runs/43604206906 . لا يعني بدء التشغيل نجاح الاختبارات أو البناء.
 - التغيير على feature/central-medicine-catalog ولم يدمج في main.
+
+## نتيجة التحقق بعد تصحيح اختبار التمرير
+
+التشغيل https://github.com/abdallah1mohmmed2/Pharmacy/actions/runs/43604610812 على commit 5ffa436a3640cae1788d112c299e05f233b03646:
+- Flutter analyze: نجاح على Android وWindows.
+- Flutter test: نجاح، بما يشمل اختبارات تفاصيل العميل والمورد وإعادة المحاولة.
+- finance-relay-contract: نجاح.
+- Windows release: نجاح.
+- Android APK: البناء قيد التنفيذ عند كتابة هذا التحديث؛ لم يُعلن نجاحه بعد.
