@@ -25,7 +25,7 @@ class S22TreasuryWalletsScreen extends StatelessWidget {
                         icon: const Icon(Icons.add_card),
                         tooltip: 'إضافة حساب'),
                     FilledButton.icon(
-                        onPressed: () => _transfer(context, p),
+                        onPressed: p.operationPending ? null : () => _transfer(context, p),
                         icon: const Icon(Icons.swap_horiz),
                         label: const Text('تحويل'))
                   ],
@@ -124,7 +124,7 @@ class S22TreasuryWalletsScreen extends StatelessWidget {
                                         Align(
                                             alignment: Alignment.centerLeft,
                                             child: TextButton.icon(
-                                                onPressed: () =>
+                                                onPressed: p.operationPending ? null : () =>
                                                     _reconcile(context, p, a),
                                                 icon: const Icon(
                                                     Icons.fact_check),
@@ -240,7 +240,7 @@ class S22TreasuryWalletsScreen extends StatelessWidget {
                                   fromAccountId: from,
                                   toAccountId: to,
                                   amount: double.parse(amount.text),
-                                  fee: double.tryParse(fee.text) ?? 0,
+                                  fee: double.parse(fee.text),
                                   reference: ref.text,
                                   note: note.text);
                               if (ctx.mounted) Navigator.pop(ctx);
@@ -309,6 +309,7 @@ class S22TreasuryWalletsScreen extends StatelessWidget {
   }
 
   Future<void> _addAccount(BuildContext context) async {
+    bool saving = false;
     final name = TextEditingController();
     final phone = TextEditingController();
     String kind = 'WALLET';
@@ -364,7 +365,8 @@ class S22TreasuryWalletsScreen extends StatelessWidget {
             ),
             FilledButton(
               onPressed: () async {
-                if (name.text.trim().isEmpty) return;
+                if (saving || name.text.trim().isEmpty) return;
+                saving = true;
                 try {
                   final db = await DatabaseHelper.instance.database;
                   final now = DateTime.now().toIso8601String();
@@ -434,6 +436,8 @@ class S22TreasuryWalletsScreen extends StatelessWidget {
                       SnackBar(content: Text(e.toString())),
                     );
                   }
+                } finally {
+                  saving = false;
                 }
               },
               child: const Text('حفظ'),
