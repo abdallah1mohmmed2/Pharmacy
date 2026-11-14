@@ -166,6 +166,25 @@ class _ManualMessageComposerScreenState
     }
   }
 
+  Widget _channelButton(String channel) {
+    final preferred = widget.preferredChannel == channel;
+    final icon = channel == 'sms' ? Icons.sms_outlined : Icons.chat_outlined;
+    final label = channel == 'sms' ? 'فتح SMS' : 'فتح واتساب';
+    final action = _loading || _busy ? null : () => _open(channel);
+    if (preferred) {
+      return FilledButton.icon(
+        onPressed: action,
+        icon: Icon(icon),
+        label: Text(label),
+      );
+    }
+    return OutlinedButton.icon(
+      onPressed: action,
+      icon: Icon(icon),
+      label: Text(label),
+    );
+  }
+
   @override
   void dispose() {
     _phone.dispose();
@@ -307,16 +326,13 @@ class _ManualMessageComposerScreenState
                     ],
                     const SizedBox(height: 12),
                     Wrap(spacing: 8, runSpacing: 8, children: [
-                      FilledButton.tonalIcon(
-                        onPressed: _loading || _busy ? null : () => _open('sms'),
-                        icon: const Icon(Icons.sms_outlined),
-                        label: const Text('فتح SMS'),
-                      ),
-                      FilledButton.icon(
-                        onPressed: _loading || _busy ? null : () => _open('whatsapp'),
-                        icon: const Icon(Icons.chat_outlined),
-                        label: const Text('فتح واتساب'),
-                      ),
+                      if (widget.preferredChannel == 'sms') ...[
+                        _channelButton('sms'),
+                        _channelButton('whatsapp'),
+                      ] else ...[
+                        _channelButton('whatsapp'),
+                        _channelButton('sms'),
+                      ],
                     ]),
                     const SizedBox(height: 8),
                     const Text('الإرسال يدوي من التطبيق الخارجي. فتحه لا يعني أن الرسالة أُرسلت.'),
