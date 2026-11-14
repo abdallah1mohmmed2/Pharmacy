@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../providers/settings_and_system_provider.dart';
 import '../../data/models/settings_audit_sync_models.dart';
 import '../../data/services/drug_import_export_service.dart';
+import 'drug_import_mapping_field.dart';
 
 class S10DrugImportExportScreen extends StatefulWidget {
   const S10DrugImportExportScreen({super.key});
@@ -318,26 +319,36 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
                     });
                 }),
             const SizedBox(height: 12),
-            TextField(
+            DrugImportMappingField(
                 controller: mappingController,
-                minLines: 2,
-                maxLines: 5,
-                onChanged: (_) => setState(() => previewReady = false),
-                decoration: const InputDecoration(
-                    labelText: 'ربط الأعمدة بصيغة JSON (اختياري)',
-                    hintText: '{"اسم الدواء":"trade_name_ar"}',
-                    border: OutlineInputBorder())),
+                onChanged: () => setState(() => previewReady = false)),
             if (mapping.isNotEmpty)
               Card(
-                  child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('معاينة الربط'),
-                            for (final entry in mapping.entries)
-                              Text('${entry.key}  ←  ${entry.value}')
-                          ]))),
+                child: ExpansionTile(
+                  title: Text('معاينة الربط — ' +
+                      mapping.length.toString() +
+                      ' أعمدة'),
+                  children: [
+                    SizedBox(
+                      height: 170,
+                      child: ListView(
+                        children: [
+                          for (final entry in mapping.entries)
+                            ListTile(
+                              dense: true,
+                              title: Text(entry.key,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis),
+                              subtitle: Text(entry.value,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
                 value: policy,
