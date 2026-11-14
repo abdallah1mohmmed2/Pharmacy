@@ -773,7 +773,8 @@ class _S08S09DrugEncyclopediaScreenState
                   ? const TextInputType.numberWithOptions(
                       decimal: true, signed: true)
                   : (longText ? TextInputType.multiline : TextInputType.text),
-          textInputAction: longText ? TextInputAction.newline : TextInputAction.next,
+          textInputAction:
+              longText ? TextInputAction.newline : TextInputAction.next,
           minLines: longText ? 2 : 1,
           maxLines: longText ? 4 : 1,
           decoration: InputDecoration(labelText: label),
@@ -808,7 +809,8 @@ class _S08S09DrugEncyclopediaScreenState
         children: [
           if (index == 0)
             const ClinicalAlertBanner(
-              message: 'البيانات السريرية يجب أن تؤخذ من مصدر معتمد. يمكن فتح الحقول الإضافية عند الحاجة.',
+              message:
+                  'البيانات السريرية يجب أن تؤخذ من مصدر معتمد. يمكن فتح الحقول الإضافية عند الحاجة.',
               level: ClinicalAlertLevel.warning,
             ),
           for (final key in mainKeys) buildField(key),
@@ -816,9 +818,11 @@ class _S08S09DrugEncyclopediaScreenState
             ExpansionTile(
               key: ValueKey('drug-advanced-$index'),
               title: const Text('بيانات إضافية وتفصيلية'),
-              subtitle: Text('إظهار ${extraKeys.length} حقلاً آخر — لا تُحذف القيم المحفوظة عند إخفائها'),
+              subtitle: Text(
+                  'إظهار ${extraKeys.length} حقلاً آخر — لا تُحذف القيم المحفوظة عند إخفائها'),
               initiallyExpanded: false,
-              childrenPadding: const EdgeInsetsDirectional.fromSTEB(8, 8, 8, 12),
+              childrenPadding:
+                  const EdgeInsetsDirectional.fromSTEB(8, 8, 8, 12),
               children: [
                 for (final key in extraKeys) buildField(key),
               ],
@@ -827,14 +831,13 @@ class _S08S09DrugEncyclopediaScreenState
         ],
       );
     }
+
     await showDialog<void>(
         context: context,
         builder: (dialogContext) => AlertDialog(
               insetPadding: const EdgeInsets.all(8),
               scrollable: true,
-              title: Text(drug == null
-                  ? 'إضافة دواء'
-                  : 'تعديل بيانات الدواء'),
+              title: Text(drug == null ? 'إضافة دواء' : 'تعديل بيانات الدواء'),
               content: SizedBox(
                   width: MediaQuery.sizeOf(context).width < 700
                       ? double.infinity
@@ -876,7 +879,8 @@ class _S08S09DrugEncyclopediaScreenState
                         return;
                       }
                       for (final entry in enumValues.entries) {
-                        if (!entry.value.contains(controllers[entry.key]!.text.trim()) &&
+                        if (!entry.value.contains(
+                                controllers[entry.key]!.text.trim()) &&
                             controllers[entry.key]!.text.trim() !=
                                 (initial[entry.key]?.toString() ?? '')) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(

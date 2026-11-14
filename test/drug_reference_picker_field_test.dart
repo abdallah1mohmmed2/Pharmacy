@@ -8,7 +8,9 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() => sqfliteFfiInit());
 
-  test('reference search is bounded, case insensitive, and branch-scoped for categories', () async {
+  test(
+      'reference search is bounded, case insensitive, and branch-scoped for categories',
+      () async {
     final db = await databaseFactoryFfi.openDatabase(inMemoryDatabasePath);
     try {
       await db.execute('''CREATE TABLE drug_categories (
@@ -24,25 +26,34 @@ void main() {
         name_ar TEXT, inn_name TEXT
       )''');
       await db.insert('drug_categories', {
-        'id': 1, 'branch_id': 1, 'code': 'ABX',
+        'id': 1,
+        'branch_id': 1,
+        'code': 'ABX',
         'name_ar': 'مضادات حيوية',
       });
       await db.insert('drug_categories', {
-        'id': 2, 'branch_id': 2, 'code': 'ABX',
+        'id': 2,
+        'branch_id': 2,
+        'code': 'ABX',
         'name_ar': 'مضادات حيوية الفرع الآخر',
       });
       await db.insert('manufacturers', {
-        'id': 3, 'name_ar': 'شركة تجريبية',
+        'id': 3,
+        'name_ar': 'شركة تجريبية',
       });
       await db.insert('active_ingredients', {
-        'id': 4, 'inn_name': 'Paracetamol',
+        'id': 4,
+        'inn_name': 'Paracetamol',
       });
       final lookup = DrugReferenceLookup(helper: DatabaseHelper.forTesting(db));
-      final categories = await lookup.search(DrugReferenceKind.category, 'مضادات', 1);
+      final categories =
+          await lookup.search(DrugReferenceKind.category, 'مضادات', 1);
       expect(categories.map((e) => e.id), [1]);
-      final maker = await lookup.search(DrugReferenceKind.manufacturer, 'تجريبية', 1);
+      final maker =
+          await lookup.search(DrugReferenceKind.manufacturer, 'تجريبية', 1);
       expect(maker.map((e) => e.id), [3]);
-      final ingredient = await lookup.search(DrugReferenceKind.ingredient, 'para', 1);
+      final ingredient =
+          await lookup.search(DrugReferenceKind.ingredient, 'para', 1);
       expect(ingredient.map((e) => e.id), [4]);
       expect(await lookup.search(DrugReferenceKind.category, '%', 1), isEmpty);
     } finally {
@@ -50,7 +61,8 @@ void main() {
     }
   });
 
-  testWidgets('reference choice writes only the ID and can be cleared', (tester) async {
+  testWidgets('reference choice writes only the ID and can be cleared',
+      (tester) async {
     final id = TextEditingController();
     addTearDown(id.dispose);
     await tester.pumpWidget(MaterialApp(
@@ -66,7 +78,8 @@ void main() {
         ),
       ),
     ));
-    await tester.tap(find.byKey(const ValueKey('drug-reference-manufacturer_id')));
+    await tester
+        .tap(find.byKey(const ValueKey('drug-reference-manufacturer_id')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('drug-ref-choice-42')));
     await tester.pumpAndSettle();

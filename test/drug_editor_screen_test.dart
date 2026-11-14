@@ -17,8 +17,7 @@ class _Pos extends PosAndDrugsProvider {
   Future<void> loadDrugs() async {}
 }
 
-Future<void> _setup(
-    WidgetTester tester, _Pos provider) async {
+Future<void> _setup(WidgetTester tester, _Pos provider) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
@@ -65,7 +64,8 @@ void main() {
     expect(provider.saved!.stripPriceMode, 'AUTO');
   });
 
-  testWidgets('editing drug preserves detailed and clinical data when sections remain closed',
+  testWidgets(
+      'editing drug preserves detailed and clinical data when sections remain closed',
       (tester) async {
     const old = DrugModel(
       id: 99,

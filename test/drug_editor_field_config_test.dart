@@ -5,10 +5,17 @@ import 'package:global_enterprise_pharmacy_erp/screens/drugs/drug_editor_field_c
 void main() {
   test('all 11 old boolean codes are represented as switches', () {
     expect(DrugEditorFieldConfig.boolFields, {
-      'is_active', 'is_strip_based', 'has_critical_interactions',
-      'is_nephrotoxic', 'neonate_allowed', 'requires_refrigeration',
-      'protect_from_light', 'is_controlled', 'requires_prescription',
-      'prescription_restricted', 'is_antibiotic',
+      'is_active',
+      'is_strip_based',
+      'has_critical_interactions',
+      'is_nephrotoxic',
+      'neonate_allowed',
+      'requires_refrigeration',
+      'protect_from_light',
+      'is_controlled',
+      'requires_prescription',
+      'prescription_restricted',
+      'is_antibiotic',
     });
     expect(DrugEditorFieldConfig.boolValue('1'), isTrue);
     expect(DrugEditorFieldConfig.boolValue('0'), isFalse);
@@ -17,26 +24,66 @@ void main() {
   });
 
   test('all ten enumerations keep the same SQLite codes', () {
-    expect(DrugEditorFieldConfig.choiceLabels.map((key, value) =>
-        MapEntry(key, value.keys.toSet())), {
-      'dosage_form': {
-        'TABLET', 'CAPSULE', 'SYRUP', 'SUSPENSION', 'DROPS', 'INJECTION',
-        'CREAM', 'OINTMENT', 'INHALER', 'SUPPOSITORY', 'SACHET', 'OTHER',
-      },
-      'route': {'ORAL', 'IV', 'IM', 'SC', 'TOPICAL', 'OPHTHALMIC',
-        'INHALATION', 'RECTAL', 'OTHER'},
-      'take_with_food': {'BEFORE', 'WITH', 'AFTER', 'ANY'},
-      'strip_price_mode': {'AUTO', 'MANUAL'},
-      'hepatic_status': {'UNKNOWN', 'SAFE', 'ADJUST', 'AVOID', 'CONTRAINDICATED'},
-      'renal_status': {'UNKNOWN', 'SAFE', 'ADJUST', 'AVOID', 'CONTRAINDICATED'},
-      'geriatric_status': {'UNKNOWN', 'SAFE', 'ADJUST', 'AVOID'},
-      'pediatric_status': {'UNKNOWN', 'SAFE', 'ADJUST', 'AVOID', 'CONTRAINDICATED'},
-      'pregnancy_category': {'UNKNOWN', 'A', 'B', 'C', 'D', 'X', 'N'},
-      'lactation_risk': {'UNKNOWN', 'L1', 'L2', 'L3', 'L4', 'L5'},
-    });
+    expect(
+        DrugEditorFieldConfig.choiceLabels
+            .map((key, value) => MapEntry(key, value.keys.toSet())),
+        {
+          'dosage_form': {
+            'TABLET',
+            'CAPSULE',
+            'SYRUP',
+            'SUSPENSION',
+            'DROPS',
+            'INJECTION',
+            'CREAM',
+            'OINTMENT',
+            'INHALER',
+            'SUPPOSITORY',
+            'SACHET',
+            'OTHER',
+          },
+          'route': {
+            'ORAL',
+            'IV',
+            'IM',
+            'SC',
+            'TOPICAL',
+            'OPHTHALMIC',
+            'INHALATION',
+            'RECTAL',
+            'OTHER'
+          },
+          'take_with_food': {'BEFORE', 'WITH', 'AFTER', 'ANY'},
+          'strip_price_mode': {'AUTO', 'MANUAL'},
+          'hepatic_status': {
+            'UNKNOWN',
+            'SAFE',
+            'ADJUST',
+            'AVOID',
+            'CONTRAINDICATED'
+          },
+          'renal_status': {
+            'UNKNOWN',
+            'SAFE',
+            'ADJUST',
+            'AVOID',
+            'CONTRAINDICATED'
+          },
+          'geriatric_status': {'UNKNOWN', 'SAFE', 'ADJUST', 'AVOID'},
+          'pediatric_status': {
+            'UNKNOWN',
+            'SAFE',
+            'ADJUST',
+            'AVOID',
+            'CONTRAINDICATED'
+          },
+          'pregnancy_category': {'UNKNOWN', 'A', 'B', 'C', 'D', 'X', 'N'},
+          'lactation_risk': {'UNKNOWN', 'L1', 'L2', 'L3', 'L4', 'L5'},
+        });
   });
 
-  test('editor choices are presentation only; model serialization is unchanged', () {
+  test('editor choices are presentation only; model serialization is unchanged',
+      () {
     const model = DrugModel(
       internalCode: 'SKU-CHECK',
       tradeNameAr: 'دواء',
