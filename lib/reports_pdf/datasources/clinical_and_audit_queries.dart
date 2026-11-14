@@ -54,13 +54,24 @@ class ClinicalAndAuditQueries {
   Future<List<Map<String, Object?>>> r47(ReportParams p) => _q('''
     SELECT cdl.recorded_at AS date,i.invoice_no AS invoice_no,
       d.trade_name_ar || ' / ' || COALESCE(d.controlled_schedule,'') AS drug_schedule,
-      b.batch_no AS batch_no,cdl.qty_units AS quantity,cdl.patient_name AS patient,
-      cdl.patient_national_id AS patient_national_id,cdl.receiver_name AS receiver,
-      cdl.receiver_national_id AS receiver_national_id,pr.rx_no AS prescription_no,
+      b.batch_no AS batch_no,cdl.qty_units AS quantity,
+      CASE WHEN cdl.patient_name='' THEN '—' ELSE 'محجوب في النسخة العامة' END AS patient,
+      CASE WHEN length(cdl.patient_national_id)>4
+        THEN '••••' || substr(cdl.patient_national_id,-4) ELSE '••••' END
+        AS patient_national_id,
+      CASE WHEN cdl.receiver_name='' THEN '—' ELSE 'محجوب في النسخة العامة' END
+        AS receiver,
+      CASE WHEN length(cdl.receiver_national_id)>4
+        THEN '••••' || substr(cdl.receiver_national_id,-4) ELSE '••••' END
+        AS receiver_national_id,pr.rx_no AS prescription_no,
       cdl.doctor_name AS doctor,u.full_name AS dispensing_pharmacist,
-      cdl.running_balance_units AS balance_after
+      snap.physical_after_units AS balance_after,
+      CASE WHEN snap.log_id IS NULL THEN 'تاريخي غير مثبت'
+        ELSE 'رصيد فرع مثبت' END AS balance_status
     FROM controlled_drug_log cdl
     JOIN drugs d ON d.id=cdl.drug_id
+    LEFT JOIN controlled_balance_snapshots snap
+      ON snap.log_id=cdl.id AND snap.branch_id=d.branch_id
     LEFT JOIN batches_fefo b ON b.id=cdl.batch_id
     LEFT JOIN sales_invoice_items si ON si.id=cdl.invoice_item_id
     LEFT JOIN sales_invoices i ON i.id=si.invoice_id
@@ -78,7 +89,9 @@ class ClinicalAndAuditQueries {
       a.override_reason AS reason
     FROM clinical_alert_logs a JOIN drugs d ON d.id=a.drug_id
     LEFT JOIN drugs d2 ON d2.id=a.other_drug_id
-    LEFT JOIN sales_invoices i ON i.id=a.invoice_id
+    LEFT JOIN clinical_alert_invoice_links cil ON cil.alert_log_id=a.id
+    LEFT JOIN sales_invoices i
+      ON i.id=COALESCE(cil.invoice_id,a.invoice_id) AND i.branch_id=d.branch_id
     LEFT JOIN users mu ON mu.id=a.manager_user_id
     WHERE d.branch_id=? AND a.alert_category='INTERACTION'
       ${_range('a.alert_at')} ORDER BY a.alert_at DESC
@@ -90,7 +103,9 @@ class ClinicalAndAuditQueries {
       a.message_ar AS message,a.user_decision AS user_decision,a.override_reason AS reason
     FROM clinical_alert_logs a JOIN drugs d ON d.id=a.drug_id
     LEFT JOIN patients pt ON pt.id=a.patient_id
-    LEFT JOIN sales_invoices i ON i.id=a.invoice_id
+    LEFT JOIN clinical_alert_invoice_links cil ON cil.alert_log_id=a.id
+    LEFT JOIN sales_invoices i
+      ON i.id=COALESCE(cil.invoice_id,a.invoice_id) AND i.branch_id=d.branch_id
     WHERE d.branch_id=? AND a.alert_category<>'INTERACTION'
       ${_range('a.alert_at')} ORDER BY a.alert_at DESC
   ''', [p.branchId, ..._rangeArgs(p)]);
