@@ -789,7 +789,22 @@ class PurchaseAndBonusService {
       List<
           Map<String,
               Object?>>> shortages({int branchId = 1}) async => _db.rawQuery(
-      """SELECT d.id drug_id,d.trade_name_ar drug_name,d.stock_total_units current_units,d.min_stock_units minimum_units,d.units_per_pack units_per_pack,CASE WHEN COALESCE(d.units_per_pack,1)>0 THEN CAST((MAX(d.min_stock_units*2-d.stock_total_units,0)+d.units_per_pack-1)/d.units_per_pack AS INTEGER) ELSE 0 END suggested_packs,COALESCE((SELECT SUM(-qty_units)*1.0/30 FROM stock_movements m WHERE m.drug_id=d.id AND m.movement_type='SALE_OUT' AND m.movement_at>=datetime('now','-30 day')),0) average_daily_sales,(SELECT pi.supplier_party_id FROM purchase_invoice_items pii JOIN purchase_invoices pi ON pi.id=pii.invoice_id WHERE pii.drug_id=d.id ORDER BY pii.effective_pack_cost ASC LIMIT 1) best_supplier_id,(SELECT p.name_ar FROM purchase_invoice_items pii JOIN purchase_invoices pi ON pi.id=pii.invoice_id JOIN parties p ON p.id=pi.supplier_party_id WHERE pii.drug_id=d.id ORDER BY pii.effective_pack_cost ASC LIMIT 1) best_supplier_name,(SELECT pii.effective_pack_cost FROM purchase_invoice_items pii WHERE pii.drug_id=d.id ORDER BY pii.effective_pack_cost ASC LIMIT 1) effective_pack_cost FROM drugs d WHERE d.branch_id=? AND d.is_deleted=0 AND d.is_active=1 AND d.stock_total_units<=d.min_stock_units ORDER BY d.stock_total_units""",
+      """SELECT d.id drug_id,d.trade_name_ar drug_name,d.stock_total_units current_units,d.min_stock_units minimum_units,d.units_per_pack units_per_pack,CASE WHEN COALESCE(d.units_per_pack,1)>0 THEN CAST((MAX(d.min_stock_units*2-d.stock_total_units,0)+d.units_per_pack-1)/d.units_per_pack AS INTEGER) ELSE 0 END suggested_packs,COALESCE((SELECT SUM(-qty_units)*1.0/30 FROM stock_movements m WHERE m.drug_id=d.id AND m.movement_type='SALE_OUT' AND m.movement_at>=datetime('now','-30 day')),0) average_daily_sales,(SELECT pi.supplier_party_id FROM purchase_invoice_items pii JOIN purchase_invoices pi ON pi.id=pii.invoice_id WHERE pii.drug_id=d.id ORDER BY pii.effective_pack_cost ASC LIMIT 1) best_supplier_id,(SELECT p.name_ar FROM purchase_invoice_items pii JOIN purchase_invoices pi ON pi.id=pii.invoice_id JOIN parties p ON p.id=pi.supplier_party_id WHERE pii.drug_id=d.id ORDER BY pii.effective_pack_cost ASC LIMIT 1) best_supplier_name,(SELECT pii.effective_pack_cost FROM purchase_invoice_items pii WHERE pii.drug_id=d.id ORDER BY pii.effective_pack_cost ASC LIMIT 1) effective_pack_cost FROM drugs d
+WHERE d.branch_id=?
+  AND d.is_deleted=0
+  AND d.is_active=1
+  AND d.stock_total_units<=d.min_stock_units
+  -- Drug catalog entries are NOT inventory: require evidence of a real
+  -- stock batch previously received in any warehouse of this branch.
+  -- Retain depleted and returned batches (total_units=0) as history.
+  AND EXISTS (
+    SELECT 1
+    FROM batches_fefo history
+    JOIN warehouses wh ON wh.id=history.warehouse_id
+    WHERE history.drug_id=d.id
+      AND wh.branch_id=d.branch_id
+  )
+ORDER BY d.stock_total_units""",
       [branchId]);
   Future<int> createAutoPurchaseOrder(
       {required int supplierPartyId,
