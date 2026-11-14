@@ -684,11 +684,10 @@ class _S28SystemSettingsBackupScreenState
         .toIso8601String()
         .substring(0, 19)
         .replaceAll(':', '-');
-    final name = TextEditingController(text: 'pharmacy_backup_$stamp');
+    String name = 'pharmacy_backup_$stamp';
     bool saveAs = true;
     String? nameError;
-    try {
-      return await showDialog<({String name, bool saveAs})>(
+    return showDialog<({String name, bool saveAs})>(
         context: context,
         builder: (dialogContext) => StatefulBuilder(
           builder: (dialogContext, setDialogState) => AlertDialog(
@@ -698,9 +697,9 @@ class _S28SystemSettingsBackupScreenState
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  TextField(
+                  TextFormField(
                     key: const ValueKey('backup-custom-name'),
-                    controller: name,
+                    initialValue: name,
                     maxLength: 100,
                     enabled: saveAs,
                     decoration: InputDecoration(
@@ -708,7 +707,8 @@ class _S28SystemSettingsBackupScreenState
                       helperText: 'سيضاف امتداد .db أو .db.gz تلقائيًا.',
                       errorText: nameError,
                     ),
-                    onChanged: (_) {
+                    onChanged: (value) {
+                      name = value;
                       if (nameError != null) {
                         setDialogState(() => nameError = null);
                       }
@@ -743,7 +743,7 @@ class _S28SystemSettingsBackupScreenState
               FilledButton(
                 key: const ValueKey('backup-confirm-create'),
                 onPressed: () {
-                  String requested = name.text;
+                  String requested = name;
                   if (saveAs) {
                     try {
                       requested = BackupFileName.baseName(requested);
@@ -761,9 +761,6 @@ class _S28SystemSettingsBackupScreenState
           ),
         ),
       );
-    } finally {
-      name.dispose();
-    }
   }
 
   Future<void> _createBackup(SettingsAndSystemProvider p) async {
