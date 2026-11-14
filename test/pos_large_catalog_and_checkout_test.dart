@@ -35,6 +35,18 @@ class _DelayedPosting extends PostingAndSalesService {
   }
 }
 
+class _DelayedSearchDb implements Database {
+  final result = Completer<List<Map<String, Object?>>>();
+  @override
+  String get path => ':memory:';
+  @override
+  Future<List<Map<String, Object?>>> rawQuery(String sql,
+          [List<Object?>? arguments]) =>
+      result.future;
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -65,6 +77,22 @@ void main() {
           },
         ),
       );
+
+  test('typing invalidates old search before debounce starts next query',
+      () async {
+    final db = _DelayedSearchDb();
+    final provider =
+        PosAndDrugsProvider(database: DatabaseHelper.forTesting(db));
+    final old = provider.searchDrugs('old');
+    provider.invalidateSearch('new');
+    db.result.complete([
+      {'id': 1, 'trade_name_ar': 'old result'}
+    ]);
+    await old;
+    expect(provider.search, 'new');
+    expect(provider.drugs, isEmpty);
+    expect(provider.loading, isFalse);
+  });
 
   test('initial POS catalog stays bounded with 27,000 medicines', () async {
     final db = await createDb();
