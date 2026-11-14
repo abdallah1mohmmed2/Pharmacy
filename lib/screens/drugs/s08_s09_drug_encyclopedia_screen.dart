@@ -832,7 +832,11 @@ class _S08S09DrugEncyclopediaScreenState
       );
     }
 
-    await showDialog<void>(
+    // A dialog's pop Future completes before its reverse animation is done.
+    // Keep controllers alive until its overlay has actually been removed;
+    // otherwise TextFields and ValueListenableBuilders may reattach to disposed
+    // controllers while Flutter animates the closing route.
+    final editorRoute = DialogRoute<void>(
         context: context,
         builder: (dialogContext) => AlertDialog(
               insetPadding: const EdgeInsets.all(8),
@@ -948,6 +952,10 @@ class _S08S09DrugEncyclopediaScreenState
                     child: const Text('حفظ جميع البيانات')),
               ],
             ));
+    await Navigator.of(context, rootNavigator: true).push<void>(editorRoute);
+    // TransitionRoute.completed resolves only after the closing animation and
+    // its overlay entries have been removed from the tree.
+    await editorRoute.completed;
     for (final controller in controllers.values) {
       controller.dispose();
     }
