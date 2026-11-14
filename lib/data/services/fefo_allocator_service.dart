@@ -68,12 +68,13 @@ class FefoAllocator {
       required int drugId,
       required int warehouseId,
       double unitPrice = 0,
+      bool allowSelectedWarehouseSale = false,
       String docType = 'SALE',
       int? docId}) async {
     if (needUnits <= 0 || unitsPerPack <= 0)
       throw ArgumentError('كمية الخصم غير صالحة');
     final rows = await txn.rawQuery(
-        "SELECT b.* FROM batches_fefo b JOIN warehouses w ON w.id=b.warehouse_id WHERE b.id=? AND b.drug_id=? AND b.warehouse_id=? AND b.status='ACTIVE' AND b.total_units>0 AND b.expiry_date>=? AND w.is_sellable=1",
+        "SELECT b.* FROM batches_fefo b JOIN warehouses w ON w.id=b.warehouse_id WHERE b.id=? AND b.drug_id=? AND b.warehouse_id=? AND b.status='ACTIVE' AND b.total_units>0 AND b.expiry_date>=? AND (w.is_sellable=1 ${allowSelectedWarehouseSale ? "OR w.wh_type='MAIN_STORE'" : ''})",
         [
           batchId,
           drugId,
@@ -170,7 +171,7 @@ class FefoAllocator {
       throw ArgumentError('كمية البيع ووحدات الباكت يجب أن تكون موجبة');
     final today = DateTime.now().toIso8601String().substring(0, 10);
     final rows = await txn.rawQuery(
-        "SELECT b.* FROM batches_fefo b JOIN warehouses w ON w.id=b.warehouse_id WHERE b.drug_id=? AND b.status='ACTIVE' AND b.total_units>0 AND b.expiry_date>=? AND w.is_sellable=1 ${warehouseId == null ? '' : 'AND b.warehouse_id=?'} ORDER BY b.expiry_date ASC,b.id ASC",
+        "SELECT b.* FROM batches_fefo b JOIN warehouses w ON w.id=b.warehouse_id WHERE b.drug_id=? AND b.status='ACTIVE' AND b.total_units>0 AND b.expiry_date>=? AND (w.is_sellable=1 ${warehouseId == null ? '' : "OR w.wh_type='MAIN_STORE'"}) ${warehouseId == null ? '' : 'AND b.warehouse_id=?'} ORDER BY b.expiry_date ASC,b.id ASC",
         warehouseId == null ? [drugId, today] : [drugId, today, warehouseId]);
     var remaining = needUnits;
     final allocations = <FefoAllocation>[];
@@ -193,6 +194,7 @@ class FefoAllocator {
           invoiceItemId: invoiceItemId,
           drugId: drugId,
           warehouseId: row['warehouse_id'] as int,
+          allowSelectedWarehouseSale: warehouseId != null,
           unitPrice: unitPrice,
           docType: docType,
           docId: docId);
