@@ -175,7 +175,11 @@ void main() {
     expect(find.byType(ManualMessageComposerScreen), findsOneWidget);
     expect(find.textContaining('عميل برسالة'), findsWidgets);
     expect(launches, isEmpty);
-    await tester.ensureVisible(find.text('فتح SMS'));
+    await tester.scrollUntilVisible(
+      find.text('فتح SMS'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('فتح SMS'));
     await tester.pumpAndSettle();
     expect(launches, hasLength(1));
