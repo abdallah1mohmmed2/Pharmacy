@@ -106,74 +106,71 @@ class _DrugReferencePickerFieldState extends State<DrugReferencePickerField> {
     final search = widget.searcher ?? DrugReferenceLookup().search;
     var results = search(widget.kind, '', widget.branchId);
     final chosen = await showModalBottomSheet<DrugReferenceChoice>(
-        context: context,
-        isScrollControlled: true,
-        builder: (sheetContext) => StatefulBuilder(
-          builder: (sheetContext, setSheetState) => SafeArea(
-            child: SizedBox(
-              height: MediaQuery.sizeOf(sheetContext).height * .76,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text('اختيار ${widget.label}',
-                        style: Theme.of(sheetContext).textTheme.titleMedium),
-                    const SizedBox(height: 10),
-                    TextField(
-                      key: ValueKey('drug-ref-search-${widget.fieldKey}'),
-                      autofocus: true,
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.search),
-                        labelText: 'بحث بالاسم أو الرمز',
-                      ),
-                      onChanged: (query) => setSheetState(() {
-                        results = search(widget.kind, query, widget.branchId);
-                      }),
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.sizeOf(sheetContext).height * .76,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('اختيار ${widget.label}',
+                      style: Theme.of(sheetContext).textTheme.titleMedium),
+                  const SizedBox(height: 10),
+                  TextField(
+                    key: ValueKey('drug-ref-search-${widget.fieldKey}'),
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.search),
+                      labelText: 'بحث بالاسم أو الرمز',
                     ),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: FutureBuilder<List<DrugReferenceChoice>>(
-                        future: results,
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState !=
-                              ConnectionState.done) {
-                            return const Center(
-                                child: CircularProgressIndicator());
-                          }
-                          if (snapshot.hasError) {
-                            return const Center(
-                              child: Text('تعذر البحث. يمكنك المحاولة مجدداً.'),
-                            );
-                          }
-                          final items =
-                              snapshot.data ?? const <DrugReferenceChoice>[];
-                          if (items.isEmpty) {
-                            return const Center(
-                                child: Text('لا توجد نتائج مطابقة.'));
-                          }
-                          return ListView.builder(
-                            itemCount: items.length,
-                            itemBuilder: (context, index) => ListTile(
-                              key: ValueKey(
-                                  'drug-ref-choice-${items[index].id}'),
-                              title: Text(items[index].title),
-                              subtitle:
-                                  Text('الرقم المرجعي: ${items[index].id}'),
-                              onTap: () =>
-                                  Navigator.of(context).pop(items[index]),
-                            ),
+                    onChanged: (query) => setSheetState(() {
+                      results = search(widget.kind, query, widget.branchId);
+                    }),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: FutureBuilder<List<DrugReferenceChoice>>(
+                      future: results,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState != ConnectionState.done) {
+                          return const Center(
+                              child: CircularProgressIndicator());
+                        }
+                        if (snapshot.hasError) {
+                          return const Center(
+                            child: Text('تعذر البحث. يمكنك المحاولة مجدداً.'),
                           );
-                        },
-                      ),
+                        }
+                        final items =
+                            snapshot.data ?? const <DrugReferenceChoice>[];
+                        if (items.isEmpty) {
+                          return const Center(
+                              child: Text('لا توجد نتائج مطابقة.'));
+                        }
+                        return ListView.builder(
+                          itemCount: items.length,
+                          itemBuilder: (context, index) => ListTile(
+                            key: ValueKey('drug-ref-choice-${items[index].id}'),
+                            title: Text(items[index].title),
+                            subtitle: Text('الرقم المرجعي: ${items[index].id}'),
+                            onTap: () =>
+                                Navigator.of(context).pop(items[index]),
+                          ),
+                        );
+                      },
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
         ),
-      );
+      ),
+    );
     if (!mounted || chosen == null) return;
     setState(() => _selectedTitle = chosen!.title);
     widget.controller.text = chosen.id.toString();
