@@ -25,6 +25,26 @@ class ClinicalRegulatoryService {
     return '$first •••';
   }
 
+  /// Full identity is never revealed solely because of a UI role label.
+  /// Both the authenticated account and its explicit audit permission must
+  /// match the selected branch.
+  Future<bool> canRevealIdentity({
+    required int branchId,
+    required int userId,
+  }) async {
+    final rows = await (await _helper.database).rawQuery('''
+      SELECT 1 FROM users u
+      JOIN role_permissions p
+        ON p.role_code=COALESCE(u.system_role_code,u.role_code)
+      WHERE u.id=? AND u.branch_id=? AND u.is_active=1 AND u.is_deleted=0
+        AND COALESCE(u.system_role_code,u.role_code)
+          IN ('OWNER','MANAGER','AUDITOR')
+        AND p.permission_code='audit.view' AND p.is_allowed=1
+      LIMIT 1
+    ''', [userId, branchId]);
+    return rows.isNotEmpty;
+  }
+
   /// Link only decisions created in the active clinical review to this sale.
   /// The link is append-only, unique per alert and inside the posting transaction.
   /// Never retroactively assign old unlinked decisions to nearby invoices.
