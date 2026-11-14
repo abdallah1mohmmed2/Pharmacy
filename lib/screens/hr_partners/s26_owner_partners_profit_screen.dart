@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../data/database/database_helper.dart';
 import '../../providers/treasury_hr_partner_provider.dart';
+import '../accounts/manual_message_composer_screen.dart';
 import '../../providers/session_and_erp_provider.dart';
 import '../../core/widgets/shared_widgets.dart';
 import '../../core/theme/enterprise_dark_theme.dart';
@@ -129,6 +130,30 @@ class _S26OwnerPartnersProfitScreenState
                   : 'نظام النسب المئوية فعال؛ حقول الحصص مقفلة.'),
             ],
             actions: [
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute(builder: (_) => ManualMessageComposerScreen(
+                    partyType: 'PARTNER',
+                    name: partner['name_ar']?.toString() ?? '',
+                    phone: partner['phone']?.toString() ?? '',
+                    preferredChannel: 'whatsapp',
+                  )),
+                ),
+                icon: const Icon(Icons.chat_outlined),
+                label: const Text('واتساب'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute(builder: (_) => ManualMessageComposerScreen(
+                    partyType: 'PARTNER',
+                    name: partner['name_ar']?.toString() ?? '',
+                    phone: partner['phone']?.toString() ?? '',
+                    preferredChannel: 'sms',
+                  )),
+                ),
+                icon: const Icon(Icons.sms_outlined),
+                label: const Text('SMS'),
+              ),
               OutlinedButton.icon(
                 onPressed: () => _editPartner(context, p, partner),
                 icon: const Icon(Icons.edit),
