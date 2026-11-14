@@ -74,9 +74,9 @@ class ClinicalAndAuditQueries {
       ON snap.log_id=cdl.id AND snap.branch_id=d.branch_id
     LEFT JOIN batches_fefo b ON b.id=cdl.batch_id
     LEFT JOIN sales_invoice_items si ON si.id=cdl.invoice_item_id
-    LEFT JOIN sales_invoices i ON i.id=si.invoice_id
+    LEFT JOIN sales_invoices i ON i.id=si.invoice_id AND i.branch_id=d.branch_id
     LEFT JOIN prescriptions pr ON pr.id=cdl.prescription_id
-    LEFT JOIN users u ON u.id=cdl.pharmacist_user_id
+    LEFT JOIN users u ON u.id=cdl.pharmacist_user_id AND u.branch_id=d.branch_id
     WHERE d.branch_id=? ${_range('cdl.recorded_at')}
     ORDER BY cdl.recorded_at DESC
   ''', [p.branchId, ..._rangeArgs(p)]);
@@ -98,7 +98,8 @@ class ClinicalAndAuditQueries {
   ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r49(ReportParams p) => _q('''
-    SELECT a.alert_at AS date,i.invoice_no AS invoice_no,pt.full_name AS patient,
+    SELECT a.alert_at AS date,i.invoice_no AS invoice_no,
+      CASE WHEN pt.id IS NULL THEN '—' ELSE 'مريض محجوب في النسخة العامة' END AS patient,
       a.alert_category AS patient_category,d.trade_name_ar AS drug,a.level AS level,
       a.message_ar AS message,a.user_decision AS user_decision,a.override_reason AS reason
     FROM clinical_alert_logs a JOIN drugs d ON d.id=a.drug_id
