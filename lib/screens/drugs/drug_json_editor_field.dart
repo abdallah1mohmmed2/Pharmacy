@@ -21,7 +21,12 @@ class DrugJsonEditorField extends StatefulWidget {
 
 class _DrugJsonEditorFieldState extends State<DrugJsonEditorField> {
   static const _names = [
-    'name', 'ingredient', 'name_ar', 'active', 'inn_name', 'ingredient_name'
+    'name',
+    'ingredient',
+    'name_ar',
+    'active',
+    'inn_name',
+    'ingredient_name'
   ];
 
   String? _nameKey(Object? element) {
@@ -57,7 +62,8 @@ class _DrugJsonEditorFieldState extends State<DrugJsonEditorField> {
             .where((name) => name.trim().isNotEmpty)
             .take(2)
             .join('، ');
-        return value.length.toString() + ' مكونات' +
+        return value.length.toString() +
+            ' مكونات' +
             (names.isEmpty ? ' محفوظة' : ': ' + names);
       }
       return value.length.toString() + ' عناصر محفوظة';
@@ -68,16 +74,15 @@ class _DrugJsonEditorFieldState extends State<DrugJsonEditorField> {
 
   Future<void> _edit() async {
     final original = widget.controller.text;
-    final value = original.trim().isEmpty &&
-            widget.fieldKey == 'ingredients_json'
-        ? <dynamic>[]
-        : _parse(original);
+    final value =
+        original.trim().isEmpty && widget.fieldKey == 'ingredients_json'
+            ? <dynamic>[]
+            : _parse(original);
     final structured = widget.fieldKey == 'ingredients_json' &&
         value is List &&
         value.every((element) =>
             element is String || (element is Map && _nameKey(element) != null));
-    final items =
-        structured ? List<Object?>.from(value as List) : <Object?>[];
+    final items = structured ? List<Object?>.from(value as List) : <Object?>[];
     final controllers = <TextEditingController>[
       for (final item in items) TextEditingController(text: _name(item)),
     ];
@@ -97,7 +102,8 @@ class _DrugJsonEditorFieldState extends State<DrugJsonEditorField> {
           insetPadding: const EdgeInsets.all(12),
           title: Text(widget.label),
           content: SizedBox(
-            width: MediaQuery.sizeOf(context).width.clamp(0.0, 560.0).toDouble(),
+            width:
+                MediaQuery.sizeOf(context).width.clamp(0.0, 560.0).toDouble(),
             height: (MediaQuery.sizeOf(context).height -
                     MediaQuery.viewInsetsOf(context).bottom -
                     190)
@@ -122,10 +128,12 @@ class _DrugJsonEditorFieldState extends State<DrugJsonEditorField> {
                                 child: Padding(
                                   padding: const EdgeInsets.only(bottom: 8),
                                   child: TextField(
-                                    key: ValueKey('drug-ingredient-' + index.toString()),
+                                    key: ValueKey(
+                                        'drug-ingredient-' + index.toString()),
                                     controller: controllers[index],
                                     decoration: InputDecoration(
-                                      labelText: 'المكون ' + (index + 1).toString(),
+                                      labelText:
+                                          'المكون ' + (index + 1).toString(),
                                     ),
                                     onChanged: (_) => changed = true,
                                   ),
@@ -137,7 +145,8 @@ class _DrugJsonEditorFieldState extends State<DrugJsonEditorField> {
                                 onPressed: () => refresh(() {
                                   changed = true;
                                   items.removeAt(index);
-                                  disposedLater.add(controllers.removeAt(index));
+                                  disposedLater
+                                      .add(controllers.removeAt(index));
                                 }),
                               ),
                             ],
@@ -190,10 +199,10 @@ class _DrugJsonEditorFieldState extends State<DrugJsonEditorField> {
                   return;
                 }
                 if (structured) {
-                  final names =
-                      controllers.map((c) => c.text.trim()).toList();
+                  final names = controllers.map((c) => c.text.trim()).toList();
                   if (names.any((name) => name.isEmpty)) {
-                    refresh(() => error = 'اكتب اسم المكون أو احذف السطر الفارغ');
+                    refresh(
+                        () => error = 'اكتب اسم المكون أو احذف السطر الفارغ');
                     return;
                   }
                   final updated = <Object?>[];
@@ -213,12 +222,14 @@ class _DrugJsonEditorFieldState extends State<DrugJsonEditorField> {
                   try {
                     final parsed = jsonDecode(candidate);
                     if (parsed is! List && parsed is! Map) {
-                      refresh(() => error = 'المحتوى يجب أن يكون قائمة أو مجموعة حقول');
+                      refresh(() =>
+                          error = 'المحتوى يجب أن يكون قائمة أو مجموعة حقول');
                       return;
                     }
                     widget.controller.text = candidate;
                   } on FormatException {
-                    refresh(() => error = 'تنسيق البيانات غير صحيح؛ لم تُحفظ التغييرات');
+                    refresh(() =>
+                        error = 'تنسيق البيانات غير صحيح؛ لم تُحفظ التغييرات');
                     return;
                   }
                 }
@@ -234,7 +245,11 @@ class _DrugJsonEditorFieldState extends State<DrugJsonEditorField> {
     // Route.pop completes before its exit animation; keep controllers alive
     // until the overlay no longer contains any of these TextFields.
     await route.completed;
-    for (final controller in [...controllers, ...disposedLater, rawController]) {
+    for (final controller in [
+      ...controllers,
+      ...disposedLater,
+      rawController
+    ]) {
       controller.dispose();
     }
   }

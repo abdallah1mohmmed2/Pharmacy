@@ -23,7 +23,8 @@ void main() {
   testWidgets('compound JSON displays names, not a long raw text field',
       (tester) async {
     final controller = TextEditingController(
-      text: '[{"name":"first","dose":"20 mg"},{"ingredient":"second","code":9}]',
+      text:
+          '[{"name":"first","dose":"20 mg"},{"ingredient":"second","code":9}]',
     );
     addTearDown(controller.dispose);
     await _show(tester, controller, 'ingredients_json');
@@ -109,8 +110,8 @@ void main() {
     addTearDown(controller.dispose);
     await _show(tester, controller, 'pregnancy_trimester_json');
     expect(find.textContaining('2 حقول محفوظة'), findsOneWidget);
-    await tester.tap(
-        find.byKey(const ValueKey('drug-json-pregnancy_trimester_json')));
+    await tester
+        .tap(find.byKey(const ValueKey('drug-json-pregnancy_trimester_json')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('حفظ التعديل'));
     await tester.pumpAndSettle();
