@@ -6,6 +6,7 @@ import '../database/database_helper.dart';
 import '../models/clinical_and_rx_models.dart';
 import '../models/drug_model.dart';
 import 'fefo_allocator_service.dart';
+import 'clinical_regulatory_service.dart';
 
 class CopayLine {
   const CopayLine(
@@ -107,8 +108,12 @@ class RxAndReturnsService {
     final db = await _helper.database;
     final fefo = FefoAllocator(helper: _helper);
     return db.transaction((txn) async {
-      final rxRows = await txn.query('prescriptions',
-          where: 'id=?', whereArgs: [prescriptionId], limit: 1);
+      final rxRows = await txn.rawQuery('''
+        SELECT rx.* FROM prescriptions rx
+        JOIN patients p ON p.id=rx.patient_id
+        JOIN parties party ON party.id=COALESCE(rx.customer_party_id,p.party_id)
+        WHERE rx.id=? AND party.branch_id=? AND party.is_deleted=0
+      ''', [prescriptionId, branchId]);
       if (rxRows.isEmpty) throw StateError('الوصفة غير موجودة');
       final rx = rxRows.first;
       if (rx['rx_type'] == 'CHRONIC_REFILL' &&
@@ -175,7 +180,8 @@ class RxAndReturnsService {
         if (qty > remaining)
           throw StateError('الكمية تتجاوز المتبقي في الوصفة');
         final drugRows = await txn.query('drugs',
-            where: 'id=?', whereArgs: [item['drug_id']], limit: 1);
+            where: 'id=? AND branch_id=? AND is_deleted=0',
+            whereArgs: [item['drug_id'], branchId], limit: 1);
         if (drugRows.isEmpty) throw StateError('دواء الوصفة غير موجود');
         final drug = DrugModel.fromMap(drugRows.first);
         final line = (lineTotalsByItemId[itemId] ?? (drug.sellPriceUnit * qty))
@@ -246,13 +252,36 @@ class RxAndReturnsService {
               details.receiverNationalId.trim().isEmpty ||
               details.doctorName.trim().isEmpty)
             throw StateError('بيانات الدواء المراقب والهوية والمستلم إلزامية');
-          final previous = await txn.rawQuery(
-              'SELECT COALESCE(SUM(qty_units),0) AS q FROM controlled_drug_log WHERE drug_id=?',
-              [drug.id]);
-          var running = (previous.first['q'] as num).toInt();
+          // Reconcile posted branch stock after FEFO, never previous dispenses.
+          final stockRow = await txn.query('drugs',
+              columns: ['stock_total_units'],
+              where: 'id=? AND branch_id=?',
+              whereArgs: [drug.id, branchId],
+              limit: 1);
+          final physicalRows = await txn.rawQuery('''
+            SELECT COALESCE(SUM(b.total_units),0) AS physical
+            FROM batches_fefo b JOIN warehouses w ON w.id=b.warehouse_id
+            WHERE b.drug_id=? AND w.branch_id=?
+          ''', [drug.id, branchId]);
+          final physicalAfter = (physicalRows.first['physical'] as num).toInt();
+          final storedAfter =
+              (stockRow.single['stock_total_units'] as num).toInt();
+          if (physicalAfter != storedAfter) {
+            throw StateError(
+                'تعذر توثيق رصيد الدواء المراقب: إجمالي الدواء لا يطابق التشغيلات');
+          }
+          var remainingAfter = physicalAfter + qty;
           for (final allocation in allocations) {
-            running += allocation.qtyUnits;
-            await txn.insert('controlled_drug_log', {
+            remainingAfter -= allocation.qtyUnits;
+            final batchRow = await txn.query('batches_fefo',
+                columns: ['total_units'],
+                where: 'id=? AND drug_id=?',
+                whereArgs: [allocation.batchId, drug.id],
+                limit: 1);
+            if (batchRow.isEmpty) {
+              throw StateError('تشغيلة الدواء المراقب غير موجودة');
+            }
+            final logId = await txn.insert('controlled_drug_log', {
               'invoice_item_id': invoiceItemId,
               'drug_id': drug.id,
               'batch_id': allocation.batchId,
@@ -264,8 +293,15 @@ class RxAndReturnsService {
               'prescription_id': prescriptionId,
               'doctor_name': details.doctorName,
               'pharmacist_user_id': pharmacistUserId,
-              'running_balance_units': running
+              'running_balance_units': remainingAfter
             });
+            await ClinicalRegulatoryService.recordVerifiedBalance(txn,
+                branchId: branchId,
+                drugId: drug.id!,
+                logId: logId,
+                physicalAfterUnits: remainingAfter,
+                batchAfterUnits:
+                    (batchRow.single['total_units'] as num).toInt());
           }
         }
       }
@@ -464,6 +500,8 @@ class RxAndReturnsService {
           },
           where: 'id=?',
           whereArgs: [prescriptionId]);
+      await ClinicalRegulatoryService.linkDecisions(txn,
+          branchId: branchId, invoiceId: invoiceId, verdict: clinicalVerdict);
       return invoiceId;
     });
   }
