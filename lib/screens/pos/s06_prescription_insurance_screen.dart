@@ -10,6 +10,7 @@ import '../../providers/pos_and_drugs_provider.dart';
 import '../purchases/purchase_medicine_search_sheet.dart';
 import '../../providers/session_and_erp_provider.dart';
 import 's04_clinical_guard_dialog.dart';
+import '../../data/services/clinical_regulatory_service.dart';
 
 class S06PrescriptionInsuranceScreen extends StatefulWidget {
   const S06PrescriptionInsuranceScreen({super.key});
@@ -76,11 +77,11 @@ class _S06PrescriptionInsuranceScreenState
       [branchId],
     );
     final alerts = await db.rawQuery(
-      'SELECT l.*,d.trade_name_ar,p.full_name FROM clinical_alert_logs l LEFT JOIN drugs d ON d.id=l.drug_id LEFT JOIN patients p ON p.id=l.patient_id LEFT JOIN sales_invoices si ON si.id=l.invoice_id LEFT JOIN parties party ON party.id=COALESCE(p.party_id,si.customer_party_id) WHERE COALESCE(si.branch_id,party.branch_id,d.branch_id)=? ORDER BY l.id DESC LIMIT 100',
+      'SELECT l.*,d.trade_name_ar,p.full_name FROM clinical_alert_logs l JOIN drugs d ON d.id=l.drug_id LEFT JOIN patients p ON p.id=l.patient_id LEFT JOIN clinical_alert_invoice_links link ON link.alert_log_id=l.id LEFT JOIN sales_invoices si ON si.id=COALESCE(link.invoice_id,l.invoice_id) AND si.branch_id=d.branch_id WHERE d.branch_id=? ORDER BY l.id DESC LIMIT 100',
       [branchId],
     );
     final controlled = await db.rawQuery(
-      'SELECT c.*,d.trade_name_ar FROM controlled_drug_log c JOIN drugs d ON d.id=c.drug_id LEFT JOIN sales_invoice_items sii ON sii.id=c.invoice_item_id LEFT JOIN sales_invoices si ON si.id=sii.invoice_id LEFT JOIN prescriptions r ON r.id=c.prescription_id LEFT JOIN patients p ON p.id=r.patient_id LEFT JOIN parties party ON party.id=COALESCE(r.customer_party_id,p.party_id) WHERE COALESCE(si.branch_id,party.branch_id,d.branch_id)=? ORDER BY c.id DESC LIMIT 100',
+      'SELECT c.*,d.trade_name_ar,snap.physical_after_units AS verified_balance_after_units FROM controlled_drug_log c JOIN drugs d ON d.id=c.drug_id LEFT JOIN controlled_balance_snapshots snap ON snap.log_id=c.id AND snap.branch_id=d.branch_id WHERE d.branch_id=? ORDER BY c.id DESC LIMIT 100',
       [branchId],
     );
     if (mounted)
@@ -398,8 +399,10 @@ class _S06PrescriptionInsuranceScreenState
                 title:
                     Text('${row['trade_name_ar']} • ${row['qty_units']} حبة'),
                 subtitle: Text(
-                    'المريض: ${row['patient_name']} • المستلم: ${row['receiver_name']} • الطبيب: ${row['doctor_name']}'),
-                trailing: Text('الرصيد ${row['running_balance_units']}'))),
+                    'المريض: ${ClinicalRegulatoryService.maskedName(row['patient_name'])} • المستلم: ${ClinicalRegulatoryService.maskedName(row['receiver_name'])} • الطبيب: ${row['doctor_name']}'),
+                trailing: Text(row['verified_balance_after_units'] == null
+                    ? 'رصيد قديم غير مثبت'
+                    : 'الرصيد ${row['verified_balance_after_units']}'))),
     ]));
   }
 
@@ -537,7 +540,7 @@ class _S06PrescriptionInsuranceScreenState
       final national = TextEditingController(),
           receiver = TextEditingController(),
           receiverId = TextEditingController();
-      final ok = await showDialog<bool>(
+      final dialogRoute = DialogRoute<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
                   title: const Text('توثيق الدواء المراقب'),
@@ -563,6 +566,9 @@ class _S06PrescriptionInsuranceScreenState
                         onPressed: () => Navigator.pop(ctx, true),
                         child: const Text('متابعة'))
                   ]));
+      final ok = await Navigator.of(context, rootNavigator: true)
+          .push<bool>(dialogRoute);
+      await dialogRoute.completed;
       if (ok != true) {
         national.dispose();
         receiver.dispose();
