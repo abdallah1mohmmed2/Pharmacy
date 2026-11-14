@@ -90,7 +90,8 @@ class TreasuryHrPartnerProvider extends ChangeNotifier {
 
   bool operationPending = false;
   Future<T> _treasuryMutation<T>(Future<T> Function() action) async {
-    if (operationPending) throw StateError('انتظر اكتمال العملية المالية الحالية');
+    if (operationPending)
+      throw StateError('انتظر اكتمال العملية المالية الحالية');
     operationPending = true;
     notifyListeners();
     try {
@@ -108,17 +109,16 @@ class TreasuryHrPartnerProvider extends ChangeNotifier {
       required String description,
       String paidTo = ''}) async {
     return _treasuryMutation(() async {
-    final id = await _treasury.recordExpense(
-        branchId: branchId,
-        categoryId: categoryId,
-        cashAccountId: cashAccountId,
-        amount: amount,
-        description: description,
-        paidTo: paidTo,
-        cashierShiftId: activeShift?.id);
-    await refresh();
-    return id;
-
+      final id = await _treasury.recordExpense(
+          branchId: branchId,
+          categoryId: categoryId,
+          cashAccountId: cashAccountId,
+          amount: amount,
+          description: description,
+          paidTo: paidTo,
+          cashierShiftId: activeShift?.id);
+      await refresh();
+      return id;
     });
   }
 
@@ -130,17 +130,16 @@ class TreasuryHrPartnerProvider extends ChangeNotifier {
       String? reference,
       String note = ''}) async {
     return _treasuryMutation(() async {
-    await _treasury.transfer(
-        branchId: branchId,
-        fromAccountId: fromAccountId,
-        toAccountId: toAccountId,
-        amount: amount,
-        fee: fee,
-        walletRefNo: reference,
-        note: note);
-    await refresh();
-    return 1;
-
+      await _treasury.transfer(
+          branchId: branchId,
+          fromAccountId: fromAccountId,
+          toAccountId: toAccountId,
+          amount: amount,
+          fee: fee,
+          walletRefNo: reference,
+          note: note);
+      await refresh();
+      return 1;
     });
   }
 
@@ -149,14 +148,13 @@ class TreasuryHrPartnerProvider extends ChangeNotifier {
       required double actual,
       String? reference}) async {
     return _treasuryMutation(() async {
-    final d = await _treasury.reconcileWallet(
-        branchId: branchId,
-        accountId: accountId,
-        actualBalance: actual,
-        walletRefNo: reference);
-    await refresh();
-    return d;
-
+      final d = await _treasury.reconcileWallet(
+          branchId: branchId,
+          accountId: accountId,
+          actualBalance: actual,
+          walletRefNo: reference);
+      await refresh();
+      return d;
     });
   }
 
@@ -166,17 +164,16 @@ class TreasuryHrPartnerProvider extends ChangeNotifier {
       int? partyId,
       int? workShiftId}) async {
     return _treasuryMutation(() async {
-    if (userId == null) throw StateError('لا يوجد مستخدم مسجل');
-    final id = await _treasury.openShift(
-        branchId: branchId,
-        userId: userId!,
-        drawerAccountId: drawerAccountId,
-        openingCash: openingCash,
-        cashierPartyId: partyId,
-        workShiftId: workShiftId);
-    await refresh();
-    return id;
-
+      if (userId == null) throw StateError('لا يوجد مستخدم مسجل');
+      final id = await _treasury.openShift(
+          branchId: branchId,
+          userId: userId!,
+          drawerAccountId: drawerAccountId,
+          openingCash: openingCash,
+          cashierPartyId: partyId,
+          workShiftId: workShiftId);
+      await refresh();
+      return id;
     });
   }
 
@@ -188,15 +185,14 @@ class TreasuryHrPartnerProvider extends ChangeNotifier {
       Map<String, double> wallets = const {},
       int? nextUserId}) async {
     return _treasuryMutation(() async {
-    final d = await _treasury.closeShiftBlind(
-        shiftId: shiftId,
-        denominations: denominations,
-        diffHandling: handling,
-        countedWallets: wallets,
-        handoverToUserId: nextUserId);
-    await refresh();
-    return d;
-
+      final d = await _treasury.closeShiftBlind(
+          shiftId: shiftId,
+          denominations: denominations,
+          diffHandling: handling,
+          countedWallets: wallets,
+          handoverToUserId: nextUserId);
+      await refresh();
+      return d;
     });
   }
 

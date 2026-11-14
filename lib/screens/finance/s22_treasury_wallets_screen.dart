@@ -25,7 +25,9 @@ class S22TreasuryWalletsScreen extends StatelessWidget {
                         icon: const Icon(Icons.add_card),
                         tooltip: 'إضافة حساب'),
                     FilledButton.icon(
-                        onPressed: p.operationPending ? null : () => _transfer(context, p),
+                        onPressed: p.operationPending
+                            ? null
+                            : () => _transfer(context, p),
                         icon: const Icon(Icons.swap_horiz),
                         label: const Text('تحويل'))
                   ],
@@ -124,8 +126,10 @@ class S22TreasuryWalletsScreen extends StatelessWidget {
                                         Align(
                                             alignment: Alignment.centerLeft,
                                             child: TextButton.icon(
-                                                onPressed: p.operationPending ? null : () =>
-                                                    _reconcile(context, p, a),
+                                                onPressed: p.operationPending
+                                                    ? null
+                                                    : () => _reconcile(
+                                                        context, p, a),
                                                 icon: const Icon(
                                                     Icons.fact_check),
                                                 label: const Text(

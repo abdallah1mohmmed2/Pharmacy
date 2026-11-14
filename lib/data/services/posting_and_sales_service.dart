@@ -95,12 +95,14 @@ class PostingAndSalesService {
     return entryId;
   }
 
-  Future<Map<String, Object?>> _paymentAccount(Transaction txn,
-      int branchId, int accountId, String method) async {
+  Future<Map<String, Object?>> _paymentAccount(
+      Transaction txn, int branchId, int accountId, String method) async {
     final rows = await txn.query('cash_accounts',
         where: 'id=? AND branch_id=? AND is_deleted=0',
-        whereArgs: [accountId, branchId], limit: 1);
-    if (rows.isEmpty) throw StateError('حساب التحصيل أو الدفع غير موجود في الفرع الحالي');
+        whereArgs: [accountId, branchId],
+        limit: 1);
+    if (rows.isEmpty)
+      throw StateError('حساب التحصيل أو الدفع غير موجود في الفرع الحالي');
     final row = rows.single;
     final kind = row['account_kind'];
     if ((method == 'CASH' && !['CASHIER_DRAWER', 'MAIN_SAFE'].contains(kind)) ||
@@ -108,9 +110,11 @@ class PostingAndSalesService {
         (method == 'BANK' && kind != 'BANK')) {
       throw StateError('وسيلة الدفع لا تطابق نوع الحساب');
     }
-    if (row['gl_account_id'] is! int) throw StateError('اربط الحساب بدليل الحسابات أولاً');
+    if (row['gl_account_id'] is! int)
+      throw StateError('اربط الحساب بدليل الحسابات أولاً');
     final balance = row['current_balance'];
-    if (balance is! num || !balance.toDouble().isFinite) throw StateError('رصيد الحساب غير صالح');
+    if (balance is! num || !balance.toDouble().isFinite)
+      throw StateError('رصيد الحساب غير صالح');
     return row;
   }
 
@@ -172,12 +176,16 @@ class PostingAndSalesService {
       );
     return (await _helper.database).transaction((txn) async {
       for (final payment in payments) {
-        await _paymentAccount(txn, branchId, payment.cashAccountId, payment.method);
+        await _paymentAccount(
+            txn, branchId, payment.cashAccountId, payment.method);
       }
       if (customerPartyId > 0) {
-        final customer = await txn.query('parties', columns: ['id'],
-            where: 'id=? AND branch_id=? AND is_deleted=0', whereArgs: [customerPartyId, branchId]);
-        if (customer.isEmpty) throw StateError('العميل غير موجود في الفرع الحالي');
+        final customer = await txn.query('parties',
+            columns: ['id'],
+            where: 'id=? AND branch_id=? AND is_deleted=0',
+            whereArgs: [customerPartyId, branchId]);
+        if (customer.isEmpty)
+          throw StateError('العميل غير موجود في الفرع الحالي');
       }
 
       final subtotal = items.fold<double>(0, (s, i) => s + i.lineTotal);
@@ -446,8 +454,10 @@ class PostingAndSalesService {
     required String description,
     String? walletRefNo,
   }) async {
-    if (!amount.isFinite || amount <= 0) throw ArgumentError('المبلغ يجب أن يكون موجباً ومحدوداً');
-    if (!['CASH', 'WALLET', 'BANK', 'OFFSET'].contains(method)) throw ArgumentError('وسيلة دفع غير صالحة');
+    if (!amount.isFinite || amount <= 0)
+      throw ArgumentError('المبلغ يجب أن يكون موجباً ومحدوداً');
+    if (!['CASH', 'WALLET', 'BANK', 'OFFSET'].contains(method))
+      throw ArgumentError('وسيلة دفع غير صالحة');
     if (_financialSyncFractionDigits != null && method == 'CASH') {
       if (_financialSyncFractionDigits !=
           FinancialMinorUnits.currencyFractionDigits) {
@@ -475,12 +485,14 @@ class PostingAndSalesService {
       if (!isOffset) {
         if (cashId < 0) throw StateError('حساب الصندوق غير موجود');
         cashRow = await _paymentAccount(txn, branchId, cashId, method);
-        if (voucherType != 'RECEIPT' && (cashRow['current_balance'] as num).toDouble() < amount) {
+        if (voucherType != 'RECEIPT' &&
+            (cashRow['current_balance'] as num).toDouble() < amount) {
           throw StateError('رصيد حساب الدفع غير كافٍ');
         }
       }
       final party = await txn.query('parties',
-          where: 'id=? AND branch_id=? AND is_deleted=0', whereArgs: [partyId, branchId]);
+          where: 'id=? AND branch_id=? AND is_deleted=0',
+          whereArgs: [partyId, branchId]);
       if (party.isEmpty) throw StateError('الطرف غير موجود في الفرع الحالي');
       final now = DateTime.now().toIso8601String();
       final voucherId = await txn.insert('vouchers', {
