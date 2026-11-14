@@ -268,6 +268,7 @@ class _ManualMessageComposerScreenState
                     const Text('المتغيرات: {name} اسم الطرف، {amount} المبلغ، {document} رقم المستند.'),
                     const SizedBox(height: 8),
                     TextField(
+                      key: const ValueKey('manual-template-editor'),
                       controller: _template,
                       minLines: 3,
                       maxLines: 6,
