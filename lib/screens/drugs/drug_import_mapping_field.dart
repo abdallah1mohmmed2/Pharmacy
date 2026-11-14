@@ -27,7 +27,7 @@ class _DrugImportMappingFieldState extends State<DrugImportMappingField> {
       final result = <String, String>{};
       for (final entry in decoded.entries) {
         if (entry.key is! String || entry.value is! String) return null;
-        result[entry.key as String] = entry.value as String;
+        result[entry.key.toString()] = entry.value.toString();
       }
       return result;
     } on FormatException {
@@ -229,6 +229,7 @@ class _DrugImportMappingFieldState extends State<DrugImportMappingField> {
             icon: const Icon(Icons.tune_outlined),
             label: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 const Text('ربط أعمدة الملف بحقول النظام'),
                 Text(
