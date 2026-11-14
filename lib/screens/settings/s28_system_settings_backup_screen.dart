@@ -8,6 +8,8 @@ import 'package:sqflite/sqflite.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
+import 'package:path/path.dart' as path_util;
+import 'package:path_provider/path_provider.dart';
 import '../../core/constants/setting_keys.dart';
 import '../../providers/settings_and_system_provider.dart';
 import '../../providers/session_and_erp_provider.dart';
@@ -21,6 +23,8 @@ import '../../data/services/branch_identity_provisioning_service.dart';
 import '../../data/services/device_identity_service.dart';
 import '../../data/services/manual_backup_file_service.dart';
 import '../../core/widgets/manager_pin_dialog.dart';
+import 'friendly_settings_labels.dart';
+import 'friendly_json_setting_editor.dart';
 
 class S28SystemSettingsBackupScreen extends StatefulWidget {
   const S28SystemSettingsBackupScreen({super.key});
@@ -271,106 +275,236 @@ class _S28SystemSettingsBackupScreenState
 
   Widget _settingTile(SettingSpec spec, SettingsAndSystemProvider p) {
     final value = p.settings.getValue(spec.key);
-    if (spec.type == SettingValueType.boolean)
+    final label = FriendlySettingsLabels.title(spec);
+    final explanation = FriendlySettingsLabels.explanation(spec);
+    if (spec.type == SettingValueType.boolean) {
       return Card(
-          child: SwitchListTile(
-              value: value as bool,
-              onChanged: spec.key == SettingKey.lahAlayhTermsOnly
-                  ? null
-                  : (v) => _change(spec, v),
-              title: Text(spec.descriptionAr),
-              subtitle: Text(spec.name)));
-    if (spec.allowedValues.isNotEmpty)
+        key: ValueKey('friendly-setting-' + spec.key.name),
+        child: SwitchListTile.adaptive(
+          value: value == true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          title: Text(label),
+          subtitle: Text(explanation),
+          secondary: spec.requiresManager ? const Icon(Icons.lock_outline) : null,
+          onChanged: spec.key == SettingKey.lahAlayhTermsOnly
+              ? null : (next) => _change(spec, next),
+        ),
+      );
+    }
+    if (spec.allowedValues.isNotEmpty) {
+      final raw = value?.toString() ?? '';
+      final allowed = [
+        ...spec.allowedValues,
+        if (!spec.allowedValues.contains(raw)) raw,
+      ];
       return Card(
-          child: ListTile(
-              title: Text(spec.descriptionAr),
-              subtitle: Text(spec.name),
-              trailing: DropdownButton<String>(
-                  value: value as String,
-                  items: spec.allowedValues
-                      .map((v) =>
-                          DropdownMenuItem(value: v, child: Text(_label(v))))
-                      .toList(),
-                  onChanged: (v) {
-                    if (v != null) _change(spec, v);
-                  })));
+        key: ValueKey('friendly-setting-' + spec.key.name),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(label, style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 4),
+              Text(explanation, style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                key: ValueKey('friendly-choice-' + spec.key.name),
+                value: raw,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'اختر القيمة المناسبة',
+                ),
+                items: [
+                  for (final item in allowed)
+                    DropdownMenuItem(
+                      value: item,
+                      child: Text(
+                        FriendlySettingsLabels.choice(item),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+                onChanged: allowed.length <= 1
+                    ? null
+                    : (next) {
+                        if (next != null && next != raw) _change(spec, next);
+                      },
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     return Card(
-        child: ListTile(
-            title: Text(spec.descriptionAr),
-            subtitle: Text(spec.name),
-            trailing: IconButton(
-                onPressed: () => _editValue(spec, value),
-                icon: const Icon(Icons.edit))));
+      key: ValueKey('friendly-setting-' + spec.key.name),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(label,
+                    style: Theme.of(context).textTheme.titleSmall),
+                ),
+                if (spec.requiresManager)
+                  const Tooltip(
+                    message: 'يتطلب تأكيد صلاحية المدير',
+                    child: Icon(Icons.lock_outline, size: 18),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(explanation, style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 6),
+            Text(FriendlySettingsLabels.summary(spec, value)),
+            const SizedBox(height: 10),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: OutlinedButton.icon(
+                key: ValueKey('friendly-edit-' + spec.key.name),
+                onPressed: spec.key == SettingKey.logoPath
+                    ? () => _pickPharmacyLogo(spec)
+                    : () => _editValue(spec, value),
+                icon: Icon(spec.key == SettingKey.logoPath
+                    ? Icons.image_outlined : Icons.tune),
+                label: Text(spec.key == SettingKey.logoPath
+                    ? 'اختيار صورة الشعار' : 'تعديل الإعداد'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
-  String _label(String v) => switch (v) {
-        'shares' => 'الحصص',
-        'percentage' => 'النسب',
-        'none' => 'بدون تقريب',
-        'nearest_5' => 'أقرب 5',
-        'nearest_10' => 'أقرب 10',
-        'nearest_50' => 'أقرب 50',
-        'nearest_100' => 'أقرب 100',
-        'off' => 'إيقاف',
-        'warn' => 'تحذير',
-        'block' => 'حظر',
-        'manager_override' => 'تجاوز المدير',
-        'ask' => 'اسأل قبل الطباعة',
-        'always' => 'دائماً',
-        'weighted_average' => 'المتوسط المرجح',
-        'last_purchase' => 'آخر شراء',
-        'batch_specific' => 'حسب التشغيلة',
-        'dashboard' => 'لوحة التحكم',
-        'daily_dashboard' => 'لوحة يومية',
-        'notify_on_sale' => 'تنبيه عند البيع',
-        'post_to_cashier' => 'تحميل على الكاشير',
-        'expense' => 'مصروف',
-        'suspense' => 'حساب معلق',
-        '80mm' => '80 مم',
-        '58mm' => '58 مم',
-        'ar' => 'العربية',
-        'en' => 'English',
-        'bilingual' => 'ثنائي اللغة',
-        _ => v
-      };
-  Future<void> _editValue(SettingSpec spec, Object? value) async {
-    final controller = TextEditingController(
-        text: value is Map || value is List
-            ? const JsonEncoder.withIndent('  ').convert(value)
-            : value?.toString() ?? '');
-    final result = await showDialog<String>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-                title: Text(spec.descriptionAr),
-                content: TextField(
-                    controller: controller,
-                    minLines: 2,
-                    maxLines: 8,
-                    decoration:
-                        const InputDecoration(border: OutlineInputBorder())),
-                actions: [
-                  TextButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      child: const Text('إلغاء')),
-                  FilledButton(
-                      onPressed: () => Navigator.pop(ctx, controller.text),
-                      child: const Text('حفظ'))
-                ]));
-    if (result == null) return;
-    Object parsed = result;
+  Future<void> _pickPharmacyLogo(SettingSpec spec) async {
     try {
-      if (spec.type == SettingValueType.json)
-        parsed = jsonDecode(result);
-      else if (spec.type == SettingValueType.integer)
-        parsed = int.parse(result);
-      else if (spec.type == SettingValueType.real)
-        parsed = double.parse(result);
-    } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('قيمة غير صحيحة: $e')));
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
+        allowMultiple: false,
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty || !mounted) return;
+      final selected = result.files.single;
+      if (selected.size > 3 * 1024 * 1024) {
+        throw StateError('يجب ألا يتجاوز حجم الشعار 3 ميجابايت.');
+      }
+      final ext = path_util.extension(selected.name).toLowerCase();
+      if (!{'.png', '.jpg', '.jpeg', '.webp'}.contains(ext)) {
+        throw StateError('نوع ملف الشعار غير مدعوم.');
+      }
+      final bytes = selected.bytes ??
+          (selected.path == null
+              ? null : await File(selected.path!).readAsBytes());
+      if (bytes == null || bytes.isEmpty) {
+        throw StateError('تعذر قراءة صورة الشعار.');
+      }
+      final dir = Directory(path_util.join(
+          (await getApplicationSupportDirectory()).path, 'logos'));
+      await dir.create(recursive: true);
+      final saved = File(path_util.join(dir.path,
+          'pharmacy_logo_' +
+          DateTime.now().microsecondsSinceEpoch.toString() + ext));
+      await saved.writeAsBytes(bytes, flush: true);
+      if (!mounted) return;
+      await _change(spec, saved.path);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر اختيار صورة الشعار: ' + error.toString())),
+        );
+      }
+    }
+  }
+
+  Future<void> _editValue(SettingSpec spec, Object? current) async {
+    if (spec.type == SettingValueType.json) {
+      final initial = current is Map
+          ? Map<String, Object?>.from(current)
+          : <String, Object?>{};
+      final changed = await showDialog<Map<String, Object?>>(
+        context: context,
+        builder: (_) => FriendlyJsonSettingEditor(
+          spec: spec, initialValue: initial,
+        ),
+      );
+      if (changed != null && mounted) await _change(spec, changed);
       return;
     }
+    String input = current?.toString() ?? '';
+    final form = GlobalKey<FormState>();
+    final edited = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(FriendlySettingsLabels.title(spec)),
+        content: Form(
+          key: form,
+          child: TextFormField(
+            key: ValueKey('friendly-setting-input-' + spec.key.name),
+            initialValue: input,
+            autofocus: true,
+            keyboardType: spec.type == SettingValueType.integer
+                ? const TextInputType.numberWithOptions()
+                : spec.type == SettingValueType.real
+                    ? const TextInputType.numberWithOptions(decimal: true)
+                    : TextInputType.text,
+            decoration: InputDecoration(
+              labelText: FriendlySettingsLabels.title(spec),
+              helperText: FriendlySettingsLabels.explanation(spec),
+              helperMaxLines: 3,
+            ),
+            onChanged: (text) => input = text,
+            validator: (text) {
+              final value = text?.trim() ?? '';
+              if (spec.key == SettingKey.pharmacyName && value.isEmpty) {
+                return 'يرجى كتابة اسم الصيدلية.';
+              }
+              if (spec.type == SettingValueType.integer) {
+                final n = int.tryParse(value);
+                if (n == null) return 'يجب كتابة عدد صحيح.';
+                if (spec.key == SettingKey.expiryWarningDays &&
+                    (n < 0 || n > 3650)) {
+                  return 'عدد الأيام يجب أن يكون من 0 إلى 3650.';
+                }
+              }
+              if (spec.type == SettingValueType.real) {
+                final n = double.tryParse(value);
+                if (n == null || !n.isFinite) {
+                  return 'أدخل رقمًا صحيحًا أو عشريًا.';
+                }
+                if (spec.key == SettingKey.maxCashierDiscountPct &&
+                    (n < 0 || n > 100)) {
+                  return 'النسبة يجب أن تكون من 0 إلى 100.';
+                }
+              }
+              return null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (form.currentState!.validate()) {
+                Navigator.pop(dialogContext, input.trim());
+              }
+            },
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+    if (edited == null || !mounted) return;
+    Object parsed = edited;
+    if (spec.type == SettingValueType.integer) parsed = int.parse(edited);
+    if (spec.type == SettingValueType.real) parsed = double.parse(edited);
     await _change(spec, parsed);
   }
 
