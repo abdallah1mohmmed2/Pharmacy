@@ -10,6 +10,7 @@ import '../../core/theme/enterprise_dark_theme.dart';
 import '../../core/widgets/shared_widgets.dart';
 import '../../data/models/erp_models.dart';
 import '../../data/models/drug_model.dart';
+import '../../data/models/pos_cash_tender.dart';
 import '../../data/models/sale_unit_labels.dart';
 import '../../providers/inventory_and_purchase_provider.dart';
 import '../../providers/clinical_and_rx_provider.dart';
@@ -595,15 +596,17 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
           ValueListenableBuilder<TextEditingValue>(
             valueListenable: tenderField,
             builder: (_, value, __) {
-              final given = double.tryParse(value.text);
-              final change = given == null ? null : given - _net(pos);
-              return Text(
-                change == null
-                    ? 'عدم إدخال المبلغ يعني الدفع بقيمة الفاتورة تمامًا'
-                    : change < 0
-                        ? 'المبلغ المستلم أقل من الصافي'
-                        : 'الباقي للعميل: ${MoneyFormatter.format(change)}',
-              );
+              if (value.text.trim().isEmpty) {
+                return const Text(
+                    'عدم إدخال المبلغ يعني الدفع بقيمة الفاتورة تمامًا');
+              }
+              try {
+                final change = posCashChange(
+                    netTotal: _net(pos), receivedText: value.text);
+                return Text('الباقي للعميل: ${MoneyFormatter.format(change)}');
+              } on StateError catch (error) {
+                return Text(error.message);
+              }
             },
           ),
           const SizedBox(height: 8),
@@ -1015,10 +1018,11 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
         _message('أدخل مبلغاً مدفوعاً صحيحاً لا يتجاوز الصافي');
         return;
       }
-      if (method == 'CASH' && tenderField.text.trim().isNotEmpty) {
-        final received = double.tryParse(tenderField.text.trim());
-        if (received == null || !received.isFinite || received < net) {
-          _message('المبلغ المستلم أقل من قيمة الفاتورة');
+      if (method == 'CASH') {
+        try {
+          posCashChange(netTotal: net, receivedText: tenderField.text);
+        } on StateError catch (error) {
+          _message(error.message);
           return;
         }
       }
