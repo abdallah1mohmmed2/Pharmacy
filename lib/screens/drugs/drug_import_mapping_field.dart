@@ -59,7 +59,8 @@ class _DrugImportMappingFieldState extends State<DrugImportMappingField> {
           title: const Text('ربط أعمدة الاستيراد'),
           insetPadding: const EdgeInsets.all(12),
           content: SizedBox(
-            width: MediaQuery.sizeOf(context).width.clamp(0.0, 590.0).toDouble(),
+            width:
+                MediaQuery.sizeOf(context).width.clamp(0.0, 590.0).toDouble(),
             height: (MediaQuery.sizeOf(context).height -
                     MediaQuery.viewInsetsOf(context).bottom -
                     190)
@@ -174,7 +175,8 @@ class _DrugImportMappingFieldState extends State<DrugImportMappingField> {
                 }
                 if (mapping == null) {
                   if (_decode(raw.text) == null) {
-                    refresh(() => error = 'الربط يجب أن يكون JSON يحتوي على أسماء حقول نصية');
+                    refresh(() => error =
+                        'الربط يجب أن يكون JSON يحتوي على أسماء حقول نصية');
                     return;
                   }
                   widget.controller.text = raw.text;
@@ -184,7 +186,8 @@ class _DrugImportMappingFieldState extends State<DrugImportMappingField> {
                     final from = sources[i].text.trim();
                     final to = targets[i].text.trim();
                     if (from.isEmpty || to.isEmpty) {
-                      refresh(() => error = 'اكتب اسم العمود وحقل النظام لكل ربط');
+                      refresh(
+                          () => error = 'اكتب اسم العمود وحقل النظام لكل ربط');
                       return;
                     }
                     if (output.containsKey(from)) {

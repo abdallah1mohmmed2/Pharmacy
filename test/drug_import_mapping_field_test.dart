@@ -35,7 +35,8 @@ void main() {
     expect(find.byType(TextField), findsNothing);
   });
 
-  testWidgets('opening and canceling keeps original JSON bytes', (tester) async {
+  testWidgets('opening and canceling keeps original JSON bytes',
+      (tester) async {
     const original = '{ "اسم الدواء" : "trade_name_ar" }';
     final controller = TextEditingController(text: original);
     addTearDown(controller.dispose);
@@ -59,8 +60,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('import-mapping-add')));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(
-        find.byKey(const ValueKey('import-mapping-source-2')));
+    await tester
+        .ensureVisible(find.byKey(const ValueKey('import-mapping-source-2')));
     await tester.enterText(
         find.byKey(const ValueKey('import-mapping-source-2')), 'الشركة');
     await tester.enterText(
@@ -99,8 +100,7 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('unknown mapping format is not silently cleared',
-      (tester) async {
+  testWidgets('unknown mapping format is not silently cleared', (tester) async {
     const original = '{"nested": {"legacy":true}}';
     final controller = TextEditingController(text: original);
     addTearDown(controller.dispose);

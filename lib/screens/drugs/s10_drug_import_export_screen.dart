@@ -325,9 +325,8 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
             if (mapping.isNotEmpty)
               Card(
                 child: ExpansionTile(
-                  title: Text('معاينة الربط — ' +
-                      mapping.length.toString() +
-                      ' أعمدة'),
+                  title: Text(
+                      'معاينة الربط — ' + mapping.length.toString() + ' أعمدة'),
                   children: [
                     SizedBox(
                       height: 170,
@@ -337,11 +336,9 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
                             ListTile(
                               dense: true,
                               title: Text(entry.key,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis),
+                                  maxLines: 1, overflow: TextOverflow.ellipsis),
                               subtitle: Text(entry.value,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis),
+                                  maxLines: 1, overflow: TextOverflow.ellipsis),
                             ),
                         ],
                       ),
