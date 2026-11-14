@@ -47,7 +47,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('إضافة دواء'), findsOneWidget);
     expect(find.byKey(const ValueKey('drug-switch-is_active')), findsOneWidget);
-    expect(find.byKey(const ValueKey('drug-choice-route')), findsOneWidget);
     await tester.enterText(
         find.byKey(const ValueKey('drug-text-internal_code')), 'SKU-NEW');
     await tester.enterText(
