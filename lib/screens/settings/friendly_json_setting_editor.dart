@@ -88,7 +88,8 @@ class _FriendlyJsonSettingEditorState extends State<FriendlyJsonSettingEditor> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: TextFormField(
-        key: ValueKey('setting-json-text-' + key),
+        key: ValueKey('setting-json-text-' + key +
+            (key == 'symbol' ? (values['code']?.toString() ?? '') : '')),
         initialValue: values[key]?.toString() ?? '',
         keyboardType: keyboardType ??
             (maxLines > 1 ? TextInputType.multiline : TextInputType.text),
@@ -96,6 +97,7 @@ class _FriendlyJsonSettingEditorState extends State<FriendlyJsonSettingEditor> {
         maxLines: isSecret ? 1 : maxLines,
         decoration: InputDecoration(labelText: label, helperText: hint),
         validator: validator,
+        onChanged: (text) => values[key] = text,
         onSaved: (text) => values[key] = text ?? '',
       ),
     );
@@ -124,6 +126,11 @@ class _FriendlyJsonSettingEditorState extends State<FriendlyJsonSettingEditor> {
                 ' و' + maximum.toString();
           }
           return null;
+        },
+        onChanged: (text) {
+          final parsed = integer ? int.tryParse(text.trim()) :
+              num.tryParse(text.trim());
+          if (parsed != null) values[key] = parsed;
         },
         onSaved: (text) {
           values[key] = integer ? int.parse(text!.trim()) :
