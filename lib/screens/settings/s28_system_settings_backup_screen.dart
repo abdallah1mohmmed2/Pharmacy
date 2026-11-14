@@ -680,87 +680,84 @@ class _S28SystemSettingsBackupScreenState
       ]);
 
   Future<({String name, bool saveAs})?> _requestBackupOptions() async {
-    final stamp = DateTime.now()
-        .toIso8601String()
-        .substring(0, 19)
-        .replaceAll(':', '-');
+    final stamp =
+        DateTime.now().toIso8601String().substring(0, 19).replaceAll(':', '-');
     String name = 'pharmacy_backup_$stamp';
     bool saveAs = true;
     String? nameError;
     return showDialog<({String name, bool saveAs})>(
-        context: context,
-        builder: (dialogContext) => StatefulBuilder(
-          builder: (dialogContext, setDialogState) => AlertDialog(
-            title: const Text('إعداد النسخة الاحتياطية'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TextFormField(
-                    key: const ValueKey('backup-custom-name'),
-                    initialValue: name,
-                    maxLength: 100,
-                    enabled: saveAs,
-                    decoration: InputDecoration(
-                      labelText: 'اسم النسخة الاحتياطية',
-                      helperText: 'سيضاف امتداد .db أو .db.gz تلقائيًا.',
-                      errorText: nameError,
-                    ),
-                    onChanged: (value) {
-                      name = value;
-                      if (nameError != null) {
-                        setDialogState(() => nameError = null);
-                      }
-                    },
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('إعداد النسخة الاحتياطية'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextFormField(
+                  key: const ValueKey('backup-custom-name'),
+                  initialValue: name,
+                  maxLength: 100,
+                  enabled: saveAs,
+                  decoration: InputDecoration(
+                    labelText: 'اسم النسخة الاحتياطية',
+                    helperText: 'سيضاف امتداد .db أو .db.gz تلقائيًا.',
+                    errorText: nameError,
                   ),
-                  SwitchListTile.adaptive(
-                    key: const ValueKey('backup-custom-destination'),
-                    contentPadding: EdgeInsets.zero,
-                    value: saveAs,
-                    title: const Text('اختيار مكان الحفظ'),
-                    subtitle: const Text(
-                      'بعد إنشاء نسخة داخلية سليمة، ستفتح نافذة النظام '
-                      'لاختيار المجلد والاسم النهائي.',
-                    ),
-                    onChanged: (value) => setDialogState(() {
-                      saveAs = value;
-                      nameError = null;
-                    }),
-                  ),
-                  if (!saveAs)
-                    const Text(
-                      'ستُحفظ نسخة داخل التطبيق بالاسم التلقائي فقط.',
-                    ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('إلغاء'),
-              ),
-              FilledButton(
-                key: const ValueKey('backup-confirm-create'),
-                onPressed: () {
-                  String requested = name;
-                  if (saveAs) {
-                    try {
-                      requested = BackupFileName.baseName(requested);
-                    } on FormatException catch (error) {
-                      setDialogState(() => nameError = error.message);
-                      return;
+                  onChanged: (value) {
+                    name = value;
+                    if (nameError != null) {
+                      setDialogState(() => nameError = null);
                     }
-                  }
-                  Navigator.pop(dialogContext,
-                      (name: requested, saveAs: saveAs));
-                },
-                child: const Text('متابعة'),
-              ),
-            ],
+                  },
+                ),
+                SwitchListTile.adaptive(
+                  key: const ValueKey('backup-custom-destination'),
+                  contentPadding: EdgeInsets.zero,
+                  value: saveAs,
+                  title: const Text('اختيار مكان الحفظ'),
+                  subtitle: const Text(
+                    'بعد إنشاء نسخة داخلية سليمة، ستفتح نافذة النظام '
+                    'لاختيار المجلد والاسم النهائي.',
+                  ),
+                  onChanged: (value) => setDialogState(() {
+                    saveAs = value;
+                    nameError = null;
+                  }),
+                ),
+                if (!saveAs)
+                  const Text(
+                    'ستُحفظ نسخة داخل التطبيق بالاسم التلقائي فقط.',
+                  ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              key: const ValueKey('backup-confirm-create'),
+              onPressed: () {
+                String requested = name;
+                if (saveAs) {
+                  try {
+                    requested = BackupFileName.baseName(requested);
+                  } on FormatException catch (error) {
+                    setDialogState(() => nameError = error.message);
+                    return;
+                  }
+                }
+                Navigator.pop(dialogContext, (name: requested, saveAs: saveAs));
+              },
+              child: const Text('متابعة'),
+            ),
+          ],
         ),
-      );
+      ),
+    );
   }
 
   Future<void> _createBackup(SettingsAndSystemProvider p) async {

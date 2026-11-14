@@ -20,8 +20,18 @@ void main() {
   });
 
   test('invalid names and path injection are rejected before export', () {
-    for (final invalid in ['', '  ', '..', '../pharmacy', r'C:\backup',
-      'test/name', 'CON', 'A*B', 'hello?world', 'name.']) {
+    for (final invalid in [
+      '',
+      '  ',
+      '..',
+      '../pharmacy',
+      r'C:\backup',
+      'test/name',
+      'CON',
+      'A*B',
+      'hello?world',
+      'name.'
+    ]) {
       expect(() => BackupFileName.baseName(invalid), throwsFormatException,
           reason: invalid);
     }
@@ -47,8 +57,10 @@ void main() {
       );
       final result = await service.saveVerifiedCopy(
         source: BackupResult(
-          file: original, sha256: checksum,
-          sizeBytes: bytes.length, compressed: true,
+          file: original,
+          sha256: checksum,
+          sizeBytes: bytes.length,
+          compressed: true,
         ),
         requestedName: 'نسخة تجريبية',
       );
@@ -77,8 +89,10 @@ void main() {
       await expectLater(
         service.saveVerifiedCopy(
           source: BackupResult(
-            file: original, sha256: 'wrong',
-            sizeBytes: 3, compressed: false,
+            file: original,
+            sha256: 'wrong',
+            sizeBytes: 3,
+            compressed: false,
           ),
           requestedName: 'test',
         ),

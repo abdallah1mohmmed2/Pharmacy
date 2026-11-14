@@ -196,7 +196,8 @@ class BackupAndSyncService {
   Future<BackupResult> importBackupForRestore(
       {required File selectedFile, int? userId}) async {
     if (!await selectedFile.exists()) {
-      throw FileSystemException('ملف النسخة المختار غير موجود', selectedFile.path);
+      throw FileSystemException(
+          'ملف النسخة المختار غير موجود', selectedFile.path);
     }
     final bytes = await selectedFile.readAsBytes();
     if (bytes.isEmpty) throw StateError('ملف النسخة فارغ.');
@@ -218,8 +219,7 @@ class BackupAndSyncService {
             p.join((await getApplicationSupportDirectory()).path, 'backups'));
     await directory.create(recursive: true);
     final stamp = DateTime.now().microsecondsSinceEpoch;
-    final checkFile =
-        File(p.join(directory.path, '.import_check_$stamp.db'));
+    final checkFile = File(p.join(directory.path, '.import_check_$stamp.db'));
     try {
       await checkFile.writeAsBytes(unpacked, flush: true);
       await _verifySnapshot(checkFile);
@@ -239,7 +239,8 @@ class BackupAndSyncService {
           'audit_logs',
           'backup_log',
         })) {
-          throw StateError('ملف النسخة لا يحتوي على الجداول الأساسية للصيدلية.');
+          throw StateError(
+              'ملف النسخة لا يحتوي على الجداول الأساسية للصيدلية.');
         }
       } finally {
         await verified.close();

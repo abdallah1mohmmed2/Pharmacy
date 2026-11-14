@@ -26,8 +26,7 @@ abstract final class BackupFileName {
         RegExp(r'[<>:"/\\|?*\x00-\x1f]').hasMatch(base) ||
         base.endsWith('.') ||
         base.endsWith(' ') ||
-        RegExp(r'^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$',
-                caseSensitive: false)
+        RegExp(r'^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$', caseSensitive: false)
             .hasMatch(base)) {
       throw const FormatException(
           'اسم النسخة غير صالح؛ تجنب علامات المسارات والرموز المحجوزة.');

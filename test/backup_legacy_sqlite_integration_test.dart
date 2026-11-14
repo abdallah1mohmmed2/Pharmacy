@@ -118,13 +118,14 @@ CREATE TABLE audit_logs (
       await snapshot.close();
     }
   });
-  test('external uncompressed backup restores through verified import with pre-restore safety copy',
+  test(
+      'external uncompressed backup restores through verified import with pre-restore safety copy',
       () async {
     final created = await service.createBackup(compress: false);
     final outside = await created.file.copy('${root.path}/نسخة خارجية.db');
-    await (await helper.database)
-        .update('test_data', {'payload': 'تعديل قبل الاستعادة'},
-            where: 'id=?', whereArgs: [1]);
+    await (await helper.database).update(
+        'test_data', {'payload': 'تعديل قبل الاستعادة'},
+        where: 'id=?', whereArgs: [1]);
     await service.restoreBackupFromDevice(selectedFile: outside);
     final db = await helper.database;
     expect((await db.query('test_data')).single['payload'], 'كميات الصيدلية');
@@ -140,16 +141,16 @@ CREATE TABLE audit_logs (
         imported['sha256']);
   });
 
-  test('external compressed backup restores without depending on selected filename',
+  test(
+      'external compressed backup restores without depending on selected filename',
       () async {
     final created = await service.createBackup(compress: true);
     final outside = await created.file.copy('${root.path}/my-backup.bin');
-    await (await helper.database)
-        .update('test_data', {'payload': 'قيمة مؤقتة'},
-            where: 'id=?', whereArgs: [1]);
+    await (await helper.database).update('test_data', {'payload': 'قيمة مؤقتة'},
+        where: 'id=?', whereArgs: [1]);
     await service.restoreBackupFromDevice(selectedFile: outside);
-    expect((await (await helper.database).query('test_data'))
-        .single['payload'], 'كميات الصيدلية');
+    expect((await (await helper.database).query('test_data')).single['payload'],
+        'كميات الصيدلية');
   });
 
   test('invalid external backup never overwrites live data', () async {
@@ -159,10 +160,9 @@ CREATE TABLE audit_logs (
       service.restoreBackupFromDevice(selectedFile: outside),
       throwsStateError,
     );
-    expect((await (await helper.database).query('test_data'))
-        .single['payload'], 'كميات الصيدلية');
+    expect((await (await helper.database).query('test_data')).single['payload'],
+        'كميات الصيدلية');
     final backups = await (await helper.database).query('backup_log');
     expect(backups, isEmpty);
   });
-
 }
