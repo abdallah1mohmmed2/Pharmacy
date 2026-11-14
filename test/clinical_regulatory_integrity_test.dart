@@ -105,7 +105,9 @@ void main() {
       'system_role_code': 'AUDITOR',
     });
     await db.insert('role_permissions', {
-      'role_code': 'AUDITOR', 'permission_code': 'audit.view', 'is_allowed': 1,
+      'role_code': 'AUDITOR',
+      'permission_code': 'audit.view',
+      'is_allowed': 1,
     });
     await SchemaIteration16.upgrade(db);
     service = ClinicalRegulatoryService(helper: DatabaseHelper.forTesting(db));
@@ -165,16 +167,19 @@ void main() {
     await addAlert(20, 22);
     final foreign = ClinicalVerdict([
       const ClinicalAlertModel(
-        id: 20, drugId: 22, category: 'ALLERGY',
-        level: ClinicalLevel.warning, messageAr: 'مراجعة الحساسية',
+        id: 20,
+        drugId: 22,
+        category: 'ALLERGY',
+        level: ClinicalLevel.warning,
+        messageAr: 'مراجعة الحساسية',
         userDecision: 'ACKNOWLEDGED',
       ),
     ]);
     await expectLater(db.transaction((txn) async {
-      await txn.insert('sales_invoices',
-          {'id': 3, 'branch_id': 1, 'invoice_no': 'SALE-3'});
-      await ClinicalRegulatoryService.linkDecisions(
-          txn, branchId: 1, invoiceId: 3, verdict: foreign);
+      await txn.insert(
+          'sales_invoices', {'id': 3, 'branch_id': 1, 'invoice_no': 'SALE-3'});
+      await ClinicalRegulatoryService.linkDecisions(txn,
+          branchId: 1, invoiceId: 3, verdict: foreign);
     }), throwsA(isA<StateError>()));
     expect(await db.query('sales_invoices', where: 'id=3'), isEmpty);
     expect(await db.query('clinical_alert_invoice_links'), isEmpty);
@@ -186,8 +191,12 @@ void main() {
     await db.update('clinical_alert_logs', {'patient_id': 6}, where: 'id=10');
     final q = ClinicalAndAuditQueries(helper: DatabaseHelper.forTesting(db));
     final report = await q.r49(ReportParams(
-      branchId: 1, userId: 3, userName: 'مراجع',
-      canViewCost: false, showCostSetting: false, values: const {},
+      branchId: 1,
+      userId: 3,
+      userName: 'مراجع',
+      canViewCost: false,
+      showCostSetting: false,
+      values: const {},
     ));
     expect(report.single['patient'], 'مريض محجوب في النسخة العامة');
   });
