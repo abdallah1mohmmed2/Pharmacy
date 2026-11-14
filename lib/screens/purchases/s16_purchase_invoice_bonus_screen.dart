@@ -87,7 +87,8 @@ class _S16PurchaseInvoiceBonusScreenState
     final netTotal = (subtotal - headerDiscount + taxAmount)
         .clamp(0, double.infinity)
         .toDouble();
-    final paidNow = payment == 'CREDIT' ? 0.0 : parsePurchaseNumber(paid.text) ?? 0;
+    final paidNow =
+        payment == 'CREDIT' ? 0.0 : parsePurchaseNumber(paid.text) ?? 0;
     final remaining = (netTotal - paidNow).clamp(0, double.infinity);
     final bonusValue = lines.fold<double>(
       0,
@@ -150,7 +151,9 @@ class _S16PurchaseInvoiceBonusScreenState
             ),
           DropdownButtonFormField<int>(
             value: warehouse,
-            decoration: const InputDecoration(labelText: 'المستودع *', helperText: 'يمكن اختياره أيضاً داخل نافذة إضافة البند'),
+            decoration: const InputDecoration(
+                labelText: 'المستودع *',
+                helperText: 'يمكن اختياره أيضاً داخل نافذة إضافة البند'),
             items: inventory.warehouses
                 .map((item) => DropdownMenuItem(
                       value: item.id,
@@ -325,14 +328,26 @@ class _S16PurchaseInvoiceBonusScreenState
                 const SizedBox(height: 12),
                 DropdownButtonFormField<int>(
                   key: ValueKey('purchase-line-warehouse-$warehouse'),
-                  value: inventory.warehouses.any((w) => w.id == warehouse) ? warehouse : null,
+                  value: inventory.warehouses.any((w) => w.id == warehouse)
+                      ? warehouse
+                      : null,
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'مستودع البند *'),
-                  items: inventory.warehouses.map((w) => DropdownMenuItem<int>(value: w.id, child: Text(w.nameAr))).toList(),
-                  onChanged: saving || lines.isNotEmpty ? null : (value) {
-                    setState(() { warehouse = value; location = null; lineError = null; });
-                    refreshSheet(() {});
-                  },
+                  decoration:
+                      const InputDecoration(labelText: 'مستودع البند *'),
+                  items: inventory.warehouses
+                      .map((w) => DropdownMenuItem<int>(
+                          value: w.id, child: Text(w.nameAr)))
+                      .toList(),
+                  onChanged: saving || lines.isNotEmpty
+                      ? null
+                      : (value) {
+                          setState(() {
+                            warehouse = value;
+                            location = null;
+                            lineError = null;
+                          });
+                          refreshSheet(() {});
+                        },
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
@@ -385,19 +400,31 @@ class _S16PurchaseInvoiceBonusScreenState
                     labelText: 'تاريخ الصلاحية *',
                     hintText: '2027-12-31 أو 31/12/2027 أو 12/2027',
                     helperText: 'عند إدخال شهر وسنة تُستخدم نهاية الشهر',
-                    suffixIcon: IconButton(tooltip: 'اختيار تاريخ الصلاحية', icon: const Icon(Icons.calendar_month), onPressed: () async {
-                      final now = DateTime.now();
-                      final today = DateTime(now.year, now.month, now.day);
-                      final last = DateTime(now.year + 30, 12, 31);
-                      final parsed = parsePurchaseExpiry(expiry.text);
-                      final initial = parsed == null || parsed.isBefore(today) ? today : parsed.isAfter(last) ? last : parsed;
-                      final picked = await showDatePicker(context: sheetContext, initialDate: initial, firstDate: today, lastDate: last);
-                      if (picked != null && sheetContext.mounted) {
-                        expiry.text = purchaseExpiryIso(picked);
-                        setState(() => lineError = null);
-                        refreshSheet(() {});
-                      }
-                    }),
+                    suffixIcon: IconButton(
+                        tooltip: 'اختيار تاريخ الصلاحية',
+                        icon: const Icon(Icons.calendar_month),
+                        onPressed: () async {
+                          final now = DateTime.now();
+                          final today = DateTime(now.year, now.month, now.day);
+                          final last = DateTime(now.year + 30, 12, 31);
+                          final parsed = parsePurchaseExpiry(expiry.text);
+                          final initial =
+                              parsed == null || parsed.isBefore(today)
+                                  ? today
+                                  : parsed.isAfter(last)
+                                      ? last
+                                      : parsed;
+                          final picked = await showDatePicker(
+                              context: sheetContext,
+                              initialDate: initial,
+                              firstDate: today,
+                              lastDate: last);
+                          if (picked != null && sheetContext.mounted) {
+                            expiry.text = purchaseExpiryIso(picked);
+                            setState(() => lineError = null);
+                            refreshSheet(() {});
+                          }
+                        }),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -505,8 +532,12 @@ class _S16PurchaseInvoiceBonusScreenState
                   ),
                 ),
                 const SizedBox(height: 10),
-                if (lineError != null) Padding(padding: const EdgeInsets.only(bottom: 10),
-                  child: Text(lineError!, key: const ValueKey('purchase-line-error'), style: const TextStyle(color: Colors.redAccent))),
+                if (lineError != null)
+                  Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Text(lineError!,
+                          key: const ValueKey('purchase-line-error'),
+                          style: const TextStyle(color: Colors.redAccent))),
                 FilledButton.icon(
                   onPressed: saving
                       ? null
@@ -551,30 +582,62 @@ class _S16PurchaseInvoiceBonusScreenState
     final packs = parsePurchaseCount(paidPacks.text);
     final free = bonus.text.trim().isEmpty ? 0 : parsePurchaseCount(bonus.text);
     final cost = parsePurchaseNumber(price.text);
-    final discountPct = lineDiscount.text.trim().isEmpty ? 0.0 : parsePurchaseNumber(lineDiscount.text);
-    final suggested = sellPrice.text.trim().isEmpty ? 0.0 : parsePurchaseNumber(sellPrice.text);
+    final discountPct = lineDiscount.text.trim().isEmpty
+        ? 0.0
+        : parsePurchaseNumber(lineDiscount.text);
+    final suggested = sellPrice.text.trim().isEmpty
+        ? 0.0
+        : parsePurchaseNumber(sellPrice.text);
     final expiryDate = parsePurchaseExpiry(expiry.text);
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     if (selected == null || selected.id == null) {
-      _rejectLine('اختر الدواء من نتائج البحث؛ كتابة الاسم وحدها لا تكفي.'); return;
+      _rejectLine('اختر الدواء من نتائج البحث؛ كتابة الاسم وحدها لا تكفي.');
+      return;
     }
     if (selected.branchId != context.read<SessionAndErpProvider>().branchId) {
-      _rejectLine('الدواء لا يتبع الفرع الحالي؛ أعد اختياره من البحث.'); return;
+      _rejectLine('الدواء لا يتبع الفرع الحالي؛ أعد اختياره من البحث.');
+      return;
     }
-    if (warehouse == null || !inventory.warehouses.any((w) => w.id == warehouse)) {
-      _rejectLine('اختر مستودع البند أولاً.'); return;
+    if (warehouse == null ||
+        !inventory.warehouses.any((w) => w.id == warehouse)) {
+      _rejectLine('اختر مستودع البند أولاً.');
+      return;
     }
-    if (batchNo.text.trim().isEmpty) { _rejectLine('أدخل رقم التشغيلة.'); return; }
+    if (batchNo.text.trim().isEmpty) {
+      _rejectLine('أدخل رقم التشغيلة.');
+      return;
+    }
     if (expiryDate == null) {
-      _rejectLine('تاريخ الصلاحية غير صحيح؛ استخدم 2027-12-31 أو 31/12/2027 أو 12/2027.'); return;
+      _rejectLine(
+          'تاريخ الصلاحية غير صحيح؛ استخدم 2027-12-31 أو 31/12/2027 أو 12/2027.');
+      return;
     }
-    if (expiryDate.isBefore(today)) { _rejectLine('تاريخ الصلاحية منتهٍ؛ أدخل تاريخ اليوم أو بعده.'); return; }
-    if (packs == null || packs <= 0) { _rejectLine('أدخل عدد الباكتات المدفوعة كعدد صحيح أكبر من صفر.'); return; }
-    if (free == null || free < 0) { _rejectLine('البونص يجب أن يكون عدداً صحيحاً يساوي صفراً أو أكثر.'); return; }
-    if (cost == null || cost < 0) { _rejectLine('أدخل سعر الباكت كرقم صالح يساوي صفراً أو أكثر.'); return; }
-    if (discountPct == null || discountPct < 0 || discountPct > 100) { _rejectLine('خصم البند يجب أن يكون رقماً من 0 إلى 100.'); return; }
-    if (suggested == null || suggested < 0) { _rejectLine('سعر البيع المقترح غير صحيح؛ أدخل رقماً موجباً أو اتركه فارغاً.'); return; }
+    if (expiryDate.isBefore(today)) {
+      _rejectLine('تاريخ الصلاحية منتهٍ؛ أدخل تاريخ اليوم أو بعده.');
+      return;
+    }
+    if (packs == null || packs <= 0) {
+      _rejectLine('أدخل عدد الباكتات المدفوعة كعدد صحيح أكبر من صفر.');
+      return;
+    }
+    if (free == null || free < 0) {
+      _rejectLine('البونص يجب أن يكون عدداً صحيحاً يساوي صفراً أو أكثر.');
+      return;
+    }
+    if (cost == null || cost < 0) {
+      _rejectLine('أدخل سعر الباكت كرقم صالح يساوي صفراً أو أكثر.');
+      return;
+    }
+    if (discountPct == null || discountPct < 0 || discountPct > 100) {
+      _rejectLine('خصم البند يجب أن يكون رقماً من 0 إلى 100.');
+      return;
+    }
+    if (suggested == null || suggested < 0) {
+      _rejectLine(
+          'سعر البيع المقترح غير صحيح؛ أدخل رقماً موجباً أو اتركه فارغاً.');
+      return;
+    }
     if (selected.requiresRefrigeration) {
       final shelf = inventory.shelves.where((item) => item.id == location);
       if (shelf.isEmpty || !shelf.first.isFridge) {
@@ -626,7 +689,8 @@ class _S16PurchaseInvoiceBonusScreenState
     SessionAndErpProvider session,
     double netTotal,
   ) async {
-    final paidNow = payment == 'CREDIT' ? 0.0 : parsePurchaseNumber(paid.text) ?? 0;
+    final paidNow =
+        payment == 'CREDIT' ? 0.0 : parsePurchaseNumber(paid.text) ?? 0;
     final discountAmount = parsePurchaseNumber(invoiceDiscount.text) ?? 0;
     final taxAmount = parsePurchaseNumber(tax.text) ?? 0;
     if (supplier == null ||

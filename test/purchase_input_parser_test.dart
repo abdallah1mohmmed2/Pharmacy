@@ -11,7 +11,15 @@ void main() {
     expect(parsePurchaseNumber('\u200f١٢٫٥\u061c'), 12.5);
   });
   test('blank, malformed and nonfinite prices remain invalid', () {
-    for (final value in ['', 'NaN', 'Infinity', '١٢abc', '1.2.3', '1,2,3', '1e999']) {
+    for (final value in [
+      '',
+      'NaN',
+      'Infinity',
+      '١٢abc',
+      '1.2.3',
+      '1,2,3',
+      '1e999'
+    ]) {
       expect(parsePurchaseNumber(value), isNull, reason: value);
     }
   });
@@ -24,7 +32,13 @@ void main() {
     expect(parsePurchaseCount('-١'), -1);
   });
   test('full expiry formats normalize to the same strict database date', () {
-    for (final value in ['2028-12-31', '٣١/١٢/٢٠٢٨', '2028/12/31', '31.12.2028', ' ٣١ / ١٢ / ٢٠٢٨ ']) {
+    for (final value in [
+      '2028-12-31',
+      '٣١/١٢/٢٠٢٨',
+      '2028/12/31',
+      '31.12.2028',
+      ' ٣١ / ١٢ / ٢٠٢٨ '
+    ]) {
       expect(purchaseExpiryIso(parsePurchaseExpiry(value)!), '2028-12-31');
     }
   });
@@ -33,8 +47,17 @@ void main() {
     expect(purchaseExpiryIso(parsePurchaseExpiry('2027-02')!), '2027-02-28');
     expect(purchaseExpiryIso(parsePurchaseExpiry('١٢/٢٠٢٨')!), '2028-12-31');
   });
-  test('invalid calendar dates are rejected rather than rolled into next month', () {
-    for (final value in ['2027-02-29', '٣١/٠٢/٢٠٢٨', '2028-13-01', '12/00/2028', '31/12/28', 'abc', '']) {
+  test('invalid calendar dates are rejected rather than rolled into next month',
+      () {
+    for (final value in [
+      '2027-02-29',
+      '٣١/٠٢/٢٠٢٨',
+      '2028-13-01',
+      '12/00/2028',
+      '31/12/28',
+      'abc',
+      ''
+    ]) {
       expect(parsePurchaseExpiry(value), isNull, reason: value);
     }
   });
