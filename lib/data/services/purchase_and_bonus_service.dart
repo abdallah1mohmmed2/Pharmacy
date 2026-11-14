@@ -462,7 +462,8 @@ class PurchaseAndBonusService {
         if (cash.isEmpty || cash.first['gl_account_id'] == null)
           throw StateError('اربط الصندوق بدليل الحسابات أولاً');
         final available = (cash.first['current_balance'] as num).toDouble();
-        if (!available.isFinite || available < paidTotal) throw StateError('رصيد حساب سداد المشتريات غير كافٍ');
+        if (!available.isFinite || available < paidTotal)
+          throw StateError('رصيد حساب سداد المشتريات غير كافٍ');
         lines.add((
           accountId: cash.first['gl_account_id'] as int,
           debit: 0,
@@ -581,7 +582,8 @@ class PurchaseAndBonusService {
       required double agreedCreditValue,
       int? cashAccountId}) async {
     if (qtyUnits <= 0 ||
-        !agreedCreditValue.isFinite || agreedCreditValue < 0 ||
+        !agreedCreditValue.isFinite ||
+        agreedCreditValue < 0 ||
         !['CREDIT_NOTE', 'CASH_REFUND', 'EXCHANGE_GOODS']
             .contains(settlementType))
       throw ArgumentError('بيانات المرتجع غير صحيحة');
@@ -673,7 +675,9 @@ class PurchaseAndBonusService {
         int settlementAccount = supplierAccount;
         if (settlementType == 'CASH_REFUND') {
           final cashRows = await txn.query('cash_accounts',
-              columns: ['gl_account_id'], where: 'id=? AND branch_id=? AND is_deleted=0', whereArgs: [cashId, branchId]);
+              columns: ['gl_account_id'],
+              where: 'id=? AND branch_id=? AND is_deleted=0',
+              whereArgs: [cashId, branchId]);
           if (cashRows.isEmpty || cashRows.first['gl_account_id'] == null)
             throw StateError('اربط الصندوق بدليل الحسابات أولاً');
           settlementAccount = (cashRows.first['gl_account_id'] as num).toInt();

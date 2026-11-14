@@ -225,44 +225,103 @@ void main() {
     expect(await db.query('sales_payments'), isEmpty);
     expect((await db.query('batches_fefo')).single['total_units'], 200);
   });
-  test('sales refund rejects an empty drawer and rolls back returned stock', () async {
+  test('sales refund rejects an empty drawer and rolls back returned stock',
+      () async {
     final id = await sale('UNIT', 75);
-    final itemId = (await db.query('sales_invoice_items', where: 'invoice_id=?', whereArgs: [id])).single['id'] as int;
-    final wallet = (await db.query('cash_accounts', where: 'code=?', whereArgs: ['W-JAWALI'])).single['id'] as int;
-    final treasury = ShiftAndTreasuryService(helper: DatabaseHelper.forTesting(db));
-    await treasury.transfer(branchId: 1, fromAccountId: cashId, toAccountId: wallet, amount: 75);
+    final itemId = (await db.query('sales_invoice_items',
+            where: 'invoice_id=?', whereArgs: [id]))
+        .single['id'] as int;
+    final wallet = (await db
+            .query('cash_accounts', where: 'code=?', whereArgs: ['W-JAWALI']))
+        .single['id'] as int;
+    final treasury =
+        ShiftAndTreasuryService(helper: DatabaseHelper.forTesting(db));
+    await treasury.transfer(
+        branchId: 1, fromAccountId: cashId, toAccountId: wallet, amount: 75);
     final returns = RxAndReturnsService(helper: DatabaseHelper.forTesting(db));
-    Future<int> refund() => returns.createSalesReturn(invoiceId: id, invoiceItemId: itemId,
-        qtyUnits: 1, refundAmount: 75, reasonCode: 'OTHER', reasonText: 'اختبار',
-        refundMethod: 'CASH', disposition: 'RESTOCK', approvedBy: 1, cashAccountId: cashId);
+    Future<int> refund() => returns.createSalesReturn(
+        invoiceId: id,
+        invoiceItemId: itemId,
+        qtyUnits: 1,
+        refundAmount: 75,
+        reasonCode: 'OTHER',
+        reasonText: 'اختبار',
+        refundMethod: 'CASH',
+        disposition: 'RESTOCK',
+        approvedBy: 1,
+        cashAccountId: cashId);
     await expectLater(refund(), throwsStateError);
     expect(await db.query('sales_returns'), isEmpty);
     expect((await db.query('batches_fefo')).single['total_units'], 199);
-    expect((await db.query('sales_invoice_item_batches')).single['returned_qty_units'], 0);
-    await treasury.transfer(branchId: 1, fromAccountId: wallet, toAccountId: cashId, amount: 75);
+    expect(
+        (await db.query('sales_invoice_item_batches'))
+            .single['returned_qty_units'],
+        0);
+    await treasury.transfer(
+        branchId: 1, fromAccountId: wallet, toAccountId: cashId, amount: 75);
     await refund();
     expect((await db.query('batches_fefo')).single['total_units'], 200);
-    expect((await db.query('cash_accounts', where: 'id=?', whereArgs: [cashId])).single['current_balance'], 0);
+    expect(
+        (await db.query('cash_accounts', where: 'id=?', whereArgs: [cashId]))
+            .single['current_balance'],
+        0);
   });
-  test('purchase payment cannot overdraft cash or leave partially received stock', () async {
-    final supplier = await db.insert('parties', {'uuid': 'purchase-supplier', 'branch_id': 1,
-      'created_at': '2026-11-14', 'updated_at': '2026-11-14', 'code': 'SUP-TEST',
-      'name_ar': 'مورد اختبار', 'party_type': 'SUPPLIER'});
-    final wh = (await db.query('warehouses', where: 'code=?', whereArgs: ['POS-W'])).single['id'] as int;
-    final purchase = PurchaseAndBonusService(helper: DatabaseHelper.forTesting(db));
-    Future<int> buy() => purchase.postInvoice(branchId: 1, supplierPartyId: supplier,
-        warehouseId: wh, invoiceNo: 'BUY-TEST', paymentType: 'CASH', paidTotal: 100,
-        cashAccountId: cashId, items: [PurchaseLineInput(drugId: drug.id!, batchNo: 'NEW-BUY',
-          expiryDate: '2030-12-31', warehouseId: wh, qtyPacksPaid: 1, bonusPacks: 0, packPrice: 100)]);
+  test(
+      'purchase payment cannot overdraft cash or leave partially received stock',
+      () async {
+    final supplier = await db.insert('parties', {
+      'uuid': 'purchase-supplier',
+      'branch_id': 1,
+      'created_at': '2026-11-14',
+      'updated_at': '2026-11-14',
+      'code': 'SUP-TEST',
+      'name_ar': 'مورد اختبار',
+      'party_type': 'SUPPLIER'
+    });
+    final wh =
+        (await db.query('warehouses', where: 'code=?', whereArgs: ['POS-W']))
+            .single['id'] as int;
+    final purchase =
+        PurchaseAndBonusService(helper: DatabaseHelper.forTesting(db));
+    Future<int> buy() => purchase.postInvoice(
+            branchId: 1,
+            supplierPartyId: supplier,
+            warehouseId: wh,
+            invoiceNo: 'BUY-TEST',
+            paymentType: 'CASH',
+            paidTotal: 100,
+            cashAccountId: cashId,
+            items: [
+              PurchaseLineInput(
+                  drugId: drug.id!,
+                  batchNo: 'NEW-BUY',
+                  expiryDate: '2030-12-31',
+                  warehouseId: wh,
+                  qtyPacksPaid: 1,
+                  bonusPacks: 0,
+                  packPrice: 100)
+            ]);
     await expectLater(buy(), throwsStateError);
     expect(await db.query('purchase_invoices'), isEmpty);
     expect(await db.query('batches_fefo'), hasLength(1));
-    await posting.postVoucher(branchId: 1, voucherNo: 'FUND', voucherType: 'RECEIPT',
-        partyId: customerId, cashAccountId: cashId, amount: 100, method: 'CASH', description: 'تمويل الاختبار');
+    await posting.postVoucher(
+        branchId: 1,
+        voucherNo: 'FUND',
+        voucherType: 'RECEIPT',
+        partyId: customerId,
+        cashAccountId: cashId,
+        amount: 100,
+        method: 'CASH',
+        description: 'تمويل الاختبار');
     await buy();
     expect(await db.query('purchase_invoices'), hasLength(1));
-    expect((await db.query('cash_accounts', where: 'id=?', whereArgs: [cashId])).single['current_balance'], 0);
-    expect((await db.query('drugs', where: 'id=?', whereArgs: [drug.id])).single['stock_total_units'], 220);
+    expect(
+        (await db.query('cash_accounts', where: 'id=?', whereArgs: [cashId]))
+            .single['current_balance'],
+        0);
+    expect(
+        (await db.query('drugs', where: 'id=?', whereArgs: [drug.id]))
+            .single['stock_total_units'],
+        220);
   });
-
 }
