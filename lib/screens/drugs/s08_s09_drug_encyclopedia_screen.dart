@@ -836,12 +836,12 @@ class _S08S09DrugEncyclopediaScreenState
         context: context,
         builder: (dialogContext) => AlertDialog(
               insetPadding: const EdgeInsets.all(8),
-              scrollable: true,
+              scrollable: false,
               title: Text(drug == null ? 'إضافة دواء' : 'تعديل بيانات الدواء'),
               content: SizedBox(
-                  width: MediaQuery.sizeOf(context).width < 700
-                      ? double.infinity
-                      : 900,
+                  width: (MediaQuery.sizeOf(context).width - 48)
+                      .clamp(240.0, 900.0)
+                      .toDouble(),
                   height: (MediaQuery.sizeOf(context).height -
                           MediaQuery.viewInsetsOf(context).bottom -
                           190)
