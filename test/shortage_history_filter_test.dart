@@ -150,8 +150,7 @@ void main() {
     expect(shortages.single['current_units'], 12);
   });
 
-  test('another branch warehouse does not count as pharmacy history',
-      () async {
+  test('another branch warehouse does not count as pharmacy history', () async {
     await addDrug(1, minimum: 20);
     await addHistoricalBatch(1, 3);
     final shortages = await service.shortages(branchId: 1);
@@ -165,8 +164,7 @@ void main() {
     expect(await service.shortages(branchId: 1), isEmpty);
   });
 
-  test('inactive, deleted and other-branch drugs are excluded',
-      () async {
+  test('inactive, deleted and other-branch drugs are excluded', () async {
     await addDrug(1, active: 0);
     await addDrug(2, deleted: 1);
     await addDrug(3, branch: 2);
@@ -191,8 +189,7 @@ void main() {
     expect(await service.shortages(branchId: 1), isEmpty);
   });
 
-  test('zero-threshold drug qualifies only if it was stocked before',
-      () async {
+  test('zero-threshold drug qualifies only if it was stocked before', () async {
     await addDrug(1, minimum: 0, current: 0);
     await addDrug(2, minimum: 0, current: 0);
     await addHistoricalBatch(1, 1);
@@ -200,8 +197,7 @@ void main() {
     expect(shortages.map((s) => s['drug_id']), [1]);
   });
 
-  test('the same historical drug appears once with multiple batches',
-      () async {
+  test('the same historical drug appears once with multiple batches', () async {
     await addDrug(1, minimum: 20);
     await addHistoricalBatch(1, 1);
     await addHistoricalBatch(1, 2);
@@ -228,8 +224,7 @@ void main() {
     expect(report.single['minimum_stock'], 30);
   });
 
-  test('branch 2 sees only drugs received in its own warehouses',
-      () async {
+  test('branch 2 sees only drugs received in its own warehouses', () async {
     await addDrug(1, branch: 1);
     await addDrug(2, branch: 2);
     await addHistoricalBatch(1, 1);

@@ -804,8 +804,7 @@ WHERE d.branch_id=?
     WHERE history.drug_id=d.id
       AND wh.branch_id=d.branch_id
   )
-ORDER BY d.stock_total_units""",
-      [branchId]);
+ORDER BY d.stock_total_units""", [branchId]);
   Future<int> createAutoPurchaseOrder(
       {required int supplierPartyId,
       required List<({int drugId, int packs, double cost, int bonus})>

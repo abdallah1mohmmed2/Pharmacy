@@ -95,13 +95,13 @@ void main() {
       final depletedMainStoreId = await registerDrug('STORE', 0, 20);
       final healthyId = await registerDrug('HEALTHY', 20, 10);
       final floorId = (await db.query('warehouses',
-          columns: ['id'], where: 'code=?', whereArgs: ['PHARM']))
+              columns: ['id'], where: 'code=?', whereArgs: ['PHARM']))
           .single['id'] as int;
       final mainStoreId = (await db.query('warehouses',
-          columns: ['id'], where: 'code=?', whereArgs: ['MAIN']))
+              columns: ['id'], where: 'code=?', whereArgs: ['MAIN']))
           .single['id'] as int;
-      Future<void> addBatch(int drugId, int warehouse, int sealedPacks,
-          String number) async {
+      Future<void> addBatch(
+          int drugId, int warehouse, int sealedPacks, String number) async {
         await db.insert('batches_fefo', {
           'drug_id': drugId,
           'warehouse_id': warehouse,
@@ -113,6 +113,7 @@ void main() {
           'total_units': sealedPacks * 10,
         });
       }
+
       await addBatch(depletedPharmacyId, floorId, 0, 'HISTORY-PHARMACY');
       await addBatch(depletedMainStoreId, mainStoreId, 0, 'HISTORY-STORE');
       await addBatch(healthyId, mainStoreId, 2, 'STOCKED-HEALTHY');
