@@ -223,6 +223,11 @@ class SettingsAndSystemProvider extends ChangeNotifier {
     return result;
   }
 
+  Future<void> restoreBackupFromDevice(File file, {int? userId}) async {
+    await backup.restoreBackupFromDevice(selectedFile: file, userId: userId);
+    await initialize();
+  }
+
   Future<void> restoreBackup(File file, {int? userId}) async {
     await backup.restoreBackup(backup: file, userId: userId);
     await initialize();
