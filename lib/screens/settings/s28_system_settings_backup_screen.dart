@@ -418,7 +418,7 @@ class _S28SystemSettingsBackupScreenState
                     DropdownMenuItem(
                       value: item,
                       child: Text(
-                        FriendlySettingsLabels.choice(item),
+                        FriendlySettingsLabels.choiceFor(spec.key, item),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
