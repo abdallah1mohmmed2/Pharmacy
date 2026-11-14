@@ -7,10 +7,14 @@ import '../../core/widgets/shared_widgets.dart';
 import '../../core/theme/enterprise_dark_theme.dart';
 import 'party_extensions_screen.dart';
 import 'party_details_screen.dart';
+import '../../core/widgets/contact_phone_field.dart';
 import '../../reports_pdf/registry/report_registry_and_provider.dart';
 
 class S19S20S21PartiesAndVouchersScreen extends StatefulWidget {
-  const S19S20S21PartiesAndVouchersScreen({super.key});
+  const S19S20S21PartiesAndVouchersScreen({super.key, this.contactSelector});
+
+  /// Optional injection for widget tests; Android uses the native picker.
+  final PhoneContactSelector? contactSelector;
   @override
   State<S19S20S21PartiesAndVouchersScreen> createState() =>
       _S19S20S21PartiesAndVouchersScreenState();
@@ -193,6 +197,7 @@ class _S19S20S21PartiesAndVouchersScreenState
             party: party,
             onPrint: (current) => _printPartyStatement(session, current),
             onVoucher: (current) => _voucher(session, current),
+            contactSelector: widget.contactSelector,
           ),
         ),
       ),
@@ -538,9 +543,10 @@ class _S19S20S21PartiesAndVouchersScreenState
                   controller: name,
                   decoration: const InputDecoration(labelText: 'الاسم'),
                 ),
-                TextField(
-                  controller: phone,
-                  decoration: const InputDecoration(labelText: 'الهاتف'),
+                ContactPhoneField(
+                  nameController: name,
+                  phoneController: phone,
+                  selector: widget.contactSelector,
                 ),
                 TextField(
                   controller: opening,

@@ -201,6 +201,61 @@ class SessionAndErpProvider extends ChangeNotifier {
           where: 'party_id=? AND is_deleted=0',
           whereArgs: [partyId],
           orderBy: 'entry_date,id');
+  /// Updates only the selected party's contact fields in this branch.
+  /// Financial opening balances, ledger, UUID, and other party fields are unchanged.
+  Future<void> updatePartyContact({
+    required int partyId,
+    required String nameAr,
+    required String phone,
+  }) async {
+    final cleanName = nameAr.trim();
+    final cleanPhone = phone.trim();
+    if (partyId <= 0 || cleanName.isEmpty) {
+      throw ArgumentError('يجب إدخال اسم صحيح للطرف');
+    }
+    final db = await _db.database;
+    await db.transaction((txn) async {
+      final rows = await txn.query('parties',
+          columns: ['id', 'name_ar', 'phone', 'sync_version'],
+          where: 'id=? AND branch_id=? AND is_deleted=0',
+          whereArgs: [partyId, branchId],
+          limit: 1);
+      if (rows.isEmpty) {
+        throw StateError('الطرف غير موجود في الفرع الحالي');
+      }
+      final before = rows.single;
+      final oldName = before['name_ar'] as String;
+      final oldPhone = (before['phone'] as String?) ?? '';
+      if (oldName == cleanName && oldPhone == cleanPhone) return;
+      final updated = await txn.update('parties', {
+        'name_ar': cleanName,
+        'phone': cleanPhone,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+        'sync_status': 'LOCAL',
+        'sync_version': ((before['sync_version'] as num?) ?? 1).toInt() + 1,
+      }, where: 'id=? AND branch_id=? AND is_deleted=0',
+         whereArgs: [partyId, branchId]);
+      if (updated != 1) {
+        throw StateError('تعذر تحديث الطرف المطلوب');
+      }
+      await AuditService(helper: _db, executor: txn).record(
+        action: 'UPDATE',
+        userId: currentUser?['id'] as int?,
+        branchId: branchId,
+        entityType: 'parties',
+        entityId: partyId,
+        entityLabel: cleanName,
+        oldValues: {'name_ar': oldName, 'phone_changed': oldPhone != cleanPhone},
+        newValues: {'name_ar': cleanName, 'phone_changed': oldPhone != cleanPhone},
+        reason: 'PARTY_CONTACT_UPDATE',
+      );
+    });
+    await refresh();
+    if (lastError != null) {
+      throw StateError('تم حفظ التعديل لكن تعذر تحديث العرض: $lastError');
+    }
+  }
+
   Future<int> createParty(PartyModel party,
       {double openingAlayh = 0,
       double openingLah = 0,

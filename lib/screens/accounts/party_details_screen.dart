@@ -8,6 +8,7 @@ import '../../data/database/database_helper.dart';
 import '../../data/services/manual_message_service.dart';
 import '../../providers/session_and_erp_provider.dart';
 import 'manual_message_composer_screen.dart';
+import '../../core/widgets/contact_phone_field.dart';
 
 /// Uses the application's existing theme, account vocabulary and card widgets.
 class PartyDetailsScreen extends StatefulWidget {
@@ -18,6 +19,7 @@ class PartyDetailsScreen extends StatefulWidget {
     required this.onVoucher,
     this.messageTemplates,
     this.openExternal,
+    this.contactSelector,
   });
 
   final PartyModel party;
@@ -25,6 +27,7 @@ class PartyDetailsScreen extends StatefulWidget {
   final Future<void> Function(PartyModel) onVoucher;
   final ManualMessageTemplateRepository? messageTemplates;
   final ExternalMessageOpener? openExternal;
+  final PhoneContactSelector? contactSelector;
 
   @override
   State<PartyDetailsScreen> createState() => _PartyDetailsScreenState();
@@ -62,6 +65,88 @@ class _PartyDetailsScreenState extends State<PartyDetailsScreen> {
       }
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _editContact(PartyModel party) async {
+    final name = TextEditingController(text: party.nameAr);
+    final phone = TextEditingController(text: party.phone);
+    var saving = false;
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialogState) => AlertDialog(
+            title: Text(party.partyType == 'CUSTOMER'
+                ? 'تعديل بيانات العميل'
+                : 'تعديل بيانات المورد'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    key: const ValueKey('edit-party-name'),
+                    controller: name,
+                    decoration: const InputDecoration(labelText: 'الاسم'),
+                  ),
+                  const SizedBox(height: 12),
+                  ContactPhoneField(
+                    nameController: name,
+                    phoneController: phone,
+                    selector: widget.contactSelector,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text('اختيار جهة اتصال يملأ رقم الهاتف، مع إبقاء الاسم الموجود قابلًا للتعديل.'),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: saving ? null : () => Navigator.pop(dialogContext),
+                child: const Text('إلغاء'),
+              ),
+              FilledButton(
+                onPressed: saving ? null : () async {
+                  if (name.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                      const SnackBar(content: Text('اسم الطرف مطلوب.')),
+                    );
+                    return;
+                  }
+                  setDialogState(() => saving = true);
+                  try {
+                    await context.read<SessionAndErpProvider>().updatePartyContact(
+                      partyId: party.id!,
+                      nameAr: name.text,
+                      phone: phone.text,
+                    );
+                    if (dialogContext.mounted) Navigator.pop(dialogContext);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('تم تحديث بيانات الاتصال.')),
+                      );
+                    }
+                  } catch (_) {
+                    if (dialogContext.mounted) {
+                      ScaffoldMessenger.of(dialogContext).showSnackBar(
+                        const SnackBar(content: Text('تعذر حفظ بيانات الاتصال. حاول مرة أخرى.')),
+                      );
+                    }
+                  } finally {
+                    if (dialogContext.mounted) {
+                      setDialogState(() => saving = false);
+                    }
+                  }
+                },
+                child: const Text('حفظ التعديل'),
+              ),
+            ],
+          ),
+        ),
+      );
+    } finally {
+      name.dispose();
+      phone.dispose();
     }
   }
 
@@ -183,6 +268,14 @@ class _PartyDetailsScreenState extends State<PartyDetailsScreen> {
                 Text('مهلة السداد: ${party.paymentTermsDays ?? 0} يوم'),
                 if (customer)
                   Text('الملف الطبي: ${party.isPatient ? 'نشط' : 'غير مفعّل'}'),
+              ],
+              actions: [
+                OutlinedButton.icon(
+                  key: const ValueKey('edit-party-contact'),
+                  onPressed: _busy ? null : () => _editContact(party),
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('تعديل الاسم والهاتف'),
+                ),
               ],
             ),
             Card(
