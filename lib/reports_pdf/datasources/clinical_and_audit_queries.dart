@@ -78,7 +78,7 @@ class ClinicalAndAuditQueries {
     LEFT JOIN prescriptions pr ON pr.id=cdl.prescription_id
     LEFT JOIN users u ON u.id=cdl.pharmacist_user_id AND u.branch_id=d.branch_id
     WHERE d.branch_id=? ${_range('cdl.recorded_at')}
-    ORDER BY cdl.recorded_at DESC
+    ORDER BY cdl.recorded_at DESC,cdl.id DESC
   ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r48(ReportParams p) => _q('''
@@ -94,7 +94,7 @@ class ClinicalAndAuditQueries {
       ON i.id=COALESCE(cil.invoice_id,a.invoice_id) AND i.branch_id=d.branch_id
     LEFT JOIN users mu ON mu.id=a.manager_user_id
     WHERE d.branch_id=? AND a.alert_category='INTERACTION'
-      ${_range('a.alert_at')} ORDER BY a.alert_at DESC
+      ${_range('a.alert_at')} ORDER BY a.alert_at DESC,a.id DESC
   ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r49(ReportParams p) => _q('''
@@ -108,7 +108,7 @@ class ClinicalAndAuditQueries {
     LEFT JOIN sales_invoices i
       ON i.id=COALESCE(cil.invoice_id,a.invoice_id) AND i.branch_id=d.branch_id
     WHERE d.branch_id=? AND a.alert_category<>'INTERACTION'
-      ${_range('a.alert_at')} ORDER BY a.alert_at DESC
+      ${_range('a.alert_at')} ORDER BY a.alert_at DESC,a.id DESC
   ''', [p.branchId, ..._rangeArgs(p)]);
 
   Future<List<Map<String, Object?>>> r50(ReportParams p) => _q('''
