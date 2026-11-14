@@ -124,7 +124,23 @@ class _S17S18ReturnsAndShortagesScreenState
                       child: const Text('تسجيل المرتجع'))
                 ]),
                 ListView(children: [
-                  const Text('الأصناف التي وصلت للحد الأدنى'),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      'تظهر هنا فقط الأدوية التي سبق استلامها في الصيدلية '
+                      'أو أحد مخازن الفرع، وأصبح رصيدها منخفضًا أو نفد. '
+                      'الأدوية الموجودة في دليل الأدوية فقط لا تُحسب نواقص.',
+                    ),
+                  ),
+                  if (p.shortages.isEmpty)
+                    const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text(
+                          'لا توجد نواقص حاليًا في الأدوية التي سبق إدخالها للمخزون.',
+                        ),
+                      ),
+                    ),
                   ...p.shortages.map((x) => ListTile(
                       title: Text(x.drugName),
                       subtitle: Text('الرصيد ' +
