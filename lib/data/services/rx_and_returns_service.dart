@@ -310,19 +310,20 @@ class RxAndReturnsService {
         String memo
       })>[];
       for (final payment in patientPayments) {
-        if (payment.amount <= 0) continue;
+        if (!payment.amount.isFinite || payment.amount < 0) throw StateError('قيمة دفعة المريض غير صحيحة');
+        if (payment.amount == 0) continue;
         if (payment.cashAccountId == null)
           throw StateError('اختر الصندوق أو المحفظة لتحصيل حصة المريض');
         if (payment.method == 'WALLET' &&
             (payment.walletRef ?? '').trim().length < 6)
           throw StateError('رقم إشعار المحفظة إلزامي');
         final cash = await txn.query('cash_accounts',
-            where: 'id=?', whereArgs: [payment.cashAccountId], limit: 1);
+            where: 'id=? AND branch_id=? AND is_deleted=0', whereArgs: [payment.cashAccountId, branchId], limit: 1);
         if (cash.isEmpty) throw StateError('حساب التحصيل غير موجود');
         final kind = cash.first['account_kind'] as String;
         if (payment.method == 'WALLET' && kind != 'WALLET')
           throw StateError('اختر محفظة إلكترونية لطريقة الدفع');
-        if (payment.method == 'CASH' && kind == 'WALLET')
+        if (payment.method == 'CASH' && !['CASHIER_DRAWER', 'MAIN_SAFE'].contains(kind))
           throw StateError('اختر الصندوق النقدي لطريقة الدفع');
         final gl = int.tryParse(cash.first['gl_account_id'].toString());
         if (gl == null) throw StateError('اربط حساب التحصيل بدليل الحسابات');
@@ -531,7 +532,7 @@ class RxAndReturnsService {
       int? batchId,
       bool openedLiquid = false,
       String? walletRef}) async {
-    if (qtyUnits <= 0 || refundAmount <= 0)
+    if (qtyUnits <= 0 || !refundAmount.isFinite || refundAmount <= 0)
       throw ArgumentError('يجب أن تكون كمية وقيمة المرتجع أكبر من صفر');
     if (!['CASH', 'WALLET', 'CREDIT_TO_ACCOUNT'].contains(refundMethod))
       throw ArgumentError('طريقة الرد غير مدعومة');
@@ -811,15 +812,17 @@ class RxAndReturnsService {
         if (refundMethod == 'WALLET' && (walletRef ?? '').trim().length < 6)
           throw StateError('رقم إشعار المحفظة مطلوب');
         final cash = await txn.query('cash_accounts',
-            where: 'id=? AND branch_id=?',
+            where: 'id=? AND branch_id=? AND is_deleted=0',
             whereArgs: [cashAccountId, invoiceBranch],
             limit: 1);
         if (cash.isEmpty) throw StateError('حساب رد المبلغ غير موجود');
         final kind = cash.first['account_kind'] as String;
         if (refundMethod == 'WALLET' && kind != 'WALLET')
           throw StateError('اختر محفظة إلكترونية لرد المبلغ');
-        if (refundMethod == 'CASH' && kind == 'WALLET')
+        if (refundMethod == 'CASH' && !['CASHIER_DRAWER', 'MAIN_SAFE'].contains(kind))
           throw StateError('اختر صندوقاً نقدياً لرد المبلغ');
+        final available = (cash.first['current_balance'] as num).toDouble();
+        if (!available.isFinite || available < refundAmount) throw StateError('رصيد حساب رد المبلغ غير كافٍ');
         refundGlAccountId =
             int.tryParse(cash.first['gl_account_id'].toString());
         if (refundGlAccountId == null)
