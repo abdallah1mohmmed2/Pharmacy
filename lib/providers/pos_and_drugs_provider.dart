@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+
 import '../data/database/database_helper.dart';
 import '../data/models/drug_model.dart';
 import '../data/models/erp_models.dart';
@@ -6,15 +7,16 @@ import '../data/models/clinical_and_rx_models.dart';
 import '../data/services/posting_and_sales_service.dart';
 
 class PosAndDrugsProvider extends ChangeNotifier {
-  PosAndDrugsProvider(
-      {DatabaseHelper? database, PostingAndSalesService? posting})
-      : _db = database ?? DatabaseHelper.instance,
+  PosAndDrugsProvider({
+    DatabaseHelper? database,
+    PostingAndSalesService? posting,
+  })  : _db = database ?? DatabaseHelper.instance,
         _posting = posting ?? PostingAndSalesService(helper: database);
   final DatabaseHelper _db;
   final PostingAndSalesService _posting;
   List<DrugModel> drugs = [];
   final List<PosTabSession> tabs = [
-    PosTabSession(id: 'tab-1', label: 'فاتورة 1', createdAt: DateTime.now())
+    PosTabSession(id: 'tab-1', label: 'فاتورة 1', createdAt: DateTime.now()),
   ];
   int activeTab = 0;
   int branchId = 1;
@@ -30,6 +32,7 @@ class PosAndDrugsProvider extends ChangeNotifier {
   double get total => currentTab.total;
 
   Future<void> setBranchId(int value) async {
+    if (checkoutPending) throw StateError('انتظر اكتمال حفظ الفاتورة');
     branchId = value;
     await loadDrugs();
   }
@@ -42,11 +45,13 @@ class PosAndDrugsProvider extends ChangeNotifier {
     loading = true;
     notifyListeners();
     try {
-      final rows = await _db.query('drugs',
-          where: 'branch_id=? AND is_deleted=0 AND is_active=1',
-          whereArgs: [requestedBranch],
-          orderBy: 'trade_name_ar',
-          limit: catalogPageLimit);
+      final rows = await _db.query(
+        'drugs',
+        where: 'branch_id=? AND is_deleted=0 AND is_active=1',
+        whereArgs: [requestedBranch],
+        orderBy: 'trade_name_ar',
+        limit: catalogPageLimit,
+      );
       if (generation != _searchGeneration || requestedBranch != branchId)
         return;
       drugs = rows.map(DrugModel.fromMap).toList(growable: false);
@@ -86,6 +91,15 @@ class PosAndDrugsProvider extends ChangeNotifier {
     return rows.map(DrugModel.fromMap).toList();
   }
 
+  /// Invalidate in-flight results as soon as the input changes, including
+  /// the UI debounce interval before the next query starts.
+  void invalidateSearch(String value) {
+    ++_searchGeneration;
+    search = value.trim();
+    loading = false;
+    notifyListeners();
+  }
+
   /// Prevent stale asynchronous searches from replacing the latest results.
   /// Never materialize the full catalog in Dart. Search is branch scoped.
   Future<void> searchDrugs(String value) async {
@@ -95,6 +109,7 @@ class PosAndDrugsProvider extends ChangeNotifier {
     final requestedBranch = branchId;
     search = term;
     if (term.length < 2) {
+      loading = false;
       drugs = const <DrugModel>[];
       notifyListeners();
       return;
@@ -122,11 +137,15 @@ class PosAndDrugsProvider extends ChangeNotifier {
   }
 
   bool createTab() {
+    if (checkoutPending) return false;
     if (tabs.length >= 8) return false;
-    tabs.add(PosTabSession(
+    tabs.add(
+      PosTabSession(
         id: 'tab-' + DateTime.now().microsecondsSinceEpoch.toString(),
         label: 'فاتورة ' + (tabs.length + 1).toString(),
-        createdAt: DateTime.now()));
+        createdAt: DateTime.now(),
+      ),
+    );
     activeTab = tabs.length - 1;
     clinicalBlock = null;
     notifyListeners();
@@ -134,6 +153,7 @@ class PosAndDrugsProvider extends ChangeNotifier {
   }
 
   void selectTab(int index) {
+    if (checkoutPending) return;
     if (index < 0 || index >= tabs.length) return;
     activeTab = index;
     clinicalBlock = null;
@@ -144,11 +164,13 @@ class PosAndDrugsProvider extends ChangeNotifier {
   }
 
   void holdCurrent() {
+    if (checkoutPending) return;
     currentTab.held = true;
     notifyListeners();
   }
 
   bool restoreCurrent() {
+    if (checkoutPending) return false;
     if (!currentTab.held) return false;
     currentTab.held = false;
     notifyListeners();
@@ -156,6 +178,7 @@ class PosAndDrugsProvider extends ChangeNotifier {
   }
 
   void closeCurrent() {
+    if (checkoutPending) return;
     if (tabs.length == 1) {
       currentTab.items.clear();
       currentTab.patientFlags.clear();
@@ -172,7 +195,7 @@ class PosAndDrugsProvider extends ChangeNotifier {
   }
 
   void setPatientFlag(String flag, bool enabled) {
-    if (currentTab.held) return;
+    if (checkoutPending || currentTab.held) return;
     if (enabled) {
       patientFlags.add(flag);
     } else {
@@ -186,6 +209,7 @@ class PosAndDrugsProvider extends ChangeNotifier {
   }
 
   void addDrug(DrugModel drug, {String unit = 'UNIT'}) {
+    if (checkoutPending) throw StateError('انتظر اكتمال حفظ الفاتورة');
     if (currentTab.held) throw StateError('استرجع الفاتورة قبل تعديلها');
     _checkDrug(drug);
     cart.add(CartItemModel(drug: drug, sellUnit: unit));
@@ -193,7 +217,7 @@ class PosAndDrugsProvider extends ChangeNotifier {
   }
 
   void removeItem(CartItemModel item) {
-    if (currentTab.held) return;
+    if (checkoutPending || currentTab.held) return;
     cart.remove(item);
     clinicalBlock = null;
     for (final i in cart) {
@@ -203,16 +227,17 @@ class PosAndDrugsProvider extends ChangeNotifier {
   }
 
   void replaceCartItem(CartItemModel item, DrugModel replacement) {
-    if (currentTab.held) return;
+    if (checkoutPending || currentTab.held) return;
     final index = cart.indexOf(item);
     if (index < 0) return;
     cart[index] = CartItemModel(
-        drug: replacement,
-        sellUnit: item.sellUnit,
-        quantity: item.quantity,
-        discount: item.discount,
-        isSubstitute: true,
-        substitutedForDrugId: item.drug.id);
+      drug: replacement,
+      sellUnit: item.sellUnit,
+      quantity: item.quantity,
+      discount: item.discount,
+      isSubstitute: true,
+      substitutedForDrugId: item.drug.id,
+    );
     clinicalBlock = null;
     for (final line in cart) {
       _checkDrug(line.drug);
@@ -221,7 +246,7 @@ class PosAndDrugsProvider extends ChangeNotifier {
   }
 
   void changeQuantity(CartItemModel item, double qty) {
-    if (currentTab.held) return;
+    if (checkoutPending || currentTab.held) return;
     if (qty <= 0) {
       removeItem(item);
     } else {
@@ -231,7 +256,7 @@ class PosAndDrugsProvider extends ChangeNotifier {
   }
 
   void changeUnit(CartItemModel item, String unit) {
-    if (currentTab.held) return;
+    if (checkoutPending || currentTab.held) return;
     item.sellUnit = unit;
     notifyListeners();
   }
@@ -299,28 +324,33 @@ class PosAndDrugsProvider extends ChangeNotifier {
       if (existing.isEmpty)
         throw StateError('الدواء غير موجود في الفرع الحالي');
       map['stock_total_units'] = existing.first['stock_total_units'];
-      await db.update('drugs', map,
-          where: 'id=? AND branch_id=?', whereArgs: [drug.id, branchId]);
+      await db.update(
+        'drugs',
+        map,
+        where: 'id=? AND branch_id=?',
+        whereArgs: [drug.id, branchId],
+      );
     }
     await loadDrugs();
   }
 
-  Future<int> checkout(
-      {required int cashierId,
-      required String saleType,
-      required List<
-              ({
-                int cashAccountId,
-                double amount,
-                String method,
-                String? walletRef
-              })>
-          payments,
-      int? customerId,
-      double discount = 0,
-      bool managerApproved = false,
-      int branchId = 1,
-      required ClinicalVerdict clinicalVerdict}) async {
+  Future<int> checkout({
+    required int cashierId,
+    required String saleType,
+    required List<
+            ({
+              int cashAccountId,
+              double amount,
+              String method,
+              String? walletRef
+            })>
+        payments,
+    int? customerId,
+    double discount = 0,
+    bool managerApproved = false,
+    int? branchId,
+    required ClinicalVerdict clinicalVerdict,
+  }) async {
     if (checkoutPending) throw StateError('الفاتورة قيد الحفظ بالفعل');
     if (currentTab.held) throw StateError('استرجع الفاتورة قبل إتمامها');
     if (clinicalBlock != null && !managerApproved)
@@ -333,17 +363,31 @@ class PosAndDrugsProvider extends ChangeNotifier {
     final postingTab = currentTab;
     try {
       final id = await _posting.postSale(
-          branchId: branchId,
-          cashierUserId: cashierId,
-          items: List<CartItemModel>.from(postingTab.items),
-          saleType: saleType,
-          payments: payments,
-          customerPartyId: customerId ?? 0,
-          discountAmount: discount,
-          clinicalVerdict: clinicalVerdict);
+        branchId: branchId ?? this.branchId,
+        cashierUserId: cashierId,
+        items: postingTab.items
+            .map(
+              (item) => CartItemModel(
+                drug: item.drug,
+                sellUnit: item.sellUnit,
+                quantity: item.quantity,
+                discount: item.discount,
+                isSubstitute: item.isSubstitute,
+                substitutedForDrugId: item.substitutedForDrugId,
+              ),
+            )
+            .toList(growable: false),
+        saleType: saleType,
+        payments: List.of(payments),
+        customerPartyId: customerId ?? 0,
+        discountAmount: discount,
+        clinicalVerdict: clinicalVerdict,
+      );
       // Do not submit the same cart again even if a refresh fails.
       postingTab.items.clear();
       postingTab.held = false;
+      postingTab.patientFlags.clear();
+      clinicalBlock = null;
       notifyListeners();
       try {
         await loadDrugs();
