@@ -172,7 +172,7 @@ class _DrugReferencePickerFieldState extends State<DrugReferencePickerField> {
       ),
     );
     if (!mounted || chosen == null) return;
-    setState(() => _selectedTitle = chosen!.title);
+    setState(() => _selectedTitle = chosen.title);
     widget.controller.text = chosen.id.toString();
   }
 
