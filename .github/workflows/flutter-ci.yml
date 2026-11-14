@@ -296,6 +296,24 @@ jobs:
               raise SystemExit("Kotlin plugin implementation mapping was not applied.")
           print("Configured Kotlin Android plugin to resolve its implementation from Maven Central.")
           PY
+      # Firebase Emulator tests intentionally run on Java 17 above.
+      # Android Lint from the current Gradle/Flutter plugin toolchain calls
+      # java.util.List.removeLast(), which exists only on JDK 21+.  Switch to
+      # JDK 21 for release compilation rather than turning off release lint.
+      - name: Set up Java 21 for Android release lint and Gradle build
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Verify Android build uses Java 21
+        shell: bash
+        run: |
+          java -version
+          if [ "$(java -XshowSettings:properties -version 2>&1 | sed -n 's/.*java.specification.version = //p' | head -n 1)" != '21' ]; then
+            echo 'Android Gradle/Lint must run on JDK 21.'
+            exit 1
+          fi
+          echo "JAVA_HOME=$JAVA_HOME"
       - name: Build Android APK with retry for transient Gradle distribution failures
         shell: bash
         env:
