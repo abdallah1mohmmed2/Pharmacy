@@ -138,6 +138,10 @@ void main() {
   });
   testWidgets('party SMS action opens editable composer without sending',
       (tester) async {
+    tester.view.physicalSize = const Size(960, 1100);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final session = _Session()
       ..parties = [
         const PartyModel(
