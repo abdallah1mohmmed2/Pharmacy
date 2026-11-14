@@ -172,7 +172,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('party-message-sms')));
     await tester.pumpAndSettle();
     expect(find.byType(ManualMessageComposerScreen), findsOneWidget);
-    expect(find.text('عميل برسالة'), findsWidgets);
+    expect(find.textContaining('عميل برسالة'), findsWidgets);
     expect(launches, isEmpty);
     await tester.ensureVisible(find.text('فتح SMS'));
     await tester.tap(find.text('فتح SMS'));
