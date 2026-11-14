@@ -63,7 +63,7 @@ class _PartyDetailsScreenState extends State<PartyDetailsScreen> {
     final session = context.watch<SessionAndErpProvider>();
     final party =
         session.parties.where((p) => p.id == widget.party.id).firstOrNull ??
-        widget.party;
+            widget.party;
     final customer = party.partyType == 'CUSTOMER';
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -122,16 +122,14 @@ class _PartyDetailsScreenState extends State<PartyDetailsScreen> {
               ],
               actions: [
                 OutlinedButton.icon(
-                  onPressed: _busy
-                      ? null
-                      : () => _run(() => widget.onPrint(party)),
+                  onPressed:
+                      _busy ? null : () => _run(() => widget.onPrint(party)),
                   icon: const Icon(Icons.picture_as_pdf),
                   label: const Text('طباعة كشف PDF'),
                 ),
                 FilledButton.tonalIcon(
-                  onPressed: _busy
-                      ? null
-                      : () => _run(() => widget.onVoucher(party)),
+                  onPressed:
+                      _busy ? null : () => _run(() => widget.onVoucher(party)),
                   icon: const Icon(Icons.payments_outlined),
                   label: const Text('سند قبض / صرف'),
                 ),
@@ -150,10 +148,10 @@ class _PartyDetailsScreenState extends State<PartyDetailsScreen> {
                   onPressed: _busy
                       ? null
                       : () => _run(() async {
-                          await session.refresh();
-                          if (session.lastError != null)
-                            throw StateError('refresh failed');
-                        }),
+                            await session.refresh();
+                            if (session.lastError != null)
+                              throw StateError('refresh failed');
+                          }),
                   icon: const Icon(Icons.refresh),
                 ),
               ],

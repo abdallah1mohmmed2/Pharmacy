@@ -148,8 +148,8 @@ class _S19S20S21PartiesAndVouchersScreenState
                             Text(
                               type == 'CUSTOMER'
                                   ? (party.isPatient
-                                        ? 'عميل • ملف طبي نشط'
-                                        : 'حساب عميل')
+                                      ? 'عميل • ملف طبي نشط'
+                                      : 'حساب عميل')
                                   : 'حساب مورد / مذخر',
                             ),
                             if (party.address.isNotEmpty)
@@ -251,8 +251,7 @@ class _S19S20S21PartiesAndVouchersScreenState
         LahAlayhRow(
           date: (e['entry_date'] as String).split('T').first,
           statement: e['statement_ar'] as String,
-          document:
-              (e['doc_type'] as String) +
+          document: (e['doc_type'] as String) +
               ' #' +
               (e['doc_id']?.toString() ?? ''),
           alayh: a,
@@ -450,8 +449,7 @@ class _S19S20S21PartiesAndVouchersScreenState
                 if (value == null ||
                     value <= 0 ||
                     (method != 'OFFSET' && cashId == null) ||
-                    (method == 'WALLET' && ref.text.trim().length < 6))
-                  return;
+                    (method == 'WALLET' && ref.text.trim().length < 6)) return;
                 final no =
                     'VCH-' + DateTime.now().microsecondsSinceEpoch.toString();
                 try {
@@ -572,16 +570,16 @@ class _S19S20S21PartiesAndVouchersScreenState
                 if (name.text.trim().isEmpty) return;
                 final v = double.tryParse(opening.text) ?? 0;
                 await context.read<SessionAndErpProvider>().createParty(
-                  PartyModel(
-                    partyType: type,
-                    code: code.text,
-                    nameAr: name.text,
-                    phone: phone.text,
-                  ),
-                  openingAlayh: side == 'ALAYH' ? v : 0,
-                  openingLah: side == 'LAH' ? v : 0,
-                  createPatient: createPatient,
-                );
+                      PartyModel(
+                        partyType: type,
+                        code: code.text,
+                        nameAr: name.text,
+                        phone: phone.text,
+                      ),
+                      openingAlayh: side == 'ALAYH' ? v : 0,
+                      openingLah: side == 'LAH' ? v : 0,
+                      createPatient: createPatient,
+                    );
                 if (ctx.mounted) Navigator.pop(ctx);
               },
               child: const Text('حفظ'),
