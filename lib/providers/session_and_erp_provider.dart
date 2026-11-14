@@ -297,6 +297,8 @@ class SessionAndErpProvider extends ChangeNotifier {
     return id;
   }
 
+  bool voucherPending = false;
+
   Future<int> issueVoucher(
       {required String voucherNo,
       required String type,
@@ -306,6 +308,10 @@ class SessionAndErpProvider extends ChangeNotifier {
       required String method,
       String? walletRef,
       String description = ''}) async {
+    if (voucherPending) throw StateError('السند قيد الحفظ بالفعل');
+    voucherPending = true;
+    notifyListeners();
+    try {
     final id = await _posting.postVoucher(
         branchId: branchId,
         voucherNo: voucherNo,
@@ -318,5 +324,9 @@ class SessionAndErpProvider extends ChangeNotifier {
         description: description);
     await refresh();
     return id;
+    } finally {
+      voucherPending = false;
+      notifyListeners();
+    }
   }
 }
