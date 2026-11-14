@@ -11,6 +11,7 @@ class _DelayedPosting extends PostingAndSalesService {
   _DelayedPosting(this.result);
   final Completer<int> result;
   int callCount = 0;
+  List<CartItemModel>? postedItems;
 
   @override
   Future<int> postSale({
@@ -31,6 +32,7 @@ class _DelayedPosting extends PostingAndSalesService {
     required ClinicalVerdict clinicalVerdict,
   }) {
     callCount++;
+    postedItems = items;
     return result.future;
   }
 }
@@ -64,8 +66,11 @@ void main() {
     posting.result.completeError(StateError('database rejected invoice'));
     await failure;
     expect(provider.checkoutPending, isFalse);
-    expect(provider.cart, hasLength(1),
-        reason: "failed posting must keep the customer cart");
+    expect(
+      provider.cart,
+      hasLength(1),
+      reason: "failed posting must keep the customer cart",
+    );
   });
 
   test('invalid discounts are rejected before posting', () async {
@@ -87,5 +92,84 @@ void main() {
     );
     expect(posting.callCount, 0);
     expect(provider.checkoutPending, isFalse);
+  });
+  test(
+    'pending checkout freezes cart and posts an independent snapshot',
+    () async {
+      final posting = _DelayedPosting(Completer<int>());
+      final provider = PosAndDrugsProvider(posting: posting);
+      provider.addDrug(
+        const DrugModel(id: 7, sellPricePack: 1500),
+        unit: 'PACK',
+      );
+      final item = provider.cart.single;
+      final first = provider.checkout(
+        cashierId: 1,
+        saleType: 'CASH',
+        payments: const [
+          (cashAccountId: 1, amount: 1500.0, method: 'CASH', walletRef: null),
+        ],
+        clinicalVerdict: ClinicalVerdict(const []),
+      );
+      provider.changeQuantity(item, 9);
+      provider.changeUnit(item, 'UNIT');
+      provider.removeItem(item);
+      provider.closeCurrent();
+      provider.holdCurrent();
+      expect(provider.createTab(), isFalse);
+      expect(provider.cart, hasLength(1));
+      expect(item.quantity, 1);
+      expect(item.sellUnit, 'PACK');
+      expect(provider.currentTab.held, isFalse);
+      // An old reference cannot mutate the objects already sent for posting.
+      item.quantity = 99;
+      expect(posting.postedItems!.single.quantity, 1);
+      final failure = expectLater(first, throwsStateError);
+      posting.result.completeError(StateError('temporary failure'));
+      await failure;
+      expect(provider.checkoutPending, isFalse);
+      provider.changeQuantity(item, 2);
+      expect(item.quantity, 2);
+    },
+  );
+
+  test('invalid numeric input never reaches the database', () async {
+    final posting = PostingAndSalesService();
+    Future<int> submit({
+      double discount = 0,
+      double quantity = 1,
+      double payment = 100,
+    }) =>
+        posting.postSale(
+          branchId: 1,
+          cashierUserId: 1,
+          saleType: 'CASH',
+          items: [
+            CartItemModel(
+              drug: const DrugModel(id: 7, sellPriceUnit: 100),
+              sellUnit: 'UNIT',
+              quantity: quantity,
+            ),
+          ],
+          payments: [
+            (
+              cashAccountId: 1,
+              amount: payment,
+              method: 'CASH',
+              walletRef: null
+            ),
+          ],
+          discountAmount: discount,
+          clinicalVerdict: ClinicalVerdict(const []),
+        );
+    for (final discount in [-1.0, 101.0, double.nan, double.infinity]) {
+      await expectLater(submit(discount: discount), throwsStateError);
+    }
+    for (final quantity in [0.0, -1.0, double.nan, double.infinity]) {
+      await expectLater(submit(quantity: quantity), throwsStateError);
+    }
+    for (final payment in [-1.0, double.nan, double.infinity]) {
+      await expectLater(submit(payment: payment), throwsStateError);
+    }
   });
 }
