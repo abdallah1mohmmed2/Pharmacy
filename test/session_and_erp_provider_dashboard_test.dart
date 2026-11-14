@@ -72,6 +72,60 @@ void main() {
       expect(provider.dashboard['invoiceCount'], 0);
       expect(provider.dashboard['drugCount'], 0);
       expect(provider.dashboard['lowStock'], 0);
+
+      // Catalog-only drugs are counted in the encyclopedia, but never
+      // as shortages. Historical zero-unit FEFO batches still qualify.
+      final now = DateTime.now().toIso8601String();
+      Future<int> registerDrug(String code, int stock, int minimum) =>
+          db.insert('drugs', {
+            'uuid': 'dashboard-stock-' + code,
+            'branch_id': branchId,
+            'created_at': now,
+            'updated_at': now,
+            'internal_code': 'DASH-' + code,
+            'trade_name_ar': 'دواء ' + code,
+            'strips_per_pack': 1,
+            'units_per_strip': 10,
+            'units_per_pack': 10,
+            'stock_total_units': stock,
+            'min_stock_units': minimum,
+          });
+      final catalogOnlyId = await registerDrug('CATALOG', 0, 20);
+      final depletedPharmacyId = await registerDrug('PHARMACY', 0, 20);
+      final depletedMainStoreId = await registerDrug('STORE', 0, 20);
+      final healthyId = await registerDrug('HEALTHY', 20, 10);
+      final floorId = (await db.query('warehouses',
+          columns: ['id'], where: 'code=?', whereArgs: ['PHARM']))
+          .single['id'] as int;
+      final mainStoreId = (await db.query('warehouses',
+          columns: ['id'], where: 'code=?', whereArgs: ['MAIN']))
+          .single['id'] as int;
+      Future<void> addBatch(int drugId, int warehouse, int sealedPacks,
+          String number) async {
+        await db.insert('batches_fefo', {
+          'drug_id': drugId,
+          'warehouse_id': warehouse,
+          'batch_no': number,
+          'expiry_date': '2030-12-31',
+          'status': sealedPacks == 0 ? 'DEPLETED' : 'ACTIVE',
+          'sealed_packs': sealedPacks,
+          'loose_units': 0,
+          'total_units': sealedPacks * 10,
+        });
+      }
+      await addBatch(depletedPharmacyId, floorId, 0, 'HISTORY-PHARMACY');
+      await addBatch(depletedMainStoreId, mainStoreId, 0, 'HISTORY-STORE');
+      await addBatch(healthyId, mainStoreId, 2, 'STOCKED-HEALTHY');
+      await provider.refresh();
+      expect(provider.lastError, isNull);
+      expect(provider.dashboard['drugCount'], 4);
+      expect(provider.dashboard['lowStock'], 2);
+      expect(
+        provider.lowStockDrugs.map((row) => row['id']).toSet(),
+        {depletedPharmacyId, depletedMainStoreId},
+      );
+      expect(provider.lowStockDrugs.map((row) => row['id']),
+          isNot(contains(catalogOnlyId)));
     } finally {
       await db.close();
     }
