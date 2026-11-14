@@ -8,7 +8,8 @@ import '../../providers/session_and_erp_provider.dart';
 class S22TreasuryWalletsScreen extends StatefulWidget {
   const S22TreasuryWalletsScreen({super.key});
   @override
-  State<S22TreasuryWalletsScreen> createState() => _S22TreasuryWalletsScreenState();
+  State<S22TreasuryWalletsScreen> createState() =>
+      _S22TreasuryWalletsScreenState();
 }
 
 class _S22TreasuryWalletsScreenState extends State<S22TreasuryWalletsScreen> {
@@ -25,17 +26,18 @@ class _S22TreasuryWalletsScreenState extends State<S22TreasuryWalletsScreen> {
     _loadedSession = key;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      context.read<TreasuryHrPartnerProvider>().loadTreasury(
-          branchId: branchId, userId: userId);
+      context
+          .read<TreasuryHrPartnerProvider>()
+          .loadTreasury(branchId: branchId, userId: userId);
     });
   }
 
   Future<void> _reload() {
     final session = context.read<SessionAndErpProvider>();
     return context.read<TreasuryHrPartnerProvider>().loadTreasury(
-        branchId: session.branchId,
-        userId: session.currentUser?['id'] as int?);
+        branchId: session.branchId, userId: session.currentUser?['id'] as int?);
   }
+
   @override
   Widget build(BuildContext context) {
     final p = context.watch<TreasuryHrPartnerProvider>();
@@ -44,173 +46,191 @@ class _S22TreasuryWalletsScreenState extends State<S22TreasuryWalletsScreen> {
         backgroundColor: Colors.transparent,
         body: RefreshIndicator(
             onRefresh: _reload,
-            child: ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.all(16), children: [
-              LayoutBuilder(builder: (context, constraints) {
-                final actions = Wrap(
-                  spacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    IconButton(
-                        onPressed: () => _addAccount(context),
-                        icon: const Icon(Icons.add_card),
-                        tooltip: 'إضافة حساب'),
-                    FilledButton.icon(
-                        onPressed: p.operationPending
-                            ? null
-                            : () => _transfer(context, p),
-                        icon: const Icon(Icons.swap_horiz),
-                        label: const Text('تحويل'))
-                  ],
-                );
-                if (constraints.maxWidth < 520) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('الخزينة والصناديق والمحافظ',
-                          style: TextStyle(
-                              fontSize: 20, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-                      actions,
-                    ],
-                  );
-                }
-                return Row(children: [
-                  const Expanded(
-                      child: Text('الخزينة والصناديق والمحافظ',
-                          style: TextStyle(
-                              fontSize: 20, fontWeight: FontWeight.bold))),
-                  actions,
-                ]);
-              }),
-              const SizedBox(height: 12),
-              if (p.treasuryLoading) const LinearProgressIndicator(),
-              if (p.treasuryError != null) ...[
-                Text('تعذر تحميل بيانات الخزينة: ${p.treasuryError}',
-                    style: const TextStyle(color: Color(0xFFEF5350))),
-                TextButton(onPressed: _reload, child: const Text('إعادة المحاولة')),
-              ],
-              if (!p.treasuryLoading && p.treasuryError == null && p.cashAccounts.isEmpty)
-                const Padding(padding: EdgeInsets.all(16),
-                    child: Text('لا توجد حسابات خزينة أو محافظ في الفرع الحالي')),
-              LayoutBuilder(builder: (context, constraints) {
-                final cardWidth =
-                    constraints.maxWidth < 600 ? constraints.maxWidth : 280.0;
-                return Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: p.cashAccounts.map((a) {
-                    final id = a['id'];
-                    final movements = p.transactions.where((t) =>
-                        t['cash_account_id'] == id &&
-                        t['tx_date'].toString().startsWith(today));
-                    final incoming = movements
-                        .where((t) => t['direction'] == 'IN')
-                        .fold<double>(
-                            0, (s, t) => s + (t['amount'] as num).toDouble());
-                    final outgoing = movements
-                        .where((t) => t['direction'] == 'OUT')
-                        .fold<double>(
-                            0, (s, t) => s + (t['amount'] as num).toDouble());
-                    return SizedBox(
-                        width: cardWidth,
-                        child: Card(
-                            key: ValueKey('treasury-account-$id'),
-                            child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(children: [
-                                        const Icon(Icons.account_balance_wallet,
-                                            color: Color(0xFF4DB6AC)),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                            child: Text(a['name_ar'].toString(),
-                                                style: const TextStyle(
-                                                    fontWeight:
-                                                        FontWeight.bold))),
-                                        if (a['account_kind'] == 'WALLET')
-                                          const Icon(Icons.phonelink_lock,
-                                              size: 16, color: Colors.white54)
-                                      ]),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                          '${((a['current_balance'] as num?) ?? 0).toStringAsFixed(2)}',
-                                          style: const TextStyle(
-                                              fontSize: 23,
-                                              fontWeight: FontWeight.bold)),
-                                      if (a['wallet_phone'] != null)
-                                        Text('الهاتف: ${a['wallet_phone']}'),
-                                      const Divider(),
-                                      Wrap(
-                                        spacing: 12,
-                                        runSpacing: 6,
-                                        children: [
-                                          Text(
-                                            'وارد اليوم: ${incoming.toStringAsFixed(2)}',
-                                            style: const TextStyle(
-                                                color: Color(0xFF66BB6A)),
-                                          ),
-                                          Text(
-                                            'صادر: ${outgoing.toStringAsFixed(2)}',
-                                            style: const TextStyle(
-                                                color: Color(0xFFEF5350)),
-                                          ),
-                                        ],
-                                      ),
-                                      if (a['account_kind'] == 'WALLET')
-                                        Align(
-                                            alignment: Alignment.centerLeft,
-                                            child: TextButton.icon(
-                                                onPressed: p.operationPending
-                                                    ? null
-                                                    : () => _reconcile(
-                                                        context, p, a),
-                                                icon: const Icon(
-                                                    Icons.fact_check),
-                                                label: const Text(
-                                                    'مطابقة الرصيد الفعلي')))
-                                    ]))));
-                  }).toList(),
-                );
-              }),
-              const SizedBox(height: 20),
-              const Text('دفتر حركة الصندوق والخزينة',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: DataTable(
-                      columns: const [
-                        DataColumn(label: Text('التاريخ')),
-                        DataColumn(label: Text('الحساب')),
-                        DataColumn(label: Text('الحركة')),
-                        DataColumn(label: Text('وارد')),
-                        DataColumn(label: Text('صادر')),
-                        DataColumn(label: Text('الرصيد بعد الحركة')),
-                        DataColumn(label: Text('رقم الإشعار'))
+            child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                children: [
+                  LayoutBuilder(builder: (context, constraints) {
+                    final actions = Wrap(
+                      spacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        IconButton(
+                            onPressed: () => _addAccount(context),
+                            icon: const Icon(Icons.add_card),
+                            tooltip: 'إضافة حساب'),
+                        FilledButton.icon(
+                            onPressed: p.operationPending
+                                ? null
+                                : () => _transfer(context, p),
+                            icon: const Icon(Icons.swap_horiz),
+                            label: const Text('تحويل'))
                       ],
-                      rows: p.transactions
-                          .map((t) => DataRow(cells: [
-                                DataCell(Text(t['tx_date']
-                                    .toString()
-                                    .replaceFirst('T', ' '))),
-                                DataCell(
-                                    Text(t['account_name']?.toString() ?? '')),
-                                DataCell(Text(t['tx_type'].toString())),
-                                DataCell(Text(t['direction'] == 'IN'
-                                    ? (t['amount'] as num).toStringAsFixed(2)
-                                    : '—')),
-                                DataCell(Text(t['direction'] == 'OUT'
-                                    ? (t['amount'] as num).toStringAsFixed(2)
-                                    : '—')),
-                                DataCell(Text((t['balance_after'] as num)
-                                    .toStringAsFixed(2))),
-                                DataCell(
-                                    Text(t['wallet_ref_no']?.toString() ?? '—'))
-                              ]))
-                          .toList()))
-            ])));
+                    );
+                    if (constraints.maxWidth < 520) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('الخزينة والصناديق والمحافظ',
+                              style: TextStyle(
+                                  fontSize: 20, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 8),
+                          actions,
+                        ],
+                      );
+                    }
+                    return Row(children: [
+                      const Expanded(
+                          child: Text('الخزينة والصناديق والمحافظ',
+                              style: TextStyle(
+                                  fontSize: 20, fontWeight: FontWeight.bold))),
+                      actions,
+                    ]);
+                  }),
+                  const SizedBox(height: 12),
+                  if (p.treasuryLoading) const LinearProgressIndicator(),
+                  if (p.treasuryError != null) ...[
+                    Text('تعذر تحميل بيانات الخزينة: ${p.treasuryError}',
+                        style: const TextStyle(color: Color(0xFFEF5350))),
+                    TextButton(
+                        onPressed: _reload,
+                        child: const Text('إعادة المحاولة')),
+                  ],
+                  if (!p.treasuryLoading &&
+                      p.treasuryError == null &&
+                      p.cashAccounts.isEmpty)
+                    const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text(
+                            'لا توجد حسابات خزينة أو محافظ في الفرع الحالي')),
+                  LayoutBuilder(builder: (context, constraints) {
+                    final cardWidth = constraints.maxWidth < 600
+                        ? constraints.maxWidth
+                        : 280.0;
+                    return Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: p.cashAccounts.map((a) {
+                        final id = a['id'];
+                        final movements = p.transactions.where((t) =>
+                            t['cash_account_id'] == id &&
+                            t['tx_date'].toString().startsWith(today));
+                        final incoming = movements
+                            .where((t) => t['direction'] == 'IN')
+                            .fold<double>(0,
+                                (s, t) => s + (t['amount'] as num).toDouble());
+                        final outgoing = movements
+                            .where((t) => t['direction'] == 'OUT')
+                            .fold<double>(0,
+                                (s, t) => s + (t['amount'] as num).toDouble());
+                        return SizedBox(
+                            width: cardWidth,
+                            child: Card(
+                                key: ValueKey('treasury-account-$id'),
+                                child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(children: [
+                                            const Icon(
+                                                Icons.account_balance_wallet,
+                                                color: Color(0xFF4DB6AC)),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                                child: Text(
+                                                    a['name_ar'].toString(),
+                                                    style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold))),
+                                            if (a['account_kind'] == 'WALLET')
+                                              const Icon(Icons.phonelink_lock,
+                                                  size: 16,
+                                                  color: Colors.white54)
+                                          ]),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                              '${((a['current_balance'] as num?) ?? 0).toStringAsFixed(2)}',
+                                              style: const TextStyle(
+                                                  fontSize: 23,
+                                                  fontWeight: FontWeight.bold)),
+                                          if (a['wallet_phone'] != null)
+                                            Text(
+                                                'الهاتف: ${a['wallet_phone']}'),
+                                          const Divider(),
+                                          Wrap(
+                                            spacing: 12,
+                                            runSpacing: 6,
+                                            children: [
+                                              Text(
+                                                'وارد اليوم: ${incoming.toStringAsFixed(2)}',
+                                                style: const TextStyle(
+                                                    color: Color(0xFF66BB6A)),
+                                              ),
+                                              Text(
+                                                'صادر: ${outgoing.toStringAsFixed(2)}',
+                                                style: const TextStyle(
+                                                    color: Color(0xFFEF5350)),
+                                              ),
+                                            ],
+                                          ),
+                                          if (a['account_kind'] == 'WALLET')
+                                            Align(
+                                                alignment: Alignment.centerLeft,
+                                                child: TextButton.icon(
+                                                    onPressed:
+                                                        p.operationPending
+                                                            ? null
+                                                            : () => _reconcile(
+                                                                context, p, a),
+                                                    icon: const Icon(
+                                                        Icons.fact_check),
+                                                    label: const Text(
+                                                        'مطابقة الرصيد الفعلي')))
+                                        ]))));
+                      }).toList(),
+                    );
+                  }),
+                  const SizedBox(height: 20),
+                  const Text('دفتر حركة الصندوق والخزينة',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: DataTable(
+                          columns: const [
+                            DataColumn(label: Text('التاريخ')),
+                            DataColumn(label: Text('الحساب')),
+                            DataColumn(label: Text('الحركة')),
+                            DataColumn(label: Text('وارد')),
+                            DataColumn(label: Text('صادر')),
+                            DataColumn(label: Text('الرصيد بعد الحركة')),
+                            DataColumn(label: Text('رقم الإشعار'))
+                          ],
+                          rows: p.transactions
+                              .map((t) => DataRow(cells: [
+                                    DataCell(Text(t['tx_date']
+                                        .toString()
+                                        .replaceFirst('T', ' '))),
+                                    DataCell(Text(
+                                        t['account_name']?.toString() ?? '')),
+                                    DataCell(Text(t['tx_type'].toString())),
+                                    DataCell(Text(t['direction'] == 'IN'
+                                        ? (t['amount'] as num)
+                                            .toStringAsFixed(2)
+                                        : '—')),
+                                    DataCell(Text(t['direction'] == 'OUT'
+                                        ? (t['amount'] as num)
+                                            .toStringAsFixed(2)
+                                        : '—')),
+                                    DataCell(Text((t['balance_after'] as num)
+                                        .toStringAsFixed(2))),
+                                    DataCell(Text(
+                                        t['wallet_ref_no']?.toString() ?? '—'))
+                                  ]))
+                              .toList()))
+                ])));
   }
 
   Future<void> _transfer(
