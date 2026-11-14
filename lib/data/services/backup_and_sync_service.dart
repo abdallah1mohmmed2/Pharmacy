@@ -190,6 +190,127 @@ class BackupAndSyncService {
         compressed: compress);
   }
 
+  /// Imports an explicitly selected user file into the trusted local backup
+  /// registry only after verifying its SQLite contents. Android file-picker
+  /// paths may be temporary cache files; we never treat them as permanent.
+  Future<BackupResult> importBackupForRestore(
+      {required File selectedFile, int? userId}) async {
+    if (!await selectedFile.exists()) {
+      throw FileSystemException('ملف النسخة المختار غير موجود', selectedFile.path);
+    }
+    final bytes = await selectedFile.readAsBytes();
+    if (bytes.isEmpty) throw StateError('ملف النسخة فارغ.');
+    final compressed =
+        bytes.length >= 2 && bytes[0] == 0x1f && bytes[1] == 0x8b;
+    late final List<int> unpacked;
+    try {
+      unpacked = compressed ? GZipCodec().decode(bytes) : bytes;
+    } catch (_) {
+      throw StateError('ملف النسخة المضغوط تالف أو غير صالح.');
+    }
+    if (unpacked.length < 16 ||
+        ascii.decode(unpacked.take(16).toList(), allowInvalid: true) !=
+            'SQLite format 3\x00') {
+      throw StateError('الملف المحدد ليس نسخة قاعدة بيانات SQLite صالحة.');
+    }
+    final directory = _backupDirectoryForTesting ??
+        Directory(
+            p.join((await getApplicationSupportDirectory()).path, 'backups'));
+    await directory.create(recursive: true);
+    final stamp = DateTime.now().microsecondsSinceEpoch;
+    final checkFile =
+        File(p.join(directory.path, '.import_check_$stamp.db'));
+    try {
+      await checkFile.writeAsBytes(unpacked, flush: true);
+      await _verifySnapshot(checkFile);
+      // Do not replace the live ERP with an arbitrary SQLite database.
+      final verified = await openDatabase(checkFile.path,
+          readOnly: true, singleInstance: false);
+      try {
+        final rows = await verified.rawQuery(
+            "SELECT name FROM sqlite_master WHERE type='table' "
+            "AND name IN ('drugs','parties','users','system_settings','audit_logs','backup_log')");
+        final names = rows.map((r) => r['name'] as String).toSet();
+        if (!names.containsAll({
+          'drugs',
+          'parties',
+          'users',
+          'system_settings',
+          'audit_logs',
+          'backup_log',
+        })) {
+          throw StateError('ملف النسخة لا يحتوي على الجداول الأساسية للصيدلية.');
+        }
+      } finally {
+        await verified.close();
+      }
+    } finally {
+      if (await checkFile.exists()) await checkFile.delete();
+    }
+    final backupFile = File(p.join(directory.path,
+        'pharmacy_backup_imported_$stamp.db${compressed ? '.gz' : ''}'));
+    // No overwrite: a new internal path is allocated for every import.
+    await backupFile.writeAsBytes(bytes, flush: true);
+    final result = BackupResult(
+      file: backupFile,
+      sha256: sha256.convert(bytes).toString(),
+      sizeBytes: bytes.length,
+      compressed: compressed,
+    );
+    final db = await _helper.database;
+    try {
+      await db.transaction((txn) async {
+        await txn.insert('backup_log', {
+          'backup_at': DateTime.now().toIso8601String(),
+          'trigger_type': 'IMPORTED',
+          'file_path': result.file.path,
+          'size_bytes': result.sizeBytes,
+          'sha256': result.sha256,
+          'encrypted': 0,
+          'result': 'SUCCESS',
+          'user_id': userId,
+        });
+        await AuditService(helper: _helper, executor: txn).record(
+          action: 'BACKUP',
+          userId: userId,
+          entityType: 'backup_log',
+          entityLabel: result.file.path,
+          reason: 'IMPORTED_FOR_RESTORE',
+          newValues: {
+            'sha256': result.sha256,
+            'size_bytes': result.sizeBytes,
+          },
+        );
+      });
+    } catch (_) {
+      if (await backupFile.exists()) await backupFile.delete();
+      rethrow;
+    }
+    return result;
+  }
+
+  /// Preserves the existing strict SHA-256 restore contract, including an
+  /// automatic BEFORE_RESTORE snapshot of the active database.
+  Future<void> restoreBackupFromDevice(
+      {required File selectedFile, int? userId}) async {
+    final imported = await importBackupForRestore(
+        selectedFile: selectedFile, userId: userId);
+    await restoreBackup(backup: imported.file, userId: userId);
+    // A restored SQLite snapshot predates the import log in this device.
+    // Register the imported source again so it remains in backup history.
+    final db = await _helper.database;
+    await db.insert('backup_log', {
+      'backup_at': DateTime.now().toIso8601String(),
+      'trigger_type': 'IMPORTED',
+      'file_path': imported.file.path,
+      'size_bytes': imported.sizeBytes,
+      'sha256': imported.sha256,
+      'encrypted': 0,
+      'result': 'SUCCESS',
+      'user_id': userId,
+    });
+  }
+
   Future<void> restoreBackup({required File backup, int? userId}) async {
     if (!await backup.exists())
       throw FileSystemException('ملف النسخة غير موجود', backup.path);
