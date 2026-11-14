@@ -21,7 +21,8 @@ class _FailMovementsOnce extends ShiftAndTreasuryService {
   Future<List<Map<String, Object?>>> transactions(int branchId,
       {int? accountId, String? from, String? to}) {
     if (fail) return Future.error(StateError('test movement read failure'));
-    return super.transactions(branchId, accountId: accountId, from: from, to: to);
+    return super
+        .transactions(branchId, accountId: accountId, from: from, to: to);
   }
 }
 
@@ -58,7 +59,8 @@ void main() {
 
     await tester.pumpWidget(
       MultiProvider(providers: [
-        ChangeNotifierProvider<TreasuryHrPartnerProvider>.value(value: provider),
+        ChangeNotifierProvider<TreasuryHrPartnerProvider>.value(
+            value: provider),
         ChangeNotifierProvider(create: (_) => SessionAndErpProvider()),
       ], child: const MaterialApp(home: S22TreasuryWalletsScreen())),
     );
@@ -92,22 +94,27 @@ void main() {
       try {
         final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
         await Directory('test_artifacts').create(recursive: true);
-        await File('test_artifacts/$filename').writeAsBytes(bytes!.buffer.asUint8List());
+        await File('test_artifacts/$filename')
+            .writeAsBytes(bytes!.buffer.asUint8List());
       } finally {
         image.dispose();
       }
     });
   }
 
-  Future<void> waitForTreasury(WidgetTester tester,
-      TreasuryHrPartnerProvider provider) async {
+  Future<void> waitForTreasury(
+      WidgetTester tester, TreasuryHrPartnerProvider provider) async {
     // SQLite replies arrive on the real event loop, while provider futures
     // started by a widget finish in the test's fake zone. Advance both.
-    for (var attempt = 0; attempt < 500 && provider.treasuryLoading; attempt++) {
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+    for (var attempt = 0;
+        attempt < 500 && provider.treasuryLoading;
+        attempt++) {
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)));
       await tester.pump();
     }
-    expect(provider.treasuryLoading, isFalse, reason: 'treasury load must finish');
+    expect(provider.treasuryLoading, isFalse,
+        reason: 'treasury load must finish');
   }
 
   Future<void> mountFromEmptyProvider(WidgetTester tester,
@@ -118,15 +125,24 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     final session = SessionAndErpProvider()..currentUser = {'id': 1};
     expect(provider.cashAccounts, isEmpty);
-    await tester.pumpWidget(MultiProvider(providers: [
-        ChangeNotifierProvider<TreasuryHrPartnerProvider>.value(value: provider),
-        ChangeNotifierProvider<SessionAndErpProvider>.value(value: session),
-      ], child: RepaintBoundary(key: const ValueKey('treasury-test-render'),
-          child: MaterialApp(theme: EnterpriseDarkTheme.data.copyWith(
-              platform: size.width >= 700 ? TargetPlatform.windows : TargetPlatform.android,
-              textTheme: EnterpriseDarkTheme.data.textTheme.apply(fontFamily: 'TreasuryArabic')),
-              builder: (context, child) => Directionality(textDirection: TextDirection.rtl, child: child!),
-              home: const S22TreasuryWalletsScreen()))));
+    await tester.pumpWidget(MultiProvider(
+        providers: [
+          ChangeNotifierProvider<TreasuryHrPartnerProvider>.value(
+              value: provider),
+          ChangeNotifierProvider<SessionAndErpProvider>.value(value: session),
+        ],
+        child: RepaintBoundary(
+            key: const ValueKey('treasury-test-render'),
+            child: MaterialApp(
+                theme: EnterpriseDarkTheme.data.copyWith(
+                    platform: size.width >= 700
+                        ? TargetPlatform.windows
+                        : TargetPlatform.android,
+                    textTheme: EnterpriseDarkTheme.data.textTheme
+                        .apply(fontFamily: 'TreasuryArabic')),
+                builder: (context, child) => Directionality(
+                    textDirection: TextDirection.rtl, child: child!),
+                home: const S22TreasuryWalletsScreen()))));
     await waitForTreasury(tester, provider);
     expect(provider.userId, 1);
     await tester.pumpAndSettle();
@@ -137,15 +153,25 @@ void main() {
     });
   }
 
-  for (final size in [const Size(360, 640), const Size(390, 844), const Size(1280, 900), const Size(1366, 768)]) {
-    testWidgets('seeded SQLite accounts load on entry and every card is visible at $size', (tester) async {
-      final db = await tester.runAsync(() => openSaleDatabase(inMemoryDatabasePath));
+  for (final size in [
+    const Size(360, 640),
+    const Size(390, 844),
+    const Size(1280, 900),
+    const Size(1366, 768)
+  ]) {
+    testWidgets(
+        'seeded SQLite accounts load on entry and every card is visible at $size',
+        (tester) async {
+      final db =
+          await tester.runAsync(() => openSaleDatabase(inMemoryDatabasePath));
       addTearDown(() => db!.close());
-      final provider = TreasuryHrPartnerProvider(database: DatabaseHelper.forTesting(db!));
+      final provider =
+          TreasuryHrPartnerProvider(database: DatabaseHelper.forTesting(db!));
       await mountFromEmptyProvider(tester, provider, size);
       expect(provider.treasuryError, isNull);
       expect(provider.cashAccounts.length, greaterThanOrEqualTo(6));
-      expect(provider.cashAccounts.any((a) => a['name_ar'] == 'محفظة جيب'), isTrue);
+      expect(provider.cashAccounts.any((a) => a['name_ar'] == 'محفظة جيب'),
+          isTrue);
       await captureLayout(tester, 'treasury_${size.width.toInt()}_top.png');
       for (final account in provider.cashAccounts) {
         final card = find.byKey(ValueKey('treasury-account-${account['id']}'));
@@ -157,23 +183,31 @@ void main() {
         expect(rect.height, greaterThan(0));
         expect(rect.overlaps(Offset.zero & size), isTrue);
         if (account['code'] == 'W-JAIB') {
-          await captureLayout(tester, 'treasury_${size.width.toInt()}_wallets.png');
+          await captureLayout(
+              tester, 'treasury_${size.width.toInt()}_wallets.png');
         }
       }
       expect(tester.takeException(), isNull);
     });
   }
 
-  testWidgets('failed movements do not hide seeded wallet cards and retry recovers', (tester) async {
-    final db = await tester.runAsync(() => openSaleDatabase(inMemoryDatabasePath));
+  testWidgets(
+      'failed movements do not hide seeded wallet cards and retry recovers',
+      (tester) async {
+    final db =
+        await tester.runAsync(() => openSaleDatabase(inMemoryDatabasePath));
     addTearDown(() => db!.close());
     final helper = DatabaseHelper.forTesting(db!);
     final service = _FailMovementsOnce(helper);
-    final provider = TreasuryHrPartnerProvider(database: helper, treasury: service);
+    final provider =
+        TreasuryHrPartnerProvider(database: helper, treasury: service);
     await mountFromEmptyProvider(tester, provider, const Size(1280, 900));
     expect(find.textContaining('تعذر تحميل بيانات الخزينة'), findsOneWidget);
     expect(provider.cashAccounts, isNotEmpty);
-    expect(find.byKey(ValueKey('treasury-account-${provider.cashAccounts.first['id']}')), findsOneWidget);
+    expect(
+        find.byKey(
+            ValueKey('treasury-account-${provider.cashAccounts.first['id']}')),
+        findsOneWidget);
     service.fail = false;
     await tester.tap(find.text('إعادة المحاولة'));
     await waitForTreasury(tester, provider);
@@ -183,14 +217,18 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('empty branch explains missing accounts instead of showing only table headings', (tester) async {
-    final db = await tester.runAsync(() => openSaleDatabase(inMemoryDatabasePath));
+  testWidgets(
+      'empty branch explains missing accounts instead of showing only table headings',
+      (tester) async {
+    final db =
+        await tester.runAsync(() => openSaleDatabase(inMemoryDatabasePath));
     addTearDown(() => db!.close());
     await tester.runAsync(() => db!.update('cash_accounts', {'is_deleted': 1}));
-    final provider = TreasuryHrPartnerProvider(database: DatabaseHelper.forTesting(db!));
+    final provider =
+        TreasuryHrPartnerProvider(database: DatabaseHelper.forTesting(db!));
     await mountFromEmptyProvider(tester, provider, const Size(390, 844));
-    expect(find.text('لا توجد حسابات خزينة أو محافظ في الفرع الحالي'), findsOneWidget);
+    expect(find.text('لا توجد حسابات خزينة أو محافظ في الفرع الحالي'),
+        findsOneWidget);
     expect(tester.takeException(), isNull);
   });
-
 }
