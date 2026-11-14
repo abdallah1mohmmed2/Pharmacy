@@ -50,14 +50,18 @@ Future<Database> openSaleDatabase(String path) async {
   return db;
 }
 
-
 class _DelayedTransfer extends ShiftAndTreasuryService {
   final result = Completer<void>();
   int calls = 0;
   @override
-  Future<void> transfer({required int branchId, required int fromAccountId,
-      required int toAccountId, required double amount, double fee = 0,
-      String? walletRefNo, String note = ''}) {
+  Future<void> transfer(
+      {required int branchId,
+      required int fromAccountId,
+      required int toAccountId,
+      required double amount,
+      double fee = 0,
+      String? walletRefNo,
+      String note = ''}) {
     calls++;
     return result.future;
   }
@@ -65,7 +69,10 @@ class _DelayedTransfer extends ShiftAndTreasuryService {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  setUpAll(() { sqfliteFfiInit(); databaseFactory = databaseFactoryFfi; });
+  setUpAll(() {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  });
   late Database db;
   late ShiftAndTreasuryService service;
   late PostingAndSalesService posting;
@@ -75,27 +82,64 @@ void main() {
     final helper = DatabaseHelper.forTesting(db);
     service = ShiftAndTreasuryService(helper: helper);
     posting = PostingAndSalesService(helper: helper);
-    drawer = (await db.query('cash_accounts', where: 'code=?', whereArgs: ['CASH-DRAWER'])).single['id'] as int;
-    wallet = (await db.query('cash_accounts', where: 'code=?', whereArgs: ['W-JAWALI'])).single['id'] as int;
+    drawer = (await db.query('cash_accounts',
+            where: 'code=?', whereArgs: ['CASH-DRAWER']))
+        .single['id'] as int;
+    wallet = (await db
+            .query('cash_accounts', where: 'code=?', whereArgs: ['W-JAWALI']))
+        .single['id'] as int;
     // Fixture opening balance; tests assert subsequent posted movements.
-    await db.update('cash_accounts', {'current_balance': 1000.0}, where: 'id=?', whereArgs: [drawer]);
-    party = await db.insert('parties', {'uuid': 'treasury-party', 'branch_id': 1,
-      'created_at': '2026-11-14', 'updated_at': '2026-11-14', 'code': 'TR-P',
-      'name_ar': 'طرف اختبار', 'party_type': 'CUSTOMER'});
+    await db.update('cash_accounts', {'current_balance': 1000.0},
+        where: 'id=?', whereArgs: [drawer]);
+    party = await db.insert('parties', {
+      'uuid': 'treasury-party',
+      'branch_id': 1,
+      'created_at': '2026-11-14',
+      'updated_at': '2026-11-14',
+      'code': 'TR-P',
+      'name_ar': 'طرف اختبار',
+      'party_type': 'CUSTOMER'
+    });
   });
   tearDown(() => db.close());
-  Future<double> balance(int id) async => ((await db.query('cash_accounts', where: 'id=?', whereArgs: [id])).single['current_balance'] as num).toDouble();
-  Future<void> transfer({double amount = 100, double fee = 0}) => service.transfer(
-    branchId: 1, fromAccountId: drawer, toAccountId: wallet, amount: amount, fee: fee, walletRefNo: 'REF123');
-  Future<int> voucher({String type = 'RECEIPT', String method = 'CASH', int? account, int? targetParty, double amount = 100}) => posting.postVoucher(
-    branchId: 1, voucherNo: 'ignored', voucherType: type, partyId: targetParty ?? party,
-    cashAccountId: account ?? drawer, amount: amount, method: method, description: 'اختبار', walletRefNo: 'REF123');
+  Future<double> balance(int id) async =>
+      ((await db.query('cash_accounts', where: 'id=?', whereArgs: [id]))
+              .single['current_balance'] as num)
+          .toDouble();
+  Future<void> transfer({double amount = 100, double fee = 0}) =>
+      service.transfer(
+          branchId: 1,
+          fromAccountId: drawer,
+          toAccountId: wallet,
+          amount: amount,
+          fee: fee,
+          walletRefNo: 'REF123');
+  Future<int> voucher(
+          {String type = 'RECEIPT',
+          String method = 'CASH',
+          int? account,
+          int? targetParty,
+          double amount = 100}) =>
+      posting.postVoucher(
+          branchId: 1,
+          voucherNo: 'ignored',
+          voucherType: type,
+          partyId: targetParty ?? party,
+          cashAccountId: account ?? drawer,
+          amount: amount,
+          method: method,
+          description: 'اختبار',
+          walletRefNo: 'REF123');
   Future<void> balancedJournals() async {
-    final rows = await db.rawQuery('SELECT journal_entry_id,SUM(dr_amount) d,SUM(cr_amount) c FROM journal_lines GROUP BY journal_entry_id');
+    final rows = await db.rawQuery(
+        'SELECT journal_entry_id,SUM(dr_amount) d,SUM(cr_amount) c FROM journal_lines GROUP BY journal_entry_id');
     for (final row in rows) expect(row['d'], row['c']);
     expect(await db.rawQuery('PRAGMA foreign_key_check'), isEmpty);
   }
-  test('transfer fee updates both balances and three traceable movements atomically', () async {
+
+  test(
+      'transfer fee updates both balances and three traceable movements atomically',
+      () async {
     await transfer(amount: 100, fee: 5);
     expect(await balance(drawer), 895);
     expect(await balance(wallet), 100);
@@ -104,7 +148,8 @@ void main() {
     expect(rows.map((r) => r['wallet_ref_no']).toSet(), {'REF123'});
     await balancedJournals();
   });
-  test('insufficient transfer including fees leaves no partial records', () async {
+  test('insufficient transfer including fees leaves no partial records',
+      () async {
     await expectLater(transfer(amount: 1000, fee: 1), throwsStateError);
     expect(await balance(drawer), 1000);
     expect(await balance(wallet), 0);
@@ -112,11 +157,13 @@ void main() {
     expect(await db.query('cash_transactions'), isEmpty);
   });
   for (final field in ['branch_id', 'is_deleted']) {
-    test('transfer rejects invalid destination $field without mutation', () async {
+    test('transfer rejects invalid destination $field without mutation',
+        () async {
       if (field == 'branch_id') {
         await db.execute('PRAGMA foreign_keys=OFF');
       }
-      await db.update('cash_accounts', {field: field == 'branch_id' ? 2 : 1}, where: 'id=?', whereArgs: [wallet]);
+      await db.update('cash_accounts', {field: field == 'branch_id' ? 2 : 1},
+          where: 'id=?', whereArgs: [wallet]);
       await expectLater(transfer(), throwsStateError);
       expect(await balance(drawer), 1000);
       expect(await db.query('journal_entries'), isEmpty);
@@ -131,22 +178,46 @@ void main() {
     expect(await balance(drawer), 1000);
     expect(await db.query('cash_transactions'), isEmpty);
   });
-  test('wallet reconciliation posts positive and negative deltas and is idempotent', () async {
-    expect(await service.reconcileWallet(branchId: 1, accountId: wallet, actualBalance: 200), 200);
-    expect(await service.reconcileWallet(branchId: 1, accountId: wallet, actualBalance: 150), -50);
-    expect(await service.reconcileWallet(branchId: 1, accountId: wallet, actualBalance: 150), 0);
+  test(
+      'wallet reconciliation posts positive and negative deltas and is idempotent',
+      () async {
+    expect(
+        await service.reconcileWallet(
+            branchId: 1, accountId: wallet, actualBalance: 200),
+        200);
+    expect(
+        await service.reconcileWallet(
+            branchId: 1, accountId: wallet, actualBalance: 150),
+        -50);
+    expect(
+        await service.reconcileWallet(
+            branchId: 1, accountId: wallet, actualBalance: 150),
+        0);
     expect(await balance(wallet), 150);
     expect(await db.query('cash_transactions'), hasLength(2));
     await balancedJournals();
   });
-  test('reconciliation rejects drawers, deleted wallets and nonfinite actual balances', () async {
-    await expectLater(service.reconcileWallet(branchId: 1, accountId: drawer, actualBalance: 200), throwsStateError);
-    await expectLater(service.reconcileWallet(branchId: 1, accountId: wallet, actualBalance: double.nan), throwsArgumentError);
-    await db.update('cash_accounts', {'is_deleted': 1}, where: 'id=?', whereArgs: [wallet]);
-    await expectLater(service.reconcileWallet(branchId: 1, accountId: wallet, actualBalance: 200), throwsStateError);
+  test(
+      'reconciliation rejects drawers, deleted wallets and nonfinite actual balances',
+      () async {
+    await expectLater(
+        service.reconcileWallet(
+            branchId: 1, accountId: drawer, actualBalance: 200),
+        throwsStateError);
+    await expectLater(
+        service.reconcileWallet(
+            branchId: 1, accountId: wallet, actualBalance: double.nan),
+        throwsArgumentError);
+    await db.update('cash_accounts', {'is_deleted': 1},
+        where: 'id=?', whereArgs: [wallet]);
+    await expectLater(
+        service.reconcileWallet(
+            branchId: 1, accountId: wallet, actualBalance: 200),
+        throwsStateError);
     expect(await db.query('journal_entries'), isEmpty);
   });
-  test('voucher receipt and payment preserve balance and reject overdraft', () async {
+  test('voucher receipt and payment preserve balance and reject overdraft',
+      () async {
     await voucher(amount: 100);
     await voucher(type: 'PAYMENT', amount: 250);
     expect(await balance(drawer), 850);
@@ -156,45 +227,75 @@ void main() {
     expect(await db.query('cash_transactions'), hasLength(2));
     await balancedJournals();
   });
-  test('voucher rejects wrong payment kind, deleted accounts and foreign parties', () async {
+  test(
+      'voucher rejects wrong payment kind, deleted accounts and foreign parties',
+      () async {
     await expectLater(voucher(account: wallet), throwsStateError);
     await db.execute('PRAGMA foreign_keys=OFF');
-    await db.update('parties', {'branch_id': 2}, where: 'id=?', whereArgs: [party]);
+    await db.update('parties', {'branch_id': 2},
+        where: 'id=?', whereArgs: [party]);
     await expectLater(voucher(), throwsStateError);
-    await db.update('parties', {'branch_id': 1}, where: 'id=?', whereArgs: [party]);
-    await db.update('cash_accounts', {'is_deleted': 1}, where: 'id=?', whereArgs: [drawer]);
+    await db.update('parties', {'branch_id': 1},
+        where: 'id=?', whereArgs: [party]);
+    await db.update('cash_accounts', {'is_deleted': 1},
+        where: 'id=?', whereArgs: [drawer]);
     await expectLater(voucher(), throwsStateError);
     expect(await db.query('vouchers'), isEmpty);
     expect(await balance(drawer), 1000);
   });
   test('wallet vouchers collect and pay against wallet balance only', () async {
     await voucher(method: 'WALLET', account: wallet, amount: 300);
-    await voucher(type: 'PAYMENT', method: 'WALLET', account: wallet, amount: 100);
+    await voucher(
+        type: 'PAYMENT', method: 'WALLET', account: wallet, amount: 100);
     expect(await balance(wallet), 200);
     expect(await balance(drawer), 1000);
     await balancedJournals();
   });
-  test('shift creation requires a drawer and serializes duplicate requests', () async {
-    await expectLater(service.openShift(branchId: 1, userId: 1, drawerAccountId: wallet), throwsStateError);
-    final first = service.openShift(branchId: 1, userId: 1, drawerAccountId: drawer, openingCash: 1000);
-    final second = service.openShift(branchId: 1, userId: 1, drawerAccountId: drawer, openingCash: 1000);
+  test('shift creation requires a drawer and serializes duplicate requests',
+      () async {
+    await expectLater(
+        service.openShift(branchId: 1, userId: 1, drawerAccountId: wallet),
+        throwsStateError);
+    final first = service.openShift(
+        branchId: 1, userId: 1, drawerAccountId: drawer, openingCash: 1000);
+    final second = service.openShift(
+        branchId: 1, userId: 1, drawerAccountId: drawer, openingCash: 1000);
     final blocked = expectLater(second, throwsStateError);
     await first;
     await blocked;
     expect(await db.query('cashier_shifts'), hasLength(1));
   });
-  test('shift rejects malformed denominations and foreign wallet counts', () async {
-    final shift = await service.openShift(branchId: 1, userId: 1, drawerAccountId: drawer, openingCash: 1000);
-    await expectLater(service.closeShiftBlind(shiftId: shift, denominations: {'NaN': 1}, diffHandling: 'NONE'), throwsArgumentError);
-    await expectLater(service.closeShiftBlind(shiftId: shift, denominations: {'1000': 1}, diffHandling: 'NONE', countedWallets: {'999999': 100}), throwsStateError);
+  test('shift rejects malformed denominations and foreign wallet counts',
+      () async {
+    final shift = await service.openShift(
+        branchId: 1, userId: 1, drawerAccountId: drawer, openingCash: 1000);
+    await expectLater(
+        service.closeShiftBlind(
+            shiftId: shift, denominations: {'NaN': 1}, diffHandling: 'NONE'),
+        throwsArgumentError);
+    await expectLater(
+        service.closeShiftBlind(
+            shiftId: shift,
+            denominations: {'1000': 1},
+            diffHandling: 'NONE',
+            countedWallets: {'999999': 100}),
+        throwsStateError);
     expect((await db.query('cashier_shifts')).single['status'], 'OPEN');
     expect(await db.query('journal_entries'), isEmpty);
   });
-  test('expense deducts cash once and rejects an unaffordable second expense', () async {
-    final gl = (await db.query('chart_of_accounts', where: 'code=?', whereArgs: ['5201'])).single['id'];
-    final category = await db.insert('expense_categories', {'name_ar': 'مصروف اختبار', 'branch_id': 1, 'gl_account_id': gl});
-    Future<int> expense(double amount) => service.recordExpense(branchId: 1, categoryId: category,
-        cashAccountId: drawer, amount: amount, description: 'اختبار مصروف');
+  test('expense deducts cash once and rejects an unaffordable second expense',
+      () async {
+    final gl = (await db
+            .query('chart_of_accounts', where: 'code=?', whereArgs: ['5201']))
+        .single['id'];
+    final category = await db.insert('expense_categories',
+        {'name_ar': 'مصروف اختبار', 'branch_id': 1, 'gl_account_id': gl});
+    Future<int> expense(double amount) => service.recordExpense(
+        branchId: 1,
+        categoryId: category,
+        cashAccountId: drawer,
+        amount: amount,
+        description: 'اختبار مصروف');
     await expense(100);
     expect(await balance(drawer), 900);
     await expectLater(expense(901), throwsStateError);
@@ -202,10 +303,12 @@ void main() {
     expect(await db.query('cash_transactions'), hasLength(1));
     await balancedJournals();
   });
-  test('provider blocks duplicate transfer and releases lock after failure', () async {
+  test('provider blocks duplicate transfer and releases lock after failure',
+      () async {
     final delayed = _DelayedTransfer();
     final provider = TreasuryHrPartnerProvider(treasury: delayed);
-    Future<int> submit() => provider.transfer(fromAccountId: drawer, toAccountId: wallet, amount: 100);
+    Future<int> submit() => provider.transfer(
+        fromAccountId: drawer, toAccountId: wallet, amount: 100);
     final first = submit();
     expect(provider.operationPending, isTrue);
     await expectLater(submit(), throwsStateError);
