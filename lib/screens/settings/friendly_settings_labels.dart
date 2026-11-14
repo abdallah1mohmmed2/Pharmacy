@@ -173,4 +173,80 @@ abstract final class FriendlySettingsLabels {
     }
     return value?.toString().isNotEmpty == true ? value.toString() : 'غير محدد';
   }
+  static const permissions = <String, String>{
+    'dashboard.view': 'عرض لوحة التحكم',
+    'pos.sell': 'تنفيذ المبيعات',
+    'pos.discount.override': 'اعتماد خصم استثنائي',
+    'drugs.view': 'عرض الأدوية',
+    'drugs.create': 'إضافة دواء',
+    'drugs.update': 'تعديل بيانات دواء',
+    'drugs.import': 'استيراد الأدوية',
+    'drugs.export': 'تصدير الأدوية',
+    'inventory.view': 'عرض المخزون',
+    'inventory.adjust': 'تسوية أرصدة المخزون',
+    'inventory.stocktake': 'إجراء جرد المخزون',
+    'purchases.manage': 'إدارة المشتريات',
+    'sales.returns': 'إدارة مرتجعات المبيعات',
+    'clinical.override': 'اعتماد تجاوز تحذير سريري',
+    'finance.view': 'عرض الحسابات',
+    'finance.manage': 'إدارة العمليات المالية',
+    'partners.manage': 'إدارة الشركاء',
+    'reports.view': 'عرض التقارير',
+    'reports.export': 'طباعة وتصدير التقارير',
+    'reports.cost.view': 'الاطلاع على التكاليف في التقارير',
+    'settings.view': 'عرض الإعدادات',
+    'settings.manage': 'تعديل إعدادات النظام',
+    'settings.manager_pin': 'إدارة رمز المدير',
+    'audit.view': 'عرض سجل الرقابة',
+    'audit.verify': 'فحص سلامة سجل الرقابة',
+    'backup.create': 'إنشاء نسخة احتياطية',
+    'backup.restore': 'استعادة نسخة احتياطية',
+    'sync.manage': 'إدارة المزامنة',
+    'period.close': 'إغلاق الفترات المالية',
+    'users.manage': 'إدارة المستخدمين',
+    'roles.manage': 'إدارة صلاحيات الأدوار',
+  };
+  static String permission(String code) =>
+      permissions[code] ?? 'صلاحية إضافية (' + code + ')';
+
+  static const auditActions = <String, String>{
+    'LOGIN': 'تسجيل دخول',
+    'LOGOUT': 'تسجيل خروج',
+    'LOGIN_FAILED': 'محاولة دخول غير ناجحة',
+    'CREATE': 'إنشاء',
+    'UPDATE': 'تعديل',
+    'DELETE': 'حذف',
+    'VOID': 'إلغاء عملية',
+    'PRICE_CHANGE': 'تغيير سعر',
+    'DISCOUNT_OVERRIDE': 'اعتماد خصم استثنائي',
+    'CLINICAL_OVERRIDE': 'اعتماد تحذير سريري',
+    'SETTING_CHANGE': 'تعديل إعداد',
+    'PERIOD_CLOSE': 'إغلاق فترة مالية',
+    'BACKUP': 'نسخة احتياطية',
+    'RESTORE': 'استعادة بيانات',
+    'PRINT': 'طباعة',
+    'EXPORT': 'تصدير',
+    'MANAGER_PIN_USED': 'استخدام اعتماد المدير',
+  };
+  static String auditAction(String raw) => auditActions[raw] ?? 'حدث مسجل';
+
+  static const severities = <String, String>{
+    'INFO': 'معلومات',
+    'WARNING': 'تحذير',
+    'ERROR': 'خطأ',
+    'CRITICAL': 'حرج',
+  };
+  static String severity(String raw) => severities[raw] ?? 'غير محدد';
+
+  static const queueStatuses = <String, String>{
+    'PENDING': 'بانتظار المزامنة',
+    'RETRY': 'جارٍ إعادة المحاولة',
+    'FAILED': 'تعذرت المزامنة',
+    'SENT': 'تم الإرسال',
+    'SYNCED': 'تمت المزامنة',
+    'IN_PROGRESS': 'جارٍ التنفيذ',
+  };
+  static String queueStatus(String raw) =>
+      queueStatuses[raw] ?? 'حالة أخرى';
+
 }
