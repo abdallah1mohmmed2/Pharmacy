@@ -60,7 +60,9 @@ class _PartyDetailsScreenState extends State<PartyDetailsScreen> {
     }
   }
 
-  Future<void> _openMessage(PartyModel party, String channel, {
+  Future<void> _openMessage(
+    PartyModel party,
+    String channel, {
     String? transactionAmount,
     String? documentNumber,
     String? initialKind,
@@ -75,7 +77,8 @@ class _PartyDetailsScreenState extends State<PartyDetailsScreen> {
         phone: party.phone,
         preferredChannel: channel,
         initialKind: initialKind,
-        balanceAmount: outstanding > 0 ? MoneyFormatter.format(outstanding) : null,
+        balanceAmount:
+            outstanding > 0 ? MoneyFormatter.format(outstanding) : null,
         transactionAmount: transactionAmount,
         documentNumber: documentNumber,
       ),
@@ -123,7 +126,9 @@ class _PartyDetailsScreenState extends State<PartyDetailsScreen> {
     final debit = (entry['alayh_amount'] as num?) ?? 0;
     final credit = (entry['lah_amount'] as num?) ?? 0;
     final amount = debit > 0 ? debit : credit;
-    await _openMessage(party, 'whatsapp',
+    await _openMessage(
+      party,
+      'whatsapp',
       initialKind: kind,
       transactionAmount: amount > 0 ? MoneyFormatter.format(amount) : null,
       documentNumber: documentNumber,

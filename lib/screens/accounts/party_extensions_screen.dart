@@ -320,58 +320,67 @@ class _PartyExtensionsScreenState extends State<PartyExtensionsScreen>
                     onPressed: () => _addRep(p),
                     child: const Text('إضافة مندوب'))
               ]),
-              ...(snapshot.data ?? []).map((r) =>
-                  FutureBuilder<List<Map<String, Object?>>>(
-                      future: DatabaseHelper.instance.query(
-                          'representative_visit_days',
-                          where: 'representative_party_id=?',
-                          whereArgs: [r['id']],
-                          orderBy: 'weekday'),
-                      builder: (context, visits) => Card(
-                          child: ListTile(
-                              title: Text(r['name_ar'].toString()),
-                              subtitle: Text((visits.data ?? [])
-                                      .map((d) => _day(d['weekday'] as int))
-                                      .join(' • ')
-                                      .isEmpty
-                                  ? 'لم تحدد أيام الزيارة'
-                                  : (visits.data ?? [])
-                                      .map((d) => _day(d['weekday'] as int))
-                                      .join(' • ')),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    tooltip: 'واتساب المندوب',
-                                    onPressed: () => Navigator.of(context).push<void>(
-                                      MaterialPageRoute(builder: (_) => ManualMessageComposerScreen(
-                                        partyType: 'REPRESENTATIVE',
-                                        name: r['name_ar']?.toString() ?? '',
-                                        phone: r['phone']?.toString() ?? '',
-                                        preferredChannel: 'whatsapp',
-                                      )),
-                                    ),
-                                    icon: const Icon(Icons.chat_outlined),
-                                  ),
-                                  IconButton(
-                                    tooltip: 'SMS المندوب',
-                                    onPressed: () => Navigator.of(context).push<void>(
-                                      MaterialPageRoute(builder: (_) => ManualMessageComposerScreen(
-                                        partyType: 'REPRESENTATIVE',
-                                        name: r['name_ar']?.toString() ?? '',
-                                        phone: r['phone']?.toString() ?? '',
-                                        preferredChannel: 'sms',
-                                      )),
-                                    ),
-                                    icon: const Icon(Icons.sms_outlined),
-                                  ),
-                                  IconButton(
-                                    tooltip: 'أيام الزيارة',
-                                    onPressed: () => _setVisits(r, visits.data ?? []),
-                                    icon: const Icon(Icons.edit_calendar),
-                                  ),
-                                ],
-                              )))))
+              ...(snapshot.data ?? []).map((r) => FutureBuilder<
+                      List<Map<String, Object?>>>(
+                  future: DatabaseHelper.instance.query(
+                      'representative_visit_days',
+                      where: 'representative_party_id=?',
+                      whereArgs: [r['id']],
+                      orderBy: 'weekday'),
+                  builder: (context, visits) => Card(
+                      child: ListTile(
+                          title: Text(r['name_ar'].toString()),
+                          subtitle: Text((visits.data ?? [])
+                                  .map((d) => _day(d['weekday'] as int))
+                                  .join(' • ')
+                                  .isEmpty
+                              ? 'لم تحدد أيام الزيارة'
+                              : (visits.data ?? [])
+                                  .map((d) => _day(d['weekday'] as int))
+                                  .join(' • ')),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                tooltip: 'واتساب المندوب',
+                                onPressed: () =>
+                                    Navigator.of(context).push<void>(
+                                  MaterialPageRoute(
+                                      builder: (_) =>
+                                          ManualMessageComposerScreen(
+                                            partyType: 'REPRESENTATIVE',
+                                            name:
+                                                r['name_ar']?.toString() ?? '',
+                                            phone: r['phone']?.toString() ?? '',
+                                            preferredChannel: 'whatsapp',
+                                          )),
+                                ),
+                                icon: const Icon(Icons.chat_outlined),
+                              ),
+                              IconButton(
+                                tooltip: 'SMS المندوب',
+                                onPressed: () =>
+                                    Navigator.of(context).push<void>(
+                                  MaterialPageRoute(
+                                      builder: (_) =>
+                                          ManualMessageComposerScreen(
+                                            partyType: 'REPRESENTATIVE',
+                                            name:
+                                                r['name_ar']?.toString() ?? '',
+                                            phone: r['phone']?.toString() ?? '',
+                                            preferredChannel: 'sms',
+                                          )),
+                                ),
+                                icon: const Icon(Icons.sms_outlined),
+                              ),
+                              IconButton(
+                                tooltip: 'أيام الزيارة',
+                                onPressed: () =>
+                                    _setVisits(r, visits.data ?? []),
+                                icon: const Icon(Icons.edit_calendar),
+                              ),
+                            ],
+                          )))))
             ]));
   }
 

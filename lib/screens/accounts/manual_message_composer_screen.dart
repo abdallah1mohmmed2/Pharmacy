@@ -44,10 +44,12 @@ class _ManualMessageComposerScreenState
   bool _loading = true, _busy = false;
   String? _error;
 
-  bool _isBalanceKind(String id) => id == 'customer_balance' || id == 'supplier_balance';
+  bool _isBalanceKind(String id) =>
+      id == 'customer_balance' || id == 'supplier_balance';
 
   String _initialAmount(String id) =>
-      (_isBalanceKind(id) ? widget.balanceAmount : widget.transactionAmount) ?? '';
+      (_isBalanceKind(id) ? widget.balanceAmount : widget.transactionAmount) ??
+      '';
 
   @override
   void initState() {
@@ -78,7 +80,8 @@ class _ManualMessageComposerScreenState
       if (!mounted || _kindId != id) return;
       _template.text = ManualMessageKind.byId(id).defaultText;
       _fill();
-      setState(() => _error = 'تعذر تحميل القالب المحفوظ؛ تم عرض القالب الافتراضي.');
+      setState(
+          () => _error = 'تعذر تحميل القالب المحفوظ؛ تم عرض القالب الافتراضي.');
     } finally {
       if (mounted && _kindId == id) setState(() => _loading = false);
     }
@@ -150,17 +153,21 @@ class _ManualMessageComposerScreenState
           launchUrl(uri, mode: LaunchMode.externalApplication));
       if (!mounted) return;
       if (!opened) {
-        setState(() => _error = 'لم يتمكن الجهاز من فتح التطبيق المطلوب. تحقق من تثبيته.');
+        setState(() =>
+            _error = 'لم يتمكن الجهاز من فتح التطبيق المطلوب. تحقق من تثبيته.');
       } else {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           duration: Duration(seconds: 5),
-          content: Text('تم فتح التطبيق فقط. اضغط إرسال بنفسك؛ لا يمكن تأكيد تسليم الرسالة.'),
+          content: Text(
+              'تم فتح التطبيق فقط. اضغط إرسال بنفسك؛ لا يمكن تأكيد تسليم الرسالة.'),
         ));
       }
     } on FormatException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted) setState(() => _error = 'تعذر فتح التطبيق. تحقق من الرقم والتطبيق المثبت.');
+      if (mounted)
+        setState(
+            () => _error = 'تعذر فتح التطبيق. تحقق من الرقم والتطبيق المثبت.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -218,7 +225,8 @@ class _ManualMessageComposerScreenState
                       keyboardType: TextInputType.phone,
                       decoration: const InputDecoration(
                         labelText: 'رقم الهاتف',
-                        helperText: 'لواتساب استخدم رمز الدولة، مثل +967xxxxxxxxx',
+                        helperText:
+                            'لواتساب استخدم رمز الدولة، مثل +967xxxxxxxxx',
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -232,7 +240,8 @@ class _ManualMessageComposerScreenState
                       ),
                       items: [
                         for (final kind in _kinds)
-                          DropdownMenuItem(value: kind.id, child: Text(kind.title)),
+                          DropdownMenuItem(
+                              value: kind.id, child: Text(kind.title)),
                       ],
                       onChanged: _busy ? null : _selectKind,
                     ),
@@ -265,7 +274,8 @@ class _ManualMessageComposerScreenState
                     Text('القالب المحفوظ',
                         style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 8),
-                    const Text('المتغيرات: {name} اسم الطرف، {amount} المبلغ، {document} رقم المستند.'),
+                    const Text(
+                        'المتغيرات: {name} اسم الطرف، {amount} المبلغ، {document} رقم المستند.'),
                     const SizedBox(height: 8),
                     TextField(
                       key: const ValueKey('manual-template-editor'),
@@ -288,10 +298,12 @@ class _ManualMessageComposerScreenState
                           label: const Text('حفظ القالب'),
                         ),
                         FilledButton.tonalIcon(
-                          onPressed: _loading || _busy ? null : () {
-                            setState(() => _error = null);
-                            _fill();
-                          },
+                          onPressed: _loading || _busy
+                              ? null
+                              : () {
+                                  setState(() => _error = null);
+                                  _fill();
+                                },
                           icon: const Icon(Icons.auto_fix_high),
                           label: const Text('تعبئة النص من القالب'),
                         ),
@@ -323,7 +335,8 @@ class _ManualMessageComposerScreenState
                     if (_error != null) ...[
                       const SizedBox(height: 8),
                       Text(_error!,
-                        style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                          style: TextStyle(
+                              color: Theme.of(context).colorScheme.error)),
                     ],
                     const SizedBox(height: 12),
                     Wrap(spacing: 8, runSpacing: 8, children: [
@@ -336,7 +349,8 @@ class _ManualMessageComposerScreenState
                       ],
                     ]),
                     const SizedBox(height: 8),
-                    const Text('الإرسال يدوي من التطبيق الخارجي. فتحه لا يعني أن الرسالة أُرسلت.'),
+                    const Text(
+                        'الإرسال يدوي من التطبيق الخارجي. فتحه لا يعني أن الرسالة أُرسلت.'),
                   ],
                 ),
               ),

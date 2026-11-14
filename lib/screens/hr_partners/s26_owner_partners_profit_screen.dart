@@ -132,24 +132,26 @@ class _S26OwnerPartnersProfitScreenState
             actions: [
               OutlinedButton.icon(
                 onPressed: () => Navigator.of(context).push<void>(
-                  MaterialPageRoute(builder: (_) => ManualMessageComposerScreen(
-                    partyType: 'PARTNER',
-                    name: partner['name_ar']?.toString() ?? '',
-                    phone: partner['phone']?.toString() ?? '',
-                    preferredChannel: 'whatsapp',
-                  )),
+                  MaterialPageRoute(
+                      builder: (_) => ManualMessageComposerScreen(
+                            partyType: 'PARTNER',
+                            name: partner['name_ar']?.toString() ?? '',
+                            phone: partner['phone']?.toString() ?? '',
+                            preferredChannel: 'whatsapp',
+                          )),
                 ),
                 icon: const Icon(Icons.chat_outlined),
                 label: const Text('واتساب'),
               ),
               OutlinedButton.icon(
                 onPressed: () => Navigator.of(context).push<void>(
-                  MaterialPageRoute(builder: (_) => ManualMessageComposerScreen(
-                    partyType: 'PARTNER',
-                    name: partner['name_ar']?.toString() ?? '',
-                    phone: partner['phone']?.toString() ?? '',
-                    preferredChannel: 'sms',
-                  )),
+                  MaterialPageRoute(
+                      builder: (_) => ManualMessageComposerScreen(
+                            partyType: 'PARTNER',
+                            name: partner['name_ar']?.toString() ?? '',
+                            phone: partner['phone']?.toString() ?? '',
+                            preferredChannel: 'sms',
+                          )),
                 ),
                 icon: const Icon(Icons.sms_outlined),
                 label: const Text('SMS'),

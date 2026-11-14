@@ -88,8 +88,7 @@ void main() {
       throwsFormatException,
     );
     expect(
-      () => ManualMessageFormatter.smsUri(
-          phone: '+967777123456', text: '  '),
+      () => ManualMessageFormatter.smsUri(phone: '+967777123456', text: '  '),
       throwsArgumentError,
     );
   });
@@ -114,7 +113,8 @@ void main() {
     ));
     await tester.pumpAndSettle();
     expect(find.text('تذكير العميل بالمبلغ المتبقي'), findsOneWidget);
-    await tester.ensureVisible(find.byKey(const ValueKey('manual-message-body')));
+    await tester
+        .ensureVisible(find.byKey(const ValueKey('manual-message-body')));
     await tester.enterText(
       find.byKey(const ValueKey('manual-message-body')),
       'تم تعديل الرسالة يدوياً',
@@ -142,7 +142,8 @@ void main() {
       ),
     ));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const ValueKey('manual-template-editor')));
+    await tester
+        .ensureVisible(find.byKey(const ValueKey('manual-template-editor')));
     await tester.enterText(
       find.byKey(const ValueKey('manual-template-editor')),
       'مرحباً {name}، القالب المعدّل',
