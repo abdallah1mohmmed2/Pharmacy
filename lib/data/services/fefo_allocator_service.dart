@@ -164,15 +164,19 @@ class FefoAllocator {
       required int unitsPerPack,
       required int invoiceItemId,
       int? warehouseId,
+      int? branchId,
       double unitPrice = 0,
       String docType = 'SALE',
       int? docId}) async {
     if (needUnits <= 0 || unitsPerPack <= 0)
       throw ArgumentError('كمية البيع ووحدات الباكت يجب أن تكون موجبة');
     final today = DateTime.now().toIso8601String().substring(0, 10);
+    // A drug identifier alone is not a warehouse authorization boundary.
+    // When a branch is supplied, never allocate stock from another branch.
     final rows = await txn.rawQuery(
-        "SELECT b.* FROM batches_fefo b JOIN warehouses w ON w.id=b.warehouse_id WHERE b.drug_id=? AND b.status='ACTIVE' AND b.total_units>0 AND b.expiry_date>=? AND (w.is_sellable=1 ${warehouseId == null ? '' : "OR w.wh_type='MAIN_STORE'"}) ${warehouseId == null ? '' : 'AND b.warehouse_id=?'} ORDER BY b.expiry_date ASC,b.id ASC",
-        warehouseId == null ? [drugId, today] : [drugId, today, warehouseId]);
+        "SELECT b.* FROM batches_fefo b JOIN warehouses w ON w.id=b.warehouse_id WHERE b.drug_id=? AND b.status='ACTIVE' AND b.total_units>0 AND b.expiry_date>=? AND (w.is_sellable=1 ${warehouseId == null ? '' : "OR w.wh_type='MAIN_STORE'"}) ${warehouseId == null ? '' : 'AND b.warehouse_id=?'} ${branchId == null ? '' : 'AND w.branch_id=?'} ORDER BY b.expiry_date ASC,b.id ASC",
+        [drugId, today, if (warehouseId != null) warehouseId,
+          if (branchId != null) branchId]);
     var remaining = needUnits;
     final allocations = <FefoAllocation>[];
     for (final row in rows) {
