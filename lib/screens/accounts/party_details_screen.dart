@@ -5,6 +5,7 @@ import '../../core/theme/enterprise_dark_theme.dart';
 import '../../core/widgets/shared_widgets.dart';
 import '../../data/models/erp_models.dart';
 import '../../providers/session_and_erp_provider.dart';
+import 'manual_message_composer_screen.dart';
 
 /// Uses the application's existing theme, account vocabulary and card widgets.
 class PartyDetailsScreen extends StatefulWidget {
@@ -58,6 +59,28 @@ class _PartyDetailsScreenState extends State<PartyDetailsScreen> {
     }
   }
 
+  Future<void> _openMessage(PartyModel party, String channel, {
+    String? transactionAmount,
+    String? documentNumber,
+    String? initialKind,
+  }) async {
+    final outstanding = party.partyType == 'SUPPLIER'
+        ? party.totalLah - party.totalAlayh
+        : party.totalAlayh - party.totalLah;
+    await Navigator.of(context).push<void>(MaterialPageRoute(
+      builder: (_) => ManualMessageComposerScreen(
+        partyType: party.partyType,
+        name: party.nameAr,
+        phone: party.phone,
+        preferredChannel: channel,
+        initialKind: initialKind,
+        balanceAmount: outstanding > 0 ? MoneyFormatter.format(outstanding) : null,
+        transactionAmount: transactionAmount,
+        documentNumber: documentNumber,
+      ),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = context.watch<SessionAndErpProvider>();
@@ -100,6 +123,29 @@ class _PartyDetailsScreenState extends State<PartyDetailsScreen> {
                 if (customer)
                   Text('الملف الطبي: ${party.isPatient ? 'نشط' : 'غير مفعّل'}'),
               ],
+            ),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      key: const ValueKey('party-message-whatsapp'),
+                      onPressed: () => _openMessage(party, 'whatsapp'),
+                      icon: const Icon(Icons.chat_outlined),
+                      label: const Text('واتساب'),
+                    ),
+                    OutlinedButton.icon(
+                      key: const ValueKey('party-message-sms'),
+                      onPressed: () => _openMessage(party, 'sms'),
+                      icon: const Icon(Icons.sms_outlined),
+                      label: const Text('SMS'),
+                    ),
+                  ],
+                ),
+              ),
             ),
             SmartExpandableCard(
               title: 'ملخص الحساب',
