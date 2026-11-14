@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'central_medicine_picker_screen.dart';
 import 'drug_editor_field_config.dart';
+import 'drug_json_editor_field.dart';
 import 'drug_reference_picker_field.dart';
 import 'package:provider/provider.dart';
 import '../../providers/pos_and_drugs_provider.dart';
@@ -747,6 +748,14 @@ class _S08S09DrugEncyclopediaScreenState
           kind: kind,
           controller: controller,
           branchId: provider.branchId,
+        );
+      }
+      if (key.endsWith('_json')) {
+        return DrugJsonEditorField(
+          key: ValueKey('drug-json-widget-' + key),
+          fieldKey: key,
+          label: label,
+          controller: controller,
         );
       }
       final longText = key.contains('notes') ||
