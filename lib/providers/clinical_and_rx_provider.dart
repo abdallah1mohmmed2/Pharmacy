@@ -164,15 +164,16 @@ class ClinicalAndRxProvider extends ChangeNotifier {
       required int? userId,
       String? reason,
       int? managerUserId}) async {
-    await _guard.recordDecision(alert,
+    final decisionLogId = await _guard.recordDecision(alert,
         decision: decision,
         userId: userId,
         reason: reason,
-        managerUserId: managerUserId);
+        managerUserId: managerUserId,
+        patientId: currentPatient?.id);
     final updated = verdict.alerts
         .map((a) => identical(a, alert)
             ? ClinicalAlertModel(
-                id: a.id,
+                id: decisionLogId,
                 category: a.category,
                 level: a.level,
                 messageAr: a.messageAr,
