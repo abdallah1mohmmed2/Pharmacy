@@ -27,6 +27,7 @@ class _DelayedPosting extends PostingAndSalesService {
               String? walletRef
             })>
         payments,
+    int? warehouseId,
     int customerPartyId = 0,
     double discountAmount = 0,
     required ClinicalVerdict clinicalVerdict,
@@ -57,6 +58,7 @@ void main() {
           clinicalVerdict: emptyVerdict,
         );
 
+    provider.currentTab.warehouseId = 1;
     final first = submit();
     expect(provider.checkoutPending, isTrue);
     expect(posting.callCount, 1);
@@ -80,6 +82,7 @@ void main() {
       const DrugModel(id: 7, branchId: 1, sellPricePack: 1500),
       unit: 'PACK',
     );
+    provider.currentTab.warehouseId = 1;
     await expectLater(
       provider.checkout(
         cashierId: 1,
@@ -103,7 +106,8 @@ void main() {
         unit: 'PACK',
       );
       final item = provider.cart.single;
-      final first = provider.checkout(
+      provider.currentTab.warehouseId = 1;
+    final first = provider.checkout(
         cashierId: 1,
         saleType: 'CASH',
         payments: const [
