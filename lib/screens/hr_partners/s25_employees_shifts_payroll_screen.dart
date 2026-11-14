@@ -6,6 +6,7 @@ import '../../providers/treasury_hr_partner_provider.dart';
 import '../../providers/session_and_erp_provider.dart';
 import '../../core/widgets/shared_widgets.dart';
 import '../../reports_pdf/registry/report_registry_and_provider.dart';
+import '../accounts/manual_message_composer_screen.dart';
 
 class S25EmployeesShiftsPayrollScreen extends StatefulWidget {
   const S25EmployeesShiftsPayrollScreen({super.key});
@@ -80,6 +81,32 @@ class _S25EmployeesShiftsPayrollScreenState
                       PartyBalanceChip(
                           totalAlayh: alayh, totalLah: lah, compact: true),
                       Wrap(spacing: 8, children: [
+                        TextButton.icon(
+                            onPressed: () => Navigator.of(context).push<void>(
+                                  MaterialPageRoute(
+                                    builder: (_) => ManualMessageComposerScreen(
+                                      partyType: 'EMPLOYEE',
+                                      name: e['name_ar']?.toString() ?? '',
+                                      phone: e['phone']?.toString() ?? '',
+                                      preferredChannel: 'whatsapp',
+                                    ),
+                                  ),
+                                ),
+                            icon: const Icon(Icons.chat_outlined),
+                            label: const Text('واتساب')),
+                        TextButton.icon(
+                            onPressed: () => Navigator.of(context).push<void>(
+                                  MaterialPageRoute(
+                                    builder: (_) => ManualMessageComposerScreen(
+                                      partyType: 'EMPLOYEE',
+                                      name: e['name_ar']?.toString() ?? '',
+                                      phone: e['phone']?.toString() ?? '',
+                                      preferredChannel: 'sms',
+                                    ),
+                                  ),
+                                ),
+                            icon: const Icon(Icons.sms_outlined),
+                            label: const Text('SMS')),
                         TextButton.icon(
                             onPressed: () => _statement(e),
                             icon: const Icon(Icons.receipt_long),
