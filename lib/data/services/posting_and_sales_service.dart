@@ -95,6 +95,25 @@ class PostingAndSalesService {
     return entryId;
   }
 
+  Future<Map<String, Object?>> _paymentAccount(Transaction txn,
+      int branchId, int accountId, String method) async {
+    final rows = await txn.query('cash_accounts',
+        where: 'id=? AND branch_id=? AND is_deleted=0',
+        whereArgs: [accountId, branchId], limit: 1);
+    if (rows.isEmpty) throw StateError('حساب التحصيل أو الدفع غير موجود في الفرع الحالي');
+    final row = rows.single;
+    final kind = row['account_kind'];
+    if ((method == 'CASH' && !['CASHIER_DRAWER', 'MAIN_SAFE'].contains(kind)) ||
+        (method == 'WALLET' && kind != 'WALLET') ||
+        (method == 'BANK' && kind != 'BANK')) {
+      throw StateError('وسيلة الدفع لا تطابق نوع الحساب');
+    }
+    if (row['gl_account_id'] is! int) throw StateError('اربط الحساب بدليل الحسابات أولاً');
+    final balance = row['current_balance'];
+    if (balance is! num || !balance.toDouble().isFinite) throw StateError('رصيد الحساب غير صالح');
+    return row;
+  }
+
   Future<int> postSale({
     required int branchId,
     required int cashierUserId,
@@ -152,6 +171,15 @@ class PostingAndSalesService {
         'لا يمكن ترحيل الفاتورة قبل توثيق قرارات التنبيهات السريرية الحرجة',
       );
     return (await _helper.database).transaction((txn) async {
+      for (final payment in payments) {
+        await _paymentAccount(txn, branchId, payment.cashAccountId, payment.method);
+      }
+      if (customerPartyId > 0) {
+        final customer = await txn.query('parties', columns: ['id'],
+            where: 'id=? AND branch_id=? AND is_deleted=0', whereArgs: [customerPartyId, branchId]);
+        if (customer.isEmpty) throw StateError('العميل غير موجود في الفرع الحالي');
+      }
+
       final subtotal = items.fold<double>(0, (s, i) => s + i.lineTotal);
       final net =
           (subtotal - discountAmount).clamp(0, double.infinity).toDouble();
@@ -194,8 +222,8 @@ class PostingAndSalesService {
         final drugRows = await txn.query(
           'drugs',
           columns: ['units_per_pack', 'is_controlled'],
-          where: 'id=? AND is_deleted=0',
-          whereArgs: [drugId],
+          where: 'id=? AND branch_id=? AND is_deleted=0',
+          whereArgs: [drugId, branchId],
         );
         if (drugRows.isEmpty) throw StateError('الصنف غير موجود');
         if ((drugRows.first['is_controlled'] as num? ?? 0) == 1)
@@ -418,7 +446,8 @@ class PostingAndSalesService {
     required String description,
     String? walletRefNo,
   }) async {
-    if (amount <= 0) throw ArgumentError('المبلغ يجب أن يكون أكبر من صفر');
+    if (!amount.isFinite || amount <= 0) throw ArgumentError('المبلغ يجب أن يكون موجباً ومحدوداً');
+    if (!['CASH', 'WALLET', 'BANK', 'OFFSET'].contains(method)) throw ArgumentError('وسيلة دفع غير صالحة');
     if (_financialSyncFractionDigits != null && method == 'CASH') {
       if (_financialSyncFractionDigits !=
           FinancialMinorUnits.currencyFractionDigits) {
@@ -445,27 +474,14 @@ class PostingAndSalesService {
       Map<String, Object?>? cashRow;
       if (!isOffset) {
         if (cashId < 0) throw StateError('حساب الصندوق غير موجود');
-        final cashRows = await txn.query(
-          'cash_accounts',
-          where: 'id=?',
-          whereArgs: [cashId],
-        );
-        if (cashRows.isEmpty) throw StateError('حساب الصندوق غير موجود');
-        cashRow = cashRows.first;
-        final kind = cashRow['account_kind'] as String;
-        if (method == 'WALLET' && kind != 'WALLET')
-          throw StateError('اختر محفظة إلكترونية');
-        if (method == 'CASH' && kind == 'WALLET')
-          throw StateError('اختر الصندوق النقدي');
-        if (method == 'BANK' && kind != 'BANK')
-          throw StateError('اختر الحساب البنكي');
+        cashRow = await _paymentAccount(txn, branchId, cashId, method);
+        if (voucherType != 'RECEIPT' && (cashRow['current_balance'] as num).toDouble() < amount) {
+          throw StateError('رصيد حساب الدفع غير كافٍ');
+        }
       }
-      final party = await txn.query(
-        'parties',
-        where: 'id=?',
-        whereArgs: [partyId],
-      );
-      if (party.isEmpty) throw StateError('الطرف غير موجود');
+      final party = await txn.query('parties',
+          where: 'id=? AND branch_id=? AND is_deleted=0', whereArgs: [partyId, branchId]);
+      if (party.isEmpty) throw StateError('الطرف غير موجود في الفرع الحالي');
       final now = DateTime.now().toIso8601String();
       final voucherId = await txn.insert('vouchers', {
         ..._base(branchId),
@@ -483,8 +499,8 @@ class PostingAndSalesService {
           ? await txn.query(
               'cashier_shifts',
               columns: ['id'],
-              where: "branch_id=? AND status='OPEN'",
-              whereArgs: [branchId],
+              where: "branch_id=? AND drawer_account_id=? AND status='OPEN'",
+              whereArgs: [branchId, cashId],
               orderBy: 'id DESC',
               limit: 1,
             )
