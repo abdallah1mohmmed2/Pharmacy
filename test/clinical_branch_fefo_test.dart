@@ -41,10 +41,16 @@ void main() {
       'stock_total_units': 5,
     });
     await db.insert('warehouses', {
-      'id': 1, 'branch_id': 1, 'is_sellable': 1, 'wh_type': 'PHARMACY_FLOOR',
+      'id': 1,
+      'branch_id': 1,
+      'is_sellable': 1,
+      'wh_type': 'PHARMACY_FLOOR',
     });
     await db.insert('warehouses', {
-      'id': 2, 'branch_id': 2, 'is_sellable': 1, 'wh_type': 'PHARMACY_FLOOR',
+      'id': 2,
+      'branch_id': 2,
+      'is_sellable': 1,
+      'wh_type': 'PHARMACY_FLOOR',
     });
     for (final batch in [
       {'id': 101, 'warehouse_id': 1, 'total_units': 5},
@@ -67,39 +73,51 @@ void main() {
   test('branch-limited prescription cannot use another branch stock', () async {
     await expectLater(
       db.transaction((txn) => allocator.allocateAndApply(
-        txn: txn,
-        drugId: 11,
-        needUnits: 7,
-        unitsPerPack: 1,
-        invoiceItemId: 1,
-        branchId: 1,
-        docType: 'PRESCRIPTION',
-        docId: 1,
-      )),
+            txn: txn,
+            drugId: 11,
+            needUnits: 7,
+            unitsPerPack: 1,
+            invoiceItemId: 1,
+            branchId: 1,
+            docType: 'PRESCRIPTION',
+            docId: 1,
+          )),
       throwsA(isA<StateError>()),
     );
-    expect((await db.query('batches_fefo', where: 'id=101')).single['total_units'], 5);
-    expect((await db.query('batches_fefo', where: 'id=202')).single['total_units'], 90);
-    expect((await db.query('drugs', where: 'id=11')).single['stock_total_units'], 5);
+    expect(
+        (await db.query('batches_fefo', where: 'id=101')).single['total_units'],
+        5);
+    expect(
+        (await db.query('batches_fefo', where: 'id=202')).single['total_units'],
+        90);
+    expect(
+        (await db.query('drugs', where: 'id=11')).single['stock_total_units'],
+        5);
     expect(await db.query('stock_movements'), isEmpty);
   });
 
   test('branch-limited prescription only debits its own batch', () async {
     await db.transaction((txn) => allocator.allocateAndApply(
-      txn: txn,
-      drugId: 11,
-      needUnits: 5,
-      unitsPerPack: 1,
-      invoiceItemId: 1,
-      branchId: 1,
-      docType: 'PRESCRIPTION',
-      docId: 1,
-    ));
-    expect((await db.query('batches_fefo', where: 'id=101')).single['total_units'], 0);
-    expect((await db.query('batches_fefo', where: 'id=202')).single['total_units'], 90);
-    expect((await db.query('drugs', where: 'id=11')).single['stock_total_units'], 0);
-    final sales = await db.query('stock_movements',
-        where: "movement_type='SALE_OUT'");
+          txn: txn,
+          drugId: 11,
+          needUnits: 5,
+          unitsPerPack: 1,
+          invoiceItemId: 1,
+          branchId: 1,
+          docType: 'PRESCRIPTION',
+          docId: 1,
+        ));
+    expect(
+        (await db.query('batches_fefo', where: 'id=101')).single['total_units'],
+        0);
+    expect(
+        (await db.query('batches_fefo', where: 'id=202')).single['total_units'],
+        90);
+    expect(
+        (await db.query('drugs', where: 'id=11')).single['stock_total_units'],
+        0);
+    final sales =
+        await db.query('stock_movements', where: "movement_type='SALE_OUT'");
     expect(sales, hasLength(1));
     expect(sales.single['warehouse_id'], 1);
     expect(sales.single['qty_units'], -5);
