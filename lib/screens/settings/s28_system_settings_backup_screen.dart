@@ -93,20 +93,28 @@ class _S28SystemSettingsBackupScreenState
         final value = snapshot.data!;
         final provisioned = value['provisioned'] == true;
         return Card(
-          child: ListTile(
-            isThreeLine: true,
+          child: ExpansionTile(
             leading: Icon(
               provisioned ? Icons.verified_user : Icons.warning_amber,
               color: provisioned ? Colors.green : Colors.orange,
             ),
             title: Text(provisioned
-                ? 'هوية المؤسسة والفرع معتمدة على هذا الجهاز'
-                : 'هوية مؤقتة — لم يتم التأسيس بعد'),
-            subtitle: SelectableText(
-              'المؤسسة: ${value['tenant_name']}  •  ${value['tenant_uuid']}\\n'
-              'الفرع: ${value['branch_name']}  •  ${value['branch_uuid']}\\n'
-              'معرّف هذا الجهاز: ${value['device_id']}',
+                ? 'هوية المنشأة معتمدة على هذا الجهاز'
+                : 'هذا الجهاز لم يكتمل تأسيس هويته'),
+            subtitle: Text(
+              'المؤسسة: ' + (value['tenant_name']?.toString() ?? 'غير معروفة') +
+              ' • الفرع: ' + (value['branch_name']?.toString() ?? 'غير معروف'),
             ),
+            children: [
+              ListTile(
+                title: const Text('تفاصيل التعريف الفنية'),
+                subtitle: SelectableText(
+                  'معرّف المؤسسة: ' + (value['tenant_uuid']?.toString() ?? '') +
+                  '\nمعرّف الفرع: ' + (value['branch_uuid']?.toString() ?? '') +
+                  '\nمعرّف الجهاز: ' + (value['device_id']?.toString() ?? ''),
+                ),
+              ),
+            ],
           ),
         );
       },
@@ -1224,7 +1232,7 @@ class _S28SystemSettingsBackupScreenState
       await p.refreshCloudSyncSchedule();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('تم تجديد ID token وتحديث صلاحيات Firebase'),
+          content: Text('تم تحديث صلاحيات الاتصال السحابي'),
         ));
       }
     } catch (e) {
@@ -1462,7 +1470,7 @@ class _S28SystemSettingsBackupScreenState
                           ]));
           },
           icon: const Icon(Icons.verified),
-          label: const Text('فحص سلامة سلسلة SHA-256')),
+          label: const Text('فحص سلامة سجل العمليات')),
       if (p.chainResult != null)
         Card(
             child: ListTile(
