@@ -6,6 +6,7 @@ import '../database/database_helper.dart';
 import '../models/erp_models.dart';
 import '../models/clinical_and_rx_models.dart';
 import 'fefo_allocator_service.dart';
+import 'clinical_regulatory_service.dart';
 import 'financial_voucher_operation.dart';
 import 'financial_sale_capture.dart';
 import 'financial_minor_units.dart';
@@ -450,6 +451,8 @@ class PostingAndSalesService {
           invoiceId: invoiceId,
         );
       }
+      await ClinicalRegulatoryService.linkDecisions(txn,
+          branchId: branchId, invoiceId: invoiceId, verdict: clinicalVerdict);
       return invoiceId;
     });
   }
