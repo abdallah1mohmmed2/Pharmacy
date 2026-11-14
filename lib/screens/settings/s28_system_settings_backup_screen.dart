@@ -598,6 +598,28 @@ class _S28SystemSettingsBackupScreenState
     await _change(spec, parsed);
   }
 
+  Future<void> _updateRolePermission(
+      String role, String permission, bool allowed) async {
+    try {
+      await context.read<SettingsAndSystemProvider>().setRolePermission(
+        role, permission, allowed,
+        actorRole: context.read<SessionAndErpProvider>()
+            .currentUser?['role_code'] as String? ?? '',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم تحديث صلاحية المستخدم بنجاح.')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('لم يتم تغيير الصلاحية: ' + error.toString())),
+        );
+      }
+    }
+  }
+
   Widget _rolesTab(SettingsAndSystemProvider p) =>
       ListView(padding: const EdgeInsets.all(12), children: [
         const Text('من يمكنه القيام بكل مهمة؟',
@@ -624,12 +646,8 @@ class _S28SystemSettingsBackupScreenState
                   value: (row['is_allowed'] as num) == 1,
                   onChanged: role == 'OWNER'
                       ? null
-                      : (v) => p.setRolePermission(
-                          role, row['permission_code'] as String, v,
-                          actorRole: context
-                                  .read<SessionAndErpProvider>()
-                                  .currentUser?['role_code'] as String? ??
-                              '')),
+                      : (v) => _updateRolePermission(
+                          role, row['permission_code'] as String, v),),
           ]),
         const Divider(),
         const Text('إدارة المستخدمين وحسابات الدخول',
