@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/enterprise_dark_theme.dart';
 import '../../core/widgets/shared_widgets.dart';
 import '../../data/models/erp_models.dart';
+import '../../data/database/database_helper.dart';
 import '../../providers/session_and_erp_provider.dart';
 import 'manual_message_composer_screen.dart';
 
@@ -79,6 +80,54 @@ class _PartyDetailsScreenState extends State<PartyDetailsScreen> {
         documentNumber: documentNumber,
       ),
     ));
+  }
+
+  Future<void> _messageForEntry(
+    PartyModel party,
+    Map<String, Object?> entry,
+  ) async {
+    String? documentNumber;
+    String kind = 'general_notice';
+    final docId = entry['doc_id'] as int?;
+    try {
+      if (docId != null && entry['doc_type'] == 'VOUCHER') {
+        final vouchers = await DatabaseHelper.instance.query(
+          'vouchers',
+          where: 'id=? AND party_id=? AND branch_id=?',
+          whereArgs: [docId, party.id, party.branchId],
+          limit: 1,
+        );
+        if (vouchers.isNotEmpty) {
+          final voucher = vouchers.first;
+          documentNumber = voucher['voucher_no']?.toString();
+          if (party.partyType == 'CUSTOMER' &&
+              voucher['voucher_type'] == 'RECEIPT') kind = 'customer_receipt';
+          if (party.partyType == 'SUPPLIER' &&
+              voucher['voucher_type'] == 'PAYMENT') kind = 'supplier_payment';
+        }
+      } else if (docId != null && entry['doc_type'] == 'INVOICE') {
+        final invoices = await DatabaseHelper.instance.query(
+          'sales_invoices',
+          where: 'id=? AND branch_id=? AND customer_party_id=?',
+          whereArgs: [docId, party.branchId, party.id],
+          limit: 1,
+        );
+        if (invoices.isNotEmpty) {
+          documentNumber = invoices.first['invoice_no']?.toString();
+        }
+      }
+    } catch (_) {
+      // A failed lookup must not invent a document number or block composing.
+    }
+    if (!mounted) return;
+    final debit = (entry['alayh_amount'] as num?) ?? 0;
+    final credit = (entry['lah_amount'] as num?) ?? 0;
+    final amount = debit > 0 ? debit : credit;
+    await _openMessage(party, 'whatsapp',
+      initialKind: kind,
+      transactionAmount: amount > 0 ? MoneyFormatter.format(amount) : null,
+      documentNumber: documentNumber,
+    );
   }
 
   @override
@@ -249,6 +298,13 @@ class _PartyDetailsScreenState extends State<PartyDetailsScreen> {
                           ),
                           Text(
                             'له: ${MoneyFormatter.format((entry['lah_amount'] as num?) ?? 0)}',
+                          ),
+                        ],
+                        actions: [
+                          OutlinedButton.icon(
+                            onPressed: () => _messageForEntry(party, entry),
+                            icon: const Icon(Icons.chat_outlined),
+                            label: const Text('رسالة عن هذه الحركة'),
                           ),
                         ],
                       ),
