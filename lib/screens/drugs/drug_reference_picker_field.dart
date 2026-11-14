@@ -44,7 +44,7 @@ class DrugReferenceLookup {
     };
     final text = query.trim();
     final escaped = text
-        .replaceAll(r'\', r'\\')
+        .replaceAll('\\', '\\\\')
         .replaceAll('%', r'\%')
         .replaceAll('_', r'\_');
     final pattern = '%$escaped%';
