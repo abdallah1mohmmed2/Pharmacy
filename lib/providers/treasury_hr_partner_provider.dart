@@ -38,6 +38,43 @@ class TreasuryHrPartnerProvider extends ChangeNotifier {
   List<Map<String, Object?>> distributionPreview = [];
   Map<String, double> profitSummary = {};
 
+  bool treasuryLoading = false;
+  String? treasuryError;
+  int _treasuryGeneration = 0;
+  int? _treasuryBranchId;
+
+  /// Load the treasury independently of inventory, HR and login-page lifetime.
+  Future<void> loadTreasury({int? branchId, int? userId}) async {
+    final requestedBranch = branchId ?? this.branchId;
+    this.branchId = requestedBranch;
+    if (userId != null) this.userId = userId;
+    final generation = ++_treasuryGeneration;
+    if (_treasuryBranchId != requestedBranch) {
+      cashAccounts = [];
+      transactions = [];
+    }
+    _treasuryBranchId = requestedBranch;
+    treasuryLoading = true;
+    treasuryError = null;
+    notifyListeners();
+    try {
+      final accounts = await _treasury.cashAccounts(requestedBranch);
+      if (generation != _treasuryGeneration) return;
+      cashAccounts = accounts;
+      notifyListeners();
+      final movements = await _treasury.transactions(requestedBranch);
+      if (generation != _treasuryGeneration) return;
+      transactions = movements;
+    } catch (e) {
+      if (generation == _treasuryGeneration) treasuryError = e.toString();
+    } finally {
+      if (generation == _treasuryGeneration) {
+        treasuryLoading = false;
+        notifyListeners();
+      }
+    }
+  }
+
   Future<void> loadAll({required int branchId, required int userId}) async {
     this.branchId = branchId;
     this.userId = userId;
@@ -46,8 +83,7 @@ class TreasuryHrPartnerProvider extends ChangeNotifier {
     notifyListeners();
     try {
       final db = await _db.database;
-      cashAccounts = await _treasury.cashAccounts(branchId);
-      transactions = await _treasury.transactions(branchId);
+      await loadTreasury(branchId: branchId, userId: userId);
       expenses = await db.rawQuery(
           'SELECT e.*,c.name_ar category_name,a.name_ar cash_account_name FROM expenses e JOIN expense_categories c ON c.id=e.category_id JOIN cash_accounts a ON a.id=e.cash_account_id WHERE e.branch_id=? ORDER BY e.expense_date DESC,e.id DESC',
           [branchId]);
