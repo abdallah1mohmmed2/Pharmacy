@@ -107,6 +107,7 @@ void main() {
   for (final type in ['RECEIPT', 'PAYMENT']) {
     test('actual $type voucher posts a complete balanced document', () async {
       await provisionReferenceUuids();
+      if (type == 'PAYMENT') await post('RECEIPT');
       final id = await post(type);
       final result = await CashVoucherIntegrityValidator.validate(
           database: database, branchId: 1, voucherId: id, fractionDigits: 2);
