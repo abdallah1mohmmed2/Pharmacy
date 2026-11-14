@@ -1,5 +1,7 @@
 import 'dart:math';
+
 import 'package:sqflite/sqflite.dart';
+
 import '../database/database_helper.dart';
 import '../models/erp_models.dart';
 import '../models/clinical_and_rx_models.dart';
@@ -9,11 +11,11 @@ import 'financial_sale_capture.dart';
 import 'financial_minor_units.dart';
 
 class PostingAndSalesService {
-  PostingAndSalesService(
-      {DatabaseHelper? helper,
-      int? financialSyncFractionDigits,
-      bool captureSaleForF10 = false})
-      : _helper = helper ?? DatabaseHelper.instance,
+  PostingAndSalesService({
+    DatabaseHelper? helper,
+    int? financialSyncFractionDigits,
+    bool captureSaleForF10 = false,
+  })  : _helper = helper ?? DatabaseHelper.instance,
         _financialSyncFractionDigits = financialSyncFractionDigits,
         _captureSaleForF10 = captureSaleForF10;
   final DatabaseHelper _helper;
@@ -43,26 +45,28 @@ class PostingAndSalesService {
         'updated_at': DateTime.now().toIso8601String(),
         'is_deleted': 0,
         'sync_status': 'LOCAL',
-        'sync_version': 1
+        'sync_version': 1,
       };
 
   static bool isBalancedAmounts(double debit, double credit) =>
       debit > 0 && (debit - credit).abs() <= 0.005;
 
-  Future<int> postBalancedEntry(Transaction txn,
-      {required int branchId,
-      required String description,
-      required String sourceType,
-      required int sourceId,
-      required List<
-              ({
-                int accountId,
-                double debit,
-                double credit,
-                int? partyId,
-                String memo
-              })>
-          lines}) async {
+  Future<int> postBalancedEntry(
+    Transaction txn, {
+    required int branchId,
+    required String description,
+    required String sourceType,
+    required int sourceId,
+    required List<
+            ({
+              int accountId,
+              double debit,
+              double credit,
+              int? partyId,
+              String memo
+            })>
+        lines,
+  }) async {
     final debit = lines.fold<double>(0, (s, l) => s + l.debit);
     final credit = lines.fold<double>(0, (s, l) => s + l.credit);
     if (!isBalancedAmounts(debit, credit))
@@ -75,7 +79,7 @@ class PostingAndSalesService {
       'description': description,
       'source_type': sourceType,
       'source_id': sourceId,
-      'is_posted': 1
+      'is_posted': 1,
     });
     for (final line in lines) {
       await txn.insert('journal_lines', {
@@ -85,32 +89,68 @@ class PostingAndSalesService {
         'party_id': line.partyId,
         'dr_amount': line.debit,
         'cr_amount': line.credit,
-        'memo': line.memo
+        'memo': line.memo,
       });
     }
     return entryId;
   }
 
-  Future<int> postSale(
-      {required int branchId,
-      required int cashierUserId,
-      required List<CartItemModel> items,
-      required String saleType,
-      required List<
-              ({
-                int cashAccountId,
-                double amount,
-                String method,
-                String? walletRef
-              })>
-          payments,
-      int customerPartyId = 0,
-      double discountAmount = 0,
-      required ClinicalVerdict clinicalVerdict}) async {
+  Future<int> postSale({
+    required int branchId,
+    required int cashierUserId,
+    required List<CartItemModel> items,
+    required String saleType,
+    required List<
+            ({
+              int cashAccountId,
+              double amount,
+              String method,
+              String? walletRef
+            })>
+        payments,
+    int customerPartyId = 0,
+    double discountAmount = 0,
+    required ClinicalVerdict clinicalVerdict,
+  }) async {
     if (items.isEmpty) throw ArgumentError('لا يمكن حفظ فاتورة فارغة');
+    if (!['CASH', 'CREDIT', 'MIXED'].contains(saleType)) {
+      throw StateError('نوع الفاتورة غير صحيح');
+    }
+    for (final item in items) {
+      if (!['PACK', 'STRIP', 'UNIT'].contains(item.sellUnit) ||
+          !item.quantity.isFinite ||
+          item.quantity <= 0 ||
+          !item.unitPrice.isFinite ||
+          item.unitPrice < 0 ||
+          !item.discount.isFinite ||
+          item.discount < 0 ||
+          item.discount > item.quantity * item.unitPrice) {
+        throw StateError('كمية أو سعر أو خصم الصنف غير صحيح');
+      }
+    }
+    final validatedSubtotal = items.fold<double>(
+      0,
+      (sum, item) => sum + item.lineTotal,
+    );
+    if (!validatedSubtotal.isFinite ||
+        !discountAmount.isFinite ||
+        discountAmount < 0 ||
+        discountAmount > validatedSubtotal) {
+      throw StateError('خصم الفاتورة غير صحيح');
+    }
+    for (final payment in payments) {
+      if (!payment.amount.isFinite ||
+          payment.amount <= 0 ||
+          !['CASH', 'WALLET', 'BANK'].contains(payment.method) ||
+          payment.cashAccountId <= 0) {
+        throw StateError('بيانات الدفع غير صحيحة');
+      }
+    }
+
     if (clinicalVerdict.hasUnresolvedCritical)
       throw StateError(
-          'لا يمكن ترحيل الفاتورة قبل توثيق قرارات التنبيهات السريرية الحرجة');
+        'لا يمكن ترحيل الفاتورة قبل توثيق قرارات التنبيهات السريرية الحرجة',
+      );
     return (await _helper.database).transaction((txn) async {
       final subtotal = items.fold<double>(0, (s, i) => s + i.lineTotal);
       final net =
@@ -121,12 +161,14 @@ class PostingAndSalesService {
       final remaining = (net - paid).clamp(0, double.infinity).toDouble();
       if (remaining > 0 && customerPartyId <= 0)
         throw StateError('اختر العميل لتسجيل المبلغ المتبقي');
-      final activeShiftRows = await txn.query('cashier_shifts',
-          columns: ['id'],
-          where: "branch_id=? AND user_id=? AND status='OPEN'",
-          whereArgs: [branchId, cashierUserId],
-          orderBy: 'id DESC',
-          limit: 1);
+      final activeShiftRows = await txn.query(
+        'cashier_shifts',
+        columns: ['id'],
+        where: "branch_id=? AND user_id=? AND status='OPEN'",
+        whereArgs: [branchId, cashierUserId],
+        orderBy: 'id DESC',
+        limit: 1,
+      );
       final int? activeShiftId =
           activeShiftRows.isEmpty ? null : activeShiftRows.first['id'] as int;
       final invoiceNo = await _nextNumber(txn, branchId, 'INVOICE');
@@ -143,20 +185,23 @@ class PostingAndSalesService {
         'net_total': net,
         'paid_total': paid,
         'remaining_alayh': remaining,
-        'total_cost': 0
+        'total_cost': 0,
       });
       double actualTotalCost = 0;
       for (final item in items) {
         final int drugId =
             item.drug.id ?? (throw StateError('معرّف الدواء غير محفوظ'));
-        final drugRows = await txn.query('drugs',
-            columns: ['units_per_pack', 'is_controlled'],
-            where: 'id=? AND is_deleted=0',
-            whereArgs: [drugId]);
+        final drugRows = await txn.query(
+          'drugs',
+          columns: ['units_per_pack', 'is_controlled'],
+          where: 'id=? AND is_deleted=0',
+          whereArgs: [drugId],
+        );
         if (drugRows.isEmpty) throw StateError('الصنف غير موجود');
         if ((drugRows.first['is_controlled'] as num? ?? 0) == 1)
           throw StateError(
-              'الأدوية المراقبة تُصرف من شاشة الوصفات مع توثيق بيانات المريض والمستلم فقط');
+            'الأدوية المراقبة تُصرف من شاشة الوصفات مع توثيق بيانات المريض والمستلم فقط',
+          );
         final unitsValue = drugRows.first['units_per_pack'];
         final int units = unitsValue is num
             ? unitsValue.toInt()
@@ -173,32 +218,43 @@ class PostingAndSalesService {
           'line_total': item.lineTotal,
           'line_cost': 0,
           'is_substitute': item.isSubstitute ? 1 : 0,
-          'substituted_for_drug_id': item.substitutedForDrugId
+          'substituted_for_drug_id': item.substitutedForDrugId,
         });
         final allocations = await _fefo.allocateAndApply(
-            txn: txn,
-            drugId: drugId,
-            needUnits: item.baseUnits,
-            unitsPerPack: units,
-            invoiceItemId: invoiceItemId,
-            warehouseId: null,
-            unitPrice: item.unitPrice,
-            docType: 'SALE',
-            docId: invoiceId);
+          txn: txn,
+          drugId: drugId,
+          needUnits: item.baseUnits,
+          unitsPerPack: units,
+          invoiceItemId: invoiceItemId,
+          warehouseId: null,
+          unitPrice: item.unitPrice,
+          docType: 'SALE',
+          docId: invoiceId,
+        );
         final lineCost = allocations.fold<double>(
-            0, (sum, a) => sum + a.qtyUnits * a.unitCost);
+          0,
+          (sum, a) => sum + a.qtyUnits * a.unitCost,
+        );
         actualTotalCost += lineCost;
-        await txn.update('sales_invoice_items', {'line_cost': lineCost},
-            where: 'id=?', whereArgs: [invoiceItemId]);
+        await txn.update(
+          'sales_invoice_items',
+          {'line_cost': lineCost},
+          where: 'id=?',
+          whereArgs: [invoiceItemId],
+        );
       }
-      await txn.update('sales_invoices', {'total_cost': actualTotalCost},
-          where: 'id=?', whereArgs: [invoiceId]);
+      await txn.update(
+        'sales_invoices',
+        {'total_cost': actualTotalCost},
+        where: 'id=?',
+        whereArgs: [invoiceId],
+      );
       final journalLines = <({
         int accountId,
         double debit,
         double credit,
         int? partyId,
-        String memo
+        String memo,
       })>[];
       for (final payment in payments) {
         if (payment.method == 'WALLET' &&
@@ -210,20 +266,23 @@ class PostingAndSalesService {
           'cash_account_id': payment.cashAccountId,
           'method': payment.method,
           'amount': payment.amount,
-          'wallet_ref_no': payment.walletRef
+          'wallet_ref_no': payment.walletRef,
         });
         await txn.rawUpdate(
-            'UPDATE cash_accounts SET current_balance=current_balance+?,updated_at=? WHERE id=?',
-            [
-              payment.amount,
-              DateTime.now().toIso8601String(),
-              payment.cashAccountId
-            ]);
-        final cashBalanceRows = await txn.query('cash_accounts',
-            columns: ['current_balance'],
-            where: 'id=?',
-            whereArgs: [payment.cashAccountId],
-            limit: 1);
+          'UPDATE cash_accounts SET current_balance=current_balance+?,updated_at=? WHERE id=?',
+          [
+            payment.amount,
+            DateTime.now().toIso8601String(),
+            payment.cashAccountId,
+          ],
+        );
+        final cashBalanceRows = await txn.query(
+          'cash_accounts',
+          columns: ['current_balance'],
+          where: 'id=?',
+          whereArgs: [payment.cashAccountId],
+          limit: 1,
+        );
         await txn.insert('cash_transactions', {
           if (_captureSaleForF10) 'uuid': _uuid(),
           'cash_account_id': payment.cashAccountId,
@@ -238,12 +297,14 @@ class PostingAndSalesService {
           'balance_after':
               (cashBalanceRows.first['current_balance'] as num).toDouble(),
           'note': 'تحصيل فاتورة بيع',
-          'branch_id': branchId
+          'branch_id': branchId,
         });
-        final cashAccount = await txn.query('cash_accounts',
-            columns: ['gl_account_id', 'account_kind'],
-            where: 'id=?',
-            whereArgs: [payment.cashAccountId]);
+        final cashAccount = await txn.query(
+          'cash_accounts',
+          columns: ['gl_account_id', 'account_kind'],
+          where: 'id=?',
+          whereArgs: [payment.cashAccountId],
+        );
         if (cashAccount.isEmpty) throw StateError('حساب التحصيل غير موجود');
         final kind = cashAccount.first['account_kind'] as String;
         if (payment.method == 'WALLET' && kind != 'WALLET')
@@ -261,14 +322,15 @@ class PostingAndSalesService {
           debit: payment.amount,
           credit: 0,
           partyId: null,
-          memo: 'تحصيل فاتورة'
+          memo: 'تحصيل فاتورة',
         ));
       }
       final revenue = await _accountId(txn, '4101');
       if (remaining > 0 && customerPartyId > 0) {
         final creditRows = await txn.rawQuery(
-            'SELECT p.credit_limit, COALESCE(v.net,0) AS net FROM parties p LEFT JOIN v_party_balance v ON v.party_id=p.id WHERE p.id=?',
-            [customerPartyId]);
+          'SELECT p.credit_limit, COALESCE(v.net,0) AS net FROM parties p LEFT JOIN v_party_balance v ON v.party_id=p.id WHERE p.id=?',
+          [customerPartyId],
+        );
         if (creditRows.isEmpty) throw StateError('العميل غير موجود');
         final limit = (creditRows.first['credit_limit'] as num).toDouble();
         final existing = (creditRows.first['net'] as num).toDouble();
@@ -283,7 +345,7 @@ class PostingAndSalesService {
           'lah_amount': 0,
           'doc_type': 'INVOICE',
           'doc_id': invoiceId,
-          'statement_ar': 'الجزء المتبقي من الفاتورة ' + invoiceNo
+          'statement_ar': 'الجزء المتبقي من الفاتورة ' + invoiceNo,
         });
         final receivable = await _accountId(txn, '1201');
         journalLines.add((
@@ -291,7 +353,7 @@ class PostingAndSalesService {
           debit: remaining,
           credit: 0,
           partyId: customerPartyId,
-          memo: 'ذمم فاتورة'
+          memo: 'ذمم فاتورة',
         ));
       }
       journalLines.add((
@@ -299,7 +361,7 @@ class PostingAndSalesService {
         debit: 0,
         credit: net,
         partyId: null,
-        memo: 'إيراد المبيعات'
+        memo: 'إيراد المبيعات',
       ));
       final cost = actualTotalCost;
       if (cost > 0) {
@@ -310,42 +372,52 @@ class PostingAndSalesService {
           debit: cost,
           credit: 0,
           partyId: null,
-          memo: 'تكلفة المبيعات'
+          memo: 'تكلفة المبيعات',
         ));
         journalLines.add((
           accountId: inventory,
           debit: 0,
           credit: cost,
           partyId: null,
-          memo: 'تخفيض المخزون'
+          memo: 'تخفيض المخزون',
         ));
       }
-      final entryId = await postBalancedEntry(txn,
-          branchId: branchId,
-          description: 'فاتورة بيع ' + invoiceNo,
-          sourceType: 'SALE',
-          sourceId: invoiceId,
-          lines: journalLines);
-      await txn.update('sales_invoices', {'journal_entry_id': entryId},
-          where: 'id=?', whereArgs: [invoiceId]);
+      final entryId = await postBalancedEntry(
+        txn,
+        branchId: branchId,
+        description: 'فاتورة بيع ' + invoiceNo,
+        sourceType: 'SALE',
+        sourceId: invoiceId,
+        lines: journalLines,
+      );
+      await txn.update(
+        'sales_invoices',
+        {'journal_entry_id': entryId},
+        where: 'id=?',
+        whereArgs: [invoiceId],
+      );
       if (_captureSaleForF10) {
-        await FinancialSaleCapture.capture(txn,
-            branchId: branchId, invoiceId: invoiceId);
+        await FinancialSaleCapture.capture(
+          txn,
+          branchId: branchId,
+          invoiceId: invoiceId,
+        );
       }
       return invoiceId;
     });
   }
 
-  Future<int> postVoucher(
-      {required int branchId,
-      required String voucherNo,
-      required String voucherType,
-      required int partyId,
-      int cashAccountId = -1,
-      required double amount,
-      required String method,
-      required String description,
-      String? walletRefNo}) async {
+  Future<int> postVoucher({
+    required int branchId,
+    required String voucherNo,
+    required String voucherType,
+    required int partyId,
+    int cashAccountId = -1,
+    required double amount,
+    required String method,
+    required String description,
+    String? walletRefNo,
+  }) async {
     if (amount <= 0) throw ArgumentError('المبلغ يجب أن يكون أكبر من صفر');
     if (_financialSyncFractionDigits != null && method == 'CASH') {
       if (_financialSyncFractionDigits !=
@@ -373,8 +445,11 @@ class PostingAndSalesService {
       Map<String, Object?>? cashRow;
       if (!isOffset) {
         if (cashId < 0) throw StateError('حساب الصندوق غير موجود');
-        final cashRows = await txn
-            .query('cash_accounts', where: 'id=?', whereArgs: [cashId]);
+        final cashRows = await txn.query(
+          'cash_accounts',
+          where: 'id=?',
+          whereArgs: [cashId],
+        );
         if (cashRows.isEmpty) throw StateError('حساب الصندوق غير موجود');
         cashRow = cashRows.first;
         final kind = cashRow['account_kind'] as String;
@@ -385,8 +460,11 @@ class PostingAndSalesService {
         if (method == 'BANK' && kind != 'BANK')
           throw StateError('اختر الحساب البنكي');
       }
-      final party =
-          await txn.query('parties', where: 'id=?', whereArgs: [partyId]);
+      final party = await txn.query(
+        'parties',
+        where: 'id=?',
+        whereArgs: [partyId],
+      );
       if (party.isEmpty) throw StateError('الطرف غير موجود');
       final now = DateTime.now().toIso8601String();
       final voucherId = await txn.insert('vouchers', {
@@ -399,15 +477,17 @@ class PostingAndSalesService {
         'amount': amount,
         'method': method,
         'wallet_ref_no': walletRefNo,
-        'description': description
+        'description': description,
       });
       final shiftRows = !isOffset
-          ? await txn.query('cashier_shifts',
+          ? await txn.query(
+              'cashier_shifts',
               columns: ['id'],
               where: "branch_id=? AND status='OPEN'",
               whereArgs: [branchId],
               orderBy: 'id DESC',
-              limit: 1)
+              limit: 1,
+            )
           : <Map<String, Object?>>[];
       final int? voucherShiftId =
           shiftRows.isEmpty ? null : shiftRows.first['id'] as int;
@@ -423,7 +503,7 @@ class PostingAndSalesService {
           'doc_type': 'VOUCHER',
           'doc_id': voucherId,
           'statement_ar':
-              description.isEmpty ? 'سند ' + generatedVoucherNo : description
+              description.isEmpty ? 'سند ' + generatedVoucherNo : description,
         });
       }
       final partyGl = await _accountId(txn, isReceipt ? '1201' : '2101');
@@ -432,11 +512,13 @@ class PostingAndSalesService {
         double debit,
         double credit,
         int? partyId,
-        String memo
+        String memo,
       })>[];
       if (isOffset) {
         final balanceRows = await txn.rawQuery(
-            'SELECT net FROM v_party_balance WHERE party_id=?', [partyId]);
+          'SELECT net FROM v_party_balance WHERE party_id=?',
+          [partyId],
+        );
         final net = balanceRows.isEmpty
             ? 0.0
             : (balanceRows.first['net'] as num).toDouble();
@@ -456,21 +538,21 @@ class PostingAndSalesService {
             'lah_amount': amount,
             'doc_type': 'VOUCHER',
             'doc_id': voucherId,
-            'statement_ar': 'تسوية رصيد'
+            'statement_ar': 'تسوية رصيد',
           });
           lines.add((
             accountId: adjustment,
             debit: amount,
             credit: 0,
             partyId: null,
-            memo: 'تسوية رصيد مستحق'
+            memo: 'تسوية رصيد مستحق',
           ));
           lines.add((
             accountId: offsetPartyGl,
             debit: 0,
             credit: amount,
             partyId: partyId,
-            memo: 'تخفيض رصيد الطرف'
+            memo: 'تخفيض رصيد الطرف',
           ));
         } else {
           await txn.insert('lah_alayh_ledger', {
@@ -482,21 +564,21 @@ class PostingAndSalesService {
             'lah_amount': 0,
             'doc_type': 'VOUCHER',
             'doc_id': voucherId,
-            'statement_ar': 'تسوية رصيد'
+            'statement_ar': 'تسوية رصيد',
           });
           lines.add((
             accountId: offsetPartyGl,
             debit: amount,
             credit: 0,
             partyId: partyId,
-            memo: 'تخفيض التزام الطرف'
+            memo: 'تخفيض التزام الطرف',
           ));
           lines.add((
             accountId: adjustment,
             debit: 0,
             credit: amount,
             partyId: null,
-            memo: 'تسوية رصيد مستحق'
+            memo: 'تسوية رصيد مستحق',
           ));
         }
       } else {
@@ -506,13 +588,16 @@ class PostingAndSalesService {
           throw StateError('اربط حساب الصندوق بدليل الحسابات أولاً');
         final int cashGl = int.parse(cashGlValue.toString());
         await txn.rawUpdate(
-            'UPDATE cash_accounts SET current_balance=current_balance+?,updated_at=? WHERE id=?',
-            [isReceipt ? amount : -amount, now, cashId]);
-        final afterRows = await txn.query('cash_accounts',
-            columns: ['current_balance'],
-            where: 'id=?',
-            whereArgs: [cashId],
-            limit: 1);
+          'UPDATE cash_accounts SET current_balance=current_balance+?,updated_at=? WHERE id=?',
+          [isReceipt ? amount : -amount, now, cashId],
+        );
+        final afterRows = await txn.query(
+          'cash_accounts',
+          columns: ['current_balance'],
+          where: 'id=?',
+          whereArgs: [cashId],
+          limit: 1,
+        );
         await txn.insert('cash_transactions', {
           'uuid': _uuid(),
           'cash_account_id': cashId,
@@ -527,7 +612,7 @@ class PostingAndSalesService {
           'balance_after':
               (afterRows.first['current_balance'] as num).toDouble(),
           'note': description,
-          'branch_id': branchId
+          'branch_id': branchId,
         });
         if (isReceipt) {
           lines.add((
@@ -535,14 +620,14 @@ class PostingAndSalesService {
             debit: amount,
             credit: 0,
             partyId: null,
-            memo: 'استلام نقدية'
+            memo: 'استلام نقدية',
           ));
           lines.add((
             accountId: partyGl,
             debit: 0,
             credit: amount,
             partyId: partyId,
-            memo: 'تخفيض رصيد الطرف'
+            memo: 'تخفيض رصيد الطرف',
           ));
         } else {
           lines.add((
@@ -550,25 +635,31 @@ class PostingAndSalesService {
             debit: amount,
             credit: 0,
             partyId: partyId,
-            memo: 'تسديد للطرف'
+            memo: 'تسديد للطرف',
           ));
           lines.add((
             accountId: cashGl,
             debit: 0,
             credit: amount,
             partyId: null,
-            memo: 'صرف نقدية'
+            memo: 'صرف نقدية',
           ));
         }
       }
-      final entryId = await postBalancedEntry(txn,
-          branchId: branchId,
-          description: description,
-          sourceType: 'VOUCHER',
-          sourceId: voucherId,
-          lines: lines);
-      await txn.update('vouchers', {'journal_entry_id': entryId},
-          where: 'id=?', whereArgs: [voucherId]);
+      final entryId = await postBalancedEntry(
+        txn,
+        branchId: branchId,
+        description: description,
+        sourceType: 'VOUCHER',
+        sourceId: voucherId,
+        lines: lines,
+      );
+      await txn.update(
+        'vouchers',
+        {'journal_entry_id': entryId},
+        where: 'id=?',
+        whereArgs: [voucherId],
+      );
       // P0-06: only explicitly configured CASH vouchers emit the complete
       // immutable outbox envelope inside the SAME business transaction.
       // Invalid provisioned identities or unbalanced docs abort the posting.
@@ -585,21 +676,29 @@ class PostingAndSalesService {
   }
 
   Future<String> _nextNumber(
-      Transaction txn, int branchId, String docType) async {
+    Transaction txn,
+    int branchId,
+    String docType,
+  ) async {
     final year = DateTime.now().year;
-    final rows = await txn.query('number_sequences',
-        where: 'branch_id=? AND doc_type=? AND year=?',
-        whereArgs: [branchId, docType, year],
-        limit: 1);
+    final rows = await txn.query(
+      'number_sequences',
+      where: 'branch_id=? AND doc_type=? AND year=?',
+      whereArgs: [branchId, docType, year],
+      limit: 1,
+    );
     if (rows.isEmpty) throw StateError('تسلسل المستند غير مهيأ: ' + docType);
     final row = rows.first;
     final next = (row['last_no'] as int) + 1;
     final id = row['id'] as int;
     final prefix = row['prefix'] as String;
     final pad = row['pad_length'] as int;
-    await txn.update('number_sequences',
-        {'last_no': next, 'updated_at': DateTime.now().toIso8601String()},
-        where: 'id=?', whereArgs: [id]);
+    await txn.update(
+      'number_sequences',
+      {'last_no': next, 'updated_at': DateTime.now().toIso8601String()},
+      where: 'id=?',
+      whereArgs: [id],
+    );
     return prefix +
         '-' +
         year.toString() +
@@ -608,8 +707,13 @@ class PostingAndSalesService {
   }
 
   Future<int> _accountId(Transaction txn, String code) async {
-    final rows = await txn.query('chart_of_accounts',
-        columns: ['id'], where: 'code=?', whereArgs: [code], limit: 1);
+    final rows = await txn.query(
+      'chart_of_accounts',
+      columns: ['id'],
+      where: 'code=?',
+      whereArgs: [code],
+      limit: 1,
+    );
     if (rows.isEmpty)
       throw StateError('الحساب غير موجود في دليل الحسابات: ' + code);
     return rows.first['id'] as int;
