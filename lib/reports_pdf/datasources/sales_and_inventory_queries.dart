@@ -292,7 +292,16 @@ class SalesAndInventoryQueries {
       MAX(d.reorder_qty_packs,0) AS suggested_order_packs,
       (SELECT p.name_ar FROM purchase_invoice_items pii JOIN purchase_invoices pi ON pi.id=pii.invoice_id JOIN parties p ON p.id=pi.supplier_party_id WHERE pii.drug_id=d.id GROUP BY p.id ORDER BY AVG(pii.effective_pack_cost) LIMIT 1) AS preferred_supplier,
       MAX(d.reorder_qty_packs,0)*d.last_purchase_cost_pack AS expected_cost
-    FROM drugs d WHERE d.branch_id=? AND d.is_active=1 AND d.stock_total_units<=d.min_stock_units
+    FROM drugs d
+    WHERE d.branch_id=? AND d.is_deleted=0 AND d.is_active=1
+      AND d.stock_total_units<=d.min_stock_units
+      -- The shortage report must use the same previously-stocked rule as the
+      -- shortage screen; the shared drug catalog is not on-hand inventory.
+      AND EXISTS (
+        SELECT 1 FROM batches_fefo history
+        JOIN warehouses wh ON wh.id=history.warehouse_id
+        WHERE history.drug_id=d.id AND wh.branch_id=d.branch_id
+      )
     ORDER BY shortage DESC
   ''', [p.branchId]);
 
