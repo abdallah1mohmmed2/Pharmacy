@@ -31,7 +31,8 @@ class _Session extends SessionAndErpProvider {
 
 class _Templates implements ManualMessageTemplateRepository {
   @override
-  Future<String> load(String id) async => ManualMessageKind.byId(id).defaultText;
+  Future<String> load(String id) async =>
+      ManualMessageKind.byId(id).defaultText;
   @override
   Future<void> save(String id, String text) async {}
 }
@@ -181,5 +182,4 @@ void main() {
     expect(launches.first.scheme, 'sms');
     expect(launches.first.queryParameters['body'], contains('100'));
   });
-
 }
