@@ -22,7 +22,10 @@ void main() {
         trade_name_ar TEXT NOT NULL,is_controlled INTEGER NOT NULL DEFAULT 0,
         controlled_schedule TEXT,stock_total_units INTEGER NOT NULL DEFAULT 0)''',
       '''CREATE TABLE users (id INTEGER PRIMARY KEY,branch_id INTEGER,
-        full_name TEXT)''',
+        full_name TEXT,role_code TEXT,system_role_code TEXT,
+        is_active INTEGER NOT NULL DEFAULT 1,is_deleted INTEGER NOT NULL DEFAULT 0)''',
+      '''CREATE TABLE role_permissions (
+        role_code TEXT,permission_code TEXT,is_allowed INTEGER)''',
       '''CREATE TABLE warehouses (id INTEGER PRIMARY KEY,branch_id INTEGER,
         name_ar TEXT)''',
       '''CREATE TABLE batches_fefo (id INTEGER PRIMARY KEY,drug_id INTEGER,
@@ -94,8 +97,16 @@ void main() {
     await db.insert('sales_invoice_items', {'id': 1001, 'invoice_id': 1});
     await db.insert('sales_invoice_items', {'id': 2002, 'invoice_id': 2});
     await db.insert('prescriptions', {'id': 7, 'rx_no': 'RX-7'});
-    await db
-        .insert('users', {'id': 3, 'branch_id': 1, 'full_name': 'صيدلي فرع 1'});
+    await db.insert('users', {
+      'id': 3,
+      'branch_id': 1,
+      'full_name': 'مراجع فرع 1',
+      'role_code': 'AUDITOR',
+      'system_role_code': 'AUDITOR',
+    });
+    await db.insert('role_permissions', {
+      'role_code': 'AUDITOR', 'permission_code': 'audit.view', 'is_allowed': 1,
+    });
     await SchemaIteration16.upgrade(db);
     service = ClinicalRegulatoryService(helper: DatabaseHelper.forTesting(db));
   });
@@ -136,6 +147,50 @@ void main() {
       'recorded_at': '2026-11-14T08:05:00'
     });
   }
+
+  test('sensitive identity requires audited user, permission and branch',
+      () async {
+    expect(await service.canRevealIdentity(branchId: 1, userId: 3), isTrue);
+    expect(await service.canRevealIdentity(branchId: 2, userId: 3), isFalse);
+    await db.update('role_permissions', {'is_allowed': 0},
+        where: "role_code='AUDITOR'");
+    expect(await service.canRevealIdentity(branchId: 1, userId: 3), isFalse);
+    await db.update('role_permissions', {'is_allowed': 1},
+        where: "role_code='AUDITOR'");
+    await db.update('users', {'is_active': 0}, where: 'id=3');
+    expect(await service.canRevealIdentity(branchId: 1, userId: 3), isFalse);
+  });
+
+  test('wrong-branch decision rolls back whole invoice transaction', () async {
+    await addAlert(20, 22);
+    final foreign = ClinicalVerdict([
+      const ClinicalAlertModel(
+        id: 20, drugId: 22, category: 'ALLERGY',
+        level: ClinicalLevel.warning, messageAr: 'مراجعة الحساسية',
+        userDecision: 'ACKNOWLEDGED',
+      ),
+    ]);
+    await expectLater(db.transaction((txn) async {
+      await txn.insert('sales_invoices',
+          {'id': 3, 'branch_id': 1, 'invoice_no': 'SALE-3'});
+      await ClinicalRegulatoryService.linkDecisions(
+          txn, branchId: 1, invoiceId: 3, verdict: foreign);
+    }), throwsA(isA<StateError>()));
+    expect(await db.query('sales_invoices', where: 'id=3'), isEmpty);
+    expect(await db.query('clinical_alert_invoice_links'), isEmpty);
+  });
+
+  test('legacy clinical PDF hides patient identity', () async {
+    await db.insert('patients', {'id': 6, 'full_name': 'الاسم الكامل'});
+    await addAlert(10, 11);
+    await db.update('clinical_alert_logs', {'patient_id': 6}, where: 'id=10');
+    final q = ClinicalAndAuditQueries(helper: DatabaseHelper.forTesting(db));
+    final report = await q.r49(ReportParams(
+      branchId: 1, userId: 3, userName: 'مراجع',
+      canViewCost: false, showCostSetting: false, values: const {},
+    ));
+    expect(report.single['patient'], 'مريض محجوب في النسخة العامة');
+  });
 
   test('migration is additive, idempotent and immutable', () async {
     await addDispense(1, 11, 101, 1001);
