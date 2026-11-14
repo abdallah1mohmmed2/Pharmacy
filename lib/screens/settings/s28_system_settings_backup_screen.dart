@@ -216,17 +216,17 @@ class _S28SystemSettingsBackupScreenState
         appBar: AppBar(
             title: const Text('إعدادات النظام والنسخ الاحتياطي'),
             bottom: const TabBar(isScrollable: true, tabs: [
-              Tab(text: '1 • الهوية'),
-              Tab(text: '2 • البيع'),
-              Tab(text: '3 • سريري'),
-              Tab(text: '4 • المخزون'),
-              Tab(text: '5 • المحاسبة'),
-              Tab(text: '6 • الطباعة'),
-              Tab(text: '7 • الأدوار'),
-              Tab(text: '8 • النسخ'),
-              Tab(text: '9 • السحابة'),
-              Tab(text: '10 • الرقابة'),
-              Tab(text: '11 • الفترات')
+              Tab(text: 'المنشأة والمظهر'),
+              Tab(text: 'المبيعات'),
+              Tab(text: 'السلامة الدوائية'),
+              Tab(text: 'المخزون'),
+              Tab(text: 'المحاسبة'),
+              Tab(text: 'الطباعة'),
+              Tab(text: 'المستخدمون والصلاحيات'),
+              Tab(text: 'النسخ الاحتياطي'),
+              Tab(text: 'الربط السحابي'),
+              Tab(text: 'سجل الأنشطة'),
+              Tab(text: 'الفترات المالية')
             ])),
         body: Consumer<SettingsAndSystemProvider>(
             builder: (context, p, _) => p.loading
@@ -247,6 +247,10 @@ class _S28SystemSettingsBackupScreenState
             (group != SettingGroup.printBackup || s.number <= 33))
         .toList();
     return ListView(padding: const EdgeInsets.all(12), children: [
+      const Padding(
+        padding: EdgeInsets.only(bottom: 8),
+        child: Text('اختر الإعداد الذي تريد تغييره. تحفظ التعديلات في النظام بنفس طريقة الحفظ السابقة.'),
+      ),
       for (final spec in specs) _settingTile(spec, p),
       if (group == SettingGroup.general)
         Card(
@@ -510,8 +514,12 @@ class _S28SystemSettingsBackupScreenState
 
   Widget _rolesTab(SettingsAndSystemProvider p) =>
       ListView(padding: const EdgeInsets.all(12), children: [
-        const Text('مصفوفة صلاحيات الأدوار السبعة',
+        const Text('من يمكنه القيام بكل مهمة؟',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const Padding(
+          padding: EdgeInsets.only(top: 4, bottom: 10),
+          child: Text('افتح دور المستخدم وعدّل الأذونات من مفاتيح التشغيل. صلاحيات المالك محمية ولا يمكن تعطيلها.'),
+        ),
         for (final role in [
           'OWNER',
           'MANAGER',
@@ -525,7 +533,8 @@ class _S28SystemSettingsBackupScreenState
             for (final row in p.roleRows.where((r) => r['role_code'] == role))
               SwitchListTile(
                   dense: true,
-                  title: Text(row['permission_code'].toString()),
+                  title: Text(FriendlySettingsLabels.permission(
+                      row['permission_code'].toString())),
                   value: (row['is_allowed'] as num) == 1,
                   onChanged: role == 'OWNER'
                       ? null
@@ -1229,7 +1238,8 @@ class _S28SystemSettingsBackupScreenState
             style: TextStyle(fontWeight: FontWeight.bold)),
         for (final row in p.syncSummary)
           ListTile(
-              title: Text(row['status'].toString()),
+              title: Text(FriendlySettingsLabels.queueStatus(
+                  row['status'].toString())),
               trailing: Text(row['count'].toString())),
       ]);
   Widget _auditTab(SettingsAndSystemProvider p) {
@@ -1272,7 +1282,8 @@ class _S28SystemSettingsBackupScreenState
                   const DropdownMenuItem<String?>(
                       value: null, child: Text('كل الأحداث')),
                   ...actions.map((v) =>
-                      DropdownMenuItem<String?>(value: v, child: Text(v)))
+                      DropdownMenuItem<String?>(value: v,
+                        child: Text(FriendlySettingsLabels.auditAction(v))))
                 ],
                 onChanged: (v) => setState(() => auditActionFilter = v))),
         SizedBox(
@@ -1284,7 +1295,8 @@ class _S28SystemSettingsBackupScreenState
                   const DropdownMenuItem<String?>(
                       value: null, child: Text('كل المستويات')),
                   ...severities.map((v) =>
-                      DropdownMenuItem<String?>(value: v, child: Text(v)))
+                      DropdownMenuItem<String?>(value: v,
+                        child: Text(FriendlySettingsLabels.severity(v))))
                 ],
                 onChanged: (v) => setState(() => auditSeverityFilter = v))),
       ]),
@@ -1322,9 +1334,9 @@ class _S28SystemSettingsBackupScreenState
         Card(
             child: ExpansionTile(
                 title: Text(
-                    '${row.action} • ${row.entityLabel ?? row.entityType ?? ''}'),
+                    '${FriendlySettingsLabels.auditAction(row.action)} • ${row.entityLabel ?? row.entityType ?? ''}'),
                 subtitle: Text(
-                    '${row.eventAt} • ${row.severity} • المستخدم ${row.userId ?? '-'}'),
+                    '${row.eventAt} • ${FriendlySettingsLabels.severity(row.severity)} • المستخدم ${row.userId ?? '-'}'),
                 children: [
               if (row.oldValuesJson != null)
                 ListTile(
