@@ -1,6 +1,6 @@
 {
-  "schema_version": 18,
-  "reviewed_commit": "3dd6ec22e335d544ba4869e7e9597e836c129a73",
+  "schema_version": 19,
+  "reviewed_commit": "4adfd0a8cc75ef85972a7e31a542ebb6eb8f2813",
   "objects": {
     "active_ingredients": {
       "classification": "syncable",
@@ -104,6 +104,12 @@
       "reason_ar": "جدول أدوية مزمنة مرتبط بعميل ووصفة؛ بيانات شخصية وسريرية.",
       "lifecycle": "schema"
     },
+    "clinical_alert_invoice_links": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "ارتباط قرار سريري بفاتورة؛ بيانات علاجية حساسة محلية وغير معتمدة للمزامنة العامة.",
+      "lifecycle": "schema"
+    },
     "clinical_alert_logs": {
       "classification": "sensitive",
       "sync_allowed": false,
@@ -114,6 +120,12 @@
       "classification": "local",
       "sync_allowed": false,
       "reason_ar": "سجل حرارة يتضمن recorded_by وتصحيحاً حراً؛ خارج العقد الحالي حتى مراجعة الحقول.",
+      "lifecycle": "schema"
+    },
+    "controlled_balance_snapshots": {
+      "classification": "sensitive",
+      "sync_allowed": false,
+      "reason_ar": "لقطات الرصيد المثبت للأدوية المراقبة حسب الفرع؛ بيانات رقابية حساسة محلية لا تزامن منفردة.",
       "lifecycle": "schema"
     },
     "controlled_drug_log": {
