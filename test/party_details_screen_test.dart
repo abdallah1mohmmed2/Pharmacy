@@ -115,6 +115,10 @@ void main() {
       200,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -400));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('إعادة المحاولة'));
+    await tester.pumpAndSettle();
     session.fail = false;
     await tester.tap(find.text('إعادة المحاولة'));
     await tester.pumpAndSettle();
