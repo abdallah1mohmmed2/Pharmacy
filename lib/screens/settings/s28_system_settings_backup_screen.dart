@@ -1419,6 +1419,25 @@ class _S28SystemSettingsBackupScreenState
     return 'تم تسجيل تفاصيل هذا التغيير. يمكن عرض بياناته الفنية أدناه.';
   }
 
+  // The audit payload is immutable. Render it in a height-limited region so
+  // a large historical JSON record cannot stretch the entire settings page.
+  Widget _boundedAuditPayload(String title, String raw) => ListTile(
+        title: Text(title),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: SizedBox(
+            height: 156,
+            child: SingleChildScrollView(
+              key: const ValueKey('audit-raw-json-scroll'),
+              child: SelectableText(
+                raw,
+                textDirection: TextDirection.ltr,
+              ),
+            ),
+          ),
+        ),
+      );
+
   Widget _auditTab(SettingsAndSystemProvider p) {
     final users = p.auditLogs
         .map((e) => e.userId?.toString() ?? '')
@@ -1544,15 +1563,11 @@ class _S28SystemSettingsBackupScreenState
                     'البيانات الأصلية محفوظة دون تعديل لفحص سجل الرقابة.'),
                 children: [
                   if (row.oldValuesJson != null)
-                    ListTile(
-                      title: const Text('البيانات الأصلية قبل التغيير'),
-                      subtitle: SelectableText(row.oldValuesJson!),
-                    ),
+                    _boundedAuditPayload(
+                        'البيانات الأصلية قبل التغيير', row.oldValuesJson!),
                   if (row.newValuesJson != null)
-                    ListTile(
-                      title: const Text('البيانات الأصلية بعد التغيير'),
-                      subtitle: SelectableText(row.newValuesJson!),
-                    ),
+                    _boundedAuditPayload(
+                        'البيانات الأصلية بعد التغيير', row.newValuesJson!),
                   ListTile(
                     title: const Text('بصمة التحقق من سلامة السجل'),
                     subtitle: SelectableText(row.rowHash ?? ''),
