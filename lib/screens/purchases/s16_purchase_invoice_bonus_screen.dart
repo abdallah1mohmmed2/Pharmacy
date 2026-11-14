@@ -5,6 +5,7 @@ import '../../providers/inventory_and_purchase_provider.dart';
 import '../../providers/session_and_erp_provider.dart';
 import '../../providers/pos_and_drugs_provider.dart';
 import '../../data/models/drug_model.dart';
+import '../../data/models/purchase_input_parser.dart';
 import 'purchase_medicine_search_sheet.dart';
 import '../../core/widgets/shared_widgets.dart';
 import '../../data/services/purchase_and_bonus_service.dart';
@@ -28,6 +29,7 @@ class _S16PurchaseInvoiceBonusScreenState
   String payment = 'CREDIT';
   bool bonusCost = true;
   bool saving = false;
+  String? lineError;
 
   final invoice = TextEditingController();
   final supplierInvoice = TextEditingController();
@@ -80,12 +82,12 @@ class _S16PurchaseInvoiceBonusScreenState
           sum +
           item.qtyPacksPaid * item.packPrice * (1 - item.lineDiscountPct / 100),
     );
-    final headerDiscount = double.tryParse(invoiceDiscount.text) ?? 0;
-    final taxAmount = double.tryParse(tax.text) ?? 0;
+    final headerDiscount = parsePurchaseNumber(invoiceDiscount.text) ?? 0;
+    final taxAmount = parsePurchaseNumber(tax.text) ?? 0;
     final netTotal = (subtotal - headerDiscount + taxAmount)
         .clamp(0, double.infinity)
         .toDouble();
-    final paidNow = payment == 'CREDIT' ? 0.0 : double.tryParse(paid.text) ?? 0;
+    final paidNow = payment == 'CREDIT' ? 0.0 : parsePurchaseNumber(paid.text) ?? 0;
     final remaining = (netTotal - paidNow).clamp(0, double.infinity);
     final bonusValue = lines.fold<double>(
       0,
@@ -148,14 +150,14 @@ class _S16PurchaseInvoiceBonusScreenState
             ),
           DropdownButtonFormField<int>(
             value: warehouse,
-            decoration: const InputDecoration(labelText: 'المستودع *'),
+            decoration: const InputDecoration(labelText: 'المستودع *', helperText: 'يمكن اختياره أيضاً داخل نافذة إضافة البند'),
             items: inventory.warehouses
                 .map((item) => DropdownMenuItem(
                       value: item.id,
                       child: Text(item.nameAr),
                     ))
                 .toList(),
-            onChanged: saving
+            onChanged: saving || lines.isNotEmpty
                 ? null
                 : (value) => setState(() {
                       warehouse = value;
@@ -287,6 +289,7 @@ class _S16PurchaseInvoiceBonusScreenState
   Future<void> _showAddPurchaseItemSheet(
     InventoryAndPurchaseProvider inventory,
   ) async {
+    lineError = null;
     final branchId = context.read<SessionAndErpProvider>().branchId;
     if (selectedPurchaseDrug?.branchId != branchId) {
       selectedPurchaseDrug = null;
@@ -302,10 +305,10 @@ class _S16PurchaseInvoiceBonusScreenState
               .where((shelf) => shelf.warehouseId == warehouse)
               .where((shelf) => !coldRequired || shelf.isFridge)
               .toList();
-          final paidQuantity = int.tryParse(paidPacks.text) ?? 0;
-          final bonusQuantity = int.tryParse(bonus.text) ?? 0;
-          final unitCost = double.tryParse(price.text) ?? 0;
-          final discountPct = double.tryParse(lineDiscount.text) ?? 0;
+          final paidQuantity = parsePurchaseCount(paidPacks.text) ?? 0;
+          final bonusQuantity = parsePurchaseCount(bonus.text) ?? 0;
+          final unitCost = parsePurchaseNumber(price.text) ?? 0;
+          final discountPct = parsePurchaseNumber(lineDiscount.text) ?? 0;
           final gross = paidQuantity * unitCost * (1 - discountPct / 100);
           final effectiveUnits =
               bonusCost ? paidQuantity + bonusQuantity : paidQuantity;
@@ -320,6 +323,18 @@ class _S16PurchaseInvoiceBonusScreenState
                     style:
                         TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  key: ValueKey('purchase-line-warehouse-$warehouse'),
+                  value: inventory.warehouses.any((w) => w.id == warehouse) ? warehouse : null,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'مستودع البند *'),
+                  items: inventory.warehouses.map((w) => DropdownMenuItem<int>(value: w.id, child: Text(w.nameAr))).toList(),
+                  onChanged: saving || lines.isNotEmpty ? null : (value) {
+                    setState(() { warehouse = value; location = null; lineError = null; });
+                    refreshSheet(() {});
+                  },
+                ),
+                const SizedBox(height: 8),
                 OutlinedButton.icon(
                   icon: const Icon(Icons.search),
                   label: Text(
@@ -352,6 +367,7 @@ class _S16PurchaseInvoiceBonusScreenState
                           setState(() {
                             selectedPurchaseDrug = picked;
                             location = null;
+                            lineError = null;
                           });
                           refreshSheet(() {});
                         },
@@ -365,9 +381,23 @@ class _S16PurchaseInvoiceBonusScreenState
                 TextField(
                   controller: expiry,
                   keyboardType: TextInputType.datetime,
-                  decoration: const InputDecoration(
-                    labelText: 'الصلاحية * YYYY-MM-DD',
-                    hintText: '2027-12-31',
+                  decoration: InputDecoration(
+                    labelText: 'تاريخ الصلاحية *',
+                    hintText: '2027-12-31 أو 31/12/2027 أو 12/2027',
+                    helperText: 'عند إدخال شهر وسنة تُستخدم نهاية الشهر',
+                    suffixIcon: IconButton(tooltip: 'اختيار تاريخ الصلاحية', icon: const Icon(Icons.calendar_month), onPressed: () async {
+                      final now = DateTime.now();
+                      final today = DateTime(now.year, now.month, now.day);
+                      final last = DateTime(now.year + 30, 12, 31);
+                      final parsed = parsePurchaseExpiry(expiry.text);
+                      final initial = parsed == null || parsed.isBefore(today) ? today : parsed.isAfter(last) ? last : parsed;
+                      final picked = await showDatePicker(context: sheetContext, initialDate: initial, firstDate: today, lastDate: last);
+                      if (picked != null && sheetContext.mounted) {
+                        expiry.text = purchaseExpiryIso(picked);
+                        setState(() => lineError = null);
+                        refreshSheet(() {});
+                      }
+                    }),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -475,12 +505,15 @@ class _S16PurchaseInvoiceBonusScreenState
                   ),
                 ),
                 const SizedBox(height: 10),
+                if (lineError != null) Padding(padding: const EdgeInsets.only(bottom: 10),
+                  child: Text(lineError!, key: const ValueKey('purchase-line-error'), style: const TextStyle(color: Colors.redAccent))),
                 FilledButton.icon(
                   onPressed: saving
                       ? null
                       : () async {
                           final previousCount = lines.length;
                           await _addLine(inventory);
+                          if (sheetContext.mounted) refreshSheet(() {});
                           if (lines.length > previousCount &&
                               sheetContext.mounted) {
                             Navigator.pop(sheetContext);
@@ -507,65 +540,75 @@ class _S16PurchaseInvoiceBonusScreenState
         ),
       );
 
+  void _rejectLine(String message) {
+    setState(() => lineError = message);
+  }
+
   Future<void> _addLine(
     InventoryAndPurchaseProvider inventory,
   ) async {
     final selected = selectedPurchaseDrug;
-    final packs = int.tryParse(paidPacks.text) ?? 0;
-    final free = int.tryParse(bonus.text) ?? 0;
-    final cost = double.tryParse(price.text) ?? -1;
-    final discountPct = double.tryParse(lineDiscount.text) ?? 0;
-    final expiryDate = DateTime.tryParse(expiry.text.trim());
-    if (selected == null ||
-        selected.id == null ||
-        selected.branchId != context.read<SessionAndErpProvider>().branchId ||
-        warehouse == null ||
-        batchNo.text.trim().isEmpty ||
-        expiryDate == null ||
-        DateTime(expiryDate.year, expiryDate.month, expiryDate.day).isBefore(
-            DateTime(DateTime.now().year, DateTime.now().month,
-                DateTime.now().day)) ||
-        packs <= 0 ||
-        free < 0 ||
-        cost < 0 ||
-        discountPct < 0 ||
-        discountPct > 100) {
-      _message('تحقق من الدواء والتشغيلة والصلاحية والكميات والسعر والخصم');
-      return;
+    final packs = parsePurchaseCount(paidPacks.text);
+    final free = bonus.text.trim().isEmpty ? 0 : parsePurchaseCount(bonus.text);
+    final cost = parsePurchaseNumber(price.text);
+    final discountPct = lineDiscount.text.trim().isEmpty ? 0.0 : parsePurchaseNumber(lineDiscount.text);
+    final suggested = sellPrice.text.trim().isEmpty ? 0.0 : parsePurchaseNumber(sellPrice.text);
+    final expiryDate = parsePurchaseExpiry(expiry.text);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    if (selected == null || selected.id == null) {
+      _rejectLine('اختر الدواء من نتائج البحث؛ كتابة الاسم وحدها لا تكفي.'); return;
     }
+    if (selected.branchId != context.read<SessionAndErpProvider>().branchId) {
+      _rejectLine('الدواء لا يتبع الفرع الحالي؛ أعد اختياره من البحث.'); return;
+    }
+    if (warehouse == null || !inventory.warehouses.any((w) => w.id == warehouse)) {
+      _rejectLine('اختر مستودع البند أولاً.'); return;
+    }
+    if (batchNo.text.trim().isEmpty) { _rejectLine('أدخل رقم التشغيلة.'); return; }
+    if (expiryDate == null) {
+      _rejectLine('تاريخ الصلاحية غير صحيح؛ استخدم 2027-12-31 أو 31/12/2027 أو 12/2027.'); return;
+    }
+    if (expiryDate.isBefore(today)) { _rejectLine('تاريخ الصلاحية منتهٍ؛ أدخل تاريخ اليوم أو بعده.'); return; }
+    if (packs == null || packs <= 0) { _rejectLine('أدخل عدد الباكتات المدفوعة كعدد صحيح أكبر من صفر.'); return; }
+    if (free == null || free < 0) { _rejectLine('البونص يجب أن يكون عدداً صحيحاً يساوي صفراً أو أكثر.'); return; }
+    if (cost == null || cost < 0) { _rejectLine('أدخل سعر الباكت كرقم صالح يساوي صفراً أو أكثر.'); return; }
+    if (discountPct == null || discountPct < 0 || discountPct > 100) { _rejectLine('خصم البند يجب أن يكون رقماً من 0 إلى 100.'); return; }
+    if (suggested == null || suggested < 0) { _rejectLine('سعر البيع المقترح غير صحيح؛ أدخل رقماً موجباً أو اتركه فارغاً.'); return; }
     if (selected.requiresRefrigeration) {
       final shelf = inventory.shelves.where((item) => item.id == location);
       if (shelf.isEmpty || !shelf.first.isFridge) {
-        _message('الدواء المبرد يجب وضعه على رف مبرد');
+        _rejectLine('الدواء المبرد يجب وضعه على رف مبرد');
         return;
       }
       final selectedWarehouse =
           inventory.warehouses.where((item) => item.id == warehouse);
       if (selectedWarehouse.isEmpty || !selectedWarehouse.first.isFridge) {
-        _message('الدواء المبرد يجب توريده إلى مستودع الثلاجة');
+        _rejectLine('الدواء المبرد يجب توريده إلى مستودع الثلاجة');
         return;
       }
     }
     if (location != null &&
         !inventory.shelves.any(
             (item) => item.id == location && item.warehouseId == warehouse)) {
-      _message('موقع الرف لا يتبع المستودع المحدد');
+      _rejectLine('موقع الرف لا يتبع المستودع المحدد');
       return;
     }
     setState(() {
+      lineError = null;
       itemDrugNames[selected.id!] = selected.tradeNameAr;
       lines.add(
         PurchaseLineInput(
           drugId: selected.id!,
           batchNo: batchNo.text.trim(),
-          expiryDate: expiry.text.trim(),
+          expiryDate: purchaseExpiryIso(expiryDate),
           warehouseId: warehouse!,
           qtyPacksPaid: packs,
           bonusPacks: free,
           packPrice: cost,
           locationId: location,
           lineDiscountPct: discountPct,
-          newSellPricePack: double.tryParse(sellPrice.text) ?? 0,
+          newSellPricePack: suggested,
         ),
       );
       batchNo.clear();
@@ -583,9 +626,9 @@ class _S16PurchaseInvoiceBonusScreenState
     SessionAndErpProvider session,
     double netTotal,
   ) async {
-    final paidNow = payment == 'CREDIT' ? 0.0 : double.tryParse(paid.text) ?? 0;
-    final discountAmount = double.tryParse(invoiceDiscount.text) ?? 0;
-    final taxAmount = double.tryParse(tax.text) ?? 0;
+    final paidNow = payment == 'CREDIT' ? 0.0 : parsePurchaseNumber(paid.text) ?? 0;
+    final discountAmount = parsePurchaseNumber(invoiceDiscount.text) ?? 0;
+    final taxAmount = parsePurchaseNumber(tax.text) ?? 0;
     if (supplier == null ||
         warehouse == null ||
         lines.isEmpty ||
