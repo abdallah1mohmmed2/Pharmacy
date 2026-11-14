@@ -81,7 +81,8 @@ List<ReportDefinition> buildR46ToR55ClinicalDefinitions(
             _c('prescription_no', 'رقم الوصفة'),
             _c('doctor', 'الطبيب'),
             _c('dispensing_pharmacist', 'الصيدلي الصارف'),
-            _c('balance_after', 'الرصيد بعد الصرف', type: ColType.decimal),
+            _c('balance_after', 'رصيد الفرع بعد الصرف', type: ColType.decimal),
+            _c('balance_status', 'توثيق الرصيد'),
           ],
           totals: const TotalsSpec(sumKeys: ['quantity'])),
       ConfiguredReportDefinition(
