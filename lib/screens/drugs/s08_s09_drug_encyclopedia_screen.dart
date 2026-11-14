@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'central_medicine_picker_screen.dart';
+import 'drug_editor_field_config.dart';
+import 'drug_reference_picker_field.dart';
 import 'package:provider/provider.dart';
 import '../../providers/pos_and_drugs_provider.dart';
 import '../../data/models/drug_model.dart';
@@ -605,19 +607,7 @@ class _S08S09DrugEncyclopediaScreenState
       'prescription_restricted': '19. وصفة مقيدة (1/0)',
       'is_antibiotic': '19. مضاد حيوي (1/0)'
     };
-    const boolKeys = {
-      'is_active',
-      'is_strip_based',
-      'has_critical_interactions',
-      'is_nephrotoxic',
-      'neonate_allowed',
-      'requires_refrigeration',
-      'protect_from_light',
-      'is_controlled',
-      'requires_prescription',
-      'prescription_restricted',
-      'is_antibiotic'
-    };
+    const boolKeys = DrugEditorFieldConfig.boolFields;
     const intKeys = {
       'manufacturer_id',
       'active_ingredient_id',
@@ -655,52 +645,9 @@ class _S08S09DrugEncyclopediaScreenState
         key: TextEditingController(text: initial[key]?.toString() ?? '')
     };
     final form = GlobalKey<FormState>();
-    const enumValues = <String, Set<String>>{
-      'dosage_form': {
-        'TABLET',
-        'CAPSULE',
-        'SYRUP',
-        'SUSPENSION',
-        'DROPS',
-        'INJECTION',
-        'CREAM',
-        'OINTMENT',
-        'INHALER',
-        'SUPPOSITORY',
-        'SACHET',
-        'OTHER'
-      },
-      'route': {
-        'ORAL',
-        'IV',
-        'IM',
-        'SC',
-        'TOPICAL',
-        'OPHTHALMIC',
-        'INHALATION',
-        'RECTAL',
-        'OTHER'
-      },
-      'take_with_food': {'BEFORE', 'WITH', 'AFTER', 'ANY'},
-      'strip_price_mode': {'AUTO', 'MANUAL'},
-      'hepatic_status': {
-        'SAFE',
-        'ADJUST',
-        'AVOID',
-        'CONTRAINDICATED',
-        'UNKNOWN'
-      },
-      'renal_status': {'SAFE', 'ADJUST', 'AVOID', 'CONTRAINDICATED', 'UNKNOWN'},
-      'geriatric_status': {'SAFE', 'ADJUST', 'AVOID', 'UNKNOWN'},
-      'pediatric_status': {
-        'SAFE',
-        'ADJUST',
-        'AVOID',
-        'CONTRAINDICATED',
-        'UNKNOWN'
-      },
-      'pregnancy_category': {'A', 'B', 'C', 'D', 'X', 'N', 'UNKNOWN'},
-      'lactation_risk': {'L1', 'L2', 'L3', 'L4', 'L5', 'UNKNOWN'},
+    final enumValues = <String, Set<String>>{
+      for (final entry in DrugEditorFieldConfig.choiceLabels.entries)
+        entry.key: entry.value.keys.toSet(),
     };
     List<String> groupFor(List<int> points) => labels.keys.where((key) {
           if (key == 'is_active') return points.contains(1);
@@ -713,43 +660,93 @@ class _S08S09DrugEncyclopediaScreenState
       groupFor([11, 12]),
       groupFor([13, 14, 15, 16, 17, 18, 19])
     ];
+    final provider = context.read<PosAndDrugsProvider>();
+
     Widget buildField(String key) {
       final controller = controllers[key]!;
-      if (key == 'dosage_form') {
-        // Reuse the app's existing dosage_form enum, with Arabic UI labels.
-        const formLabels = <String, String>{
-          'TABLET': 'أقراص',
-          'CAPSULE': 'كبسولات',
-          'SYRUP': 'شراب',
-          'SUSPENSION': 'معلق',
-          'DROPS': 'قطرات',
-          'INJECTION': 'حقن',
-          'CREAM': 'كريم',
-          'OINTMENT': 'مرهم',
-          'INHALER': 'بخاخ',
-          'SUPPOSITORY': 'تحاميل',
-          'SACHET': 'أكياس',
-          'OTHER': 'أخرى',
-        };
-        final current = controller.text.trim().toUpperCase();
-        final selected = formLabels.containsKey(current) ? current : 'OTHER';
-        // Keep the backing form controller in sync even for legacy bad values.
-        if (controller.text != selected) controller.text = selected;
+      final label = DrugEditorFieldConfig.labelFor(key, labels[key]!);
+      if (boolKeys.contains(key)) {
         return Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: ValueListenableBuilder<TextEditingValue>(
+            valueListenable: controller,
+            builder: (context, value, _) => SwitchListTile.adaptive(
+              key: ValueKey('drug-switch-$key'),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+              title: Text(label),
+              value: DrugEditorFieldConfig.boolValue(value.text),
+              onChanged: (enabled) => controller.text = enabled ? '1' : '0',
+            ),
+          ),
+        );
+      }
+      final choices = DrugEditorFieldConfig.choiceLabels[key];
+      if (choices != null) {
+        final current = controller.text.trim();
+        final dropdown = Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: DropdownButtonFormField<String>(
-            value: selected,
-            decoration: InputDecoration(labelText: labels[key]),
+            key: ValueKey('drug-choice-$key'),
+            value: current,
             isExpanded: true,
+            decoration: InputDecoration(labelText: label),
             items: [
-              for (final entry in formLabels.entries)
+              for (final entry in choices.entries)
                 DropdownMenuItem<String>(
                   value: entry.key,
-                  child: Text(entry.value),
+                  child: Text(entry.value, overflow: TextOverflow.ellipsis),
+                ),
+              if (!choices.containsKey(current))
+                DropdownMenuItem<String>(
+                  value: current,
+                  child: Text(
+                    current.isEmpty
+                        ? 'قيمة قديمة غير محددة'
+                        : 'قيمة سابقة: $current',
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
             ],
-            onChanged: (value) => controller.text = value ?? 'OTHER',
+            onChanged: (value) {
+              if (value != null) controller.text = value;
+            },
           ),
+        );
+        if (key != 'strip_price_mode') return dropdown;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            dropdown,
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: controller,
+              builder: (context, value, _) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  value.text == 'AUTO'
+                      ? 'سيحسب النظام سعر الشريط والحبة من سعر العبوة وعدد الأشرطة والحبات عند الحفظ.'
+                      : 'أدخل سعر الشريط والحبة بنفسك في الحقول التالية.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ),
+          ],
+        );
+      }
+      if (key == 'manufacturer_id' ||
+          key == 'active_ingredient_id' ||
+          key == 'category_id') {
+        final kind = switch (key) {
+          'manufacturer_id' => DrugReferenceKind.manufacturer,
+          'active_ingredient_id' => DrugReferenceKind.ingredient,
+          _ => DrugReferenceKind.category,
+        };
+        return DrugReferencePickerField(
+          key: ValueKey('drug-reference-widget-$key'),
+          fieldKey: key,
+          label: label,
+          kind: kind,
+          controller: controller,
+          branchId: provider.branchId,
         );
       }
       final longText = key.contains('notes') ||
@@ -759,53 +756,85 @@ class _S08S09DrugEncyclopediaScreenState
           key.contains('json') ||
           key.contains('administration') ||
           key.contains('composition');
-      return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: TextFormField(
-            controller: controller,
-            textDirection: key.contains('barcode') ||
-                    key.contains('code') ||
-                    key.endsWith('_id') ||
-                    key.endsWith('_json')
-                ? TextDirection.ltr
-                : TextDirection.rtl,
-            keyboardType: boolKeys.contains(key) ||
-                    intKeys.contains(key) ||
-                    numberKeys.contains(key)
-                ? const TextInputType.numberWithOptions(decimal: true)
-                : TextInputType.multiline,
-            minLines: longText ? 2 : 1,
-            maxLines: longText ? 4 : 1,
-            decoration: InputDecoration(
-                labelText: labels[key],
-                helperText: boolKeys.contains(key)
-                    ? 'اكتب 1 للتفعيل أو 0 للإيقاف'
-                    : null),
-            validator: key == 'trade_name_ar' || key == 'internal_code'
-                ? (v) =>
-                    v == null || v.trim().isEmpty ? 'هذا الحقل مطلوب' : null
-                : null,
-          ));
+      final field = Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: TextFormField(
+          key: ValueKey('drug-text-$key'),
+          controller: controller,
+          textDirection: key.contains('barcode') ||
+                  key.contains('code') ||
+                  key.endsWith('_id') ||
+                  key.endsWith('_json')
+              ? TextDirection.ltr
+              : TextDirection.rtl,
+          keyboardType: intKeys.contains(key)
+              ? const TextInputType.numberWithOptions()
+              : numberKeys.contains(key)
+                  ? const TextInputType.numberWithOptions(
+                      decimal: true, signed: true)
+                  : (longText ? TextInputType.multiline : TextInputType.text),
+          textInputAction: longText ? TextInputAction.newline : TextInputAction.next,
+          minLines: longText ? 2 : 1,
+          maxLines: longText ? 4 : 1,
+          decoration: InputDecoration(labelText: label),
+          validator: key == 'trade_name_ar' || key == 'internal_code'
+              ? (value) => value == null || value.trim().isEmpty
+                  ? 'هذا الحقل مطلوب'
+                  : null
+              : null,
+        ),
+      );
+      if (key == 'sell_price_strip' || key == 'sell_price_unit') {
+        return ValueListenableBuilder<TextEditingValue>(
+          valueListenable: controllers['strip_price_mode']!,
+          builder: (context, mode, _) =>
+              mode.text == 'AUTO' ? const SizedBox.shrink() : field,
+        );
+      }
+      return field;
     }
 
-    Widget tabFields(List<String> keys) =>
-        ListView(padding: const EdgeInsets.all(10), children: [
-          if (keys == tabGroups.first)
+    Widget tabFields(List<String> keys, int index) {
+      final mainKeys = keys
+          .where(DrugEditorFieldConfig.primaryKeys.contains)
+          .toList(growable: false);
+      final extraKeys = keys
+          .where((key) => !DrugEditorFieldConfig.primaryKeys.contains(key))
+          .toList(growable: false);
+      return ListView(
+        key: PageStorageKey('drug-edit-tab-$index'),
+        padding: const EdgeInsets.all(10),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        children: [
+          if (index == 0)
             const ClinicalAlertBanner(
-                message:
-                    'أدخل البيانات من النشرة الرسمية المعتمدة. الحقول التي تحمل حالة مراجعة يجب التحقق منها قبل الاستخدام السريري.',
-                level: ClinicalAlertLevel.warning),
-          ...keys.map(buildField),
-        ]);
-    final provider = context.read<PosAndDrugsProvider>();
+              message: 'البيانات السريرية يجب أن تؤخذ من مصدر معتمد. يمكن فتح الحقول الإضافية عند الحاجة.',
+              level: ClinicalAlertLevel.warning,
+            ),
+          for (final key in mainKeys) buildField(key),
+          if (extraKeys.isNotEmpty)
+            ExpansionTile(
+              key: ValueKey('drug-advanced-$index'),
+              title: const Text('بيانات إضافية وتفصيلية'),
+              subtitle: Text('إظهار ${extraKeys.length} حقلاً آخر — لا تُحذف القيم المحفوظة عند إخفائها'),
+              initiallyExpanded: false,
+              childrenPadding: const EdgeInsetsDirectional.fromSTEB(8, 8, 8, 12),
+              children: [
+                for (final key in extraKeys) buildField(key),
+              ],
+            ),
+          const SizedBox(height: 12),
+        ],
+      );
+    }
     await showDialog<void>(
         context: context,
         builder: (dialogContext) => AlertDialog(
               insetPadding: const EdgeInsets.all(8),
               scrollable: true,
               title: Text(drug == null
-                  ? 'إضافة دواء — جميع النقاط الـ19'
-                  : 'تعديل بيانات الدواء — جميع النقاط الـ19'),
+                  ? 'إضافة دواء'
+                  : 'تعديل بيانات الدواء'),
               content: SizedBox(
                   width: MediaQuery.sizeOf(context).width < 700
                       ? double.infinity
@@ -821,14 +850,15 @@ class _S08S09DrugEncyclopediaScreenState
                           length: 4,
                           child: Column(children: [
                             const TabBar(isScrollable: true, tabs: [
-                              Tab(text: '1–4 الهوية والتركيب'),
-                              Tab(text: '5–10 الاستعمال والسلامة'),
-                              Tab(text: '11–12 التسعير والفئات'),
-                              Tab(text: '13–19 الحالات الخاصة')
+                              Tab(text: 'الهوية والشكل'),
+                              Tab(text: 'الاستعمال والسلامة'),
+                              Tab(text: 'التسعير والتعبئة'),
+                              Tab(text: 'الحالات الخاصة والتخزين')
                             ]),
                             Expanded(
                                 child: TabBarView(children: [
-                              for (final keys in tabGroups) tabFields(keys)
+                              for (var i = 0; i < tabGroups.length; i++)
+                                tabFields(tabGroups[i], i)
                             ])),
                           ])))),
               actions: [
@@ -846,8 +876,9 @@ class _S08S09DrugEncyclopediaScreenState
                         return;
                       }
                       for (final entry in enumValues.entries) {
-                        if (!entry.value
-                            .contains(controllers[entry.key]!.text.trim())) {
+                        if (!entry.value.contains(controllers[entry.key]!.text.trim()) &&
+                            controllers[entry.key]!.text.trim() !=
+                                (initial[entry.key]?.toString() ?? '')) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                               content: Text('قيمة غير معتمدة في: ' +
                                   labels[entry.key]!)));
