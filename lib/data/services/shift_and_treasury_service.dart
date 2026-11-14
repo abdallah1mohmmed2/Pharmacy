@@ -66,8 +66,7 @@ class ShiftAndTreasuryService {
     if (rows.isEmpty) throw StateError('حساب الصندوق أو المحفظة غير موجود');
     final before = _n(rows.first['current_balance']);
     final after = before + (direction == 'IN' ? amount : -amount);
-    if (!after.isFinite || after < 0)
-      throw StateError('رصيد الحساب غير كافٍ أو غير صالح');
+    if (!after.isFinite || after < 0) throw StateError('رصيد الحساب غير كافٍ أو غير صالح');
     await tx.update(
         'cash_accounts', {'current_balance': after, 'updated_at': _now()},
         where: 'id=?', whereArgs: [accountId]);
@@ -97,11 +96,8 @@ class ShiftAndTreasuryService {
       String note = ''}) async {
     if (fromAccountId == toAccountId)
       throw ArgumentError('اختر حسابين مختلفين');
-    if (!amount.isFinite ||
-        !fee.isFinite ||
-        !(amount + fee).isFinite ||
-        amount <= 0 ||
-        fee < 0) throw ArgumentError('تحقق من مبلغ التحويل والرسوم');
+    if (!amount.isFinite || !fee.isFinite || !(amount + fee).isFinite || amount <= 0 || fee < 0)
+      throw ArgumentError('تحقق من مبلغ التحويل والرسوم');
     final db = await _helper.database;
     await db.transaction((tx) async {
       final source = await tx.query('cash_accounts',
@@ -135,8 +131,7 @@ class ShiftAndTreasuryService {
           where: 'id=? AND branch_id=? AND is_deleted=0',
           whereArgs: [toAccountId, branchId],
           limit: 1);
-      if (destinationRows.isEmpty)
-        throw StateError('حساب الوجهة غير موجود في الفرع الحالي');
+      if (destinationRows.isEmpty) throw StateError('حساب الوجهة غير موجود في الفرع الحالي');
       final sourceGl = source.first['gl_account_id'] as int?;
       final destinationGl = destinationRows.first['gl_account_id'] as int?;
       if (sourceGl == null || destinationGl == null)
@@ -221,10 +216,8 @@ class ShiftAndTreasuryService {
           whereArgs: [accountId, branchId],
           limit: 1);
       if (rows.isEmpty) throw StateError('المحفظة غير موجودة');
-      if (rows.first['account_kind'] != 'WALLET')
-        throw StateError('المطابقة مخصصة للمحافظ الإلكترونية');
-      if (rows.first['gl_account_id'] == null)
-        throw StateError('اربط المحفظة بدليل الحسابات أولاً');
+      if (rows.first['account_kind'] != 'WALLET') throw StateError('المطابقة مخصصة للمحافظ الإلكترونية');
+      if (rows.first['gl_account_id'] == null) throw StateError('اربط المحفظة بدليل الحسابات أولاً');
       difference = actualBalance - _n(rows.first['current_balance']);
       if (difference.abs() < 0.005) return;
       final account = await tx.query('cash_accounts',
@@ -287,7 +280,7 @@ class ShiftAndTreasuryService {
     await db.transaction((tx) async {
       final category = await tx.query('expense_categories',
           columns: ['gl_account_id', 'name_ar'],
-          where: 'id=? AND branch_id=? AND is_deleted=0',
+          where: 'id=? AND branch_id=?',
           whereArgs: [categoryId, branchId],
           limit: 1);
       if (category.isEmpty) throw StateError('بند المصروف غير موجود');
@@ -358,10 +351,8 @@ class ShiftAndTreasuryService {
     final db = await _helper.database;
     return db.transaction((tx) async {
       final existing = await tx.query('cashier_shifts',
-          columns: ['id'],
-          where: "branch_id=? AND status='OPEN'",
-          whereArgs: [branchId],
-          limit: 1);
+          columns: ['id'], where: "branch_id=? AND status='OPEN'",
+          whereArgs: [branchId], limit: 1);
       if (existing.isNotEmpty) throw StateError('توجد وردية مفتوحة بالفعل');
       final shiftId = await tx.insert('cashier_shifts', {
         'shift_no': 'SH-${DateTime.now().millisecondsSinceEpoch}',
@@ -380,8 +371,7 @@ class ShiftAndTreasuryService {
           whereArgs: [drawerAccountId, branchId],
           limit: 1);
       if (account.isEmpty) throw StateError('درج الكاشير غير موجود');
-      if (account.first['account_kind'] != 'CASHIER_DRAWER')
-        throw StateError('اختر درج كاشير لفتح الوردية');
+      if (account.first['account_kind'] != 'CASHIER_DRAWER') throw StateError('اختر درج كاشير لفتح الوردية');
       final current = _n(account.first['current_balance']);
       if (openingCash + 0.005 < current)
         throw StateError(
@@ -450,22 +440,18 @@ class ShiftAndTreasuryService {
       bool revealExpectedToManager = false}) async {
     for (final entry in denominations.entries) {
       final denomination = double.tryParse(entry.key);
-      if (denomination == null ||
-          !denomination.isFinite ||
-          denomination <= 0 ||
-          entry.value < 0) {
+      if (denomination == null || !denomination.isFinite || denomination <= 0 || entry.value < 0) {
         throw ArgumentError('فئات النقد وأعدادها غير صحيحة');
       }
     }
     if (countedWallets.values.any((value) => !value.isFinite || value < 0)) {
       throw ArgumentError('أرصدة المحافظ الفعلية غير صحيحة');
     }
-    if (!['NONE', 'POST_TO_CASHIER', 'EXPENSE', 'SUSPENSE']
-        .contains(diffHandling)) {
+    if (!['NONE', 'POST_TO_CASHIER', 'EXPENSE', 'SUSPENSE'].contains(diffHandling)) {
       throw ArgumentError('معالجة فرق الوردية غير صحيحة');
     }
-    final actual = denominations.entries
-        .fold<double>(0, (sum, e) => sum + double.parse(e.key) * e.value);
+    final actual = denominations.entries.fold<double>(
+        0, (sum, e) => sum + double.parse(e.key) * e.value);
     if (!actual.isFinite) throw ArgumentError('إجمالي النقد غير صحيح');
     final db = await _helper.database;
     double difference = 0;
@@ -502,8 +488,7 @@ class ShiftAndTreasuryService {
         final walletId = int.tryParse(entry.key);
         if (walletId == null) throw StateError('معرف المحفظة غير صحيح');
         final expectedWallet = expectedWallets[entry.key];
-        if (expectedWallet == null)
-          throw StateError('المحفظة غير موجودة في الفرع الحالي');
+        if (expectedWallet == null) throw StateError('المحفظة غير موجودة في الفرع الحالي');
         final walletDiff = entry.value - expectedWallet;
         if (walletDiff.abs() < 0.005) continue;
         final gl = await tx.query('cash_accounts',
