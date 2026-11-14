@@ -15,13 +15,14 @@ class ManualMessageComposerScreen extends StatefulWidget {
     this.balanceAmount,
     this.transactionAmount,
     this.documentNumber,
+    this.initialKind,
     this.preferredChannel = 'whatsapp',
     this.templates,
     this.openExternal,
   });
 
   final String partyType, name, phone, preferredChannel;
-  final String? balanceAmount, transactionAmount, documentNumber;
+  final String? balanceAmount, transactionAmount, documentNumber, initialKind;
   final ManualMessageTemplateRepository? templates;
   final ExternalMessageOpener? openExternal;
 
@@ -53,7 +54,9 @@ class _ManualMessageComposerScreenState
     super.initState();
     _templates = widget.templates ?? SqliteManualMessageTemplates();
     _kinds = ManualMessageKind.forParty(widget.partyType);
-    _kindId = _kinds.first.id;
+    _kindId = _kinds.any((kind) => kind.id == widget.initialKind)
+        ? widget.initialKind!
+        : _kinds.first.id;
     _phone = TextEditingController(text: widget.phone);
     _amount = TextEditingController(text: _initialAmount(_kindId));
     _document = TextEditingController(text: widget.documentNumber ?? '');
