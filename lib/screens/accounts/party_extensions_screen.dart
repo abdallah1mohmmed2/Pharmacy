@@ -8,6 +8,7 @@ import '../../data/models/drug_model.dart';
 import '../../data/models/clinical_and_rx_models.dart';
 import '../../data/services/clinical_guard_service.dart';
 import '../../data/services/posting_and_sales_service.dart';
+import 'manual_message_composer_screen.dart';
 
 class PartyExtensionsScreen extends StatefulWidget {
   const PartyExtensionsScreen({super.key});
@@ -337,10 +338,40 @@ class _PartyExtensionsScreenState extends State<PartyExtensionsScreen>
                                   : (visits.data ?? [])
                                       .map((d) => _day(d['weekday'] as int))
                                       .join(' • ')),
-                              trailing: IconButton(
-                                  onPressed: () =>
-                                      _setVisits(r, visits.data ?? []),
-                                  icon: const Icon(Icons.edit_calendar))))))
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    tooltip: 'واتساب المندوب',
+                                    onPressed: () => Navigator.of(context).push<void>(
+                                      MaterialPageRoute(builder: (_) => ManualMessageComposerScreen(
+                                        partyType: 'REPRESENTATIVE',
+                                        name: r['name_ar']?.toString() ?? '',
+                                        phone: r['phone']?.toString() ?? '',
+                                        preferredChannel: 'whatsapp',
+                                      )),
+                                    ),
+                                    icon: const Icon(Icons.chat_outlined),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'SMS المندوب',
+                                    onPressed: () => Navigator.of(context).push<void>(
+                                      MaterialPageRoute(builder: (_) => ManualMessageComposerScreen(
+                                        partyType: 'REPRESENTATIVE',
+                                        name: r['name_ar']?.toString() ?? '',
+                                        phone: r['phone']?.toString() ?? '',
+                                        preferredChannel: 'sms',
+                                      )),
+                                    ),
+                                    icon: const Icon(Icons.sms_outlined),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'أيام الزيارة',
+                                    onPressed: () => _setVisits(r, visits.data ?? []),
+                                    icon: const Icon(Icons.edit_calendar),
+                                  ),
+                                ],
+                              )))))
             ]));
   }
 
