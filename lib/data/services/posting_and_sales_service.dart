@@ -177,10 +177,14 @@ class PostingAndSalesService {
       );
     return (await _helper.database).transaction((txn) async {
       if (warehouseId != null) {
-        final warehouse = await txn.query('warehouses', columns: ['id'],
-            where: "id=? AND branch_id=? AND (is_sellable=1 OR wh_type='MAIN_STORE') AND wh_type NOT IN('QUARANTINE','DAMAGED')",
-            whereArgs: [warehouseId, branchId], limit: 1);
-        if (warehouse.isEmpty) throw StateError('مخزن البيع غير متاح في الفرع الحالي');
+        final warehouse = await txn.query('warehouses',
+            columns: ['id'],
+            where:
+                "id=? AND branch_id=? AND (is_sellable=1 OR wh_type='MAIN_STORE') AND wh_type NOT IN('QUARANTINE','DAMAGED')",
+            whereArgs: [warehouseId, branchId],
+            limit: 1);
+        if (warehouse.isEmpty)
+          throw StateError('مخزن البيع غير متاح في الفرع الحالي');
       }
       for (final payment in payments) {
         await _paymentAccount(

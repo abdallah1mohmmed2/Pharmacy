@@ -69,7 +69,8 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     final session = context.watch<SessionAndErpProvider>();
-    if (session.currentUser == null || _initializedSaleBranch == session.branchId) return;
+    if (session.currentUser == null ||
+        _initializedSaleBranch == session.branchId) return;
     final branch = session.branchId;
     _initializedSaleBranch = branch;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -265,7 +266,11 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
                             (pos.tabs[i].held ? ' • معلقة' : ''),
                       ),
                       selected: i == pos.activeTab,
-                      onSelected: (_) { _searchDebounce?.cancel(); search.clear(); pos.selectTab(i); },
+                      onSelected: (_) {
+                        _searchDebounce?.cancel();
+                        search.clear();
+                        pos.selectTab(i);
+                      },
                     ),
                   ),
               ],
@@ -292,35 +297,47 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
   }
 
   Widget _warehouseSelector(PosAndDrugsProvider pos) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      DropdownButtonFormField<int>(
-        key: ValueKey('sale-warehouse-${pos.currentTab.id}-${pos.saleWarehouseId}'),
-        value: pos.saleWarehouses.any((w) => w['id'] == pos.saleWarehouseId) ? pos.saleWarehouseId : null,
-        isExpanded: true,
-        decoration: const InputDecoration(labelText: 'مخزن البيع', hintText: 'اختر مخزن البيع'),
-        items: pos.saleWarehouses.map((w) => DropdownMenuItem<int>(
-            value: w['id'] as int, child: Text(w['name_ar'].toString()))).toList(),
-        onChanged: pos.checkoutPending || pos.cart.isNotEmpty || pos.currentTab.held ? null : (id) async {
-          if (id == null) return;
-          _searchDebounce?.cancel();
-          search.clear();
-          await pos.selectSaleWarehouse(id);
-        },
-      ),
-      if (pos.saleLoading) const LinearProgressIndicator(),
-      if (pos.saleError != null)
-        Text('تعذر تحميل أدوية المخزن: ${pos.saleError}', style: const TextStyle(color: AppColors.danger)),
-      if (!pos.saleLoading && pos.saleDrugs.isEmpty)
-        const Text('لا توجد أدوية متاحة في المخزن المحدد'),
-      const SizedBox(height: 8),
-    ],
-  );
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DropdownButtonFormField<int>(
+            key: ValueKey(
+                'sale-warehouse-${pos.currentTab.id}-${pos.saleWarehouseId}'),
+            value: pos.saleWarehouses.any((w) => w['id'] == pos.saleWarehouseId)
+                ? pos.saleWarehouseId
+                : null,
+            isExpanded: true,
+            decoration: const InputDecoration(
+                labelText: 'مخزن البيع', hintText: 'اختر مخزن البيع'),
+            items: pos.saleWarehouses
+                .map((w) => DropdownMenuItem<int>(
+                    value: w['id'] as int,
+                    child: Text(w['name_ar'].toString())))
+                .toList(),
+            onChanged: pos.checkoutPending ||
+                    pos.cart.isNotEmpty ||
+                    pos.currentTab.held
+                ? null
+                : (id) async {
+                    if (id == null) return;
+                    _searchDebounce?.cancel();
+                    search.clear();
+                    await pos.selectSaleWarehouse(id);
+                  },
+          ),
+          if (pos.saleLoading) const LinearProgressIndicator(),
+          if (pos.saleError != null)
+            Text('تعذر تحميل أدوية المخزن: ${pos.saleError}',
+                style: const TextStyle(color: AppColors.danger)),
+          if (!pos.saleLoading && pos.saleDrugs.isEmpty)
+            const Text('لا توجد أدوية متاحة في المخزن المحدد'),
+          const SizedBox(height: 8),
+        ],
+      );
 
   Widget _catalog(PosAndDrugsProvider pos) => Column(
         children: [
           _warehouseSelector(pos),
-        _tabStrip(pos),
+          _tabStrip(pos),
           TextField(
             controller: search,
             textInputAction: TextInputAction.search,
@@ -674,7 +691,10 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
         DropdownButtonFormField<int>(
           value: cashId,
           isExpanded: true,
-          decoration: const InputDecoration(labelText: 'الصندوق / المحفظة', helperText: 'للبيع النقدي: يُستخدم الصندوق النقدي تلقائياً عند تركه فارغاً'),
+          decoration: const InputDecoration(
+              labelText: 'الصندوق / المحفظة',
+              helperText:
+                  'للبيع النقدي: يُستخدم الصندوق النقدي تلقائياً عند تركه فارغاً'),
           items: session.cashAccounts
               .map(
                 (account) => DropdownMenuItem(
@@ -774,7 +794,8 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
               batch.totalUnits > 0 &&
               inventory.warehouses.any(
                 (warehouse) =>
-                    warehouse.id == batch.warehouseId && (warehouse.isSellable || warehouse.whType == 'MAIN_STORE'),
+                    warehouse.id == batch.warehouseId &&
+                    (warehouse.isSellable || warehouse.whType == 'MAIN_STORE'),
               ),
         )
         .toList()
@@ -1039,7 +1060,10 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
         if (!approved) return;
       }
       if (!mounted || pos.currentTab != checkoutTab) return;
-      if (pos.saleWarehouseId == null) { _message('اختر مخزن البيع'); return; }
+      if (pos.saleWarehouseId == null) {
+        _message('اختر مخزن البيع');
+        return;
+      }
       final tender = method == 'MIXED' ? mixedChannel : method;
       final isWallet = tender == 'WALLET';
       if (isWallet && walletRef.text.trim().length < 6) {
@@ -1066,7 +1090,10 @@ class _S03SmartPosScreenState extends State<S03SmartPosScreen> {
         return;
       }
       if (paid > 0 && cashId == null) {
-        if (isWallet) { _message('اختر المحفظة'); return; }
+        if (isWallet) {
+          _message('اختر المحفظة');
+          return;
+        }
         cashId = await pos.defaultCashAccountId();
       }
       if (method == 'CASH') {

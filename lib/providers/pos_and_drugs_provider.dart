@@ -51,11 +51,13 @@ class PosAndDrugsProvider extends ChangeNotifier {
       final rows = await _db.rawQuery(
           "SELECT * FROM warehouses WHERE branch_id=? AND (is_sellable=1 OR wh_type='MAIN_STORE') "
           "AND wh_type NOT IN('QUARANTINE','DAMAGED') "
-          "ORDER BY CASE WHEN wh_type='PHARMACY_FLOOR' THEN 0 ELSE 1 END,id", [requestedBranch]);
+          "ORDER BY CASE WHEN wh_type='PHARMACY_FLOOR' THEN 0 ELSE 1 END,id",
+          [requestedBranch]);
       if (generation != _saleGeneration || requestedBranch != branchId) return;
       saleWarehouses = rows;
       _saleBranchId = requestedBranch;
-      final floor = rows.where((r) => r['wh_type'] == 'PHARMACY_FLOOR').toList();
+      final floor =
+          rows.where((r) => r['wh_type'] == 'PHARMACY_FLOOR').toList();
       for (final tab in tabs) {
         if (!rows.any((r) => r['id'] == tab.warehouseId)) {
           tab.warehouseId = floor.isEmpty ? null : floor.first['id'] as int;
@@ -76,7 +78,8 @@ class PosAndDrugsProvider extends ChangeNotifier {
     if (checkoutPending || currentTab.held || cart.isNotEmpty) {
       throw StateError('أفرغ الفاتورة الحالية قبل تغيير مخزن البيع');
     }
-    if (!saleWarehouses.any((r) => r['id'] == id)) throw StateError('مخزن البيع غير متاح');
+    if (!saleWarehouses.any((r) => r['id'] == id))
+      throw StateError('مخزن البيع غير متاح');
     currentTab.warehouseId = id;
     await loadSaleDrugs();
   }
@@ -99,23 +102,42 @@ class PosAndDrugsProvider extends ChangeNotifier {
     saleLoading = true;
     notifyListeners();
     try {
-      if (warehouse == null || (saleSearch.isNotEmpty && saleSearch.length < 2)) return;
-      final escaped = saleSearch.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_');
+      if (warehouse == null || (saleSearch.isNotEmpty && saleSearch.length < 2))
+        return;
+      final escaped = saleSearch
+          .replaceAll('\\', '\\\\')
+          .replaceAll('%', '\\%')
+          .replaceAll('_', '\\_');
       final like = '%$escaped%';
-      final searchClause = saleSearch.isEmpty ? '' : "AND (d.trade_name_ar LIKE ? ESCAPE '\\' OR d.trade_name_en LIKE ? ESCAPE '\\' OR d.scientific_name LIKE ? ESCAPE '\\' OR d.internal_code LIKE ? ESCAPE '\\' OR d.barcode_local LIKE ? ESCAPE '\\' OR d.barcode_international LIKE ? ESCAPE '\\') ";
+      final searchClause = saleSearch.isEmpty
+          ? ''
+          : "AND (d.trade_name_ar LIKE ? ESCAPE '\\' OR d.trade_name_en LIKE ? ESCAPE '\\' OR d.scientific_name LIKE ? ESCAPE '\\' OR d.internal_code LIKE ? ESCAPE '\\' OR d.barcode_local LIKE ? ESCAPE '\\' OR d.barcode_international LIKE ? ESCAPE '\\') ";
       final rows = await _db.rawQuery(
           "SELECT d.*,s.available_units AS sale_stock_units FROM ("
-          "SELECT b.drug_id,SUM(b.total_units) available_units FROM batches_fefo b "
-          "JOIN warehouses w ON w.id=b.warehouse_id "
-          "WHERE b.warehouse_id=? AND w.branch_id=? AND (w.is_sellable=1 OR w.wh_type='MAIN_STORE') "
-          "AND w.wh_type NOT IN('QUARANTINE','DAMAGED') AND b.status='ACTIVE' "
-          "AND b.total_units>0 AND b.expiry_date>=? GROUP BY b.drug_id) s "
-          "JOIN drugs d ON d.id=s.drug_id WHERE d.branch_id=? AND d.is_active=1 AND d.is_deleted=0 "
-          + searchClause + "ORDER BY d.trade_name_ar,d.id LIMIT ?",
-          [warehouse, requestedBranch, DateTime.now().toIso8601String().substring(0,10), requestedBranch,
-            if (saleSearch.isNotEmpty) ...[like,like,like,like,like,like], catalogPageLimit]);
-      if (generation != _saleGeneration || requestedBranch != branchId || warehouse != saleWarehouseId || tab != currentTab) return;
-      saleDrugs = rows.map((r) => DrugModel.fromMap({...r, 'stock_total_units': r['sale_stock_units']})).toList(growable: false);
+                  "SELECT b.drug_id,SUM(b.total_units) available_units FROM batches_fefo b "
+                  "JOIN warehouses w ON w.id=b.warehouse_id "
+                  "WHERE b.warehouse_id=? AND w.branch_id=? AND (w.is_sellable=1 OR w.wh_type='MAIN_STORE') "
+                  "AND w.wh_type NOT IN('QUARANTINE','DAMAGED') AND b.status='ACTIVE' "
+                  "AND b.total_units>0 AND b.expiry_date>=? GROUP BY b.drug_id) s "
+                  "JOIN drugs d ON d.id=s.drug_id WHERE d.branch_id=? AND d.is_active=1 AND d.is_deleted=0 " +
+              searchClause +
+              "ORDER BY d.trade_name_ar,d.id LIMIT ?",
+          [
+            warehouse,
+            requestedBranch,
+            DateTime.now().toIso8601String().substring(0, 10),
+            requestedBranch,
+            if (saleSearch.isNotEmpty) ...[like, like, like, like, like, like],
+            catalogPageLimit
+          ]);
+      if (generation != _saleGeneration ||
+          requestedBranch != branchId ||
+          warehouse != saleWarehouseId ||
+          tab != currentTab) return;
+      saleDrugs = rows
+          .map((r) => DrugModel.fromMap(
+              {...r, 'stock_total_units': r['sale_stock_units']}))
+          .toList(growable: false);
     } catch (e) {
       if (generation == _saleGeneration) saleError = e.toString();
     } finally {
@@ -128,10 +150,12 @@ class PosAndDrugsProvider extends ChangeNotifier {
 
   Future<int> defaultCashAccountId() async {
     final rows = await _db.rawQuery(
-      "SELECT id FROM cash_accounts WHERE branch_id=? AND is_deleted=0 "
-      "AND account_kind IN('CASHIER_DRAWER','MAIN_SAFE') "
-      "ORDER BY CASE WHEN code='CASH-DRAWER' THEN 0 WHEN account_kind='CASHIER_DRAWER' THEN 1 ELSE 2 END,id LIMIT 1", [branchId]);
-    if (rows.isEmpty) throw StateError('لا يوجد صندوق نقدي فعال في الفرع الحالي');
+        "SELECT id FROM cash_accounts WHERE branch_id=? AND is_deleted=0 "
+        "AND account_kind IN('CASHIER_DRAWER','MAIN_SAFE') "
+        "ORDER BY CASE WHEN code='CASH-DRAWER' THEN 0 WHEN account_kind='CASHIER_DRAWER' THEN 1 ELSE 2 END,id LIMIT 1",
+        [branchId]);
+    if (rows.isEmpty)
+      throw StateError('لا يوجد صندوق نقدي فعال في الفرع الحالي');
     return rows.single['id'] as int;
   }
 
@@ -141,7 +165,9 @@ class PosAndDrugsProvider extends ChangeNotifier {
       _saleBranchId = null;
       saleWarehouses = [];
       saleDrugs = [];
-      for (final tab in tabs) { tab.warehouseId = null; }
+      for (final tab in tabs) {
+        tab.warehouseId = null;
+      }
     }
     branchId = value;
     await loadDrugs();

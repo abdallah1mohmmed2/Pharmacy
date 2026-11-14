@@ -7,7 +7,10 @@ import '../../data/database/database_helper.dart';
 
 class S05DrugAlternativesSheet extends StatefulWidget {
   const S05DrugAlternativesSheet(
-      {super.key, required this.original, required this.onSelect, this.warehouseId});
+      {super.key,
+      required this.original,
+      required this.onSelect,
+      this.warehouseId});
   final DrugModel original;
   final int? warehouseId;
   final ValueChanged<DrugModel> onSelect;
@@ -17,8 +20,10 @@ class S05DrugAlternativesSheet extends StatefulWidget {
           context: context,
           isScrollControlled: true,
           backgroundColor: const Color(0xff1E1E1E),
-          builder: (_) =>
-              S05DrugAlternativesSheet(original: original, onSelect: onSelect, warehouseId: warehouseId));
+          builder: (_) => S05DrugAlternativesSheet(
+              original: original,
+              onSelect: onSelect,
+              warehouseId: warehouseId));
   @override
   State<S05DrugAlternativesSheet> createState() =>
       _S05DrugAlternativesSheetState();
@@ -41,8 +46,18 @@ class _S05DrugAlternativesSheetState extends State<S05DrugAlternativesSheet> {
     final safe = <int>{};
     for (final alternative in rows) {
       final matches = await DatabaseHelper.instance.query('drugs',
-          where: "id=?" + (widget.warehouseId == null ? '' : " AND EXISTS (SELECT 1 FROM batches_fefo b WHERE b.drug_id=drugs.id AND b.warehouse_id=? AND b.status='ACTIVE' AND b.total_units>0 AND b.expiry_date>=?)"),
-          whereArgs: [alternative.drugId, if (widget.warehouseId != null) ...[widget.warehouseId, DateTime.now().toIso8601String().substring(0,10)]], limit: 1);
+          where: "id=?" +
+              (widget.warehouseId == null
+                  ? ''
+                  : " AND EXISTS (SELECT 1 FROM batches_fefo b WHERE b.drug_id=drugs.id AND b.warehouse_id=? AND b.status='ACTIVE' AND b.total_units>0 AND b.expiry_date>=?)"),
+          whereArgs: [
+            alternative.drugId,
+            if (widget.warehouseId != null) ...[
+              widget.warehouseId,
+              DateTime.now().toIso8601String().substring(0, 10)
+            ]
+          ],
+          limit: 1);
       if (matches.isEmpty) continue;
       final verdict =
           await provider.evaluateCandidate(DrugModel.fromMap(matches.first));
@@ -168,8 +183,18 @@ class _S05DrugAlternativesSheetState extends State<S05DrugAlternativesSheet> {
 
   Future<void> _compare(dynamic alternative) async {
     final rows = await DatabaseHelper.instance.query('drugs',
-        where: "id=?" + (widget.warehouseId == null ? '' : " AND EXISTS (SELECT 1 FROM batches_fefo b WHERE b.drug_id=drugs.id AND b.warehouse_id=? AND b.status='ACTIVE' AND b.total_units>0 AND b.expiry_date>=?)"),
-          whereArgs: [alternative.drugId, if (widget.warehouseId != null) ...[widget.warehouseId, DateTime.now().toIso8601String().substring(0,10)]], limit: 1);
+        where: "id=?" +
+            (widget.warehouseId == null
+                ? ''
+                : " AND EXISTS (SELECT 1 FROM batches_fefo b WHERE b.drug_id=drugs.id AND b.warehouse_id=? AND b.status='ACTIVE' AND b.total_units>0 AND b.expiry_date>=?)"),
+        whereArgs: [
+          alternative.drugId,
+          if (widget.warehouseId != null) ...[
+            widget.warehouseId,
+            DateTime.now().toIso8601String().substring(0, 10)
+          ]
+        ],
+        limit: 1);
     if (rows.isEmpty || !mounted) return;
     final other = DrugModel.fromMap(rows.first);
     final a = widget.original;

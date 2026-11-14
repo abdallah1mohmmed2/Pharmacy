@@ -107,7 +107,7 @@ void main() {
       );
       final item = provider.cart.single;
       provider.currentTab.warehouseId = 1;
-    final first = provider.checkout(
+      final first = provider.checkout(
         cashierId: 1,
         saleType: 'CASH',
         payments: const [
