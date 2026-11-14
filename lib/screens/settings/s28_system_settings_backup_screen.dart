@@ -726,6 +726,13 @@ class _S28SystemSettingsBackupScreenState
                     nameError = null;
                   }),
                 ),
+                if (saveAs)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text(
+                      'تنبيه: ملف النسخة غير مشفّر حاليًا؛ اختر مجلدًا آمنًا ولا تشاركه مع غير المخولين.',
+                    ),
+                  ),
                 if (!saveAs)
                   const Text(
                     'ستُحفظ نسخة داخل التطبيق بالاسم التلقائي فقط.',
