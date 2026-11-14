@@ -147,7 +147,16 @@ class SessionAndErpProvider extends ChangeNotifier {
           orderBy: 'id DESC',
           limit: 5);
       lowStockDrugs = await db.rawQuery(
-          'SELECT id,trade_name_ar,stock_total_units,min_stock_units FROM drugs WHERE branch_id=? AND is_deleted=0 AND is_active=1 AND stock_total_units<=min_stock_units ORDER BY stock_total_units LIMIT 10',
+          '''SELECT d.id,d.trade_name_ar,d.stock_total_units,d.min_stock_units
+             FROM drugs d
+             WHERE d.branch_id=? AND d.is_deleted=0 AND d.is_active=1
+               AND d.stock_total_units<=d.min_stock_units
+               AND EXISTS (
+                 SELECT 1 FROM batches_fefo history
+                 JOIN warehouses wh ON wh.id=history.warehouse_id
+                 WHERE history.drug_id=d.id AND wh.branch_id=d.branch_id
+               )
+             ORDER BY d.stock_total_units LIMIT 10''',
           [branchId]);
       criticalDrugs = await db.rawQuery(
           "SELECT id,trade_name_ar,pregnancy_category,is_controlled,is_nephrotoxic,has_critical_interactions FROM drugs WHERE branch_id=? AND is_deleted=0 AND is_active=1 AND (pregnancy_category='X' OR is_controlled=1 OR is_nephrotoxic=1 OR has_critical_interactions=1) ORDER BY trade_name_ar LIMIT 10",
@@ -170,7 +179,15 @@ class SessionAndErpProvider extends ChangeNotifier {
           "SELECT COALESCE(SUM(net_total),0) total, COALESCE(SUM(total_cost),0) cost, COUNT(*) count FROM sales_invoices WHERE branch_id=? AND status='COMPLETED' AND substr(invoice_date,1,10)=?",
           [branchId, today]);
       final stock = await db.rawQuery(
-          'SELECT COUNT(*) count, COALESCE(SUM(CASE WHEN stock_total_units<=min_stock_units THEN 1 ELSE 0 END),0) low FROM drugs WHERE branch_id=? AND is_deleted=0 AND is_active=1',
+          '''SELECT COUNT(*) count,
+                 COALESCE(SUM(CASE
+                   WHEN d.stock_total_units<=d.min_stock_units AND EXISTS (
+                     SELECT 1 FROM batches_fefo history
+                     JOIN warehouses wh ON wh.id=history.warehouse_id
+                     WHERE history.drug_id=d.id AND wh.branch_id=d.branch_id
+                   ) THEN 1 ELSE 0 END),0) low
+             FROM drugs d
+             WHERE d.branch_id=? AND d.is_deleted=0 AND d.is_active=1''',
           [branchId]);
       final balances = await db.rawQuery(
           'SELECT COALESCE(SUM(CASE WHEN net>0 THEN net ELSE 0 END),0) alayh, COALESCE(SUM(CASE WHEN net<0 THEN -net ELSE 0 END),0) lah FROM v_party_balance WHERE branch_id=?',
