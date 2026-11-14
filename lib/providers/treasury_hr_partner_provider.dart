@@ -88,12 +88,26 @@ class TreasuryHrPartnerProvider extends ChangeNotifier {
     if (u != null) await loadAll(branchId: b, userId: u);
   }
 
+  bool operationPending = false;
+  Future<T> _treasuryMutation<T>(Future<T> Function() action) async {
+    if (operationPending) throw StateError('انتظر اكتمال العملية المالية الحالية');
+    operationPending = true;
+    notifyListeners();
+    try {
+      return await action();
+    } finally {
+      operationPending = false;
+      notifyListeners();
+    }
+  }
+
   Future<int> recordExpense(
       {required int categoryId,
       required int cashAccountId,
       required double amount,
       required String description,
       String paidTo = ''}) async {
+    return _treasuryMutation(() async {
     final id = await _treasury.recordExpense(
         branchId: branchId,
         categoryId: categoryId,
@@ -104,6 +118,8 @@ class TreasuryHrPartnerProvider extends ChangeNotifier {
         cashierShiftId: activeShift?.id);
     await refresh();
     return id;
+
+    });
   }
 
   Future<int> transfer(
@@ -113,6 +129,7 @@ class TreasuryHrPartnerProvider extends ChangeNotifier {
       double fee = 0,
       String? reference,
       String note = ''}) async {
+    return _treasuryMutation(() async {
     await _treasury.transfer(
         branchId: branchId,
         fromAccountId: fromAccountId,
@@ -123,12 +140,15 @@ class TreasuryHrPartnerProvider extends ChangeNotifier {
         note: note);
     await refresh();
     return 1;
+
+    });
   }
 
   Future<double> reconcileWallet(
       {required int accountId,
       required double actual,
       String? reference}) async {
+    return _treasuryMutation(() async {
     final d = await _treasury.reconcileWallet(
         branchId: branchId,
         accountId: accountId,
@@ -136,6 +156,8 @@ class TreasuryHrPartnerProvider extends ChangeNotifier {
         walletRefNo: reference);
     await refresh();
     return d;
+
+    });
   }
 
   Future<int> openShift(
@@ -143,6 +165,7 @@ class TreasuryHrPartnerProvider extends ChangeNotifier {
       double openingCash = 0,
       int? partyId,
       int? workShiftId}) async {
+    return _treasuryMutation(() async {
     if (userId == null) throw StateError('لا يوجد مستخدم مسجل');
     final id = await _treasury.openShift(
         branchId: branchId,
@@ -153,6 +176,8 @@ class TreasuryHrPartnerProvider extends ChangeNotifier {
         workShiftId: workShiftId);
     await refresh();
     return id;
+
+    });
   }
 
   Future<double> expectedCash(int shiftId) => _treasury.expectedCash(shiftId);
@@ -162,6 +187,7 @@ class TreasuryHrPartnerProvider extends ChangeNotifier {
       required String handling,
       Map<String, double> wallets = const {},
       int? nextUserId}) async {
+    return _treasuryMutation(() async {
     final d = await _treasury.closeShiftBlind(
         shiftId: shiftId,
         denominations: denominations,
@@ -170,6 +196,8 @@ class TreasuryHrPartnerProvider extends ChangeNotifier {
         handoverToUserId: nextUserId);
     await refresh();
     return d;
+
+    });
   }
 
   Future<int> registerAttendance(
