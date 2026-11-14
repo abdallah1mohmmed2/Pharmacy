@@ -131,6 +131,7 @@ class PostingAndSalesService {
               String? walletRef
             })>
         payments,
+    int? warehouseId,
     int customerPartyId = 0,
     double discountAmount = 0,
     required ClinicalVerdict clinicalVerdict,
@@ -175,6 +176,12 @@ class PostingAndSalesService {
         'لا يمكن ترحيل الفاتورة قبل توثيق قرارات التنبيهات السريرية الحرجة',
       );
     return (await _helper.database).transaction((txn) async {
+      if (warehouseId != null) {
+        final warehouse = await txn.query('warehouses', columns: ['id'],
+            where: "id=? AND branch_id=? AND (is_sellable=1 OR wh_type='MAIN_STORE') AND wh_type NOT IN('QUARANTINE','DAMAGED')",
+            whereArgs: [warehouseId, branchId], limit: 1);
+        if (warehouse.isEmpty) throw StateError('مخزن البيع غير متاح في الفرع الحالي');
+      }
       for (final payment in payments) {
         await _paymentAccount(
             txn, branchId, payment.cashAccountId, payment.method);
@@ -262,7 +269,7 @@ class PostingAndSalesService {
           needUnits: item.baseUnits,
           unitsPerPack: units,
           invoiceItemId: invoiceItemId,
-          warehouseId: null,
+          warehouseId: warehouseId,
           unitPrice: item.unitPrice,
           docType: 'SALE',
           docId: invoiceId,
