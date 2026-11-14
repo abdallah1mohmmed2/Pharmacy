@@ -5,6 +5,7 @@ import '../../core/theme/enterprise_dark_theme.dart';
 import '../../core/widgets/shared_widgets.dart';
 import '../../data/models/erp_models.dart';
 import '../../data/database/database_helper.dart';
+import '../../data/services/manual_message_service.dart';
 import '../../providers/session_and_erp_provider.dart';
 import 'manual_message_composer_screen.dart';
 
@@ -15,11 +16,15 @@ class PartyDetailsScreen extends StatefulWidget {
     required this.party,
     required this.onPrint,
     required this.onVoucher,
+    this.messageTemplates,
+    this.openExternal,
   });
 
   final PartyModel party;
   final Future<void> Function(PartyModel) onPrint;
   final Future<void> Function(PartyModel) onVoucher;
+  final ManualMessageTemplateRepository? messageTemplates;
+  final ExternalMessageOpener? openExternal;
 
   @override
   State<PartyDetailsScreen> createState() => _PartyDetailsScreenState();
@@ -81,6 +86,8 @@ class _PartyDetailsScreenState extends State<PartyDetailsScreen> {
             outstanding > 0 ? MoneyFormatter.format(outstanding) : null,
         transactionAmount: transactionAmount,
         documentNumber: documentNumber,
+        templates: widget.messageTemplates,
+        openExternal: widget.openExternal,
       ),
     ));
   }
