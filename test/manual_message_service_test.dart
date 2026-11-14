@@ -150,13 +150,20 @@ void main() {
     ));
     await tester.pumpAndSettle();
     expect(find.text('تذكير العميل بالمبلغ المتبقي'), findsOneWidget);
-    await tester
-        .ensureVisible(find.byKey(const ValueKey('manual-message-body')));
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('manual-message-body')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.enterText(
       find.byKey(const ValueKey('manual-message-body')),
       'تم تعديل الرسالة يدوياً',
     );
-    await tester.ensureVisible(find.text('فتح SMS'));
+    await tester.scrollUntilVisible(
+      find.text('فتح SMS'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('فتح SMS'));
     await tester.pumpAndSettle();
     expect(opened, hasLength(1));
