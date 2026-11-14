@@ -182,6 +182,12 @@ jobs:
         run: |
           npx firebase emulators:exec --config firebase.emulator.json --only firestore --project pharmacy-dafb6 "cd .. && FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 flutter test test/firestore_sync_worker_integration_test.dart"
       - run: flutter test
+      - name: Upload treasury card layout renders
+        uses: actions/upload-artifact@v4
+        with:
+          name: pharmacy-treasury-ui
+          path: test_artifacts/treasury_*.png
+          if-no-files-found: error
       - name: Download and verify Gradle distribution through GitHub API
         shell: bash
         env:
