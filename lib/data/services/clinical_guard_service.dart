@@ -599,19 +599,21 @@ class ClinicalGuardService {
           'تنبيه التحذير يوثق بسبب الصيدلي ولا يحتاج تجاوز حظر المدير');
   }
 
-  Future<void> recordDecision(ClinicalAlertModel alert,
+  Future<int> recordDecision(ClinicalAlertModel alert,
       {required String decision,
       required int? userId,
       String? reason,
       int? managerUserId,
-      int? invoiceId}) async {
+      int? invoiceId,
+      int? patientId}) async {
     validateDecision(alert,
         decision: decision, reason: reason, managerUserId: managerUserId);
-    await (await _helper.database).insert(
+    return (await _helper.database).insert(
         'clinical_alert_logs',
         alert.toLogMap(decidedBy: userId, managerUserId: managerUserId)
           ..['user_decision'] = decision
           ..['override_reason'] = reason
+          ..['patient_id'] = patientId ?? alert.patientId
           ..['invoice_id'] = invoiceId ?? alert.invoiceId);
   }
 }
