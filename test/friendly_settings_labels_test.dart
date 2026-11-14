@@ -28,7 +28,7 @@ void main() {
     final values = SettingKeys.all
         .where((spec) => spec.allowedValues.isNotEmpty)
         .toList();
-    expect(values, hasLength(10));
+    expect(values, hasLength(11));
     for (final spec in values) {
       for (final value in spec.allowedValues) {
         expect(FriendlySettingsLabels.choice(value), isNotEmpty);
