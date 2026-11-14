@@ -19,6 +19,7 @@ import '../../data/database/database_helper.dart';
 import '../../data/services/firebase_branch_auth_service.dart';
 import '../../data/services/branch_identity_provisioning_service.dart';
 import '../../data/services/device_identity_service.dart';
+import '../../data/services/manual_backup_file_service.dart';
 import '../../core/widgets/manager_pin_dialog.dart';
 
 class S28SystemSettingsBackupScreen extends StatefulWidget {
@@ -39,6 +40,7 @@ class _S28SystemSettingsBackupScreenState
     SettingGroup.printBackup
   ];
   String? auditUserFilter, auditActionFilter, auditSeverityFilter;
+  bool _backupBusy = false;
   Future<Map<String, Object?>>? _identityStatusFuture;
 
   Future<Map<String, Object?>> _loadIdentityStatus() async {
@@ -623,74 +625,281 @@ class _S28SystemSettingsBackupScreenState
   Widget _backupTab(SettingsAndSystemProvider p) =>
       ListView(padding: const EdgeInsets.all(12), children: [
         _settingTile(SettingKeys.byKey(SettingKey.autoLocalOnClose), p),
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Text(
+            'يمكنك تسمية النسخة واختيار مكان حفظها على الجهاز. '
+            'يحتفظ التطبيق أيضًا بنسخة داخلية موثوقة للاستعادة. '
+            'تظهر النسخ الداخلية في القائمة أدناه.',
+          ),
+        ),
         FilledButton.icon(
-            onPressed: () => _createBackup(p),
-            icon: const Icon(Icons.backup),
-            label: const Text('إنشاء نسخة احتياطية الآن')),
+          key: const ValueKey('backup-create-with-destination'),
+          onPressed: _backupBusy ? null : () => _createBackup(p),
+          icon: _backupBusy
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.backup),
+          label: Text(
+            _backupBusy ? 'جارٍ تنفيذ العملية...' : 'إنشاء نسخة احتياطية',
+          ),
+        ),
         const SizedBox(height: 8),
+        OutlinedButton.icon(
+          key: const ValueKey('backup-restore-from-device'),
+          onPressed: _backupBusy ? null : () => _restoreFromDevice(p),
+          icon: const Icon(Icons.folder_open_outlined),
+          label: const Text('استعادة نسخة من ملف على الجهاز'),
+        ),
+        const SizedBox(height: 12),
+        if (p.backupLogs.isNotEmpty)
+          const Text('النسخ الداخلية المحفوظة',
+              style: TextStyle(fontWeight: FontWeight.bold)),
         for (final row in p.backupLogs)
           Card(
-              child: ListTile(
-                  leading: const Icon(Icons.verified_user),
-                  title: Text(row['file_path']
-                      .toString()
-                      .split(Platform.pathSeparator)
-                      .last),
-                  subtitle: Text(
-                      'الحالة: ${row['result']} • الحجم: ${row['size_bytes']} بايت\nSHA-256: ${row['sha256']}'),
-                  isThreeLine: true,
-                  trailing: IconButton(
-                      icon: const Icon(Icons.restore),
-                      onPressed: () =>
-                          _restoreBackup(p, row['file_path'] as String)))),
+            child: ListTile(
+              leading: const Icon(Icons.verified_user),
+              title: Text(row['file_path']
+                  .toString()
+                  .split(Platform.pathSeparator)
+                  .last),
+              subtitle: Text(
+                  'الحالة: ${row['result']} • الحجم: ${row['size_bytes']} بايت\nSHA-256: ${row['sha256']}'),
+              isThreeLine: true,
+              trailing: IconButton(
+                tooltip: 'استعادة هذه النسخة',
+                icon: const Icon(Icons.restore),
+                onPressed: _backupBusy
+                    ? null
+                    : () => _restoreBackup(p, row['file_path'] as String),
+              ),
+            ),
+          ),
       ]);
-  Future<void> _createBackup(SettingsAndSystemProvider p) async {
+
+  Future<({String name, bool saveAs})?> _requestBackupOptions() async {
+    final stamp = DateTime.now()
+        .toIso8601String()
+        .substring(0, 19)
+        .replaceAll(':', '-');
+    final name = TextEditingController(text: 'pharmacy_backup_$stamp');
+    bool saveAs = true;
+    String? nameError;
     try {
-      final r = await p.createBackup(
-          userId:
-              context.read<SessionAndErpProvider>().currentUser?['id'] as int?);
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('تم إنشاء النسخة: ${r.file.path}')));
-    } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.toString())));
+      return await showDialog<({String name, bool saveAs})>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialogState) => AlertDialog(
+            title: const Text('إعداد النسخة الاحتياطية'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    key: const ValueKey('backup-custom-name'),
+                    controller: name,
+                    maxLength: 100,
+                    enabled: saveAs,
+                    decoration: InputDecoration(
+                      labelText: 'اسم النسخة الاحتياطية',
+                      helperText: 'سيضاف امتداد .db أو .db.gz تلقائيًا.',
+                      errorText: nameError,
+                    ),
+                    onChanged: (_) {
+                      if (nameError != null) {
+                        setDialogState(() => nameError = null);
+                      }
+                    },
+                  ),
+                  SwitchListTile.adaptive(
+                    key: const ValueKey('backup-custom-destination'),
+                    contentPadding: EdgeInsets.zero,
+                    value: saveAs,
+                    title: const Text('اختيار مكان الحفظ'),
+                    subtitle: const Text(
+                      'بعد إنشاء نسخة داخلية سليمة، ستفتح نافذة النظام '
+                      'لاختيار المجلد والاسم النهائي.',
+                    ),
+                    onChanged: (value) => setDialogState(() {
+                      saveAs = value;
+                      nameError = null;
+                    }),
+                  ),
+                  if (!saveAs)
+                    const Text(
+                      'ستُحفظ نسخة داخل التطبيق بالاسم التلقائي فقط.',
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('إلغاء'),
+              ),
+              FilledButton(
+                key: const ValueKey('backup-confirm-create'),
+                onPressed: () {
+                  String requested = name.text;
+                  if (saveAs) {
+                    try {
+                      requested = BackupFileName.baseName(requested);
+                    } on FormatException catch (error) {
+                      setDialogState(() => nameError = error.message);
+                      return;
+                    }
+                  }
+                  Navigator.pop(dialogContext,
+                      (name: requested, saveAs: saveAs));
+                },
+                child: const Text('متابعة'),
+              ),
+            ],
+          ),
+        ),
+      );
+    } finally {
+      name.dispose();
     }
   }
 
-  Future<void> _restoreBackup(SettingsAndSystemProvider p, String path) async {
+  Future<void> _createBackup(SettingsAndSystemProvider p) async {
+    if (_backupBusy) return;
+    final selected = await _requestBackupOptions();
+    if (selected == null || !mounted) return;
+    setState(() => _backupBusy = true);
+    var privateSaved = false;
+    try {
+      final result = await p.createBackup(
+          userId:
+              context.read<SessionAndErpProvider>().currentUser?['id'] as int?);
+      privateSaved = true;
+      if (!mounted) return;
+      if (!selected.saveAs) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم إنشاء النسخة الداخلية بنجاح.')),
+        );
+        return;
+      }
+      final external = await ManualBackupFileService().saveVerifiedCopy(
+        source: result,
+        requestedName: selected.name,
+      );
+      if (!mounted) return;
+      final label = BackupFileName.fileName(
+        selected.name,
+        compressed: result.compressed,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(external == null
+            ? 'النسخة الداخلية محفوظة، لكنك ألغيت اختيار مكان الحفظ الخارجي.'
+            : 'تم حفظ النسخة الداخلية، وحفظ نسخة باسم $label في الموقع الذي اخترته.'),
+      ));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(privateSaved
+            ? 'النسخة الداخلية محفوظة، لكن تعذر حفظ النسخة في الموقع المختار: $error'
+            : 'تعذر إنشاء النسخة الاحتياطية: $error'),
+      ));
+    } finally {
+      if (mounted) setState(() => _backupBusy = false);
+    }
+  }
+
+  Future<bool> _confirmRestore() async {
     final yes = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-                title: const Text('تأكيد الاستعادة'),
-                content: const Text(
-                    'سيتم استبدال قاعدة البيانات الحالية. أُنشئت نسخة احتياطية تلقائية قبل الاستعادة.'),
-                actions: [
-                  TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('إلغاء')),
-                  FilledButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text('استعادة'))
-                ]));
-    if (yes != true) return;
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('تأكيد الاستعادة'),
+        content: const Text(
+          'سيتم استبدال قاعدة البيانات الحالية ببيانات النسخة المختارة. '
+          'ينشئ التطبيق نسخة داخلية تلقائية قبل الاستعادة.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('استعادة'),
+          ),
+        ],
+      ),
+    );
+    return yes == true;
+  }
+
+  Future<void> _refreshAfterRestore() async {
+    if (!mounted) return;
+    await context.read<SessionAndErpProvider>().refresh();
+    await context.read<PosAndDrugsProvider>().loadDrugs();
+    await context.read<InventoryAndPurchaseProvider>().loadAll();
+    await context.read<ClinicalAndRxProvider>().loadAll();
+    await context.read<TreasuryHrPartnerProvider>().refresh();
+  }
+
+  Future<void> _restoreBackup(SettingsAndSystemProvider p, String path) async {
+    if (_backupBusy || !await _confirmRestore() || !mounted) return;
+    setState(() => _backupBusy = true);
     try {
       final session = context.read<SessionAndErpProvider>();
       await p.restoreBackup(File(path),
           userId: session.currentUser?['id'] as int?);
-      await session.refresh();
-      await context.read<PosAndDrugsProvider>().loadDrugs();
-      await context.read<InventoryAndPurchaseProvider>().loadAll();
-      await context.read<ClinicalAndRxProvider>().loadAll();
-      await context.read<TreasuryHrPartnerProvider>().refresh();
-      if (mounted)
+      await _refreshAfterRestore();
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('اكتملت الاستعادة وإعادة تحميل بيانات النظام')));
-    } catch (e) {
-      if (mounted)
+          content: Text('اكتملت الاستعادة وإعادة تحميل بيانات النظام.'),
+        ));
+      }
+    } catch (error) {
+      if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.toString())));
+            .showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _backupBusy = false);
+    }
+  }
+
+  Future<void> _restoreFromDevice(SettingsAndSystemProvider p) async {
+    if (_backupBusy) return;
+    try {
+      final picked = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+        allowMultiple: false,
+        withData: false,
+      );
+      if (picked == null || picked.files.isEmpty || !mounted) return;
+      final path = picked.files.single.path;
+      if (path == null || path.isEmpty) {
+        throw StateError('تعذر قراءة الملف المختار على هذا الجهاز.');
+      }
+      if (!await _confirmRestore() || !mounted) return;
+      setState(() => _backupBusy = true);
+      final session = context.read<SessionAndErpProvider>();
+      await p.restoreBackupFromDevice(
+        File(path),
+        userId: session.currentUser?['id'] as int?,
+      );
+      await _refreshAfterRestore();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('اكتملت استعادة النسخة المختارة والتحقق من سلامتها.'),
+        ));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر استعادة النسخة: $error')),
+        );
+      }
+    } finally {
+      if (mounted && _backupBusy) setState(() => _backupBusy = false);
     }
   }
 
