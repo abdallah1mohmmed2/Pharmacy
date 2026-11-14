@@ -82,7 +82,7 @@ class _DrugJsonEditorFieldState extends State<DrugJsonEditorField> {
         value is List &&
         value.every((element) =>
             element is String || (element is Map && _nameKey(element) != null));
-    final items = structured ? List<Object?>.from(value as List) : <Object?>[];
+    final items = structured ? List<Object?>.from(value) : <Object?>[];
     final controllers = <TextEditingController>[
       for (final item in items) TextEditingController(text: _name(item)),
     ];
