@@ -2,6 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/database_helper.dart';
 import 'package:global_enterprise_pharmacy_erp/data/services/purchase_and_bonus_service.dart';
+import 'package:global_enterprise_pharmacy_erp/reports_pdf/datasources/sales_and_inventory_queries.dart';
+import 'package:global_enterprise_pharmacy_erp/reports_pdf/models_and_contracts.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -22,6 +24,8 @@ void main() {
         stock_total_units INTEGER NOT NULL,
         min_stock_units INTEGER NOT NULL,
         units_per_pack INTEGER NOT NULL,
+        reorder_qty_packs INTEGER NOT NULL DEFAULT 0,
+        last_purchase_cost_pack REAL NOT NULL DEFAULT 0,
         is_deleted INTEGER NOT NULL DEFAULT 0,
         is_active INTEGER NOT NULL DEFAULT 1
       )
@@ -47,6 +51,21 @@ void main() {
         qty_units INTEGER NOT NULL,
         movement_type TEXT NOT NULL,
         movement_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE sales_invoices (
+        id INTEGER PRIMARY KEY,
+        status TEXT NOT NULL,
+        invoice_date TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE sales_invoice_items (
+        id INTEGER PRIMARY KEY,
+        invoice_id INTEGER NOT NULL,
+        drug_id INTEGER NOT NULL,
+        qty_units INTEGER NOT NULL
       )
     ''');
     await db.execute('''
@@ -188,6 +207,25 @@ void main() {
     await addHistoricalBatch(1, 2);
     final shortages = await service.shortages(branchId: 1);
     expect(shortages, hasLength(1));
+  });
+
+  test('PDF shortages report uses the same stock-history rule as the screen',
+      () async {
+    await addDrug(1, current: 0, minimum: 30); // Catalog only, no batch.
+    await addDrug(2, current: 0, minimum: 30);
+    await addDrug(3, current: 0, minimum: 30);
+    await addDrug(4, current: 50, minimum: 30);
+    await addHistoricalBatch(2, 1, total: 0); // Depleted pharmacy stock.
+    await addHistoricalBatch(3, 3, total: 0); // Other branch only.
+    await addHistoricalBatch(4, 2, total: 50); // Available, not shortage.
+    final screen = await service.shortages(branchId: 1);
+    final report = await SalesAndInventoryQueries(
+      helper: DatabaseHelper.forTesting(db),
+    ).r17(ReportParams(branchId: 1));
+    expect(screen.map((row) => row['drug_name']), ['دواء رقم 2']);
+    expect(report.map((row) => row['drug']), ['دواء رقم 2']);
+    expect(report.single['current_balance'], 0);
+    expect(report.single['minimum_stock'], 30);
   });
 
   test('branch 2 sees only drugs received in its own warehouses',
