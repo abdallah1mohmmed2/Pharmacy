@@ -1,4 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:global_enterprise_pharmacy_erp/data/database/database_helper.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:global_enterprise_pharmacy_erp/data/services/manual_message_service.dart';
 import 'package:global_enterprise_pharmacy_erp/screens/accounts/manual_message_composer_screen.dart';
@@ -17,6 +21,39 @@ class _FakeTemplates implements ManualMessageTemplateRepository {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() => sqfliteFfiInit());
+
+  test('SQLite templates are preserved after database restart', () async {
+    final dir = await Directory.systemTemp.createTemp('pharmacy-templates-');
+    final path = '${dir.path}/messages.db';
+    try {
+      final firstDb = await databaseFactoryFfi.openDatabase(path);
+      await firstDb.execute('''CREATE TABLE app_settings (
+        setting_key TEXT PRIMARY KEY,
+        value_text TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )''');
+      final first = SqliteManualMessageTemplates(
+          helper: DatabaseHelper.forTesting(firstDb));
+      await first.save('customer_balance', 'تذكير خاص {name}: {amount}');
+      await firstDb.close();
+      final reopened = await databaseFactoryFfi.openDatabase(path);
+      try {
+        final second = SqliteManualMessageTemplates(
+            helper: DatabaseHelper.forTesting(reopened));
+        expect(await second.load('customer_balance'),
+            'تذكير خاص {name}: {amount}');
+        expect(await second.load('supplier_balance'),
+            ManualMessageKind.byId('supplier_balance').defaultText);
+      } finally {
+        await reopened.close();
+      }
+    } finally {
+      await dir.delete(recursive: true);
+    }
+  });
+
   test('only relevant templates are exposed to each account type', () {
     expect(
       ManualMessageKind.forParty('CUSTOMER').map((kind) => kind.id),
