@@ -108,16 +108,16 @@ class _S08ClinicalAuditScreenState extends State<S08ClinicalAuditScreen> {
   String _value(Object? value) =>
       value == null || value.toString().trim().isEmpty ? '—' : value.toString();
 
-  bool get _canReveal {
-    final role =
-        context.read<SessionAndErpProvider>().currentUser?['role_code'];
-    return role == 'OWNER' || role == 'MANAGER' || role == 'AUDITOR';
-  }
-
-  void _details(Map<String, Object?> record,
-      {required String title, bool controlled = false}) {
+  Future<void> _details(Map<String, Object?> record,
+      {required String title, bool controlled = false}) async {
+    final session = context.read<SessionAndErpProvider>();
+    final userId = session.currentUser?['id'] as int?;
+    final allowReveal = controlled &&
+        userId != null &&
+        await _service.canRevealIdentity(
+            branchId: session.branchId, userId: userId);
+    if (!mounted) return;
     var reveal = false;
-    final allowReveal = controlled && _canReveal;
     final fields = <(String, String)>[
       (
         'التاريخ',
