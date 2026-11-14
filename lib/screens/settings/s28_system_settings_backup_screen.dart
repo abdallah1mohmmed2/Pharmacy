@@ -102,16 +102,21 @@ class _S28SystemSettingsBackupScreenState
                 ? 'هوية المنشأة معتمدة على هذا الجهاز'
                 : 'هذا الجهاز لم يكتمل تأسيس هويته'),
             subtitle: Text(
-              'المؤسسة: ' + (value['tenant_name']?.toString() ?? 'غير معروفة') +
-              ' • الفرع: ' + (value['branch_name']?.toString() ?? 'غير معروف'),
+              'المؤسسة: ' +
+                  (value['tenant_name']?.toString() ?? 'غير معروفة') +
+                  ' • الفرع: ' +
+                  (value['branch_name']?.toString() ?? 'غير معروف'),
             ),
             children: [
               ListTile(
                 title: const Text('تفاصيل التعريف الفنية'),
                 subtitle: SelectableText(
-                  'معرّف المؤسسة: ' + (value['tenant_uuid']?.toString() ?? '') +
-                  '\nمعرّف الفرع: ' + (value['branch_uuid']?.toString() ?? '') +
-                  '\nمعرّف الجهاز: ' + (value['device_id']?.toString() ?? ''),
+                  'معرّف المؤسسة: ' +
+                      (value['tenant_uuid']?.toString() ?? '') +
+                      '\nمعرّف الفرع: ' +
+                      (value['branch_uuid']?.toString() ?? '') +
+                      '\nمعرّف الجهاز: ' +
+                      (value['device_id']?.toString() ?? ''),
                 ),
               ),
             ],
@@ -235,14 +240,16 @@ class _S28SystemSettingsBackupScreenState
       case SettingKey.periodLock:
         final oldDate = oldValue is Map ? oldValue['locked_through'] : null;
         final newDate = value is Map ? value['locked_through'] : null;
-        if (oldDate != null && (newDate == null ||
-            newDate.toString().compareTo(oldDate.toString()) < 0)) {
+        if (oldDate != null &&
+            (newDate == null ||
+                newDate.toString().compareTo(oldDate.toString()) < 0)) {
           explanation = 'أنت تقلص مدة القفل المالي أو تلغيها. قد تصبح '
               'بعض التواريخ السابقة قابلة لتسجيل عمليات جديدة.';
         }
         break;
       case SettingKey.cloudSync:
-        if (value is Map && value['enabled'] == true &&
+        if (value is Map &&
+            value['enabled'] == true &&
             (oldValue is! Map || oldValue['enabled'] != true)) {
           explanation = 'يجب التأكد من جاهزية الخادم وصلاحيات الحساب '
               'وهوية الفرع قبل تفعيل المزامنة.';
@@ -343,7 +350,8 @@ class _S28SystemSettingsBackupScreenState
     return ListView(padding: const EdgeInsets.all(12), children: [
       const Padding(
         padding: EdgeInsets.only(bottom: 8),
-        child: Text('اختر الإعداد الذي تريد تغييره. تحفظ التعديلات في النظام بنفس طريقة الحفظ السابقة.'),
+        child: Text(
+            'اختر الإعداد الذي تريد تغييره. تحفظ التعديلات في النظام بنفس طريقة الحفظ السابقة.'),
       ),
       for (final spec in specs) _settingTile(spec, p),
       if (group == SettingGroup.general)
@@ -380,12 +388,15 @@ class _S28SystemSettingsBackupScreenState
         key: ValueKey('friendly-setting-' + spec.key.name),
         child: SwitchListTile.adaptive(
           value: value == true,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
           title: Text(label),
           subtitle: Text(explanation),
-          secondary: spec.requiresManager ? const Icon(Icons.lock_outline) : null,
+          secondary:
+              spec.requiresManager ? const Icon(Icons.lock_outline) : null,
           onChanged: spec.key == SettingKey.lahAlayhTermsOnly
-              ? null : (next) => _change(spec, next),
+              ? null
+              : (next) => _change(spec, next),
         ),
       );
     }
@@ -445,7 +456,7 @@ class _S28SystemSettingsBackupScreenState
               children: [
                 Expanded(
                   child: Text(label,
-                    style: Theme.of(context).textTheme.titleSmall),
+                      style: Theme.of(context).textTheme.titleSmall),
                 ),
                 if (spec.requiresManager)
                   const Tooltip(
@@ -467,9 +478,11 @@ class _S28SystemSettingsBackupScreenState
                     ? () => _pickPharmacyLogo(spec)
                     : () => _editValue(spec, value),
                 icon: Icon(spec.key == SettingKey.logoPath
-                    ? Icons.image_outlined : Icons.tune),
+                    ? Icons.image_outlined
+                    : Icons.tune),
                 label: Text(spec.key == SettingKey.logoPath
-                    ? 'اختيار صورة الشعار' : 'تعديل الإعداد'),
+                    ? 'اختيار صورة الشعار'
+                    : 'تعديل الإعداد'),
               ),
             ),
           ],
@@ -497,23 +510,27 @@ class _S28SystemSettingsBackupScreenState
       }
       final bytes = selected.bytes ??
           (selected.path == null
-              ? null : await File(selected.path!).readAsBytes());
+              ? null
+              : await File(selected.path!).readAsBytes());
       if (bytes == null || bytes.isEmpty) {
         throw StateError('تعذر قراءة صورة الشعار.');
       }
       final dir = Directory(path_util.join(
           (await getApplicationSupportDirectory()).path, 'logos'));
       await dir.create(recursive: true);
-      final saved = File(path_util.join(dir.path,
+      final saved = File(path_util.join(
+          dir.path,
           'pharmacy_logo_' +
-          DateTime.now().microsecondsSinceEpoch.toString() + ext));
+              DateTime.now().microsecondsSinceEpoch.toString() +
+              ext));
       await saved.writeAsBytes(bytes, flush: true);
       if (!mounted) return;
       await _change(spec, saved.path);
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تعذر اختيار صورة الشعار: ' + error.toString())),
+          SnackBar(
+              content: Text('تعذر اختيار صورة الشعار: ' + error.toString())),
         );
       }
     }
@@ -527,7 +544,8 @@ class _S28SystemSettingsBackupScreenState
       final changed = await showDialog<Map<String, Object?>>(
         context: context,
         builder: (_) => FriendlyJsonSettingEditor(
-          spec: spec, initialValue: initial,
+          spec: spec,
+          initialValue: initial,
         ),
       );
       if (changed != null && mounted) await _change(spec, changed);
@@ -610,10 +628,14 @@ class _S28SystemSettingsBackupScreenState
       String role, String permission, bool allowed) async {
     try {
       await context.read<SettingsAndSystemProvider>().setRolePermission(
-        role, permission, allowed,
-        actorRole: context.read<SessionAndErpProvider>()
-            .currentUser?['role_code'] as String? ?? '',
-      );
+            role,
+            permission,
+            allowed,
+            actorRole: context
+                    .read<SessionAndErpProvider>()
+                    .currentUser?['role_code'] as String? ??
+                '',
+          );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('تم تحديث صلاحية المستخدم بنجاح.')),
@@ -634,7 +656,8 @@ class _S28SystemSettingsBackupScreenState
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const Padding(
           padding: EdgeInsets.only(top: 4, bottom: 10),
-          child: Text('افتح دور المستخدم وعدّل الأذونات من مفاتيح التشغيل. صلاحيات المالك محمية ولا يمكن تعطيلها.'),
+          child: Text(
+              'افتح دور المستخدم وعدّل الأذونات من مفاتيح التشغيل. صلاحيات المالك محمية ولا يمكن تعطيلها.'),
         ),
         for (final role in [
           'OWNER',
@@ -1350,8 +1373,8 @@ class _S28SystemSettingsBackupScreenState
             style: TextStyle(fontWeight: FontWeight.bold)),
         for (final row in p.syncSummary)
           ListTile(
-              title: Text(FriendlySettingsLabels.queueStatus(
-                  row['status'].toString())),
+              title: Text(
+                  FriendlySettingsLabels.queueStatus(row['status'].toString())),
               trailing: Text(row['count'].toString())),
       ]);
   String _friendlyAuditEntity(String? type, String? label) {
@@ -1365,7 +1388,8 @@ class _S28SystemSettingsBackupScreenState
       if (split > 0) {
         final role = label.substring(0, split);
         final permission = label.substring(split + 1);
-        return _roleName(role) + ': ' +
+        return _roleName(role) +
+            ': ' +
             FriendlySettingsLabels.permission(permission);
       }
     }
@@ -1375,7 +1399,8 @@ class _S28SystemSettingsBackupScreenState
   String _friendlyAuditValue(String raw, String? settingName) {
     try {
       final decoded = jsonDecode(raw);
-      if (decoded is Map && decoded.containsKey('value') &&
+      if (decoded is Map &&
+          decoded.containsKey('value') &&
           settingName != null) {
         for (final spec in SettingKeys.all) {
           if (spec.name == settingName) {
@@ -1385,7 +1410,8 @@ class _S28SystemSettingsBackupScreenState
       }
       if (decoded is Map && decoded.containsKey('is_allowed')) {
         return decoded['is_allowed'] == 1
-            ? 'صلاحية مفعّلة' : 'صلاحية غير مفعّلة';
+            ? 'صلاحية مفعّلة'
+            : 'صلاحية غير مفعّلة';
       }
     } catch (_) {
       // Audit records are never mutated or rejected because of display text.
@@ -1432,9 +1458,9 @@ class _S28SystemSettingsBackupScreenState
                 items: [
                   const DropdownMenuItem<String?>(
                       value: null, child: Text('كل الأحداث')),
-                  ...actions.map((v) =>
-                      DropdownMenuItem<String?>(value: v,
-                        child: Text(FriendlySettingsLabels.auditAction(v))))
+                  ...actions.map((v) => DropdownMenuItem<String?>(
+                      value: v,
+                      child: Text(FriendlySettingsLabels.auditAction(v))))
                 ],
                 onChanged: (v) => setState(() => auditActionFilter = v))),
         SizedBox(
@@ -1445,9 +1471,9 @@ class _S28SystemSettingsBackupScreenState
                 items: [
                   const DropdownMenuItem<String?>(
                       value: null, child: Text('كل المستويات')),
-                  ...severities.map((v) =>
-                      DropdownMenuItem<String?>(value: v,
-                        child: Text(FriendlySettingsLabels.severity(v))))
+                  ...severities.map((v) => DropdownMenuItem<String?>(
+                      value: v,
+                      child: Text(FriendlySettingsLabels.severity(v))))
                 ],
                 onChanged: (v) => setState(() => auditSeverityFilter = v))),
       ]),
@@ -1485,24 +1511,27 @@ class _S28SystemSettingsBackupScreenState
         Card(
           child: ExpansionTile(
             title: Text(
-              FriendlySettingsLabels.auditAction(row.action) + ' • ' +
-              _friendlyAuditEntity(row.entityType, row.entityLabel),
+              FriendlySettingsLabels.auditAction(row.action) +
+                  ' • ' +
+                  _friendlyAuditEntity(row.entityType, row.entityLabel),
             ),
-            subtitle: Text(row.eventAt + ' • ' +
+            subtitle: Text(row.eventAt +
+                ' • ' +
                 FriendlySettingsLabels.severity(row.severity) +
-                ' • المستخدم ' + (row.userId?.toString() ?? 'غير محدد')),
+                ' • المستخدم ' +
+                (row.userId?.toString() ?? 'غير محدد')),
             children: [
               if (row.oldValuesJson != null)
                 ListTile(
                   title: const Text('قبل التغيير'),
-                  subtitle: Text(_friendlyAuditValue(
-                      row.oldValuesJson!, row.entityLabel)),
+                  subtitle: Text(
+                      _friendlyAuditValue(row.oldValuesJson!, row.entityLabel)),
                 ),
               if (row.newValuesJson != null)
                 ListTile(
                   title: const Text('بعد التغيير'),
-                  subtitle: Text(_friendlyAuditValue(
-                      row.newValuesJson!, row.entityLabel)),
+                  subtitle: Text(
+                      _friendlyAuditValue(row.newValuesJson!, row.entityLabel)),
                 ),
               if (row.reason != null)
                 ListTile(

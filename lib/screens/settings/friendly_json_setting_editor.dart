@@ -88,7 +88,8 @@ class _FriendlyJsonSettingEditorState extends State<FriendlyJsonSettingEditor> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: TextFormField(
-        key: ValueKey('setting-json-text-' + key +
+        key: ValueKey('setting-json-text-' +
+            key +
             (key == 'symbol' ? (values['code']?.toString() ?? '') : '')),
         initialValue: values[key]?.toString() ?? '',
         keyboardType: keyboardType ??
@@ -119,22 +120,26 @@ class _FriendlyJsonSettingEditorState extends State<FriendlyJsonSettingEditor> {
         keyboardType: TextInputType.numberWithOptions(decimal: !integer),
         decoration: InputDecoration(labelText: label, helperText: hint),
         validator: (text) {
-          final n = integer ? int.tryParse(text?.trim() ?? '') :
-              num.tryParse(text?.trim() ?? '');
+          final n = integer
+              ? int.tryParse(text?.trim() ?? '')
+              : num.tryParse(text?.trim() ?? '');
           if (n == null || n < minimum || n > maximum) {
-            return 'أدخل قيمة بين ' + minimum.toString() +
-                ' و' + maximum.toString();
+            return 'أدخل قيمة بين ' +
+                minimum.toString() +
+                ' و' +
+                maximum.toString();
           }
           return null;
         },
         onChanged: (text) {
-          final parsed = integer ? int.tryParse(text.trim()) :
-              num.tryParse(text.trim());
+          final parsed =
+              integer ? int.tryParse(text.trim()) : num.tryParse(text.trim());
           if (parsed != null) values[key] = parsed;
         },
         onSaved: (text) {
-          values[key] = integer ? int.parse(text!.trim()) :
-              num.parse(text!.trim()).toDouble();
+          values[key] = integer
+              ? int.parse(text!.trim())
+              : num.parse(text!.trim()).toDouble();
         },
       ),
     );
@@ -153,60 +158,64 @@ class _FriendlyJsonSettingEditorState extends State<FriendlyJsonSettingEditor> {
       helpText: 'اختر آخر يوم تريد قفل العمليات قبله أو عنده',
     );
     if (next == null || !mounted) return;
-    setState(() => values['locked_through'] =
-        next.toIso8601String().substring(0, 10));
+    setState(() =>
+        values['locked_through'] = next.toIso8601String().substring(0, 10));
   }
 
   Widget _lockDate() => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      const Text(
-        'لا يسمح النظام بتسجيل عمليات مالية بتاريخ يقع في الفترة المقفلة. '
-        'تغيير التاريخ يحتاج إلى اعتماد المدير.',
-      ),
-      const SizedBox(height: 12),
-      Text(values['locked_through'] == null
-          ? 'لا يوجد تاريخ قفل محدد'
-          : 'الفترات مقفلة حتى ' + values['locked_through'].toString()),
-      const SizedBox(height: 8),
-      Wrap(
-        spacing: 8,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          OutlinedButton.icon(
-            key: const ValueKey('setting-period-pick-date'),
-            onPressed: _chooseLockDate,
-            icon: const Icon(Icons.calendar_month),
-            label: const Text('اختيار تاريخ القفل'),
+          const Text(
+            'لا يسمح النظام بتسجيل عمليات مالية بتاريخ يقع في الفترة المقفلة. '
+            'تغيير التاريخ يحتاج إلى اعتماد المدير.',
           ),
-          TextButton(
-            key: const ValueKey('setting-period-clear-date'),
-            onPressed: values['locked_through'] == null
-                ? null : () => setState(() => values['locked_through'] = null),
-            child: const Text('إلغاء تحديد التاريخ'),
+          const SizedBox(height: 12),
+          Text(values['locked_through'] == null
+              ? 'لا يوجد تاريخ قفل محدد'
+              : 'الفترات مقفلة حتى ' + values['locked_through'].toString()),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: [
+              OutlinedButton.icon(
+                key: const ValueKey('setting-period-pick-date'),
+                onPressed: _chooseLockDate,
+                icon: const Icon(Icons.calendar_month),
+                label: const Text('اختيار تاريخ القفل'),
+              ),
+              TextButton(
+                key: const ValueKey('setting-period-clear-date'),
+                onPressed: values['locked_through'] == null
+                    ? null
+                    : () => setState(() => values['locked_through'] = null),
+                child: const Text('إلغاء تحديد التاريخ'),
+              ),
+            ],
           ),
         ],
-      ),
-    ],
-  );
+      );
 
   Widget _currency() => Column(
-    children: [
-      _choice('code', 'نوع العملة', ['YER', 'SAR', 'USD', 'EUR'],
-          whenChanged: (code) {
-        final defaults = <String, (String, int)>{
-          'YER': ('ر.ي', 0), 'SAR': ('ر.س', 2),
-          'USD': (r'$', 2), 'EUR': ('€', 2),
-        };
-        if (defaults.containsKey(code)) {
-          values['symbol'] = defaults[code]!.$1;
-          values['decimals'] = defaults[code]!.$2;
-        }
-      }),
-      _text('symbol', 'رمز العملة'),
-      _choice('decimals', 'عدد المنازل العشرية', ['0', '2', '3']),
-      const Text('تغيير العملة لا يحوّل أرصدة العمليات السابقة أو أسعارها.'),
-    ],
-  );
+        children: [
+          _choice('code', 'نوع العملة', ['YER', 'SAR', 'USD', 'EUR'],
+              whenChanged: (code) {
+            final defaults = <String, (String, int)>{
+              'YER': ('ر.ي', 0),
+              'SAR': ('ر.س', 2),
+              'USD': (r'$', 2),
+              'EUR': ('€', 2),
+            };
+            if (defaults.containsKey(code)) {
+              values['symbol'] = defaults[code]!.$1;
+              values['decimals'] = defaults[code]!.$2;
+            }
+          }),
+          _text('symbol', 'رمز العملة'),
+          _choice('decimals', 'عدد المنازل العشرية', ['0', '2', '3']),
+          const Text(
+              'تغيير العملة لا يحوّل أرصدة العمليات السابقة أو أسعارها.'),
+        ],
+      );
 
   Widget _sections() {
     switch (widget.spec.key) {
@@ -272,7 +281,8 @@ class _FriendlyJsonSettingEditorState extends State<FriendlyJsonSettingEditor> {
     // Preserve data types, including integers, when a choice is selected.
     if (widget.spec.key == SettingKey.currency) {
       values['decimals'] = int.tryParse(values['decimals'].toString()) ??
-          widget.initialValue['decimals'] ?? 0;
+          widget.initialValue['decimals'] ??
+          0;
     }
     Navigator.of(context).pop(Map<String, Object?>.from(values));
   }

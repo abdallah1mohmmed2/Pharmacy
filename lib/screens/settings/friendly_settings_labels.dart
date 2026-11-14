@@ -47,7 +47,8 @@ abstract final class FriendlySettingsLabels {
     SettingKey.currency: 'العملة ورمزها وعدد المنازل العشرية.',
     SettingKey.themeMode: 'المظهر المتاح في هذا الإصدار.',
     SettingKey.invoiceLanguage: 'لغة العناوين المطبوعة على الفواتير.',
-    SettingKey.allowNegativeStock: 'قد يسمح ببيع كمية غير متوفرة؛ استخدمه بحذر.',
+    SettingKey.allowNegativeStock:
+        'قد يسمح ببيع كمية غير متوفرة؛ استخدمه بحذر.',
     SettingKey.enforceFefo: 'بيع الدفعات الأقرب لانتهاء الصلاحية أولاً.',
     SettingKey.maxCashierDiscountPct: 'نسبة من 0 إلى 100 بالمئة.',
     SettingKey.priceRounding: 'كيفية تقريب سعر البيع.',
@@ -67,9 +68,11 @@ abstract final class FriendlySettingsLabels {
     SettingKey.costingMethod: 'تؤثر في حساب التكلفة ويُفضل مراجعة المحاسب.',
     SettingKey.bonusReducesCost: 'إدخال الكميات المجانية في متوسط التكلفة.',
     SettingKey.multiWarehouse: 'إدارة مخازن متعددة.',
-    SettingKey.partnerDistributionMode: 'يتطلب اعتماد المالك وقد يؤثر في حقول الحصص والنسب.',
+    SettingKey.partnerDistributionMode:
+        'يتطلب اعتماد المالك وقد يؤثر في حقول الحصص والنسب.',
     SettingKey.shiftDiffHandling: 'كيفية تسجيل فروق النقد عند نهاية الوردية.',
-    SettingKey.periodLock: 'منع تسجيل عمليات بتاريخ يقع قبل تاريخ القفل أو يساويه.',
+    SettingKey.periodLock:
+        'منع تسجيل عمليات بتاريخ يقع قبل تاريخ القفل أو يساويه.',
     SettingKey.vat: 'تفعيل الضريبة وتحديد نسبتها.',
     SettingKey.lahAlayhTermsOnly: 'إعداد إلزامي محمي لا يمكن تعطيله.',
     SettingKey.receiptPaper: 'ورق الطابعة الحرارية.',
@@ -78,7 +81,8 @@ abstract final class FriendlySettingsLabels {
     SettingKey.cloudSync: 'تحتاج إلى إعداد وصلاحيات Firebase قبل التشغيل.',
   };
 
-  static String title(SettingSpec spec) => titles[spec.key] ?? spec.descriptionAr;
+  static String title(SettingSpec spec) =>
+      titles[spec.key] ?? spec.descriptionAr;
   static String explanation(SettingSpec spec) =>
       descriptions[spec.key] ?? spec.descriptionAr;
 
@@ -128,7 +132,8 @@ abstract final class FriendlySettingsLabels {
   static String choice(String raw) => choices[raw] ?? raw;
   static String choiceFor(SettingKey key, String raw) =>
       key == SettingKey.shiftDiffHandling && raw == 'none'
-          ? 'عدم تسجيل فرق الوردية' : choice(raw);
+          ? 'عدم تسجيل فرق الوردية'
+          : choice(raw);
 
   static String summary(SettingSpec spec, Object? value) {
     if (spec.type == SettingValueType.boolean) {
@@ -143,9 +148,12 @@ abstract final class FriendlySettingsLabels {
         case SettingKey.reportHeaderFooter:
           return 'تعديل النص أعلى التقارير وأسفلها';
         case SettingKey.currency:
-          return choice(data['code']?.toString() ?? 'YER') + ' • ' +
-              (data['symbol']?.toString() ?? '') + ' • ' +
-              (data['decimals']?.toString() ?? '0') + ' منازل';
+          return choice(data['code']?.toString() ?? 'YER') +
+              ' • ' +
+              (data['symbol']?.toString() ?? '') +
+              ' • ' +
+              (data['decimals']?.toString() ?? '0') +
+              ' منازل';
         case SettingKey.periodLock:
           return data['locked_through'] == null
               ? 'لا يوجد تاريخ قفل'
@@ -155,11 +163,14 @@ abstract final class FriendlySettingsLabels {
               ? 'مفعّلة — ' + (data['rate_pct']?.toString() ?? '0') + '%'
               : 'متوقفة';
         case SettingKey.reportPaper:
-          return (data['size']?.toString() ?? 'A4') + ' • ' +
+          return (data['size']?.toString() ?? 'A4') +
+              ' • ' +
               choice(data['orientation']?.toString() ?? 'portrait');
         case SettingKey.autoLocalOnClose:
           return (data['enabled'] == true ? 'مفعّل' : 'متوقف') +
-              ' • الاحتفاظ بـ ' + (data['keep_last']?.toString() ?? '10') + ' نسخ';
+              ' • الاحتفاظ بـ ' +
+              (data['keep_last']?.toString() ?? '10') +
+              ' نسخ';
         case SettingKey.cloudSync:
           return data['enabled'] == true ? 'مفعّلة' : 'متوقفة';
         default:
@@ -168,7 +179,8 @@ abstract final class FriendlySettingsLabels {
     }
     if (spec.key == SettingKey.logoPath) {
       return (value?.toString().isNotEmpty ?? false)
-          ? 'تم تحديد ملف شعار' : 'لم يتم اختيار شعار';
+          ? 'تم تحديد ملف شعار'
+          : 'لم يتم اختيار شعار';
     }
     if (spec.key == SettingKey.maxCashierDiscountPct) {
       return (value?.toString() ?? '0') + '%';
@@ -178,6 +190,7 @@ abstract final class FriendlySettingsLabels {
     }
     return value?.toString().isNotEmpty == true ? value.toString() : 'غير محدد';
   }
+
   static const permissions = <String, String>{
     'dashboard.view': 'عرض لوحة التحكم',
     'pos.sell': 'تنفيذ المبيعات',
@@ -251,7 +264,5 @@ abstract final class FriendlySettingsLabels {
     'SYNCED': 'تمت المزامنة',
     'IN_PROGRESS': 'جارٍ التنفيذ',
   };
-  static String queueStatus(String raw) =>
-      queueStatuses[raw] ?? 'حالة أخرى';
-
+  static String queueStatus(String raw) => queueStatuses[raw] ?? 'حالة أخرى';
 }
