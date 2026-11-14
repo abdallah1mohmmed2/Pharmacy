@@ -3,9 +3,39 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../data/database/database_helper.dart';
 import '../../providers/treasury_hr_partner_provider.dart';
+import '../../providers/session_and_erp_provider.dart';
 
-class S22TreasuryWalletsScreen extends StatelessWidget {
+class S22TreasuryWalletsScreen extends StatefulWidget {
   const S22TreasuryWalletsScreen({super.key});
+  @override
+  State<S22TreasuryWalletsScreen> createState() => _S22TreasuryWalletsScreenState();
+}
+
+class _S22TreasuryWalletsScreenState extends State<S22TreasuryWalletsScreen> {
+  String? _loadedSession;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final session = context.watch<SessionAndErpProvider>();
+    final userId = session.currentUser?['id'] as int?;
+    if (userId == null) return;
+    final branchId = session.branchId;
+    final key = '$branchId:$userId';
+    if (_loadedSession == key) return;
+    _loadedSession = key;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<TreasuryHrPartnerProvider>().loadTreasury(
+          branchId: branchId, userId: userId);
+    });
+  }
+
+  Future<void> _reload() {
+    final session = context.read<SessionAndErpProvider>();
+    return context.read<TreasuryHrPartnerProvider>().loadTreasury(
+        branchId: session.branchId,
+        userId: session.currentUser?['id'] as int?);
+  }
   @override
   Widget build(BuildContext context) {
     final p = context.watch<TreasuryHrPartnerProvider>();
@@ -13,8 +43,8 @@ class S22TreasuryWalletsScreen extends StatelessWidget {
     return Scaffold(
         backgroundColor: Colors.transparent,
         body: RefreshIndicator(
-            onRefresh: p.refresh,
-            child: ListView(padding: const EdgeInsets.all(16), children: [
+            onRefresh: _reload,
+            child: ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.all(16), children: [
               LayoutBuilder(builder: (context, constraints) {
                 final actions = Wrap(
                   spacing: 8,
@@ -53,9 +83,15 @@ class S22TreasuryWalletsScreen extends StatelessWidget {
                 ]);
               }),
               const SizedBox(height: 12),
-              if (p.error != null)
-                Text(p.error!,
+              if (p.treasuryLoading) const LinearProgressIndicator(),
+              if (p.treasuryError != null) ...[
+                Text('تعذر تحميل بيانات الخزينة: ${p.treasuryError}',
                     style: const TextStyle(color: Color(0xFFEF5350))),
+                TextButton(onPressed: _reload, child: const Text('إعادة المحاولة')),
+              ],
+              if (!p.treasuryLoading && p.treasuryError == null && p.cashAccounts.isEmpty)
+                const Padding(padding: EdgeInsets.all(16),
+                    child: Text('لا توجد حسابات خزينة أو محافظ في الفرع الحالي')),
               LayoutBuilder(builder: (context, constraints) {
                 final cardWidth =
                     constraints.maxWidth < 600 ? constraints.maxWidth : 280.0;
@@ -78,6 +114,7 @@ class S22TreasuryWalletsScreen extends StatelessWidget {
                     return SizedBox(
                         width: cardWidth,
                         child: Card(
+                            key: ValueKey('treasury-account-$id'),
                             child: Padding(
                                 padding: const EdgeInsets.all(16),
                                 child: Column(
