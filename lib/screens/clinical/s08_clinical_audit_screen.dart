@@ -93,7 +93,9 @@ class _S08ClinicalAuditScreenState extends State<S08ClinicalAuditScreen> {
         (to.isNotEmpty && !datePattern.hasMatch(to)) ||
         (from.isNotEmpty && to.isNotEmpty && from.compareTo(to) > 0)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('أدخل تاريخًا صحيحًا YYYY-MM-DD وتأكد من ترتيب الفترة')),
+        const SnackBar(
+            content:
+                Text('أدخل تاريخًا صحيحًا YYYY-MM-DD وتأكد من ترتيب الفترة')),
       );
       return;
     }
@@ -107,7 +109,8 @@ class _S08ClinicalAuditScreenState extends State<S08ClinicalAuditScreen> {
       value == null || value.toString().trim().isEmpty ? '—' : value.toString();
 
   bool get _canReveal {
-    final role = context.read<SessionAndErpProvider>().currentUser?['role_code'];
+    final role =
+        context.read<SessionAndErpProvider>().currentUser?['role_code'];
     return role == 'OWNER' || role == 'MANAGER' || role == 'AUDITOR';
   }
 
@@ -116,9 +119,12 @@ class _S08ClinicalAuditScreenState extends State<S08ClinicalAuditScreen> {
     var reveal = false;
     final allowReveal = controlled && _canReveal;
     final fields = <(String, String)>[
-      ('التاريخ', controlled
-          ? _value(record['recorded_at'])
-          : _value(record['alert_at'] ?? record['movement_at'])),
+      (
+        'التاريخ',
+        controlled
+            ? _value(record['recorded_at'])
+            : _value(record['alert_at'] ?? record['movement_at'])
+      ),
       ('الدواء', _value(record['trade_name_ar'])),
       ('رقم الفاتورة', _value(record['invoice_no'])),
       if (controlled) ...[
@@ -126,12 +132,18 @@ class _S08ClinicalAuditScreenState extends State<S08ClinicalAuditScreen> {
         ('التشغيلة', _value(record['batch_no'])),
         ('المخزن', _value(record['warehouse_name'])),
         ('الكمية المصروفة', _value(record['qty_units'])),
-        ('الرصيد الفعلي بعد الصرف', record['balance_verified'] == 1
-            ? _value(record['verified_balance_after_units'])
-            : 'غير مثبت تاريخيًا'),
-        ('رصيد التشغيلة بعد الصرف', record['balance_verified'] == 1
-            ? _value(record['verified_batch_after_units'])
-            : 'غير مثبت تاريخيًا'),
+        (
+          'الرصيد الفعلي بعد الصرف',
+          record['balance_verified'] == 1
+              ? _value(record['verified_balance_after_units'])
+              : 'غير مثبت تاريخيًا'
+        ),
+        (
+          'رصيد التشغيلة بعد الصرف',
+          record['balance_verified'] == 1
+              ? _value(record['verified_batch_after_units'])
+              : 'غير مثبت تاريخيًا'
+        ),
         ('المريض', _value(record['patient_name'])),
         ('هوية المريض', _value(record['patient_national_id'])),
         ('المستلم', _value(record['receiver_name'])),
@@ -139,7 +151,10 @@ class _S08ClinicalAuditScreenState extends State<S08ClinicalAuditScreen> {
         ('الطبيب', _value(record['doctor_name'])),
         ('الصيدلي', _value(record['pharmacist_name'])),
       ] else ...[
-        ('نوع السجل', _value(record['alert_category'] ?? record['movement_type'])),
+        (
+          'نوع السجل',
+          _value(record['alert_category'] ?? record['movement_type'])
+        ),
         ('مستوى الخطورة', _value(record['level'])),
         ('القرار', _value(record['user_decision'])),
         ('المستخدم', _value(record['decided_by_name'])),
@@ -149,7 +164,10 @@ class _S08ClinicalAuditScreenState extends State<S08ClinicalAuditScreen> {
         if (record.containsKey('balance_after_units'))
           ('رصيد التشغيلة', _value(record['balance_after_units'])),
         if (record.containsKey('doc_type'))
-          ('المستند', '${_value(record['doc_type'])} • ${_value(record['doc_id'])}'),
+          (
+            'المستند',
+            '${_value(record['doc_type'])} • ${_value(record['doc_id'])}'
+          ),
       ],
     ];
     showDialog<void>(
@@ -173,7 +191,8 @@ class _S08ClinicalAuditScreenState extends State<S08ClinicalAuditScreen> {
                         SelectableText(
                           controlled && !reveal && label.contains('هوية')
                               ? ClinicalRegulatoryService.maskedId(raw)
-                              : controlled && !reveal &&
+                              : controlled &&
+                                      !reveal &&
                                       (label == 'المريض' || label == 'المستلم')
                                   ? ClinicalRegulatoryService.maskedName(raw)
                                   : raw,
@@ -201,61 +220,61 @@ class _S08ClinicalAuditScreenState extends State<S08ClinicalAuditScreen> {
   }
 
   Widget _filters() => Padding(
-    padding: const EdgeInsets.all(8),
-    child: Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        SizedBox(
-          width: 220,
-          child: TextField(
-            controller: _search,
-            decoration: const InputDecoration(
-              labelText: 'بحث: دواء، فاتورة، وصفة',
-              prefixIcon: Icon(Icons.search),
-              isDense: true,
+        padding: const EdgeInsets.all(8),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            SizedBox(
+              width: 220,
+              child: TextField(
+                controller: _search,
+                decoration: const InputDecoration(
+                  labelText: 'بحث: دواء، فاتورة، وصفة',
+                  prefixIcon: Icon(Icons.search),
+                  isDense: true,
+                ),
+                onSubmitted: (_) => _apply(),
+              ),
             ),
-            onSubmitted: (_) => _apply(),
-          ),
-        ),
-        for (final item in [
-          (_from, 'من YYYY-MM-DD'),
-          (_to, 'إلى YYYY-MM-DD'),
-        ])
-          SizedBox(
-            width: 148,
-            child: TextField(
-              controller: item.$1,
-              decoration:
-                  InputDecoration(labelText: item.$2, isDense: true),
+            for (final item in [
+              (_from, 'من YYYY-MM-DD'),
+              (_to, 'إلى YYYY-MM-DD'),
+            ])
+              SizedBox(
+                width: 148,
+                child: TextField(
+                  controller: item.$1,
+                  decoration:
+                      InputDecoration(labelText: item.$2, isDense: true),
+                ),
+              ),
+            SizedBox(
+              width: 155,
+              child: DropdownButtonFormField<String>(
+                value: _level,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                    labelText: 'خطورة التنبيه', isDense: true),
+                items: const [
+                  DropdownMenuItem(value: null, child: Text('الكل')),
+                  DropdownMenuItem(value: 'BLOCK', child: Text('حظر')),
+                  DropdownMenuItem(value: 'WARNING', child: Text('تحذير')),
+                  DropdownMenuItem(value: 'CAUTION', child: Text('تنبيه')),
+                  DropdownMenuItem(value: 'INFO', child: Text('معلومة')),
+                ],
+                onChanged: (value) => setState(() => _level = value),
+              ),
             ),
-          ),
-        SizedBox(
-          width: 155,
-          child: DropdownButtonFormField<String>(
-            value: _level,
-            isExpanded: true,
-            decoration: const InputDecoration(
-                labelText: 'خطورة التنبيه', isDense: true),
-            items: const [
-              DropdownMenuItem(value: null, child: Text('الكل')),
-              DropdownMenuItem(value: 'BLOCK', child: Text('حظر')),
-              DropdownMenuItem(value: 'WARNING', child: Text('تحذير')),
-              DropdownMenuItem(value: 'CAUTION', child: Text('تنبيه')),
-              DropdownMenuItem(value: 'INFO', child: Text('معلومة')),
-            ],
-            onChanged: (value) => setState(() => _level = value),
-          ),
+            FilledButton.icon(
+              onPressed: _apply,
+              icon: const Icon(Icons.filter_alt),
+              label: const Text('تطبيق الفلاتر'),
+            ),
+          ],
         ),
-        FilledButton.icon(
-          onPressed: _apply,
-          icon: const Icon(Icons.filter_alt),
-          label: const Text('تطبيق الفلاتر'),
-        ),
-      ],
-    ),
-  );
+      );
 
   Widget _overview() => FutureBuilder<Map<String, int>>(
         future: _summary,
@@ -300,8 +319,7 @@ class _S08ClinicalAuditScreenState extends State<S08ClinicalAuditScreen> {
         },
       );
 
-  Widget _pagination(int page, int count, void Function(int) onPage) =>
-      Padding(
+  Widget _pagination(int page, int count, void Function(int) onPage) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -373,7 +391,8 @@ class _S08ClinicalAuditScreenState extends State<S08ClinicalAuditScreen> {
       color: const Color(0xff1E1E1E),
       child: ListTile(
         leading: Icon(Icons.health_and_safety, color: color),
-        title: Text('${_value(row['trade_name_ar'])} • ${_value(row['alert_category'])}'),
+        title: Text(
+            '${_value(row['trade_name_ar'])} • ${_value(row['alert_category'])}'),
         subtitle: Text(
           '${_value(row['message_ar'])}\n'
           'القرار: ${_value(row['user_decision'])} • '
@@ -423,7 +442,8 @@ class _S08ClinicalAuditScreenState extends State<S08ClinicalAuditScreen> {
         color: const Color(0xff1E1E1E),
         child: ListTile(
           leading: const Icon(Icons.swap_horiz, color: Color(0xff4DB6AC)),
-          title: Text('${_value(row['trade_name_ar'])} • ${_value(row['movement_type'])}'),
+          title: Text(
+              '${_value(row['trade_name_ar'])} • ${_value(row['movement_type'])}'),
           subtitle: Text(
             'التغير: ${_value(row['qty_units'])} وحدة • '
             'رصيد التشغيلة: ${_value(row['balance_after_units'])}\n'
@@ -456,7 +476,9 @@ class _S08ClinicalAuditScreenState extends State<S08ClinicalAuditScreen> {
             bottom: const TabBar(
               isScrollable: true,
               tabs: [
-                Tab(icon: Icon(Icons.health_and_safety), text: 'القرارات السريرية'),
+                Tab(
+                    icon: Icon(Icons.health_and_safety),
+                    text: 'القرارات السريرية'),
                 Tab(icon: Icon(Icons.medication), text: 'الأدوية المراقبة'),
                 Tab(icon: Icon(Icons.swap_horiz), text: 'دفتر الحركة'),
               ],
@@ -477,13 +499,22 @@ class _S08ClinicalAuditScreenState extends State<S08ClinicalAuditScreen> {
                 child: TabBarView(
                   children: [
                     _paged(_alerts, _alertsPage, (page) {
-                      setState(() { _alertsPage = page; _load(); });
+                      setState(() {
+                        _alertsPage = page;
+                        _load();
+                      });
                     }, _alertCard),
                     _paged(_controlled, _controlledPage, (page) {
-                      setState(() { _controlledPage = page; _load(); });
+                      setState(() {
+                        _controlledPage = page;
+                        _load();
+                      });
                     }, _controlledCard),
                     _paged(_movements, _movementsPage, (page) {
-                      setState(() { _movementsPage = page; _load(); });
+                      setState(() {
+                        _movementsPage = page;
+                        _load();
+                      });
                     }, _movementCard),
                   ],
                 ),

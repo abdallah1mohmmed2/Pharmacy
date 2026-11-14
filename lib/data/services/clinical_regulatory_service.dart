@@ -13,7 +13,9 @@ class ClinicalRegulatoryService {
   static String maskedId(Object? input) {
     final value = input?.toString().trim() ?? '';
     if (value.isEmpty) return '—';
-    return value.length <= 4 ? '••••' : '••••${value.substring(value.length - 4)}';
+    return value.length <= 4
+        ? '••••'
+        : '••••${value.substring(value.length - 4)}';
   }
 
   static String maskedName(Object? input) {
@@ -118,8 +120,8 @@ class ClinicalRegulatoryService {
     final term = search?.trim() ?? '';
     if (term.isNotEmpty) {
       where.write(' AND ($searchExpr)');
-      args.addAll(List<Object?>.filled(
-          searchExpr.split('?').length - 1, '%$term%'));
+      args.addAll(
+          List<Object?>.filled(searchExpr.split('?').length - 1, '%$term%'));
     }
     return (where.toString(), args);
   }
@@ -243,6 +245,7 @@ class ClinicalRegulatoryService {
       final rows = await db.rawQuery(sql, [branchId]);
       return (rows.first.values.first as num).toInt();
     }
+
     return {
       'decisions': await count('''
         SELECT COUNT(*) FROM clinical_alert_logs a

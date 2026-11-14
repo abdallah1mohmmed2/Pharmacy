@@ -181,7 +181,8 @@ class RxAndReturnsService {
           throw StateError('الكمية تتجاوز المتبقي في الوصفة');
         final drugRows = await txn.query('drugs',
             where: 'id=? AND branch_id=? AND is_deleted=0',
-            whereArgs: [item['drug_id'], branchId], limit: 1);
+            whereArgs: [item['drug_id'], branchId],
+            limit: 1);
         if (drugRows.isEmpty) throw StateError('دواء الوصفة غير موجود');
         final drug = DrugModel.fromMap(drugRows.first);
         final line = (lineTotalsByItemId[itemId] ?? (drug.sellPriceUnit * qty))

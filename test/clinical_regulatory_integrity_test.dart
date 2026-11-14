@@ -54,34 +54,48 @@ void main() {
     await db.insert('branches', {'id': 1});
     await db.insert('branches', {'id': 2});
     await db.insert('drugs', {
-      'id': 11, 'branch_id': 1, 'trade_name_ar': 'دواء ألف',
-      'is_controlled': 1, 'controlled_schedule': 'A',
+      'id': 11,
+      'branch_id': 1,
+      'trade_name_ar': 'دواء ألف',
+      'is_controlled': 1,
+      'controlled_schedule': 'A',
       'stock_total_units': 85
     });
     await db.insert('drugs', {
-      'id': 22, 'branch_id': 2, 'trade_name_ar': 'دواء باء',
-      'is_controlled': 1, 'controlled_schedule': 'B',
+      'id': 22,
+      'branch_id': 2,
+      'trade_name_ar': 'دواء باء',
+      'is_controlled': 1,
+      'controlled_schedule': 'B',
       'stock_total_units': 30
     });
-    await db.insert('warehouses', {'id': 1, 'branch_id': 1, 'name_ar': 'الصيدلية'});
-    await db.insert('warehouses', {'id': 2, 'branch_id': 2, 'name_ar': 'مخزن 2'});
+    await db
+        .insert('warehouses', {'id': 1, 'branch_id': 1, 'name_ar': 'الصيدلية'});
+    await db
+        .insert('warehouses', {'id': 2, 'branch_id': 2, 'name_ar': 'مخزن 2'});
     await db.insert('batches_fefo', {
-      'id': 101, 'drug_id': 11, 'warehouse_id': 1,
-      'batch_no': 'B-1', 'total_units': 85
+      'id': 101,
+      'drug_id': 11,
+      'warehouse_id': 1,
+      'batch_no': 'B-1',
+      'total_units': 85
     });
     await db.insert('batches_fefo', {
-      'id': 202, 'drug_id': 22, 'warehouse_id': 2,
-      'batch_no': 'B-2', 'total_units': 30
+      'id': 202,
+      'drug_id': 22,
+      'warehouse_id': 2,
+      'batch_no': 'B-2',
+      'total_units': 30
     });
-    await db.insert('sales_invoices',
-        {'id': 1, 'branch_id': 1, 'invoice_no': 'SALE-1'});
-    await db.insert('sales_invoices',
-        {'id': 2, 'branch_id': 2, 'invoice_no': 'SALE-2'});
+    await db.insert(
+        'sales_invoices', {'id': 1, 'branch_id': 1, 'invoice_no': 'SALE-1'});
+    await db.insert(
+        'sales_invoices', {'id': 2, 'branch_id': 2, 'invoice_no': 'SALE-2'});
     await db.insert('sales_invoice_items', {'id': 1001, 'invoice_id': 1});
     await db.insert('sales_invoice_items', {'id': 2002, 'invoice_id': 2});
     await db.insert('prescriptions', {'id': 7, 'rx_no': 'RX-7'});
-    await db.insert('users',
-        {'id': 3, 'branch_id': 1, 'full_name': 'صيدلي فرع 1'});
+    await db
+        .insert('users', {'id': 3, 'branch_id': 1, 'full_name': 'صيدلي فرع 1'});
     await SchemaIteration16.upgrade(db);
     service = ClinicalRegulatoryService(helper: DatabaseHelper.forTesting(db));
   });
@@ -91,22 +105,34 @@ void main() {
   Future<void> addAlert(int id, int drugId,
       {String category = 'ALLERGY', String decision = 'ACKNOWLEDGED'}) async {
     await db.insert('clinical_alert_logs', {
-      'id': id, 'drug_id': drugId, 'alert_at': '2026-11-14T08:00:00',
-      'alert_category': category, 'level': 'WARNING',
-      'message_ar': 'مراجعة الحساسية', 'user_decision': decision,
-      'decided_by': 3, 'override_reason': 'تمت المراجعة'
+      'id': id,
+      'drug_id': drugId,
+      'alert_at': '2026-11-14T08:00:00',
+      'alert_category': category,
+      'level': 'WARNING',
+      'message_ar': 'مراجعة الحساسية',
+      'user_decision': decision,
+      'decided_by': 3,
+      'override_reason': 'تمت المراجعة'
     });
   }
 
   Future<void> addDispense(int id, int drugId, int batchId, int invoiceItem,
       {int historicalCounter = 15}) async {
     await db.insert('controlled_drug_log', {
-      'id': id, 'invoice_item_id': invoiceItem,
-      'drug_id': drugId, 'batch_id': batchId, 'qty_units': 15,
-      'patient_name': 'المريض محمد علي', 'patient_national_id': '12345678901',
-      'receiver_name': 'المستلم أحمد علي', 'receiver_national_id': '98765432109',
-      'prescription_id': 7, 'doctor_name': 'الطبيب',
-      'pharmacist_user_id': 3, 'running_balance_units': historicalCounter,
+      'id': id,
+      'invoice_item_id': invoiceItem,
+      'drug_id': drugId,
+      'batch_id': batchId,
+      'qty_units': 15,
+      'patient_name': 'المريض محمد علي',
+      'patient_national_id': '12345678901',
+      'receiver_name': 'المستلم أحمد علي',
+      'receiver_national_id': '98765432109',
+      'prescription_id': 7,
+      'doctor_name': 'الطبيب',
+      'pharmacist_user_id': 3,
+      'running_balance_units': historicalCounter,
       'recorded_at': '2026-11-14T08:05:00'
     });
   }
@@ -117,10 +143,17 @@ void main() {
     final legacy = await db.query('controlled_drug_log', where: 'id=1');
     expect(legacy.single['running_balance_units'], 15);
     expect(await db.query('controlled_balance_snapshots'), isEmpty);
-    await db.transaction((txn) => ClinicalRegulatoryService.recordVerifiedBalance(
-      txn, branchId: 1, drugId: 11, logId: 1,
-      physicalAfterUnits: 85, batchAfterUnits: 85));
-    expect((await db.query('controlled_balance_snapshots')).single['physical_after_units'], 85);
+    await db.transaction((txn) =>
+        ClinicalRegulatoryService.recordVerifiedBalance(txn,
+            branchId: 1,
+            drugId: 11,
+            logId: 1,
+            physicalAfterUnits: 85,
+            batchAfterUnits: 85));
+    expect(
+        (await db.query('controlled_balance_snapshots'))
+            .single['physical_after_units'],
+        85);
     await expectLater(
       db.update('controlled_balance_snapshots', {'physical_after_units': 0},
           where: 'log_id=1'),
@@ -132,8 +165,12 @@ void main() {
     );
     await expectLater(
       db.transaction((txn) => ClinicalRegulatoryService.recordVerifiedBalance(
-        txn, branchId: 1, drugId: 11, logId: 1,
-        physicalAfterUnits: 85, batchAfterUnits: 85)),
+          txn,
+          branchId: 1,
+          drugId: 11,
+          logId: 1,
+          physicalAfterUnits: 85,
+          batchAfterUnits: 85)),
       throwsA(isA<DatabaseException>()),
     );
   });
@@ -143,38 +180,49 @@ void main() {
     await addAlert(20, 22);
     final valid = ClinicalVerdict([
       const ClinicalAlertModel(
-        id: 10, drugId: 11, category: 'ALLERGY',
-        level: ClinicalLevel.warning, messageAr: 'مراجعة الحساسية',
+        id: 10,
+        drugId: 11,
+        category: 'ALLERGY',
+        level: ClinicalLevel.warning,
+        messageAr: 'مراجعة الحساسية',
         userDecision: 'ACKNOWLEDGED',
       ),
     ]);
-    await db.transaction((txn) => ClinicalRegulatoryService.linkDecisions(
-      txn, branchId: 1, invoiceId: 1, verdict: valid));
-    expect((await db.query('clinical_alert_invoice_links')).single['invoice_id'], 1);
+    await db.transaction((txn) => ClinicalRegulatoryService.linkDecisions(txn,
+        branchId: 1, invoiceId: 1, verdict: valid));
+    expect(
+        (await db.query('clinical_alert_invoice_links')).single['invoice_id'],
+        1);
     await expectLater(
-      db.transaction((txn) => ClinicalRegulatoryService.linkDecisions(
-        txn, branchId: 1, invoiceId: 1, verdict: valid)),
+      db.transaction((txn) => ClinicalRegulatoryService.linkDecisions(txn,
+          branchId: 1, invoiceId: 1, verdict: valid)),
       throwsA(isA<DatabaseException>()),
     );
     final foreign = ClinicalVerdict([
       const ClinicalAlertModel(
-        id: 20, drugId: 22, category: 'ALLERGY',
-        level: ClinicalLevel.warning, messageAr: 'مراجعة الحساسية',
+        id: 20,
+        drugId: 22,
+        category: 'ALLERGY',
+        level: ClinicalLevel.warning,
+        messageAr: 'مراجعة الحساسية',
         userDecision: 'ACKNOWLEDGED',
       ),
     ]);
     await expectLater(
-      db.transaction((txn) => ClinicalRegulatoryService.linkDecisions(
-        txn, branchId: 1, invoiceId: 1, verdict: foreign)),
+      db.transaction((txn) => ClinicalRegulatoryService.linkDecisions(txn,
+          branchId: 1, invoiceId: 1, verdict: foreign)),
       throwsA(isA<StateError>()),
     );
     await expectLater(
-      db.transaction((txn) => ClinicalRegulatoryService.linkDecisions(
-        txn, branchId: 1, invoiceId: 2, verdict: valid)),
+      db.transaction((txn) => ClinicalRegulatoryService.linkDecisions(txn,
+          branchId: 1, invoiceId: 2, verdict: valid)),
       throwsA(isA<StateError>()),
     );
     expect(await db.query('clinical_alert_invoice_links'), hasLength(1));
-    expect((await db.query('clinical_alert_logs', where: 'id=10')).single['invoice_id'], isNull);
+    expect(
+        (await db.query('clinical_alert_logs', where: 'id=10'))
+            .single['invoice_id'],
+        isNull);
   });
 
   test('records and movements never leak between branches', () async {
@@ -187,9 +235,13 @@ void main() {
       {'id': 2, 'drug_id': 22, 'batch_id': 202, 'warehouse_id': 2},
     ]) {
       await db.insert('stock_movements', {
-        ...row, 'movement_type': 'SALE_OUT', 'qty_units': -15,
-        'balance_after_units': 85, 'movement_at': '2026-11-14T09:00:00',
-        'doc_type': 'PRESCRIPTION', 'doc_id': 1
+        ...row,
+        'movement_type': 'SALE_OUT',
+        'qty_units': -15,
+        'balance_after_units': 85,
+        'movement_at': '2026-11-14T09:00:00',
+        'doc_type': 'PRESCRIPTION',
+        'doc_id': 1
       });
     }
     expect((await service.alerts(branchId: 1)).map((r) => r['id']), [10]);
@@ -206,9 +258,13 @@ void main() {
       () async {
     await addDispense(1, 11, 101, 1001, historicalCounter: 99);
     await addDispense(2, 11, 101, 1001, historicalCounter: 85);
-    await db.transaction((txn) => ClinicalRegulatoryService.recordVerifiedBalance(
-      txn, branchId: 1, drugId: 11, logId: 2,
-      physicalAfterUnits: 85, batchAfterUnits: 85));
+    await db.transaction((txn) =>
+        ClinicalRegulatoryService.recordVerifiedBalance(txn,
+            branchId: 1,
+            drugId: 11,
+            logId: 2,
+            physicalAfterUnits: 85,
+            batchAfterUnits: 85));
     final rows = await service.controlled(branchId: 1);
     expect(rows.first['verified_balance_after_units'], 85);
     expect(rows.last['verified_balance_after_units'], isNull);
@@ -218,8 +274,12 @@ void main() {
 
     final q = ClinicalAndAuditQueries(helper: DatabaseHelper.forTesting(db));
     final report = await q.r47(ReportParams(
-      branchId: 1, userId: 3, userName: 'صيدلي',
-      canViewCost: false, showCostSetting: false, values: const {},
+      branchId: 1,
+      userId: 3,
+      userName: 'صيدلي',
+      canViewCost: false,
+      showCostSetting: false,
+      values: const {},
     ));
     expect(report, hasLength(2));
     expect(report.first['balance_after'], 85);
@@ -229,22 +289,30 @@ void main() {
     expect(report.first['patient'], 'محجوب في النسخة العامة');
   });
 
-  test('linked invoice appears in both screen query and clinical PDF', () async {
+  test('linked invoice appears in both screen query and clinical PDF',
+      () async {
     await addAlert(10, 11, category: 'INTERACTION');
     final verdict = ClinicalVerdict([
       const ClinicalAlertModel(
-        id: 10, drugId: 11, category: 'INTERACTION',
-        level: ClinicalLevel.warning, messageAr: 'مراجعة الحساسية',
+        id: 10,
+        drugId: 11,
+        category: 'INTERACTION',
+        level: ClinicalLevel.warning,
+        messageAr: 'مراجعة الحساسية',
         userDecision: 'ACKNOWLEDGED',
       ),
     ]);
-    await db.transaction((txn) => ClinicalRegulatoryService.linkDecisions(
-      txn, branchId: 1, invoiceId: 1, verdict: verdict));
+    await db.transaction((txn) => ClinicalRegulatoryService.linkDecisions(txn,
+        branchId: 1, invoiceId: 1, verdict: verdict));
     expect((await service.alerts(branchId: 1)).single['invoice_no'], 'SALE-1');
     final q = ClinicalAndAuditQueries(helper: DatabaseHelper.forTesting(db));
     final pdf = await q.r48(ReportParams(
-      branchId: 1, userId: 3, userName: 'صيدلي',
-      canViewCost: false, showCostSetting: false, values: const {},
+      branchId: 1,
+      userId: 3,
+      userName: 'صيدلي',
+      canViewCost: false,
+      showCostSetting: false,
+      values: const {},
     ));
     expect(pdf.single['invoice_no'], 'SALE-1');
   });
