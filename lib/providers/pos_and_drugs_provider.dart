@@ -191,7 +191,10 @@ class PosAndDrugsProvider extends ChangeNotifier {
       );
       if (generation != _searchGeneration || requestedBranch != branchId)
         return;
-      drugs = rows.map(DrugModel.fromMap).toList(growable: false);
+      final loaded = await _withManufacturerNames(rows, requestedBranch);
+      if (generation != _searchGeneration || requestedBranch != branchId)
+        return;
+      drugs = loaded;
       search = '';
       if (_saleBranchId == branchId) await loadSaleDrugs();
     } finally {
@@ -200,6 +203,31 @@ class PosAndDrugsProvider extends ChangeNotifier {
         notifyListeners();
       }
     }
+  }
+
+  Future<List<DrugModel>> _withManufacturerNames(
+      List<Map<String, Object?>> rows, int requestedBranch) async {
+    final ids =
+        rows.map((row) => row['manufacturer_id']).whereType<int>().toSet();
+    if (ids.isEmpty) return rows.map(DrugModel.fromMap).toList(growable: false);
+    final references = await _db.query('manufacturers',
+        where: 'branch_id=? AND is_deleted=0 AND id IN (' +
+            List.filled(ids.length, '?').join(',') +
+            ')',
+        whereArgs: [requestedBranch, ...ids]);
+    final names = <int, String>{
+      for (final ref in references)
+        ref['id'] as int:
+            (ref['name_ar']?.toString().trim().isNotEmpty ?? false)
+                ? ref['name_ar'].toString()
+                : (ref['name_en'] ?? '').toString(),
+    };
+    return rows
+        .map((row) => DrugModel.fromMap({
+              ...row,
+              'manufacturer_name': names[row['manufacturer_id']] ?? '',
+            }))
+        .toList(growable: false);
   }
 
   /// Purchase medicine lookup is isolated from POS state. Never put thousands
@@ -270,7 +298,9 @@ class PosAndDrugsProvider extends ChangeNotifier {
       [requestedBranch, like, like, like, like, like, like, catalogPageLimit],
     );
     if (generation != _searchGeneration || requestedBranch != branchId) return;
-    drugs = rows.map(DrugModel.fromMap).toList(growable: false);
+    final loaded = await _withManufacturerNames(rows, requestedBranch);
+    if (generation != _searchGeneration || requestedBranch != branchId) return;
+    drugs = loaded;
     notifyListeners();
   }
 

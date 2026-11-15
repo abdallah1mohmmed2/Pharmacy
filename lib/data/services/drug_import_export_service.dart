@@ -1,6 +1,7 @@
 // lib/data/services/drug_import_export_service.dart
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:csv/csv.dart';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
@@ -13,6 +14,7 @@ import '../models/settings_audit_sync_models.dart';
 import 'settings_and_audit_service.dart';
 
 part 'drug_import_export_streaming.dart';
+part 'drug_import_manufacturers.dart';
 
 /// A bounded sample of *actual values from the selected file*, resolved to
 /// the real SQLite/model column (or explicitly flagged as protected/unmapped).
@@ -92,7 +94,7 @@ class DrugImportExportService {
     ColumnMappingTemplate(name: 'قالب CSV عربي', columns: {
       'الاسم التجاري': 'trade_name_ar',
       'الاسم العلمي': 'scientific_name',
-      'الشركة': 'manufacturer_id',
+      'الشركة': 'manufacturer_name',
       'الفئة': 'category_id',
       'التركيز': 'strength_text',
       'الشكل': 'dosage_form',

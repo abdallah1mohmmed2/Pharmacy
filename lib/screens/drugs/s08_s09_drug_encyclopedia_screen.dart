@@ -227,7 +227,10 @@ class _S08S09DrugEncyclopediaScreenState
           _group([
             ('الاسم التجاري', d.tradeNameAr),
             ('الاسم العلمي', d.scientificName),
-            ('الشركة', d.manufacturerId?.toString() ?? 'غير محدد'),
+            (
+              'الشركة',
+              d.manufacturerName.isNotEmpty ? d.manufacturerName : 'غير محدد'
+            ),
             ('التصنيف ATC', d.atcCode),
             ('الشكل والتركيز', d.dosageForm + ' • ' + d.strengthText),
             ('طريقة الإعطاء', d.route),

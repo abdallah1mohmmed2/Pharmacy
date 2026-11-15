@@ -129,12 +129,20 @@ abstract final class DrugImportFieldCatalog {
     ...DrugModel().toMap().keys,
     ...databaseOnlyFields,
   };
-  static final editableFields = allFields.difference(protectedFields);
+  // Virtual input is resolved to a real branch-local reference, never a column.
+  static const importOnlyFields = <String>{'manufacturer_name'};
+  static final editableFields = {
+    ...allFields.difference(protectedFields),
+    ...importOnlyFields,
+  };
 
   static bool isEditable(String key) => editableFields.contains(key);
   static bool isProtected(String key) => protectedFields.contains(key);
-  static bool isKnown(String key) => allFields.contains(key);
-  static String label(String key) => labels[key] ?? key;
+  static bool isKnown(String key) =>
+      allFields.contains(key) || importOnlyFields.contains(key);
+  static String label(String key) => key == 'manufacturer_name'
+      ? 'اسم الشركة (ربط أو إنشاء تلقائي)'
+      : labels[key] ?? key;
 
   static String status(String target) {
     if (isProtected(target)) return 'للعرض فقط؛ لا يُكتب من ملف JSON';

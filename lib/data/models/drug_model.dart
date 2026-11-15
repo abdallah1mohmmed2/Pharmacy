@@ -14,6 +14,7 @@ class DrugModel {
     this.tradeNameAr = '',
     this.tradeNameEn = '',
     this.manufacturerId,
+    this.manufacturerName = '',
     this.scientificName = '',
     this.activeIngredientId,
     this.ingredientsJson = '[]',
@@ -98,6 +99,8 @@ class DrugModel {
     this.isAntibiotic = false,
   });
 
+  // Display-only join value; never persisted as a drugs column.
+  final String manufacturerName;
   final int? id,
       branchId,
       manufacturerId,
@@ -358,6 +361,7 @@ class DrugModel {
       tradeNameAr: str('trade_name_ar'),
       tradeNameEn: str('trade_name_en'),
       manufacturerId: integer('manufacturer_id'),
+      manufacturerName: str('manufacturer_name'),
       scientificName: str('scientific_name'),
       activeIngredientId: integer('active_ingredient_id'),
       ingredientsJson: str('ingredients_json', '[]'),

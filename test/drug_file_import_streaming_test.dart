@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:global_enterprise_pharmacy_erp/providers/pos_and_drugs_provider.dart';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -606,6 +607,164 @@ void main() {
       expect(stored['strips_per_pack'], 2);
       expect(stored['units_per_pack'], 20);
       expect(stored['stock_total_units'], 20);
+    });
+
+    test('manufacturer names preview without writes, reuse and display by name',
+        () async {
+      final file = await put(
+          'companies.json',
+          jsonEncode([
+            {
+              'internal_code': 'COMP-A',
+              'trade_name_ar': 'صنف أ',
+              'manufacturer_name': 'Hikma Pharma'
+            },
+            {
+              'internal_code': 'COMP-B',
+              'trade_name_ar': 'صنف ب',
+              'manufacturer_name': '  hikma pharma  '
+            },
+          ]));
+      final preview =
+          await importer.dryRunImportFile(file: file, format: 'JSON');
+      expect(preview.validRows, 2);
+      expect(await db.query('manufacturers'), isEmpty);
+      final imported =
+          await importer.executeImportFile(file: file, format: 'JSON');
+      expect(imported.inserted, 2);
+      expect(imported.errors, 0);
+      final company = (await db.query('manufacturers')).single;
+      final drugs = await db.query('drugs');
+      expect(drugs.every((r) => r['manufacturer_id'] == company['id']), isTrue);
+      final provider =
+          PosAndDrugsProvider(database: DatabaseHelper.forTesting(db));
+      await provider.loadDrugs();
+      expect(provider.drugs, hasLength(2));
+      expect(provider.drugs.every((d) => d.manufacturerName == 'Hikma Pharma'),
+          isTrue);
+      await provider.searchDrugs('COMP-');
+      expect(provider.drugs.every((d) => d.manufacturerName == 'Hikma Pharma'),
+          isTrue);
+      provider.dispose();
+      final retry =
+          await importer.executeImportFile(file: file, format: 'JSON');
+      expect(retry.skipped, 2);
+      expect(await db.query('manufacturers'), hasLength(1));
+    });
+
+    test(
+        'fill-empty company repair preserves existing prices, stock and identity',
+        () async {
+      final original = await put(
+          'company-original.json',
+          jsonEncode([
+            {
+              'internal_code': 'COMP-REPAIR',
+              'trade_name_ar': 'صنف سابق',
+              'sell_price_pack': 145
+            }
+          ]));
+      expect(
+          (await importer.executeImportFile(file: original, format: 'JSON'))
+              .inserted,
+          1);
+      final old = (await db.query('drugs')).single;
+      await db.update('drugs', {'stock_total_units': 28},
+          where: 'id=?', whereArgs: [old['id']]);
+      final source = jsonEncode([
+        {'internal_code': 'COMP-REPAIR', 'manufacturer_name': 'Repair Company'}
+      ]);
+      expect(
+          (await importer.dryRunImport(source: source, format: 'JSON'))
+              .validRows,
+          1);
+      final repair = await importer.executeImport(
+          source: source, format: 'JSON', conflictPolicy: 'UPDATE_EMPTY_ONLY');
+      expect(repair.updated, 1);
+      final saved = (await db.query('drugs')).single;
+      expect(saved['manufacturer_id'], isNotNull);
+      expect(saved['sell_price_pack'], 145);
+      expect(saved['stock_total_units'], 28);
+      expect(saved['uuid'], old['uuid']);
+      expect(saved['trade_name_ar'], old['trade_name_ar']);
+      final ignored = await importer.executeImport(
+          source: jsonEncode([
+            {
+              'internal_code': 'COMP-REPAIR',
+              'manufacturer_name': 'Do Not Create'
+            }
+          ]),
+          format: 'JSON',
+          conflictPolicy: 'UPDATE_EMPTY_ONLY');
+      expect(ignored.skipped, 1);
+      expect(await db.query('manufacturers'), hasLength(1));
+    });
+
+    test('a rejected drug row rolls back its newly created company', () async {
+      final original = await put(
+          'rollback-original.json',
+          jsonEncode([
+            {'internal_code': 'COMP-ROLLBACK', 'trade_name_ar': 'دواء له مخزون'}
+          ]));
+      await importer.executeImportFile(file: original, format: 'JSON');
+      await db.update('drugs', {'stock_total_units': 5});
+      final result = await importer.executeImport(
+          source: jsonEncode([
+            {
+              'internal_code': 'COMP-ROLLBACK',
+              'manufacturer_name': 'Orphan Must Not Exist',
+              'strips_per_pack': 2
+            }
+          ]),
+          format: 'JSON',
+          conflictPolicy: 'OVERWRITE');
+      expect(result.errors, 1);
+      expect(result.updated, 0);
+      expect(await db.query('manufacturers'), isEmpty);
+      expect((await db.query('drugs')).single['manufacturer_id'], isNull);
+    });
+
+    test('company names do not reuse another branch or contradict explicit IDs',
+        () async {
+      final now = DateTime.now().toIso8601String();
+      final other = await db.insert('manufacturers', {
+        'uuid': 'other-company',
+        'branch_id': 2,
+        'created_at': now,
+        'updated_at': now,
+        'name_ar': 'Shared Company',
+        'name_en': 'Shared Company',
+      });
+      final source = jsonEncode([
+        {
+          'internal_code': 'COMP-SCOPE',
+          'trade_name_ar': 'صنف الفرع',
+          'manufacturer_name': 'Shared Company'
+        }
+      ]);
+      final result = await importer.executeImport(
+          source: source, format: 'JSON', branchId: 1);
+      expect(result.inserted, 1);
+      final own = (await db.query('drugs')).single['manufacturer_id'];
+      expect(own, isNot(other));
+      final conflict = jsonEncode([
+        {
+          'internal_code': 'COMP-CONFLICT',
+          'trade_name_ar': 'اسم متعارض',
+          'manufacturer_name': 'Different Company',
+          'manufacturer_id': own
+        }
+      ]);
+      expect(
+          (await importer.dryRunImport(source: conflict, format: 'JSON'))
+              .validRows,
+          0);
+      expect(
+          (await importer.executeImport(source: conflict, format: 'JSON'))
+              .errors,
+          1);
+      expect(await db.query('drugs'), hasLength(1));
+      expect(await db.query('manufacturers'), hasLength(2));
     });
 
     test('dry run rejects fake foreign keys instead of reporting success',

@@ -212,6 +212,7 @@ extension DrugImportFileStreaming on DrugImportExportService {
                 where: 'is_deleted=0 AND branch_id=? AND internal_code=?',
                 whereArgs: [branchId, code],
                 limit: 1);
+        await _manufacturerReference(db, row, branchId, create: false);
         var problem = _rowProblem({
           if (existing.isNotEmpty) ...existing.single,
           ...row,
@@ -286,6 +287,7 @@ extension DrugImportFileStreaming on DrugImportExportService {
       await db.transaction((txn) async {
         for (final item in pending) {
           done++;
+          await txn.execute('SAVEPOINT drug_import_row');
           try {
             final incoming = _mapFields(item.values, mapping);
             const referenceTables = {
@@ -384,6 +386,22 @@ extension DrugImportFileStreaming on DrugImportExportService {
                 incoming.remove('barcode_local');
                 barcodeConflicts++;
               }
+            }
+            final oldManufacturer =
+                matching.isEmpty ? null : matching.single['manufacturer_id'];
+            final manufacturerName = incoming['manufacturer_name'];
+            // A fill-empty repair must not create unused manufacturers or
+            // replace a link that has already been assigned by the user.
+            if (manufacturerName != null &&
+                (matching.isEmpty ||
+                    conflictPolicy == 'OVERWRITE' ||
+                    oldManufacturer == null)) {
+              incoming['manufacturer_id'] = await _manufacturerReference(
+                  txn, incoming, branchId,
+                  create: true);
+            } else if (manufacturerName != null) {
+              await _manufacturerReference(txn, incoming, branchId,
+                  create: false);
             }
             final drug = DrugModel.fromMap(incoming).toMap();
             drug.remove('id');
@@ -531,7 +549,10 @@ extension DrugImportFileStreaming on DrugImportExportService {
               }
             }
           } catch (_) {
+            await txn.execute('ROLLBACK TO SAVEPOINT drug_import_row');
             errors++;
+          } finally {
+            await txn.execute('RELEASE SAVEPOINT drug_import_row');
           }
         }
       });
