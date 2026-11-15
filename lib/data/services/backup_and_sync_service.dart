@@ -1,0 +1,598 @@
+// lib/data/services/backup_and_sync_service.dart
+import 'dart:convert';
+import 'dart:io';
+import 'package:crypto/crypto.dart';
+import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:sqflite/sqflite.dart';
+import '../database/database_helper.dart';
+import 'settings_and_audit_service.dart';
+import 'sync_table_policy.dart';
+import 'sync_payload_policy.dart';
+
+class BackupResult {
+  const BackupResult(
+      {required this.file,
+      required this.sha256,
+      required this.sizeBytes,
+      required this.compressed});
+  final File file;
+  final String sha256;
+  final int sizeBytes;
+  final bool compressed;
+}
+
+class BackupAndSyncService {
+  BackupAndSyncService({
+    DatabaseHelper? helper,
+    http.Client? client,
+    Set<String>? allowedTablesForTesting,
+    Directory? backupDirectoryForTesting,
+    bool forceLegacyCopyForTesting = false,
+  })  : _helper = helper ?? DatabaseHelper.instance,
+        _backupDirectoryForTesting = backupDirectoryForTesting,
+        _forceLegacyCopyForTesting = forceLegacyCopyForTesting,
+        _client = client ?? http.Client(),
+        _allowedTables =
+            allowedTablesForTesting ?? SyncTablePolicy.outboundTables;
+  final DatabaseHelper _helper;
+  final Set<String> _allowedTables;
+  final http.Client _client;
+  final Directory? _backupDirectoryForTesting;
+  final bool _forceLegacyCopyForTesting;
+
+  // VACUUM INTO was introduced by SQLite 3.27. Android may ship older SQLite.
+  static bool _supportsVacuumInto(String sqliteVersion) {
+    final parts = sqliteVersion.split('.');
+    if (parts.length < 2) return false;
+    final major = int.tryParse(parts[0]);
+    final minor = int.tryParse(parts[1]);
+    if (major == null || minor == null) return false;
+    return major > 3 || (major == 3 && minor >= 27);
+  }
+
+  /// Produces a self-contained SQLite snapshot on both old and new Android.
+  /// On legacy SQLite the connection is closed and the file copied synchronously
+  /// so this isolate cannot schedule a write between close and the copy.
+  /// This is intentionally not a live File.copy while WAL is in use.
+  Future<Database> _snapshot(Database db, File target) async {
+    final versionRows = await db.rawQuery('SELECT sqlite_version() AS version');
+    final sqliteVersion = versionRows.first['version']?.toString() ?? '';
+    if (!_forceLegacyCopyForTesting && _supportsVacuumInto(sqliteVersion)) {
+      final escaped = target.path.replaceAll("'", "''");
+      await db.execute("VACUUM INTO '$escaped'");
+      return db;
+    }
+
+    final checkpoint = await db.rawQuery('PRAGMA wal_checkpoint(TRUNCATE)');
+    final busy = checkpoint.isEmpty
+        ? 0
+        : (checkpoint.first['busy'] as num? ?? 0).toInt();
+    if (busy != 0) {
+      throw StateError(
+          'تعذر إنشاء النسخة الاحتياطية: قاعدة البيانات مشغولة. حاول مرة أخرى.');
+    }
+    final livePath = await _helper.databaseFilePath;
+    if (livePath == ':memory:') {
+      throw StateError('لا يمكن نسخ قاعدة بيانات الذاكرة إلى ملف.');
+    }
+    await _helper.close();
+    try {
+      File(livePath).copySync(target.path);
+    } finally {
+      // Reopen even if the file copy failed so normal application usage resumes.
+      db = await _helper.database;
+    }
+    return db;
+  }
+
+  /// Do not report a backup as successful until SQLite can open and read it.
+  static Future<void> _verifySnapshot(File snapshot) async {
+    final db = await openDatabase(
+      snapshot.path,
+      readOnly: true,
+      singleInstance: false,
+    );
+    try {
+      final result = await db.rawQuery('PRAGMA quick_check');
+      if (result.length != 1 ||
+          result.first.values.first.toString().toLowerCase() != 'ok') {
+        throw StateError('فشل فحص سلامة ملف النسخة الاحتياطية.');
+      }
+    } finally {
+      await db.close();
+    }
+  }
+
+  Future<BackupResult> createBackup(
+      {String triggerType = 'MANUAL',
+      int? userId,
+      int? keepLast,
+      bool compress = true,
+      String? preserveFilePath}) async {
+    const triggers = {
+      'MANUAL',
+      'ON_SHIFT_CLOSE',
+      'ON_APP_CLOSE',
+      'BEFORE_RESTORE',
+      'BEFORE_PERIOD_CLOSE'
+    };
+    if (!triggers.contains(triggerType))
+      throw ArgumentError('نوع النسخ الاحتياطي غير صحيح');
+    var db = await _helper.database;
+    final rows =
+        await db.query('system_settings', where: 'setting_no=34', limit: 1);
+    if (rows.isNotEmpty) {
+      final cfg = jsonDecode(rows.first['setting_value'] as String) as Map;
+      keepLast ??= (cfg['keep_last'] as num?)?.toInt() ?? 10;
+      compress = cfg['compress'] is bool ? cfg['compress'] as bool : compress;
+    }
+    keepLast ??= 10;
+    final directory = _backupDirectoryForTesting ??
+        Directory(
+            p.join((await getApplicationSupportDirectory()).path, 'backups'));
+    await directory.create(recursive: true);
+    final stamp = DateTime.now()
+        .toIso8601String()
+        .replaceAll(':', '-')
+        .replaceAll('.', '-');
+    final raw = File(p.join(directory.path, 'pharmacy_backup_$stamp.db'));
+    File finalFile = raw;
+    try {
+      db = await _snapshot(db, raw);
+      await _verifySnapshot(raw);
+      if (compress) {
+        final bytes = await raw.readAsBytes();
+        final compressed = GZipCodec().encode(bytes);
+        finalFile = File(raw.path + '.gz');
+        await finalFile.writeAsBytes(compressed, flush: true);
+        await raw.delete();
+      }
+    } catch (_) {
+      if (await raw.exists()) await raw.delete();
+      final compressed = File(raw.path + '.gz');
+      if (await compressed.exists()) await compressed.delete();
+      rethrow;
+    }
+    final bytes = await finalFile.readAsBytes();
+    final digest = sha256.convert(bytes).toString();
+    await db.insert('backup_log', {
+      'backup_at': DateTime.now().toIso8601String(),
+      'trigger_type': triggerType,
+      'file_path': finalFile.path,
+      'size_bytes': bytes.length,
+      'sha256': digest,
+      'encrypted': 0,
+      'result': 'SUCCESS',
+      'user_id': userId
+    });
+    await AuditService(helper: _helper).record(
+        action: 'BACKUP',
+        userId: userId,
+        entityType: 'backup_log',
+        entityLabel: finalFile.path,
+        newValues: {'sha256': digest, 'size_bytes': bytes.length});
+    final files = directory
+        .listSync()
+        .whereType<File>()
+        .where((f) => f.path.contains('pharmacy_backup_'))
+        .toList()
+      ..sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+    for (final old in files.skip(keepLast)) {
+      if (old.path != finalFile.path && old.path != preserveFilePath)
+        await old.delete();
+    }
+    return BackupResult(
+        file: finalFile,
+        sha256: digest,
+        sizeBytes: bytes.length,
+        compressed: compress);
+  }
+
+  /// Imports an explicitly selected user file into the trusted local backup
+  /// registry only after verifying its SQLite contents. Android file-picker
+  /// paths may be temporary cache files; we never treat them as permanent.
+  Future<BackupResult> importBackupForRestore(
+      {required File selectedFile, int? userId}) async {
+    if (!await selectedFile.exists()) {
+      throw FileSystemException(
+          'ملف النسخة المختار غير موجود', selectedFile.path);
+    }
+    final bytes = await selectedFile.readAsBytes();
+    if (bytes.isEmpty) throw StateError('ملف النسخة فارغ.');
+    final compressed =
+        bytes.length >= 2 && bytes[0] == 0x1f && bytes[1] == 0x8b;
+    late final List<int> unpacked;
+    try {
+      unpacked = compressed ? GZipCodec().decode(bytes) : bytes;
+    } catch (_) {
+      throw StateError('ملف النسخة المضغوط تالف أو غير صالح.');
+    }
+    if (unpacked.length < 16 ||
+        ascii.decode(unpacked.take(16).toList(), allowInvalid: true) !=
+            'SQLite format 3\x00') {
+      throw StateError('الملف المحدد ليس نسخة قاعدة بيانات SQLite صالحة.');
+    }
+    final directory = _backupDirectoryForTesting ??
+        Directory(
+            p.join((await getApplicationSupportDirectory()).path, 'backups'));
+    await directory.create(recursive: true);
+    final stamp = DateTime.now().microsecondsSinceEpoch;
+    final checkFile = File(p.join(directory.path, '.import_check_$stamp.db'));
+    try {
+      await checkFile.writeAsBytes(unpacked, flush: true);
+      await _verifySnapshot(checkFile);
+      // Do not replace the live ERP with an arbitrary SQLite database.
+      final verified = await openDatabase(checkFile.path,
+          readOnly: true, singleInstance: false);
+      try {
+        final rows = await verified.rawQuery(
+            "SELECT name FROM sqlite_master WHERE type='table' "
+            "AND name IN ('drugs','parties','users','system_settings','audit_logs','backup_log')");
+        final names = rows.map((r) => r['name'] as String).toSet();
+        if (!names.containsAll({
+          'drugs',
+          'parties',
+          'users',
+          'system_settings',
+          'audit_logs',
+          'backup_log',
+        })) {
+          throw StateError(
+              'ملف النسخة لا يحتوي على الجداول الأساسية للصيدلية.');
+        }
+      } finally {
+        await verified.close();
+      }
+    } finally {
+      if (await checkFile.exists()) await checkFile.delete();
+    }
+    final backupFile = File(p.join(directory.path,
+        'pharmacy_backup_imported_$stamp.db${compressed ? '.gz' : ''}'));
+    // No overwrite: a new internal path is allocated for every import.
+    await backupFile.writeAsBytes(bytes, flush: true);
+    final result = BackupResult(
+      file: backupFile,
+      sha256: sha256.convert(bytes).toString(),
+      sizeBytes: bytes.length,
+      compressed: compressed,
+    );
+    final db = await _helper.database;
+    try {
+      await db.transaction((txn) async {
+        await txn.insert('backup_log', {
+          'backup_at': DateTime.now().toIso8601String(),
+          'trigger_type': 'IMPORTED',
+          'file_path': result.file.path,
+          'size_bytes': result.sizeBytes,
+          'sha256': result.sha256,
+          'encrypted': 0,
+          'result': 'SUCCESS',
+          'user_id': userId,
+        });
+        await AuditService(helper: _helper, executor: txn).record(
+          action: 'BACKUP',
+          userId: userId,
+          entityType: 'backup_log',
+          entityLabel: result.file.path,
+          reason: 'IMPORTED_FOR_RESTORE',
+          newValues: {
+            'sha256': result.sha256,
+            'size_bytes': result.sizeBytes,
+          },
+        );
+      });
+    } catch (_) {
+      if (await backupFile.exists()) await backupFile.delete();
+      rethrow;
+    }
+    return result;
+  }
+
+  /// Preserves the existing strict SHA-256 restore contract, including an
+  /// automatic BEFORE_RESTORE snapshot of the active database.
+  Future<void> restoreBackupFromDevice(
+      {required File selectedFile, int? userId}) async {
+    final imported = await importBackupForRestore(
+        selectedFile: selectedFile, userId: userId);
+    await restoreBackup(backup: imported.file, userId: userId);
+    // A restored SQLite snapshot predates the import log in this device.
+    // Register the imported source again so it remains in backup history.
+    final db = await _helper.database;
+    await db.insert('backup_log', {
+      'backup_at': DateTime.now().toIso8601String(),
+      'trigger_type': 'IMPORTED',
+      'file_path': imported.file.path,
+      'size_bytes': imported.sizeBytes,
+      'sha256': imported.sha256,
+      'encrypted': 0,
+      'result': 'SUCCESS',
+      'user_id': userId,
+    });
+  }
+
+  Future<void> restoreBackup({required File backup, int? userId}) async {
+    if (!await backup.exists())
+      throw FileSystemException('ملف النسخة غير موجود', backup.path);
+    final bytes = await backup.readAsBytes();
+    final digest = sha256.convert(bytes).toString();
+    final rows = await _helper.query('backup_log',
+        where: 'file_path=? AND result=?',
+        whereArgs: [backup.path, 'SUCCESS'],
+        limit: 1);
+    if (rows.isEmpty) throw StateError('لا توجد بصمة موثوقة مسجلة لهذه النسخة');
+    if (rows.first['sha256'] != digest)
+      throw StateError('فشل التحقق من بصمة SHA-256 للنسخة');
+    final preRestore = await createBackup(
+        triggerType: 'BEFORE_RESTORE',
+        userId: userId,
+        preserveFilePath: backup.path);
+    final source =
+        backup.path.endsWith('.gz') ? GZipCodec().decode(bytes) : bytes;
+    final destination = await _helper.databaseFilePath;
+    await _helper.close();
+    await File(destination).writeAsBytes(source, flush: true);
+    final restoredDb = await _helper.database;
+    await restoredDb.insert('backup_log', {
+      'backup_at': DateTime.now().toIso8601String(),
+      'trigger_type': 'BEFORE_RESTORE',
+      'file_path': preRestore.file.path,
+      'size_bytes': preRestore.sizeBytes,
+      'sha256': preRestore.sha256,
+      'encrypted': 0,
+      'result': 'SUCCESS',
+      'user_id': userId
+    });
+    await AuditService(helper: _helper).record(
+        action: 'BACKUP',
+        userId: userId,
+        entityType: 'backup_log',
+        entityLabel: preRestore.file.path,
+        newValues: {
+          'sha256': preRestore.sha256,
+          'size_bytes': preRestore.sizeBytes
+        });
+    await AuditService(helper: _helper).record(
+        action: 'RESTORE',
+        userId: userId,
+        entityType: 'database',
+        entityLabel: backup.path,
+        newValues: {'sha256': digest});
+  }
+
+  Future<int> enqueue(
+      {required String tableName,
+      required String rowUuid,
+      required String operation,
+      required Map<String, Object?> payload,
+      int syncVersion = 1}) async {
+    if (!{'INSERT', 'UPDATE', 'SOFT_DELETE'}.contains(operation))
+      throw ArgumentError('عملية مزامنة غير مدعومة');
+    final db = await _helper.database;
+    return db.insert(
+        'sync_queue',
+        {
+          'table_name': tableName,
+          'row_uuid': rowUuid,
+          'operation': operation,
+          'payload_json': jsonEncode(payload),
+          'sync_version': syncVersion,
+          'status': 'PENDING'
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<List<Map<String, Object?>>> queueSummary() async => _helper.rawQuery(
+      'SELECT status,COUNT(*) AS count FROM sync_queue GROUP BY status');
+  Future<bool> ping(String baseUrl, {String? apiKey}) async {
+    final base = Uri.tryParse(baseUrl.trim());
+    if (base == null || !base.hasScheme || base.host.isEmpty) return false;
+    final headers = <String, String>{'Accept': 'application/json'};
+    if (apiKey != null && apiKey.isNotEmpty)
+      headers['Authorization'] = 'Bearer $apiKey';
+    try {
+      final response = await _client
+          .get(base.resolve('/ping'), headers: headers)
+          .timeout(const Duration(seconds: 12));
+      return response.statusCode >= 200 && response.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<int> collectLocalChanges({int maxRows = 1000}) async {
+    final db = await _helper.database;
+    var collected = 0;
+    final tableRows = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('audit_logs','sync_queue','backup_log')");
+    for (final tableRow in tableRows) {
+      final table = tableRow['name'] as String;
+      if (!_allowedTables.contains(table)) continue;
+      final columns = await db.rawQuery('PRAGMA table_info(' + table + ')');
+      final names = columns.map((e) => e['name'] as String).toSet();
+      if (!names.contains('uuid') ||
+          !names.contains('sync_status') ||
+          !names.contains('sync_version')) continue;
+      final rows = await db.query(table,
+          where: "CAST(sync_status AS TEXT) IN ('LOCAL','PENDING','0')",
+          limit: (maxRows - collected).clamp(0, maxRows).toInt());
+      for (final row in rows) {
+        final uuid = row['uuid'];
+        if (uuid == null) continue;
+        final deleted = (row['is_deleted'] as num? ?? 0) == 1;
+        final version = (row['sync_version'] as num? ?? 1).toInt();
+        final createdAt = row['created_at']?.toString(),
+            updatedAt = row['updated_at']?.toString();
+        final operation = deleted
+            ? 'SOFT_DELETE'
+            : (version > 1 ||
+                    (createdAt != null &&
+                        updatedAt != null &&
+                        createdAt != updatedAt)
+                ? 'UPDATE'
+                : 'INSERT');
+        await db.insert(
+            'sync_queue',
+            {
+              'table_name': table,
+              'row_uuid': uuid.toString(),
+              'operation': operation,
+              'payload_json': jsonEncode(row),
+              'sync_version': row['sync_version'],
+              'status': 'PENDING'
+            },
+            conflictAlgorithm: ConflictAlgorithm.ignore);
+        await db.update(table, {'sync_status': 'QUEUED'},
+            where: 'uuid=?', whereArgs: [uuid]);
+        collected++;
+        if (collected >= maxRows) return collected;
+      }
+    }
+    return collected;
+  }
+
+  Future<int> syncNow(
+      {required String baseUrl, String? apiKey, int batchSize = 100}) async {
+    final base = Uri.tryParse(baseUrl.trim());
+    if (base == null || base.host.isEmpty)
+      throw ArgumentError('رابط خادم المزامنة غير صحيح');
+    await collectLocalChanges(maxRows: batchSize * 10);
+    final db = await _helper.database;
+    final pending = await db.query('sync_queue',
+        where: 'status IN (?,?)',
+        whereArgs: ['PENDING', 'FAILED'],
+        orderBy: 'id',
+        limit: batchSize);
+    final safePending = <Map<String, Object?>>[];
+    final payloads = <int, Map<String, Object?>>{};
+    for (final row in pending) {
+      try {
+        final table = row['table_name'] as String;
+        if (!SyncTablePolicy.allowsOutbound(table)) {
+          throw const FormatException('SYNC_PAYLOAD_POLICY_REJECTED');
+        }
+        payloads[row['id'] as int] = SyncPayloadPolicy.project(
+          table,
+          jsonDecode(row['payload_json'] as String),
+        );
+        safePending.add(row);
+      } on FormatException {
+        await db.update(
+            'sync_queue',
+            {
+              'status': 'CONFLICT',
+              'last_error': 'SYNC_PAYLOAD_POLICY_REJECTED',
+            },
+            where: 'id=?',
+            whereArgs: [row['id']]);
+      }
+    }
+    if (safePending.isEmpty) return 0;
+    final ids = safePending.map((e) => e['id'] as int).toList();
+    await db.update('sync_queue', {'status': 'SENDING'},
+        where: 'id IN (' + List.filled(ids.length, '?').join(',') + ')',
+        whereArgs: ids);
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+    if (apiKey != null && apiKey.isNotEmpty)
+      headers['Authorization'] = 'Bearer $apiKey';
+    try {
+      final response = await _client
+          .post(base.resolve('/sync/batch'),
+              headers: headers,
+              body: jsonEncode({
+                'items': safePending
+                    .map((e) => {
+                          'id': e['id'],
+                          'table': e['table_name'],
+                          'uuid': e['row_uuid'],
+                          'operation': e['operation'],
+                          'version': e['sync_version'],
+                          'payload': payloads[e['id']]
+                        })
+                    .toList()
+              }))
+          .timeout(const Duration(seconds: 30));
+      if (response.statusCode < 200 || response.statusCode >= 300)
+        throw HttpException('Sync HTTP ' + response.statusCode.toString());
+      final body = jsonDecode(response.body) as Map<String, Object?>;
+      final results = (body['results'] as List? ?? const []);
+      for (final item in results.whereType<Map>()) {
+        final id = (item['id'] as num?)?.toInt();
+        if (id == null || !ids.contains(id)) continue;
+        final status = switch (item['status']) {
+          'DONE' => 'DONE',
+          'CONFLICT' => 'CONFLICT',
+          _ => 'FAILED'
+        };
+        final queueRow =
+            safePending.firstWhere((e) => e['id'] == id, orElse: () => {});
+        final attempts = ((queueRow['attempts'] as num?) ?? 0).toInt() + 1;
+        await db.update(
+            'sync_queue',
+            {
+              'status': status,
+              'last_error': item['message']?.toString(),
+              'attempts': attempts
+            },
+            where: 'id=?',
+            whereArgs: [id]);
+        if (status == 'DONE' && queueRow.isNotEmpty) {
+          final table = queueRow['table_name'] as String;
+          final uuid = queueRow['row_uuid'] as String;
+          final tableExists = await db.rawQuery(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+              [table]);
+          if (tableExists.isNotEmpty) {
+            final cols = await db.rawQuery('PRAGMA table_info(' + table + ')');
+            if (cols.any((e) => e['name'] == 'sync_status'))
+              await db.update(table, {'sync_status': 'SYNCED'},
+                  where: 'uuid=?', whereArgs: [uuid]);
+          }
+        }
+      }
+      final completedIds = results
+          .whereType<Map>()
+          .map((e) => (e['id'] as num?)?.toInt())
+          .whereType<int>()
+          .toSet();
+      final unreported = ids.where((id) => !completedIds.contains(id)).toList();
+      if (unreported.isNotEmpty)
+        await db.update(
+            'sync_queue',
+            {
+              'status': 'FAILED',
+              'last_error': 'لم يرجع الخادم نتيجة لهذا السجل'
+            },
+            where:
+                'id IN (' + List.filled(unreported.length, '?').join(',') + ')',
+            whereArgs: unreported);
+      final processed = results.length;
+      await AuditService(helper: _helper).record(
+          action: 'UPDATE',
+          entityType: 'sync_queue',
+          entityLabel: 'Cloud sync batch',
+          newValues: {
+            'sent': ids.length,
+            'responses': processed,
+            'unreported': unreported.length
+          },
+          severity: unreported.isEmpty ? 'INFO' : 'WARNING');
+      return processed;
+    } catch (e) {
+      await db.update('sync_queue',
+          {'status': 'FAILED', 'last_error': e.toString(), 'attempts': 1},
+          where: 'id IN (' + List.filled(ids.length, '?').join(',') + ')',
+          whereArgs: ids);
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, Object?>>> backups() async =>
+      (await _helper.query('backup_log', orderBy: 'id DESC'));
+}
+
+typedef SyncService = BackupAndSyncService;

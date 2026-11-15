@@ -1,0 +1,14 @@
+{
+  "name": "pharmacy-firebase-security-tests",
+  "private": true,
+  "scripts": {
+    "test:rules": "firebase emulators:exec --config firebase.emulator.json --only auth,firestore --project pharmacy-dafb6 \"node --test --test-concurrency=1 test/*.test.js\"",
+    "test": "firebase emulators:exec --config firebase.emulator.json --only auth,firestore --project pharmacy-dafb6 \"node --test --test-concurrency=1 test/*.test.js\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.0.2",
+    "firebase-tools": "^13.29.1",
+    "firebase-admin": "^12.7.0"
+  }
+}

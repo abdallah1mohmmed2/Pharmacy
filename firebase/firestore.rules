@@ -1,0 +1,100 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // The backend must issue a verified custom claim named branch_id.
+    // Never trust a branch identifier supplied only by the client payload.
+    function ownsBranch(branchId) {
+      return signedIn()
+        && request.auth.token.branch_id is string
+        && request.auth.token.branch_id == branchId;
+    }
+
+    function branchManager() {
+      return signedIn()
+        && request.auth.token.branch_role in ['owner', 'manager'];
+    }
+
+    function validPartnerMode(mode) {
+      return mode in ['shares', 'percentage'];
+    }
+
+    // This is source metadata only; authorization still comes from trusted Auth claims.
+    function validSourceDeviceId() {
+      return request.resource.data.source_device_id is string
+        && request.resource.data.source_device_id.matches(
+          '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+        );
+    }
+
+    // P2-01: strict immutable batch envelope. Event contents require
+    // additional server-side validation before production sync is enabled.
+    function validSyncBatchEnvelope(branchId, batchUuid) {
+      return request.resource.data.keys().hasOnly([
+          'branch_id', 'source_device_id', 'batch_uuid', 'payload_hash',
+          'schema_version', 'events', 'created_at'
+        ])
+        && request.resource.data.keys().hasAll([
+          'branch_id', 'source_device_id', 'batch_uuid', 'payload_hash',
+          'schema_version', 'events', 'created_at'
+        ])
+        && request.resource.data.branch_id == branchId
+        && request.resource.data.batch_uuid == batchUuid
+        && batchUuid.matches('^[0-9a-f]{64}$')
+        && validSourceDeviceId()
+        && request.resource.data.payload_hash is string
+        && request.resource.data.payload_hash.matches('^[0-9a-f]{64}$')
+        && request.resource.data.schema_version == 1
+        && request.resource.data.events is list
+        && request.resource.data.events.size() > 0
+        && request.resource.data.events.size() <= 100
+        && request.resource.data.created_at == request.time;
+    }
+
+    match /pharmacy_branches/{branchId} {
+      allow get: if ownsBranch(branchId) && branchManager();
+      allow list: if branchManager()
+        && resource.data.branch_id == request.auth.token.branch_id;
+      // Only trusted administrative provisioning may update branch metadata.
+      allow create, update, delete: if false;
+    }
+
+    match /pharmacy_daily_dashboards/{dashboardId} {
+      allow get, list: if branchManager()
+        && resource.data.branch_id == request.auth.token.branch_id;
+      // Client writes suspended pending approved financial projections (P0-05).
+      allow create, update, delete: if false;
+    }
+
+    match /pharmacy_parties_snapshot/{branchId} {
+      allow get: if ownsBranch(branchId) && branchManager();
+      allow list: if branchManager()
+        && resource.data.branch_id == request.auth.token.branch_id;
+      // Contains sensitive financial state. No client writes until reviewed.
+      allow create, update, delete: if false;
+    }
+
+    match /pharmacy_sync_batches/{branchId}/batches/{batchUuid} {
+      allow get, list: if ownsBranch(branchId)
+        && resource.data.branch_id == branchId;
+      allow create: if ownsBranch(branchId)
+        && validSyncBatchEnvelope(branchId, batchUuid);
+      // Sync batches are an append-only audit/delta stream.
+      allow update, delete: if false;
+    }
+
+    // The central catalogue is hosted as static JSON. It must not consume
+    // Firestore reads or become a write path for operational pharmacy data.
+    match /catalog_meta/{documentId} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
