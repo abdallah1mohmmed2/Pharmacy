@@ -477,7 +477,8 @@ class DrugImportExportService {
     final file = File(directory.path +
         '/drug_export_' +
         DateTime.now().microsecondsSinceEpoch.toString() +
-        '.' + extension);
+        '.' +
+        extension);
     final sink = file.openWrite(encoding: utf8);
     final excluded = hideCostPrices
         ? const <String>{'cost_price_pack', 'last_purchase_cost_pack'}
@@ -513,9 +514,8 @@ class DrugImportExportService {
             if (count > 0) sink.write(',');
             sink.write(jsonEncode(fields));
           } else {
-            sink.writeln(const ListToCsvConverter().convert([
-              headers.map((name) => fields[name] ?? '').toList()
-            ]));
+            sink.writeln(const ListToCsvConverter()
+                .convert([headers.map((name) => fields[name] ?? '').toList()]));
           }
           count++;
         }
