@@ -534,5 +534,22 @@ void main() {
       expect(stored['stock_total_units'], 20);
     });
 
+    test('dry run rejects fake foreign keys instead of reporting success',
+        () async {
+      final file = await put('broken-reference.json', jsonEncode([{
+        'trade_name_ar': 'دواء بمرجع مفقود',
+        'manufacturer_id': 999999
+      }]));
+      final preview = await importer.dryRunImportFile(
+          file: file, format: 'JSON', branchId: 1);
+      expect(preview.validRows, 0);
+      expect(preview.errors, hasLength(1));
+      expect(preview.errors.single.message, contains('manufacturer_id'));
+      final import = await importer.executeImportFile(
+          file: file, format: 'JSON', branchId: 1);
+      expect(import.inserted, 0);
+      expect(import.errors, 1);
+    });
+
   });
 }
