@@ -416,7 +416,8 @@ class DrugImportExportService {
       {required String format,
       bool hideCostPrices = true,
       int? categoryId,
-      int branchId = 1}) async {
+      int branchId = 1,
+      Directory? outputDirectory}) async {
     final db = await _helper.database;
     final rows = await db.query('drugs',
         where: categoryId == null
@@ -450,7 +451,7 @@ class DrugImportExportService {
     } else {
       throw ArgumentError('صيغة التصدير يجب أن تكون CSV أو JSON');
     }
-    final directory = await getTemporaryDirectory();
+    final directory = outputDirectory ?? await getTemporaryDirectory();
     final file = File(
         '${directory.path}/drug_export_${DateTime.now().millisecondsSinceEpoch}.$extension');
     await file.writeAsString(data, encoding: utf8, flush: true);
