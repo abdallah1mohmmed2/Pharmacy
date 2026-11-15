@@ -130,6 +130,7 @@ class SettingsAndSystemProvider extends ChangeNotifier {
           mapping: mapping,
           conflictPolicy: conflictPolicy,
           fileName: fileName,
+          branchId: _activeBranchId(),
           onProgress: (done, total) {
             importProgress = done;
             importTotal = total;
@@ -210,7 +211,10 @@ class SettingsAndSystemProvider extends ChangeNotifier {
       bool hideCostPrices = true,
       int? categoryId}) async {
     final file = await importer.exportDrugs(
-        format: format, hideCostPrices: hideCostPrices, categoryId: categoryId);
+        format: format,
+        hideCostPrices: hideCostPrices,
+        categoryId: categoryId,
+        branchId: _activeBranchId());
     await refreshSystemData();
     return file;
   }
