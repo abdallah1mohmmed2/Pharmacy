@@ -240,7 +240,7 @@ void main() {
       expect(result.errors, hasLength(1));
     });
     test('field catalog covers every real model column including read-only',
-        () {
+        () async {
       final actual = <String>{
         ...DrugModel().toMap().keys,
         ...DrugImportFieldCatalog.databaseOnlyFields,
@@ -249,6 +249,10 @@ void main() {
       expect(DrugImportFieldCatalog.labels.keys.toSet(), actual);
       // PRAGMA reads the actual migrated SQLite schema, not a UI mock.
       // This protects against silent drift in either the model or migrations.
+      final tableInfo = await db.rawQuery('PRAGMA table_info(drugs)');
+      final databaseColumns =
+          tableInfo.map((row) => row['name'].toString()).toSet();
+      expect(DrugImportFieldCatalog.allFields, databaseColumns);
 
       expect(actual, contains('strip_price_mode'));
       expect(actual, contains('ped_doses_per_day'));
