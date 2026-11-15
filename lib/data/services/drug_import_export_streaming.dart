@@ -171,7 +171,23 @@ extension DrugImportFileStreaming on DrugImportExportService {
     required File file,
     required String format,
     Map<String, String> mapping = const {},
+    int branchId = 1,
   }) async {
+    final db = await _helper.database;
+    final validReferences = <String, Set<int>>{};
+    const referenceTables = {
+      'manufacturer_id': 'manufacturers',
+      'active_ingredient_id': 'active_ingredients',
+      'category_id': 'drug_categories',
+    };
+    for (final ref in referenceTables.entries) {
+      final rows = await db.query(ref.value,
+          columns: ['id'],
+          where: 'branch_id=? AND is_deleted=0',
+          whereArgs: [branchId]);
+      validReferences[ref.key] =
+          rows.map((row) => row['id'] as int).toSet();
+    }
     final errors = <ImportRowIssue>[];
     final seen = <String>{};
     final seenBarcodes = <String>{};
@@ -188,7 +204,15 @@ extension DrugImportFileStreaming on DrugImportExportService {
         if (barcode.isNotEmpty && !seenBarcodes.add(barcode)) {
           barcodeDuplicates++;
         }
-        final problem = _rowProblem(row);
+        var problem = _rowProblem(row);
+        for (final ref in validReferences.entries) {
+          final id = row[ref.key];
+          if (id != null && !ref.value.contains(id)) {
+            problem = 'المرجع ' + ref.key +
+                ' غير موجود في الفرع الحالي: ' + id.toString();
+            break;
+          }
+        }
         if (problem != null) {
           errors.add(ImportRowIssue(item.number, problem));
           continue;
@@ -251,6 +275,23 @@ extension DrugImportFileStreaming on DrugImportExportService {
           done++;
           try {
             final incoming = _mapFields(item.values, mapping);
+            const referenceTables = {
+              'manufacturer_id': 'manufacturers',
+              'active_ingredient_id': 'active_ingredients',
+              'category_id': 'drug_categories',
+            };
+            for (final ref in referenceTables.entries) {
+              final id = incoming[ref.key];
+              if (id == null) continue;
+              final present = await txn.query(ref.value,
+                  columns: ['id'],
+                  where: 'id=? AND branch_id=? AND is_deleted=0',
+                  whereArgs: [id, branchId],
+                  limit: 1);
+              if (present.isEmpty) {
+                throw FormatException('مرجع غير موجود في الفرع: ' + ref.key);
+              }
+            }
             if (_rowProblem(incoming) != null || !seen.add(_rowKey(incoming))) {
               errors++;
               continue;
