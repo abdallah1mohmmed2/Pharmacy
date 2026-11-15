@@ -14,6 +14,25 @@ import 'settings_and_audit_service.dart';
 
 part 'drug_import_export_streaming.dart';
 
+/// A bounded sample of *actual values from the selected file*, resolved to
+/// the real SQLite/model column (or explicitly flagged as protected/unmapped).
+class DrugImportColumnPreview {
+  const DrugImportColumnPreview({
+    required this.sourceField,
+    required this.targetField,
+    required this.sampleValue,
+    required this.status,
+  });
+
+  final String sourceField;
+  final String targetField;
+  final String sampleValue;
+  final String status;
+
+  String get targetLabel => DrugImportFieldCatalog.label(targetField);
+  bool get willImport => DrugImportFieldCatalog.isEditable(targetField);
+}
+
 class ImportRowIssue {
   const ImportRowIssue(this.rowNumber, this.message);
   final int rowNumber;
@@ -291,6 +310,21 @@ class DrugImportExportService {
       await file.writeAsString(source, encoding: utf8, flush: true);
       return await dryRunImportFile(
           file: file, format: format, mapping: mapping);
+    } finally {
+      await dir.delete(recursive: true);
+    }
+  }
+
+  Future<List<DrugImportColumnPreview>> inspectImportSource({
+    required String source,
+    required String format,
+    Map<String, String> mapping = const {},
+  }) async {
+    final dir = await Directory.systemTemp.createTemp('pharmacy-inspect-');
+    try {
+      final file = File(dir.path + '/sample.' + format.toLowerCase());
+      await file.writeAsString(source, encoding: utf8, flush: true);
+      return await inspectImportFile(file: file, format: format, mapping: mapping);
     } finally {
       await dir.delete(recursive: true);
     }
