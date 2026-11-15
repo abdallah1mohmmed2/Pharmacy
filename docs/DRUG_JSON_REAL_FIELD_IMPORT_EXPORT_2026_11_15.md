@@ -15,12 +15,14 @@ Branch: feature/central-medicine-catalog. No database migration. Do not change m
 
 ## Complete model field contract
 
-DrugImportFieldCatalog derives all 96 drug fields directly from the
-DrugModel.toMap() contract. Every field has an Arabic display label.
-85 are writable through catalog import; 11 are read-only references:
+DrugImportFieldCatalog derives all 98 drug fields directly from the
+DrugModel.toMap() contract. Every field has an Arabic display label (96 model fields plus 2 catalog-link
+columns added by a schema migration).
+85 are writable through catalog import; 13 are read-only references:
 - id, uuid, branch_id, created_at, updated_at
 - is_deleted, sync_status, sync_version
 - completeness_pct, units_per_pack, stock_total_units
+- catalog_uuid, catalog_version
 
 All persisted columns are included in exports (subject to the explicit
 hide-cost option). The 11 above are exported for reference but are never
