@@ -377,6 +377,16 @@ extension DrugImportFileStreaming on DrugImportExportService {
             }
             final timestamp = DateTime.now().toIso8601String();
             if (matching.isEmpty) {
+              // AUTO pricing is derived from the stored pack price and real
+              // packaging; import must not leave an inconsistent zero strip
+              // price just because the file omitted a derived field.
+              if (drug['strip_price_mode'] == 'AUTO') {
+                final strips = (drug['strips_per_pack'] as int?) ?? 1;
+                final units = (drug['units_per_strip'] as int?) ?? 1;
+                final price = (drug['sell_price_pack'] as num?)?.toDouble() ?? 0;
+                drug['sell_price_strip'] = price / strips;
+                drug['sell_price_unit'] = price / (strips * units);
+              }
               drug['created_at'] = timestamp;
               drug['updated_at'] = timestamp;
               await txn.insert('drugs', drug,
@@ -413,6 +423,37 @@ extension DrugImportFileStreaming on DrugImportExportService {
               if (updates.isEmpty) {
                 skipped++;
               } else {
+                final oldStrips = (old['strips_per_pack'] as num?)?.toInt() ?? 1;
+                final oldUnits = (old['units_per_strip'] as num?)?.toInt() ?? 1;
+                final nextStrips =
+                    (updates['strips_per_pack'] as num?)?.toInt() ?? oldStrips;
+                final nextUnits =
+                    (updates['units_per_strip'] as num?)?.toInt() ?? oldUnits;
+                if (nextStrips < 1 || nextUnits < 1) {
+                  throw const FormatException('التعبئة يجب أن تكون موجبة');
+                }
+                if (nextStrips != oldStrips || nextUnits != oldUnits) {
+                  final physical = (old['stock_total_units'] as num?)?.toInt() ?? 0;
+                  if (physical != 0) {
+                    // Changing a pack size with existing physical batches
+                    // would invalidate their quantities and movement history.
+                    throw const FormatException(
+                        'لا يمكن تغيير تعبئة دواء له رصيد قائم عبر JSON');
+                  }
+                  updates['units_per_pack'] = nextStrips * nextUnits;
+                }
+                final priceMode =
+                    (updates['strip_price_mode'] ??
+                        old['strip_price_mode'] ?? 'AUTO').toString();
+                if (priceMode == 'AUTO') {
+                  final packPrice =
+                      (updates['sell_price_pack'] ??
+                          old['sell_price_pack'] ?? 0) as num;
+                  updates['sell_price_strip'] =
+                      packPrice.toDouble() / nextStrips;
+                  updates['sell_price_unit'] =
+                      packPrice.toDouble() / (nextStrips * nextUnits);
+                }
                 updates['updated_at'] = timestamp;
                 updates['completeness_pct'] =
                     DrugModel.fromMap({...old, ...updates})
