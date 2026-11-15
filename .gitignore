@@ -19,3 +19,6 @@ android/app/release/
 windows/flutter/ephemeral/
 windows/runner/Debug/
 windows/runner/Release/
+
+# Downloaded reference database (published as release assets)
+/openfda-labels/
