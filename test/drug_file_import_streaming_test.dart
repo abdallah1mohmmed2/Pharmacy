@@ -669,8 +669,15 @@ void main() {
               .inserted,
           1);
       final old = (await db.query('drugs')).single;
-      await db.update('drugs', {'stock_total_units': 28},
-          where: 'id=?', whereArgs: [old['id']]);
+      await db.update(
+          'drugs',
+          {
+            'stock_total_units': 28,
+            'sell_price_strip': 77,
+            'sell_price_unit': 11
+          },
+          where: 'id=?',
+          whereArgs: [old['id']]);
       final source = jsonEncode([
         {'internal_code': 'COMP-REPAIR', 'manufacturer_name': 'Repair Company'}
       ]);
@@ -684,6 +691,8 @@ void main() {
       final saved = (await db.query('drugs')).single;
       expect(saved['manufacturer_id'], isNotNull);
       expect(saved['sell_price_pack'], 145);
+      expect(saved['sell_price_strip'], 77);
+      expect(saved['sell_price_unit'], 11);
       expect(saved['stock_total_units'], 28);
       expect(saved['uuid'], old['uuid']);
       expect(saved['trade_name_ar'], old['trade_name_ar']);

@@ -530,7 +530,13 @@ extension DrugImportFileStreaming on DrugImportExportService {
                         old['strip_price_mode'] ??
                         'AUTO')
                     .toString();
-                if (priceMode == 'AUTO') {
+                if (priceMode == 'AUTO' &&
+                    updates.keys.any((key) => const {
+                          'sell_price_pack',
+                          'strips_per_pack',
+                          'units_per_strip',
+                          'strip_price_mode',
+                        }.contains(key))) {
                   final packPrice = (updates['sell_price_pack'] ??
                       old['sell_price_pack'] ??
                       0) as num;
