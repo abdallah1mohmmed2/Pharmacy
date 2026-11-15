@@ -451,66 +451,105 @@ class DrugImportExportService {
         pregnancyCategory: 'UNKNOWN');
   }
 
-  Future<File> exportDrugs(
-      {required String format,
-      bool hideCostPrices = true,
-      int? categoryId,
-      int branchId = 1,
-      Directory? outputDirectory}) async {
-    final db = await _helper.database;
-    final rows = await db.query('drugs',
-        where: categoryId == null
-            ? 'is_deleted=0 AND branch_id=?'
-            : 'is_deleted=0 AND branch_id=? AND category_id=?',
-        whereArgs: categoryId == null ? [branchId] : [branchId, categoryId],
-        orderBy: 'trade_name_ar');
-    final fields = rows.map((r) {
-      final m = Map<String, Object?>.from(r);
-      if (hideCostPrices) {
-        m.remove('cost_price_pack');
-        m.remove('last_purchase_cost_pack');
-      }
-      return m;
-    }).toList();
+  /// Export every persisted drug column in bounded database pages. This
+  /// avoids keeping tens of thousands of records and their JSON output in
+  /// memory simultaneously on Android.
+  Future<File> exportDrugs({
+    required String format,
+    bool hideCostPrices = true,
+    int? categoryId,
+    int branchId = 1,
+    Directory? outputDirectory,
+  }) async {
     final normalized = format.toUpperCase();
-    late String data, extension, sourceType;
-    if (normalized == 'CSV') {
-      final headers = fields.isEmpty ? <String>[] : fields.first.keys.toList();
-      data = '\uFEFF' +
-          const ListToCsvConverter().convert([
-            headers,
-            ...fields.map((m) => headers.map((h) => m[h] ?? '').toList())
-          ]);
-      extension = 'csv';
-      sourceType = 'EXPORT_CSV';
-    } else if (normalized == 'JSON') {
-      data = jsonEncode(fields);
-      extension = 'json';
-      sourceType = 'EXPORT_JSON';
-    } else {
+    if (normalized != 'JSON' && normalized != 'CSV') {
       throw ArgumentError('صيغة التصدير يجب أن تكون CSV أو JSON');
     }
+    final db = await _helper.database;
+    final where = categoryId == null
+        ? 'is_deleted=0 AND branch_id=?'
+        : 'is_deleted=0 AND branch_id=? AND category_id=?';
+    final whereArgs = categoryId == null
+        ? <Object?>[branchId]
+        : <Object?>[branchId, categoryId];
     final directory = outputDirectory ?? await getTemporaryDirectory();
-    final file = File(
-        '${directory.path}/drug_export_${DateTime.now().millisecondsSinceEpoch}.$extension');
-    await file.writeAsString(data, encoding: utf8, flush: true);
+    final extension = normalized.toLowerCase();
+    final file = File(directory.path +
+        '/drug_export_' +
+        DateTime.now().microsecondsSinceEpoch.toString() +
+        '.' + extension);
+    final sink = file.openWrite(encoding: utf8);
+    final excluded = hideCostPrices
+        ? const <String>{'cost_price_pack', 'last_purchase_cost_pack'}
+        : const <String>{};
+    var count = 0;
+    var offset = 0;
+    const pageSize = 200;
+    try {
+      List<String> headers = const [];
+      if (normalized == 'CSV') {
+        final columns = await db.rawQuery('PRAGMA table_info(drugs)');
+        headers = columns
+            .map((row) => row['name'].toString())
+            .where((key) => !excluded.contains(key))
+            .toList();
+        sink.write('\uFEFF');
+        sink.writeln(const ListToCsvConverter().convert([headers]));
+      } else {
+        sink.write('[');
+      }
+      while (true) {
+        final rows = await db.query('drugs',
+            where: where,
+            whereArgs: whereArgs,
+            orderBy: 'trade_name_ar,id',
+            limit: pageSize,
+            offset: offset);
+        if (rows.isEmpty) break;
+        for (final row in rows) {
+          final fields = Map<String, Object?>.from(row)
+            ..removeWhere((key, _) => excluded.contains(key));
+          if (normalized == 'JSON') {
+            if (count > 0) sink.write(',');
+            sink.write(jsonEncode(fields));
+          } else {
+            sink.writeln(const ListToCsvConverter().convert([
+              headers.map((name) => fields[name] ?? '').toList()
+            ]));
+          }
+          count++;
+        }
+        offset += rows.length;
+        await sink.flush();
+        if (rows.length < pageSize) break;
+      }
+      if (normalized == 'JSON') sink.write(']');
+      await sink.close();
+    } catch (_) {
+      await sink.close();
+      if (await file.exists()) await file.delete();
+      rethrow;
+    }
+    final now = DateTime.now().toIso8601String();
     await db.insert('import_jobs', {
-      'source_type': sourceType,
+      'source_type': 'EXPORT_' + normalized,
       'file_name': file.path,
-      'total_rows': fields.length,
+      'total_rows': count,
       'status': 'COMPLETED',
-      'started_at': DateTime.now().toIso8601String(),
-      'finished_at': DateTime.now().toIso8601String()
+      'started_at': now,
+      'finished_at': now,
     });
     await AuditService(helper: _helper).record(
-        action: 'EXPORT',
-        entityType: 'drugs',
-        entityLabel: file.path,
-        newValues: {
-          'format': normalized,
-          'rows': fields.length,
-          'hide_cost_prices': hideCostPrices
-        });
+      action: 'EXPORT',
+      entityType: 'drugs',
+      entityLabel: file.path,
+      newValues: {
+        'format': normalized,
+        'rows': count,
+        'branch_id': branchId,
+        'hide_cost_prices': hideCostPrices,
+      },
+    );
     return file;
   }
 
