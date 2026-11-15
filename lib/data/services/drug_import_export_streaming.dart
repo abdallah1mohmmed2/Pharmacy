@@ -97,9 +97,7 @@ extension DrugImportFileStreaming on DrugImportExportService {
             final value = raw is Map || raw is List
                 ? jsonEncode(raw)
                 : raw?.toString() ?? 'فارغ';
-            return value.length > 180
-                ? value.substring(0, 180) + '…'
-                : value;
+            return value.length > 180 ? value.substring(0, 180) + '…' : value;
           })(),
           status: (() {
             final target = mapping[entry.key] ?? entry.key;

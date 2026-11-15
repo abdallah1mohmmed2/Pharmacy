@@ -248,8 +248,14 @@ void main() {
       expect(actual, contains('ped_doses_per_day'));
       expect(DrugImportFieldCatalog.isEditable('strip_price_mode'), isTrue);
       expect(DrugImportFieldCatalog.isEditable('ped_doses_per_day'), isTrue);
-      for (final field in ['id', 'branch_id', 'uuid', 'stock_total_units',
-          'sync_version', 'units_per_pack']) {
+      for (final field in [
+        'id',
+        'branch_id',
+        'uuid',
+        'stock_total_units',
+        'sync_version',
+        'units_per_pack'
+      ]) {
         expect(DrugImportFieldCatalog.isProtected(field), isTrue);
         expect(DrugImportFieldCatalog.isEditable(field), isFalse);
       }
@@ -258,8 +264,9 @@ void main() {
     test('real JSON export includes complete fields and can reimport a clone',
         () async {
       final now = DateTime.now().toIso8601String();
-      final ingredients =
-          jsonEncode([{'name': 'amoxicillin', 'amount': '500 mg'}]);
+      final ingredients = jsonEncode([
+        {'name': 'amoxicillin', 'amount': '500 mg'}
+      ]);
       await db.insert('drugs', {
         'uuid': 'original-round-trip',
         'branch_id': 1,
@@ -281,8 +288,10 @@ void main() {
         'indications': 'بيانات حقيقية للاستعمال'
       });
       final exported = await importer.exportDrugs(
-          format: 'JSON', hideCostPrices: false,
-          branchId: 1, outputDirectory: temp);
+          format: 'JSON',
+          hideCostPrices: false,
+          branchId: 1,
+          outputDirectory: temp);
       final decoded = jsonDecode(await exported.readAsString()) as List;
       expect(decoded, hasLength(1));
       final original = Map<String, Object?>.from(decoded.single as Map);
@@ -303,7 +312,8 @@ void main() {
       expect(result.inserted, 1);
       expect(result.errors, 0);
       final cloned = (await db.query('drugs',
-          where: 'internal_code=?', whereArgs: ['ROUND-CLONE'])).single;
+              where: 'internal_code=?', whereArgs: ['ROUND-CLONE']))
+          .single;
       expect(cloned['ingredients_json'], ingredients);
       expect(cloned['ped_doses_per_day'], 3);
       expect(cloned['strip_price_mode'], 'MANUAL');
@@ -329,20 +339,25 @@ void main() {
         'indications': 'السابق'
       });
       final result = await importer.executeImport(
-        source: jsonEncode([{
-          'internal_code': 'PASTE-SAFE',
-          'indications': 'الجديد من JSON',
-          'ped_doses_per_day': 4,
-          'strip_price_mode': 'MANUAL',
-          'stock_total_units': 99999,
-          'uuid': 'malicious-overwrite'
-        }]),
-        format: 'JSON', branchId: 1, conflictPolicy: 'OVERWRITE',
+        source: jsonEncode([
+          {
+            'internal_code': 'PASTE-SAFE',
+            'indications': 'الجديد من JSON',
+            'ped_doses_per_day': 4,
+            'strip_price_mode': 'MANUAL',
+            'stock_total_units': 99999,
+            'uuid': 'malicious-overwrite'
+          }
+        ]),
+        format: 'JSON',
+        branchId: 1,
+        conflictPolicy: 'OVERWRITE',
       );
       expect(result.updated, 1);
       expect(result.errors, 0);
       final saved = (await db.query('drugs',
-          where: 'internal_code=?', whereArgs: ['PASTE-SAFE'])).single;
+              where: 'internal_code=?', whereArgs: ['PASTE-SAFE']))
+          .single;
       expect(saved['indications'], 'الجديد من JSON');
       expect(saved['ped_doses_per_day'], 4);
       expect(saved['strip_price_mode'], 'MANUAL');
@@ -354,12 +369,16 @@ void main() {
 
     test('field preview shows actual values, matching and read-only status',
         () async {
-      final file = await put('preview-fields.json', jsonEncode([{
-        'trade_name_ar': 'المادة الحقيقية',
-        'medical_details': {'note': 'قيمة حقيقية'},
-        'stock_total_units': 99,
-        'strip_price_mode': 'MANUAL'
-      }]));
+      final file = await put(
+          'preview-fields.json',
+          jsonEncode([
+            {
+              'trade_name_ar': 'المادة الحقيقية',
+              'medical_details': {'note': 'قيمة حقيقية'},
+              'stock_total_units': 99,
+              'strip_price_mode': 'MANUAL'
+            }
+          ]));
       final preview = await importer.inspectImportFile(
           file: file,
           format: 'JSON',
@@ -369,8 +388,8 @@ void main() {
       expect(mapped.targetField, 'warnings_json');
       expect(mapped.sampleValue, contains('قيمة حقيقية'));
       expect(mapped.willImport, isTrue);
-      final readonly = preview.singleWhere(
-          (row) => row.sourceField == 'stock_total_units');
+      final readonly =
+          preview.singleWhere((row) => row.sourceField == 'stock_total_units');
       expect(readonly.willImport, isFalse);
       expect(readonly.status, contains('محمي'));
       final dry = await importer.dryRunImportFile(
@@ -384,7 +403,8 @@ void main() {
           mapping: {'medical_details': 'warnings_json'});
       expect(result.inserted, 1);
       final saved = (await db.query('drugs',
-          where: 'trade_name_ar=?', whereArgs: ['المادة الحقيقية'])).single;
+              where: 'trade_name_ar=?', whereArgs: ['المادة الحقيقية']))
+          .single;
       expect(saved['warnings_json'], '{"note":"قيمة حقيقية"}');
       expect(saved['stock_total_units'], 0);
       expect(saved['strip_price_mode'], 'MANUAL');
@@ -392,22 +412,28 @@ void main() {
 
     test('unknown and nonexistent mapped fields fail instead of disappearing',
         () async {
-      final file = await put('invalid-fields.json', jsonEncode([{
-        'trade_name_ar': 'دواء آخر',
-        'fictional_column': 'القيمة التي لا يجوز إخفاؤها'
-      }]));
+      final file = await put(
+          'invalid-fields.json',
+          jsonEncode([
+            {
+              'trade_name_ar': 'دواء آخر',
+              'fictional_column': 'القيمة التي لا يجوز إخفاؤها'
+            }
+          ]));
       final unbound =
           await importer.dryRunImportFile(file: file, format: 'JSON');
       expect(unbound.validRows, 0);
       expect(unbound.errors.single.message, contains('fictional_column'));
       final invalidMapping = await importer.dryRunImportFile(
-          file: file, format: 'JSON',
+          file: file,
+          format: 'JSON',
           mapping: {'fictional_column': 'nonexistent_field'});
       expect(invalidMapping.validRows, 0);
-      expect(invalidMapping.errors.single.message,
-          contains('nonexistent_field'));
+      expect(
+          invalidMapping.errors.single.message, contains('nonexistent_field'));
       final validMapping = await importer.dryRunImportFile(
-          file: file, format: 'JSON',
+          file: file,
+          format: 'JSON',
           mapping: {'fictional_column': 'indications'});
       expect(validMapping.validRows, 1);
     });
@@ -430,6 +456,5 @@ void main() {
           format: 'JSON', branchId: 1, outputDirectory: temp);
       expect(jsonDecode(await own.readAsString()), hasLength(1));
     });
-
   });
 }

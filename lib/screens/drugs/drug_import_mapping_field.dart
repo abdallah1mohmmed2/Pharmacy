@@ -48,11 +48,13 @@ class _DrugImportMappingFieldState extends State<DrugImportMappingField> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, refresh) {
           final needle = filterController.text.trim().toLowerCase();
-          final filtered = all.where((key) =>
-              key.toLowerCase().contains(needle) ||
-              DrugImportFieldCatalog.label(key)
-                  .toLowerCase()
-                  .contains(needle)).toList();
+          final filtered = all
+              .where((key) =>
+                  key.toLowerCase().contains(needle) ||
+                  DrugImportFieldCatalog.label(key)
+                      .toLowerCase()
+                      .contains(needle))
+              .toList();
           return AlertDialog(
             title: const Text('اختر حقلًا موجودًا في التطبيق'),
             insetPadding: const EdgeInsets.all(12),
@@ -98,8 +100,8 @@ class _DrugImportMappingFieldState extends State<DrugImportMappingField> {
         },
       ),
     );
-    final selection = await Navigator.of(context, rootNavigator: true)
-        .push<String>(route);
+    final selection =
+        await Navigator.of(context, rootNavigator: true).push<String>(route);
     await route.completed;
     filterController.dispose();
     return selection;
@@ -110,9 +112,11 @@ class _DrugImportMappingFieldState extends State<DrugImportMappingField> {
     final mapping = _decode(original);
     final unmapped = mapping == null
         ? <String>[]
-        : widget.sourceFields.where((key) =>
-            !mapping.containsKey(key) &&
-            !DrugImportFieldCatalog.isKnown(key)).toList();
+        : widget.sourceFields
+            .where((key) =>
+                !mapping.containsKey(key) &&
+                !DrugImportFieldCatalog.isKnown(key))
+            .toList();
     final sources = <TextEditingController>[
       if (mapping != null)
         for (final key in mapping.keys) TextEditingController(text: key),
@@ -201,7 +205,8 @@ class _DrugImportMappingFieldState extends State<DrugImportMappingField> {
                                     IconButton(
                                       key: ValueKey('import-select-target-' +
                                           index.toString()),
-                                      tooltip: 'اختر حقلاً حقيقياً من قاعدة البيانات',
+                                      tooltip:
+                                          'اختر حقلاً حقيقياً من قاعدة البيانات',
                                       icon: const Icon(Icons.search),
                                       onPressed: () async {
                                         final selected = await _chooseTarget();
@@ -285,8 +290,8 @@ class _DrugImportMappingFieldState extends State<DrugImportMappingField> {
                       return;
                     }
                     if (!DrugImportFieldCatalog.isEditable(to)) {
-                      refresh(() => error =
-                          'حقل النظام غير موجود أو محمي: ' + to);
+                      refresh(
+                          () => error = 'حقل النظام غير موجود أو محمي: ' + to);
                       return;
                     }
                     if (output.containsKey(from)) {

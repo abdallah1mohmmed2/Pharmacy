@@ -161,7 +161,10 @@ class DrugImportExportService {
     for (final entry in mapping.entries) {
       if (!DrugImportFieldCatalog.isEditable(entry.value)) {
         throw FormatException('حقل الربط غير موجود أو محمي: ' +
-            entry.value + ' (' + entry.key + ')');
+            entry.value +
+            ' (' +
+            entry.key +
+            ')');
       }
     }
     bool meaningful(Object? value) =>
@@ -177,7 +180,8 @@ class DrugImportExportService {
         // A custom mapping may intentionally omit extra external columns.
         if (mapping.isNotEmpty && !mapping.containsKey(entry.key)) continue;
         throw FormatException('حقل غير معروف في الملف: ' +
-            entry.key + '؛ اربطه بحقل موجود في التطبيق');
+            entry.key +
+            '؛ اربطه بحقل موجود في التطبيق');
       }
       if (!meaningful(entry.value)) continue;
       if (result.containsKey(target)) {
@@ -254,16 +258,49 @@ class DrugImportExportService {
       }
     }
     const choices = <String, Set<String>>{
-      'dosage_form': {'TABLET', 'CAPSULE', 'SYRUP', 'SUSPENSION', 'DROPS',
-        'INJECTION', 'CREAM', 'OINTMENT', 'INHALER', 'SUPPOSITORY', 'SACHET', 'OTHER'},
-      'route': {'ORAL', 'IV', 'IM', 'SC', 'TOPICAL', 'OPHTHALMIC',
-        'INHALATION', 'RECTAL', 'OTHER'},
+      'dosage_form': {
+        'TABLET',
+        'CAPSULE',
+        'SYRUP',
+        'SUSPENSION',
+        'DROPS',
+        'INJECTION',
+        'CREAM',
+        'OINTMENT',
+        'INHALER',
+        'SUPPOSITORY',
+        'SACHET',
+        'OTHER'
+      },
+      'route': {
+        'ORAL',
+        'IV',
+        'IM',
+        'SC',
+        'TOPICAL',
+        'OPHTHALMIC',
+        'INHALATION',
+        'RECTAL',
+        'OTHER'
+      },
       'take_with_food': {'BEFORE', 'WITH', 'AFTER', 'ANY'},
       'strip_price_mode': {'AUTO', 'MANUAL'},
-      'hepatic_status': {'SAFE', 'ADJUST', 'AVOID', 'CONTRAINDICATED', 'UNKNOWN'},
+      'hepatic_status': {
+        'SAFE',
+        'ADJUST',
+        'AVOID',
+        'CONTRAINDICATED',
+        'UNKNOWN'
+      },
       'renal_status': {'SAFE', 'ADJUST', 'AVOID', 'CONTRAINDICATED', 'UNKNOWN'},
       'geriatric_status': {'SAFE', 'ADJUST', 'AVOID', 'UNKNOWN'},
-      'pediatric_status': {'SAFE', 'ADJUST', 'AVOID', 'CONTRAINDICATED', 'UNKNOWN'},
+      'pediatric_status': {
+        'SAFE',
+        'ADJUST',
+        'AVOID',
+        'CONTRAINDICATED',
+        'UNKNOWN'
+      },
       'pregnancy_category': {'A', 'B', 'C', 'D', 'X', 'N', 'UNKNOWN'},
       'lactation_risk': {'L1', 'L2', 'L3', 'L4', 'L5', 'UNKNOWN'}
     };
@@ -275,7 +312,8 @@ class DrugImportExportService {
         } else if (value is String) {
           final decoded = jsonDecode(value);
           if (decoded is! Map && decoded is! List) {
-            throw FormatException('الحقل ' + key + ' يحتاج JSON من نوع كائن أو قائمة');
+            throw FormatException(
+                'الحقل ' + key + ' يحتاج JSON من نوع كائن أو قائمة');
           }
         } else {
           throw FormatException('صيغة JSON غير صالحة للحقل ' + key);
@@ -288,8 +326,8 @@ class DrugImportExportService {
       if (choices.containsKey(key)) {
         final valueText = result[key].toString().trim().toUpperCase();
         if (!choices[key]!.contains(valueText)) {
-          throw FormatException('قيمة غير معتمدة للحقل ' + key +
-              ': ' + result[key].toString());
+          throw FormatException(
+              'قيمة غير معتمدة للحقل ' + key + ': ' + result[key].toString());
         }
         result[key] = valueText;
       }
@@ -324,7 +362,8 @@ class DrugImportExportService {
     try {
       final file = File(dir.path + '/sample.' + format.toLowerCase());
       await file.writeAsString(source, encoding: utf8, flush: true);
-      return await inspectImportFile(file: file, format: format, mapping: mapping);
+      return await inspectImportFile(
+          file: file, format: format, mapping: mapping);
     } finally {
       await dir.delete(recursive: true);
     }

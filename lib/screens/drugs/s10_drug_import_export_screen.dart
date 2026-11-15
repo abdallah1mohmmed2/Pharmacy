@@ -356,7 +356,8 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
                   key: const ValueKey('import-real-fields-preview'),
                   initiallyExpanded: true,
                   title: Text('الحقول وقيمها الفعلية — ' +
-                      fieldPreview.length.toString() + ' عمود'),
+                      fieldPreview.length.toString() +
+                      ' عمود'),
                   subtitle: const Text(
                     'عينة من أول 3 صفوف؛ الفحص المسبق يتحقق من الملف كاملًا.',
                   ),
@@ -369,16 +370,17 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
                           final field = fieldPreview[index];
                           return ListTile(
                             dense: true,
-                            key: ValueKey('import-preview-field-' +
-                                field.sourceField),
+                            key: ValueKey(
+                                'import-preview-field-' + field.sourceField),
                             title: Text(field.targetLabel,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis),
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(field.sourceField + ' → ' +
-                                    field.targetField,
+                                Text(
+                                    field.sourceField +
+                                        ' → ' +
+                                        field.targetField,
                                     textDirection: TextDirection.ltr,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis),
@@ -577,7 +579,8 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
                       'تصدير القيم الفعلية لكل حقل بالفرع الحالي (' +
                           DrugImportFieldCatalog.allFields.length.toString() +
                           ' حقلاً؛ منها ' +
-                          DrugImportFieldCatalog.protectedFields.length.toString() +
+                          DrugImportFieldCatalog.protectedFields.length
+                              .toString() +
                           ' حقلاً مرجعيًا غير قابل للاستيراد)',
                     ),
                     trailing: IconButton(
