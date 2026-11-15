@@ -21,6 +21,8 @@ import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration13.
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration14.dart';
 import 'package:global_enterprise_pharmacy_erp/data/database/schema_iteration15.dart';
 import 'package:global_enterprise_pharmacy_erp/data/services/drug_import_export_service.dart';
+import 'package:global_enterprise_pharmacy_erp/data/services/drug_import_field_catalog.dart';
+import 'package:global_enterprise_pharmacy_erp/data/models/drug_model.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -237,5 +239,197 @@ void main() {
       expect(result.duplicates, 1);
       expect(result.errors, hasLength(1));
     });
+    test('field catalog covers every real model column including read-only',
+        () {
+      final actual = DrugModel().toMap().keys.toSet();
+      expect(DrugImportFieldCatalog.allFields, actual);
+      expect(DrugImportFieldCatalog.labels.keys.toSet(), actual);
+      expect(actual, contains('strip_price_mode'));
+      expect(actual, contains('ped_doses_per_day'));
+      expect(DrugImportFieldCatalog.isEditable('strip_price_mode'), isTrue);
+      expect(DrugImportFieldCatalog.isEditable('ped_doses_per_day'), isTrue);
+      for (final field in ['id', 'branch_id', 'uuid', 'stock_total_units',
+          'sync_version', 'units_per_pack']) {
+        expect(DrugImportFieldCatalog.isProtected(field), isTrue);
+        expect(DrugImportFieldCatalog.isEditable(field), isFalse);
+      }
+    });
+
+    test('real JSON export includes complete fields and can reimport a clone',
+        () async {
+      final now = DateTime.now().toIso8601String();
+      final ingredients =
+          jsonEncode([{'name': 'amoxicillin', 'amount': '500 mg'}]);
+      await db.insert('drugs', {
+        'uuid': 'original-round-trip',
+        'branch_id': 1,
+        'created_at': now,
+        'updated_at': now,
+        'internal_code': 'ROUND-ORIGINAL',
+        'trade_name_ar': 'دواء دورة كاملة',
+        'scientific_name': 'active value',
+        'ingredients_json': ingredients,
+        'ped_doses_per_day': 3,
+        'strip_price_mode': 'MANUAL',
+        'sell_price_pack': 120,
+        'sell_price_strip': 60,
+        'sell_price_unit': 6,
+        'strips_per_pack': 2,
+        'units_per_strip': 10,
+        'units_per_pack': 20,
+        'is_antibiotic': 1,
+        'indications': 'بيانات حقيقية للاستعمال'
+      });
+      final exported = await importer.exportDrugs(
+          format: 'JSON', hideCostPrices: false,
+          branchId: 1, outputDirectory: temp);
+      final decoded = jsonDecode(await exported.readAsString()) as List;
+      expect(decoded, hasLength(1));
+      final original = Map<String, Object?>.from(decoded.single as Map);
+      expect(original.keys.toSet(), DrugImportFieldCatalog.allFields);
+      expect(original['ingredients_json'], ingredients);
+      expect(original['ped_doses_per_day'], 3);
+      expect(original['strip_price_mode'], 'MANUAL');
+      expect(original['indications'], 'بيانات حقيقية للاستعمال');
+      original['internal_code'] = 'ROUND-CLONE';
+      original['uuid'] = 'file-uuid-must-not-be-restored';
+      original['stock_total_units'] = 5000;
+      final cloneFile = await put('round-trip.json', jsonEncode([original]));
+      final preview =
+          await importer.dryRunImportFile(file: cloneFile, format: 'JSON');
+      expect(preview.errors, isEmpty);
+      final result =
+          await importer.executeImportFile(file: cloneFile, format: 'JSON');
+      expect(result.inserted, 1);
+      expect(result.errors, 0);
+      final cloned = (await db.query('drugs',
+          where: 'internal_code=?', whereArgs: ['ROUND-CLONE'])).single;
+      expect(cloned['ingredients_json'], ingredients);
+      expect(cloned['ped_doses_per_day'], 3);
+      expect(cloned['strip_price_mode'], 'MANUAL');
+      expect(cloned['sell_price_strip'], 60);
+      expect(cloned['indications'], 'بيانات حقيقية للاستعمال');
+      expect(cloned['is_antibiotic'], 1);
+      expect(cloned['uuid'], isNot('file-uuid-must-not-be-restored'));
+      expect(cloned['stock_total_units'], 0);
+    });
+
+    test('pasted JSON updates only its real fields and never overwrites stock',
+        () async {
+      final now = DateTime.now().toIso8601String();
+      await db.insert('drugs', {
+        'uuid': 'existing-paste',
+        'branch_id': 1,
+        'created_at': now,
+        'updated_at': now,
+        'internal_code': 'PASTE-SAFE',
+        'trade_name_ar': 'دواء محفوظ',
+        'sell_price_pack': 145,
+        'stock_total_units': 28,
+        'indications': 'السابق'
+      });
+      final result = await importer.executeImport(
+        source: jsonEncode([{
+          'internal_code': 'PASTE-SAFE',
+          'indications': 'الجديد من JSON',
+          'ped_doses_per_day': 4,
+          'strip_price_mode': 'MANUAL',
+          'stock_total_units': 99999,
+          'uuid': 'malicious-overwrite'
+        }]),
+        format: 'JSON', branchId: 1, conflictPolicy: 'OVERWRITE',
+      );
+      expect(result.updated, 1);
+      expect(result.errors, 0);
+      final saved = (await db.query('drugs',
+          where: 'internal_code=?', whereArgs: ['PASTE-SAFE'])).single;
+      expect(saved['indications'], 'الجديد من JSON');
+      expect(saved['ped_doses_per_day'], 4);
+      expect(saved['strip_price_mode'], 'MANUAL');
+      expect(saved['stock_total_units'], 28);
+      expect(saved['sell_price_pack'], 145);
+      expect(saved['uuid'], 'existing-paste');
+      expect(saved['trade_name_ar'], 'دواء محفوظ');
+    });
+
+    test('field preview shows actual values, matching and read-only status',
+        () async {
+      final file = await put('preview-fields.json', jsonEncode([{
+        'trade_name_ar': 'المادة الحقيقية',
+        'medical_details': {'note': 'قيمة حقيقية'},
+        'stock_total_units': 99,
+        'strip_price_mode': 'MANUAL'
+      }]));
+      final preview = await importer.inspectImportFile(
+          file: file,
+          format: 'JSON',
+          mapping: {'medical_details': 'warnings_json'});
+      final mapped =
+          preview.singleWhere((row) => row.sourceField == 'medical_details');
+      expect(mapped.targetField, 'warnings_json');
+      expect(mapped.sampleValue, contains('قيمة حقيقية'));
+      expect(mapped.willImport, isTrue);
+      final readonly = preview.singleWhere(
+          (row) => row.sourceField == 'stock_total_units');
+      expect(readonly.willImport, isFalse);
+      expect(readonly.status, contains('محمي'));
+      final dry = await importer.dryRunImportFile(
+          file: file,
+          format: 'JSON',
+          mapping: {'medical_details': 'warnings_json'});
+      expect(dry.errors, isEmpty);
+      final result = await importer.executeImportFile(
+          file: file,
+          format: 'JSON',
+          mapping: {'medical_details': 'warnings_json'});
+      expect(result.inserted, 1);
+      final saved = (await db.query('drugs',
+          where: 'trade_name_ar=?', whereArgs: ['المادة الحقيقية'])).single;
+      expect(saved['warnings_json'], '{"note":"قيمة حقيقية"}');
+      expect(saved['stock_total_units'], 0);
+      expect(saved['strip_price_mode'], 'MANUAL');
+    });
+
+    test('unknown and nonexistent mapped fields fail instead of disappearing',
+        () async {
+      final file = await put('invalid-fields.json', jsonEncode([{
+        'trade_name_ar': 'دواء آخر',
+        'fictional_column': 'القيمة التي لا يجوز إخفاؤها'
+      }]));
+      final unbound =
+          await importer.dryRunImportFile(file: file, format: 'JSON');
+      expect(unbound.validRows, 0);
+      expect(unbound.errors.single.message, contains('fictional_column'));
+      final invalidMapping = await importer.dryRunImportFile(
+          file: file, format: 'JSON',
+          mapping: {'fictional_column': 'nonexistent_field'});
+      expect(invalidMapping.validRows, 0);
+      expect(invalidMapping.errors.single.message,
+          contains('nonexistent_field'));
+      final validMapping = await importer.dryRunImportFile(
+          file: file, format: 'JSON',
+          mapping: {'fictional_column': 'indications'});
+      expect(validMapping.validRows, 1);
+    });
+
+    test('export respects the selected branch and does not leak other drugs',
+        () async {
+      final now = DateTime.now().toIso8601String();
+      await db.insert('drugs', {
+        'uuid': 'export-scope-test',
+        'branch_id': 1,
+        'created_at': now,
+        'updated_at': now,
+        'internal_code': 'EXPORTED-ONE',
+        'trade_name_ar': 'دواء الفرع',
+      });
+      final other = await importer.exportDrugs(
+          format: 'JSON', branchId: 989, outputDirectory: temp);
+      expect(jsonDecode(await other.readAsString()), isEmpty);
+      final own = await importer.exportDrugs(
+          format: 'JSON', branchId: 1, outputDirectory: temp);
+      expect(jsonDecode(await own.readAsString()), hasLength(1));
+    });
+
   });
 }
