@@ -15,6 +15,8 @@ abstract final class DrugImportFieldCatalog {
     'completeness_pct',
     'stock_total_units',
     'units_per_pack',
+    'catalog_uuid',
+    'catalog_version',
   };
 
   static const labels = <String, String>{
@@ -29,6 +31,8 @@ abstract final class DrugImportFieldCatalog {
     'completeness_pct': 'نسبة اكتمال البيانات',
     'units_per_pack': 'إجمالي الوحدات في العبوة (محسوب)',
     'stock_total_units': 'الرصيد المخزني (محسوب)',
+    'catalog_uuid': 'معرّف الربط بالكتالوج المركزي',
+    'catalog_version': 'إصدار الدواء في الكتالوج المركزي',
     'internal_code': 'الرمز الداخلي SKU',
     'is_active': 'حالة الصنف (1 فعال / 0 متوقف)',
     'trade_name_ar': 'الاسم التجاري بالعربية',
@@ -119,7 +123,12 @@ abstract final class DrugImportFieldCatalog {
     'is_antibiotic': 'مضاد حيوي (1/0)',
   };
 
-  static final allFields = DrugModel().toMap().keys.toSet();
+  // Added by SchemaIteration10 to SQLite, not represented by DrugModel.toMap.
+  static const databaseOnlyFields = <String>{'catalog_uuid', 'catalog_version'};
+  static final allFields = <String>{
+    ...DrugModel().toMap().keys,
+    ...databaseOnlyFields,
+  };
   static final editableFields = allFields.difference(protectedFields);
 
   static bool isEditable(String key) => editableFields.contains(key);
