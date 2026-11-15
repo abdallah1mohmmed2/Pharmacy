@@ -247,6 +247,9 @@ void main() {
       };
       expect(DrugImportFieldCatalog.allFields, actual);
       expect(DrugImportFieldCatalog.labels.keys.toSet(), actual);
+      // PRAGMA reads the actual migrated SQLite schema, not a UI mock.
+      // This protects against silent drift in either the model or migrations.
+
       expect(actual, contains('strip_price_mode'));
       expect(actual, contains('ped_doses_per_day'));
       expect(DrugImportFieldCatalog.isEditable('strip_price_mode'), isTrue);
@@ -461,5 +464,71 @@ void main() {
           format: 'JSON', branchId: 1, outputDirectory: temp);
       expect(jsonDecode(await own.readAsString()), hasLength(1));
     });
+    test('JSON import persists real calculated package units and AUTO prices',
+        () async {
+      final file = await put('auto-price.json', jsonEncode([{
+        'internal_code': 'AUTO-PRICE',
+        'trade_name_ar': 'دواء بتسعير محسوب',
+        'sell_price_pack': 120,
+        'strips_per_pack': 2,
+        'units_per_strip': 10,
+        'strip_price_mode': 'AUTO'
+      }]));
+      final import = await importer.executeImportFile(file: file, format: 'JSON');
+      expect(import.inserted, 1);
+      final original = (await db.query('drugs',
+          where: 'internal_code=?', whereArgs: ['AUTO-PRICE'])).single;
+      expect(original['units_per_pack'], 20);
+      expect(original['sell_price_strip'], 60);
+      expect(original['sell_price_unit'], 6);
+
+      final changed = await put('auto-update.json', jsonEncode([{
+        'internal_code': 'AUTO-PRICE',
+        'strips_per_pack': 3,
+        'sell_price_pack': 180
+      }]));
+      final update = await importer.executeImportFile(
+          file: changed, format: 'JSON', conflictPolicy: 'OVERWRITE');
+      expect(update.updated, 1);
+      final stored = (await db.query('drugs',
+          where: 'internal_code=?', whereArgs: ['AUTO-PRICE'])).single;
+      expect(stored['strips_per_pack'], 3);
+      expect(stored['units_per_pack'], 30);
+      expect(stored['sell_price_pack'], 180);
+      expect(stored['sell_price_strip'], 60);
+      expect(stored['sell_price_unit'], 6);
+    });
+
+    test('JSON cannot change packaging while a drug has physical stock',
+        () async {
+      final now = DateTime.now().toIso8601String();
+      await db.insert('drugs', {
+        'uuid': 'live-packaging',
+        'branch_id': 1,
+        'created_at': now,
+        'updated_at': now,
+        'internal_code': 'PACK-LOCKED',
+        'trade_name_ar': 'دواء بمخزون قائم',
+        'strips_per_pack': 2,
+        'units_per_strip': 10,
+        'units_per_pack': 20,
+        'stock_total_units': 20
+      });
+      final file = await put('illegal-packaging.json', jsonEncode([{
+        'internal_code': 'PACK-LOCKED',
+        'strips_per_pack': 5,
+        'stock_total_units': 0
+      }]));
+      final result = await importer.executeImportFile(
+          file: file, format: 'JSON', conflictPolicy: 'OVERWRITE');
+      expect(result.updated, 0);
+      expect(result.errors, 1);
+      final stored = (await db.query('drugs',
+          where: 'internal_code=?', whereArgs: ['PACK-LOCKED'])).single;
+      expect(stored['strips_per_pack'], 2);
+      expect(stored['units_per_pack'], 20);
+      expect(stored['stock_total_units'], 20);
+    });
+
   });
 }
