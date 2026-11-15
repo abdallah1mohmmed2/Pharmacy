@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import '../../data/services/drug_import_field_catalog.dart';
 
 /// Edits the existing JSON map of CSV/JSON source columns to database fields.
 /// An untouched or cancelled dialog never rewrites the saved representation.
@@ -9,10 +10,12 @@ class DrugImportMappingField extends StatefulWidget {
     super.key,
     required this.controller,
     this.onChanged,
+    this.sourceFields = const [],
   });
 
   final TextEditingController controller;
   final VoidCallback? onChanged;
+  final List<String> sourceFields;
 
   @override
   State<DrugImportMappingField> createState() => _DrugImportMappingFieldState();
@@ -35,17 +38,91 @@ class _DrugImportMappingFieldState extends State<DrugImportMappingField> {
     }
   }
 
+  Future<String?> _chooseTarget() async {
+    final filterController = TextEditingController();
+    final all = DrugImportFieldCatalog.editableFields.toList()
+      ..sort((a, b) => DrugImportFieldCatalog.label(a)
+          .compareTo(DrugImportFieldCatalog.label(b)));
+    final route = DialogRoute<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, refresh) {
+          final needle = filterController.text.trim().toLowerCase();
+          final filtered = all.where((key) =>
+              key.toLowerCase().contains(needle) ||
+              DrugImportFieldCatalog.label(key)
+                  .toLowerCase()
+                  .contains(needle)).toList();
+          return AlertDialog(
+            title: const Text('اختر حقلًا موجودًا في التطبيق'),
+            insetPadding: const EdgeInsets.all(12),
+            content: SizedBox(
+              width: 440,
+              height: (MediaQuery.sizeOf(context).height - 160)
+                  .clamp(200.0, 500.0)
+                  .toDouble(),
+              child: Column(children: [
+                TextField(
+                  key: const ValueKey('import-field-search'),
+                  controller: filterController,
+                  decoration: const InputDecoration(
+                    labelText: 'ابحث باسم الحقل بالعربية أو بمفتاح JSON',
+                    prefixIcon: Icon(Icons.search),
+                  ),
+                  onChanged: (_) => refresh(() {}),
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final key = filtered[index];
+                      return ListTile(
+                        dense: true,
+                        title: Text(DrugImportFieldCatalog.label(key)),
+                        subtitle: Text(key, textDirection: TextDirection.ltr),
+                        onTap: () => Navigator.pop(dialogContext, key),
+                      );
+                    },
+                  ),
+                )
+              ]),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('إلغاء'),
+              )
+            ],
+          );
+        },
+      ),
+    );
+    final selection = await Navigator.of(context, rootNavigator: true)
+        .push<String>(route);
+    await route.completed;
+    filterController.dispose();
+    return selection;
+  }
+
   Future<void> _edit() async {
     final original = widget.controller.text;
     final mapping = _decode(original);
+    final unmapped = mapping == null
+        ? <String>[]
+        : widget.sourceFields.where((key) =>
+            !mapping.containsKey(key) &&
+            !DrugImportFieldCatalog.isKnown(key)).toList();
     final sources = <TextEditingController>[
       if (mapping != null)
         for (final key in mapping.keys) TextEditingController(text: key),
+      for (final key in unmapped) TextEditingController(text: key),
     ];
     final targets = <TextEditingController>[
       if (mapping != null)
         for (final target in mapping.values)
           TextEditingController(text: target),
+      for (final _ in unmapped) TextEditingController(),
     ];
     final removedControllers = <TextEditingController>[];
     final raw = TextEditingController(text: original);
@@ -122,6 +199,21 @@ class _DrugImportMappingFieldState extends State<DrugImportMappingField> {
                                       ),
                                     ),
                                     IconButton(
+                                      key: ValueKey('import-select-target-' +
+                                          index.toString()),
+                                      tooltip: 'اختر حقلاً حقيقياً من قاعدة البيانات',
+                                      icon: const Icon(Icons.search),
+                                      onPressed: () async {
+                                        final selected = await _chooseTarget();
+                                        if (selected != null) {
+                                          refresh(() {
+                                            targets[index].text = selected;
+                                            modified = true;
+                                          });
+                                        }
+                                      },
+                                    ),
+                                    IconButton(
                                       tooltip: 'حذف الربط',
                                       icon: const Icon(
                                           Icons.remove_circle_outline),
@@ -174,7 +266,9 @@ class _DrugImportMappingFieldState extends State<DrugImportMappingField> {
                   return;
                 }
                 if (mapping == null) {
-                  if (_decode(raw.text) == null) {
+                  if (_decode(raw.text) == null ||
+                      _decode(raw.text)!.values.any(
+                          (key) => !DrugImportFieldCatalog.isEditable(key))) {
                     refresh(() => error =
                         'الربط يجب أن يكون JSON يحتوي على أسماء حقول نصية');
                     return;
@@ -190,8 +284,17 @@ class _DrugImportMappingFieldState extends State<DrugImportMappingField> {
                           () => error = 'اكتب اسم العمود وحقل النظام لكل ربط');
                       return;
                     }
+                    if (!DrugImportFieldCatalog.isEditable(to)) {
+                      refresh(() => error =
+                          'حقل النظام غير موجود أو محمي: ' + to);
+                      return;
+                    }
                     if (output.containsKey(from)) {
                       refresh(() => error = 'اسم العمود مكرر: ' + from);
+                      return;
+                    }
+                    if (output.containsValue(to)) {
+                      refresh(() => error = 'الحقل مربوط أكثر من مرة: ' + to);
                       return;
                     }
                     output[from] = to;
