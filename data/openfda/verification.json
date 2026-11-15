@@ -1,0 +1,91 @@
+{
+  "source": "openFDA Drug Labeling",
+  "export_date": "2026-11-13",
+  "total_records": 264748,
+  "files": [
+    {
+      "name": "drug-label-0001-of-0014.json.zip",
+      "bytes": 136673195,
+      "sha256": "4245fd4310917b72c4a58c789d30a0b365e492ef46f48e107e3c3e16139b0499",
+      "records": 20000
+    },
+    {
+      "name": "drug-label-0002-of-0014.json.zip",
+      "bytes": 150773016,
+      "sha256": "3b4204ed830f35b16ab24b2123672d7d93066eb0fd8af1cf09b223d0e4568221",
+      "records": 20000
+    },
+    {
+      "name": "drug-label-0003-of-0014.json.zip",
+      "bytes": 142703128,
+      "sha256": "2df682709a18af7b632162dce4573ac151d74d432118e70b8675083d83b89813",
+      "records": 20000
+    },
+    {
+      "name": "drug-label-0004-of-0014.json.zip",
+      "bytes": 144027054,
+      "sha256": "2aa9706206c534e56285cf80077b2cca2320f0a236e2aa30e80d064749f7c888",
+      "records": 20000
+    },
+    {
+      "name": "drug-label-0005-of-0014.json.zip",
+      "bytes": 131224631,
+      "sha256": "e10f1fd48195fb7eda0be611a6e3c49a40fe34c69a9c2a8d9e3e3b897ac31621",
+      "records": 20000
+    },
+    {
+      "name": "drug-label-0006-of-0014.json.zip",
+      "bytes": 143901866,
+      "sha256": "a79c47b73cf1c0b9829667844daa083c5114cf268a1839f963bc5617e9060c4f",
+      "records": 20000
+    },
+    {
+      "name": "drug-label-0007-of-0014.json.zip",
+      "bytes": 147345533,
+      "sha256": "875ce92e4370b2000cf566c8a9c0e4d02cceccd3a3b18a8b0b87928b28506f0b",
+      "records": 20000
+    },
+    {
+      "name": "drug-label-0008-of-0014.json.zip",
+      "bytes": 144292944,
+      "sha256": "5b373538593b900129b6789b4289137dca62e689b6d06cab0e8e33844e7e2588",
+      "records": 20000
+    },
+    {
+      "name": "drug-label-0009-of-0014.json.zip",
+      "bytes": 132223431,
+      "sha256": "48e89e7994339d0e23bed7c09f727a47746d1fbd440ad66960650182851cb8a9",
+      "records": 20000
+    },
+    {
+      "name": "drug-label-0010-of-0014.json.zip",
+      "bytes": 139841018,
+      "sha256": "829e43b83940afb8dda22d5287c5b17e57d3fe45d1157678854b4f9b7ad07271",
+      "records": 20000
+    },
+    {
+      "name": "drug-label-0011-of-0014.json.zip",
+      "bytes": 147210811,
+      "sha256": "0ccebc9befe0ec22afe916211b2687f6eef8ed163963720f103786a7f2d2e3ae",
+      "records": 20000
+    },
+    {
+      "name": "drug-label-0012-of-0014.json.zip",
+      "bytes": 142480119,
+      "sha256": "df974ce21ba33b4471866e2af5412327fbd4bcd68d14b42d7cfb3aa15d163738",
+      "records": 20000
+    },
+    {
+      "name": "drug-label-0013-of-0014.json.zip",
+      "bytes": 132364075,
+      "sha256": "59f616a891fdb32b85469f3498f080490e31c92c33c42932fcf32980bd661882",
+      "records": 20000
+    },
+    {
+      "name": "drug-label-0014-of-0014.json.zip",
+      "bytes": 39297061,
+      "sha256": "087e7a9c7af51c6b12a0e8fd611a27cb8635e1910ad160b89995da9a4b39b1b3",
+      "records": 4748
+    }
+  ]
+}

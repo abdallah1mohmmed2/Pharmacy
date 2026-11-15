@@ -1,0 +1,46 @@
+name: Publish pinned OpenFDA labels
+on:
+  push:
+    branches: [data/openfda-labels-2026-11-13]
+    paths:
+      - data/openfda/**
+      - tools/download_openfda_labels.py
+      - tools/openfda-requirements.txt
+      - .github/workflows/openfda-data.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: openfda-labels-2026-11-13
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r tools/openfda-requirements.txt
+      - name: Download and verify all 14 partitions
+        run: python tools/download_openfda_labels.py --output "$RUNNER_TEMP/openfda"
+      - name: Publish verified reference data
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=openfda-labels-2026-11-13
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo 'Release already exists; refusing to overwrite the snapshot.'
+            exit 1
+          fi
+          gh release create "$tag" --target "$GITHUB_SHA" --draft --latest=false \
+            --title 'OpenFDA Drug Labeling — 2026-11-13' \
+            --notes 'Full reference snapshot: 264,748 label records in 14 ZIP files. Includes source manifest, verified record counts, and SHA-256 checksums. Not a Pharmacy import file or clinical approval. See data/openfda/README.md.'
+          gh release upload "$tag" "$RUNNER_TEMP"/openfda/*.zip \
+            "$RUNNER_TEMP/openfda/SHA256SUMS" "$RUNNER_TEMP/openfda/verification.json" \
+            data/openfda/manifest.json
+          gh release edit "$tag" --draft=false --latest=false
