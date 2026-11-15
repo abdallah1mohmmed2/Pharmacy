@@ -278,233 +278,52 @@ class DrugImportExportService {
     return result;
   }
 
-  Future<ImportDryRunResult> dryRunImport(
-      {required String source,
-      required String format,
-      Map<String, String> mapping = const {}}) async {
-    final rows = parse(source, format: format, mapping: mapping);
-    final parsed = await rows;
-    final errors = <ImportRowIssue>[];
-    var valid = 0, duplicates = 0;
-    final seen = <String>{};
-    for (var i = 0; i < parsed.length; i++) {
-      final row = parsed[i];
-      final name = (row['trade_name_ar'] ?? row['trade_name_en'] ?? '')
-          .toString()
-          .trim();
-      final scientific = (row['scientific_name'] ?? '').toString().trim();
-      if (name.isEmpty && scientific.isEmpty) {
-        errors.add(ImportRowIssue(i + 2, 'الاسم التجاري أو العلمي مطلوب'));
-        continue;
-      }
-      final key = (row['internal_code'] ?? scientific + '|' + name)
-          .toString()
-          .toLowerCase();
-      if (!seen.add(key)) {
-        duplicates++;
-        errors.add(ImportRowIssue(i + 2, 'تكرار داخل ملف الاستيراد'));
-        continue;
-      }
-      if (row['category_id'] != null &&
-          int.tryParse(row['category_id'].toString()) == null) {
-        errors.add(ImportRowIssue(i + 2, 'معرف الفئة يجب أن يكون رقماً'));
-        continue;
-      }
-      valid++;
+  /// A pasted document is handled by the same streaming parser as a picked
+  /// file, so preview and save cannot disagree on supported columns.
+  Future<ImportDryRunResult> dryRunImport({
+    required String source,
+    required String format,
+    Map<String, String> mapping = const {},
+  }) async {
+    final dir = await Directory.systemTemp.createTemp('pharmacy-import-');
+    try {
+      final file = File(dir.path + '/preview.' + format.toLowerCase());
+      await file.writeAsString(source, encoding: utf8, flush: true);
+      return await dryRunImportFile(
+          file: file, format: format, mapping: mapping);
+    } finally {
+      await dir.delete(recursive: true);
     }
-    return ImportDryRunResult(
-        totalRows: parsed.length,
-        validRows: valid,
-        errors: errors,
-        duplicates: duplicates);
   }
 
-  Future<ImportExecutionResult> executeImport(
-      {required String source,
-      required String format,
-      Map<String, String> mapping = const {},
-      String conflictPolicy = 'SKIP',
-      String? fileName,
-      int batchSize = 100,
-      void Function(int done, int total)? onProgress}) async {
-    if (!{'SKIP', 'UPDATE_EMPTY_ONLY', 'OVERWRITE'}.contains(conflictPolicy))
-      throw ArgumentError('سياسة تعارض غير معروفة');
-    final rows = await parse(source, format: format, mapping: mapping);
-    final db = await _helper.database;
-    final jobId = await db.insert('import_jobs', {
-      'source_type': format.toUpperCase(),
-      'file_name': fileName,
-      'mapping_json': jsonEncode(mapping),
-      'conflict_policy': conflictPolicy,
-      'total_rows': rows.length,
-      'status': 'RUNNING',
-      'started_at': DateTime.now().toIso8601String()
-    });
-    var inserted = 0, updated = 0, skipped = 0, errors = 0, done = 0;
+  /// Pasted JSON/CSV uses the same scoped, validated batch transactions
+  /// as disk import, without overwriting absent fields with model defaults.
+  Future<ImportExecutionResult> executeImport({
+    required String source,
+    required String format,
+    Map<String, String> mapping = const {},
+    String conflictPolicy = 'SKIP',
+    String? fileName,
+    int branchId = 1,
+    int batchSize = 100,
+    void Function(int done, int total)? onProgress,
+  }) async {
+    final dir = await Directory.systemTemp.createTemp('pharmacy-import-');
     try {
-      for (var start = 0; start < rows.length; start += batchSize) {
-        final batch = rows.skip(start).take(batchSize).toList();
-        await db.transaction((txn) async {
-          for (final row in batch) {
-            try {
-              final now = DateTime.now().toIso8601String();
-              final drug = DrugModel.fromMap(row).toMap();
-              drug.remove('id');
-              drug['uuid'] = row['uuid'] ??
-                  'drug-import-' +
-                      DateTime.now().microsecondsSinceEpoch.toString() +
-                      '-' +
-                      done.toString();
-              if ((drug['internal_code'] as String? ?? '').trim().isEmpty)
-                drug['internal_code'] = 'IMP-' +
-                    DateTime.now().microsecondsSinceEpoch.toString() +
-                    '-' +
-                    done.toString();
-              if ((drug['trade_name_ar'] as String? ?? '').trim().isEmpty)
-                drug['trade_name_ar'] = (drug['trade_name_en'] ??
-                        drug['scientific_name'] ??
-                        'دواء مستورد')
-                    .toString();
-              final dosage = drug['dosage_form']?.toString().toUpperCase();
-              const dosageForms = {
-                'TABLET',
-                'CAPSULE',
-                'SYRUP',
-                'SUSPENSION',
-                'DROPS',
-                'INJECTION',
-                'CREAM',
-                'OINTMENT',
-                'INHALER',
-                'SUPPOSITORY',
-                'SACHET',
-                'OTHER'
-              };
-              if (dosage != null)
-                drug['dosage_form'] =
-                    dosageForms.contains(dosage) ? dosage : 'OTHER';
-              final route = drug['route']?.toString().toUpperCase();
-              const routes = {
-                'ORAL',
-                'IV',
-                'IM',
-                'SC',
-                'TOPICAL',
-                'OPHTHALMIC',
-                'INHALATION',
-                'RECTAL',
-                'OTHER'
-              };
-              if (route != null)
-                drug['route'] = routes.contains(route) ? route : 'OTHER';
-              final pregnancy =
-                  drug['pregnancy_category']?.toString().toUpperCase();
-              if (pregnancy != null &&
-                  !{
-                    'A',
-                    'B',
-                    'C',
-                    'D',
-                    'X',
-                    'N',
-                    'UNKNOWN'
-                  }.contains(pregnancy)) drug['pregnancy_category'] = 'UNKNOWN';
-              final lactation =
-                  drug['lactation_risk']?.toString().toUpperCase();
-              if (lactation != null &&
-                  !{'L1', 'L2', 'L3', 'L4', 'L5', 'UNKNOWN'}
-                      .contains(lactation)) drug['lactation_risk'] = 'UNKNOWN';
-              drug['created_at'] = now;
-              drug['updated_at'] = now;
-              final code = (row['internal_code'] ?? '').toString();
-              final name = (row['trade_name_ar'] ?? '').toString();
-              final scientific = (row['scientific_name'] ?? '').toString();
-              final existing = await txn.rawQuery(
-                  'SELECT * FROM drugs WHERE is_deleted=0 AND ((?<>\'\' AND internal_code=?) OR (trade_name_ar=? AND scientific_name=?)) LIMIT 1',
-                  [code, code, name, scientific]);
-              if (existing.isEmpty) {
-                await txn.insert('drugs', drug,
-                    conflictAlgorithm: ConflictAlgorithm.abort);
-                inserted++;
-              } else if (conflictPolicy == 'SKIP') {
-                skipped++;
-              } else {
-                final old = existing.first;
-                final updates = <String, Object?>{};
-                for (final e in drug.entries) {
-                  if (e.key == 'uuid' ||
-                      e.key == 'branch_id' ||
-                      e.key == 'created_at' ||
-                      e.key == 'sync_status' ||
-                      e.key == 'sync_version') continue;
-                  if (conflictPolicy == 'OVERWRITE' ||
-                      old[e.key] == null ||
-                      old[e.key] == '' ||
-                      (old[e.key] is num && old[e.key] == 0))
-                    updates[e.key] = e.value;
-                }
-                if (updates.isEmpty) {
-                  skipped++;
-                } else {
-                  await txn.update('drugs', updates,
-                      where: 'id=?', whereArgs: [old['id']]);
-                  updated++;
-                }
-              }
-            } catch (_) {
-              errors++;
-            }
-            done++;
-          }
-        });
-        onProgress?.call(done, rows.length);
-      }
-      await db.update(
-          'import_jobs',
-          {
-            'inserted_rows': inserted,
-            'updated_rows': updated,
-            'skipped_rows': skipped,
-            'error_rows': errors,
-            'status': errors == 0 ? 'COMPLETED' : 'COMPLETED_WITH_ERRORS',
-            'finished_at': DateTime.now().toIso8601String()
-          },
-          where: 'id=?',
-          whereArgs: [jobId]);
-      await _refreshFts(db);
-      await AuditService(helper: _helper).record(
-          action: 'CREATE',
-          entityType: 'drugs',
-          entityId: jobId,
-          entityLabel: 'Import job #' + jobId.toString(),
-          newValues: {
-            'source_type': format.toUpperCase(),
-            'inserted': inserted,
-            'updated': updated,
-            'skipped': skipped,
-            'errors': errors
-          },
-          severity: errors == 0 ? 'INFO' : 'WARNING');
-      return ImportExecutionResult(
-          jobId: jobId,
-          inserted: inserted,
-          updated: updated,
-          skipped: skipped,
-          errors: errors);
-    } catch (e) {
-      await db.update(
-          'import_jobs',
-          {
-            'inserted_rows': inserted,
-            'updated_rows': updated,
-            'skipped_rows': skipped,
-            'error_rows': errors + 1,
-            'status': 'FAILED',
-            'finished_at': DateTime.now().toIso8601String()
-          },
-          where: 'id=?',
-          whereArgs: [jobId]);
-      rethrow;
+      final file = File(dir.path + '/input.' + format.toLowerCase());
+      await file.writeAsString(source, encoding: utf8, flush: true);
+      return await executeImportFile(
+        file: file,
+        format: format,
+        mapping: mapping,
+        conflictPolicy: conflictPolicy,
+        fileName: fileName,
+        branchId: branchId,
+        batchSize: batchSize,
+        onProgress: onProgress,
+      );
+    } finally {
+      await dir.delete(recursive: true);
     }
   }
 
@@ -562,13 +381,14 @@ class DrugImportExportService {
   Future<File> exportDrugs(
       {required String format,
       bool hideCostPrices = true,
-      int? categoryId}) async {
+      int? categoryId,
+      int branchId = 1}) async {
     final db = await _helper.database;
     final rows = await db.query('drugs',
         where: categoryId == null
-            ? 'is_deleted=0'
-            : 'is_deleted=0 AND category_id=?',
-        whereArgs: categoryId == null ? null : [categoryId],
+            ? 'is_deleted=0 AND branch_id=?'
+            : 'is_deleted=0 AND branch_id=? AND category_id=?',
+        whereArgs: categoryId == null ? [branchId] : [branchId, categoryId],
         orderBy: 'trade_name_ar');
     final fields = rows.map((r) {
       final m = Map<String, Object?>.from(r);
