@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../providers/settings_and_system_provider.dart';
 import '../../data/models/settings_audit_sync_models.dart';
 import '../../data/services/drug_import_export_service.dart';
+import '../../data/services/drug_import_field_catalog.dart';
 import 'drug_import_mapping_field.dart';
 
 class S10DrugImportExportScreen extends StatefulWidget {
@@ -25,9 +26,10 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
   String? fileName;
   String? selectedFilePath;
   String? selectedFileContent;
-  bool hideCosts = true;
+  bool hideCosts = false;
   int? exportCategoryId;
   List<OpenFdaDrugResult> fdaResults = [];
+  List<DrugImportColumnPreview> fieldPreview = const [];
   bool searching = false;
   bool previewReady = false, previewRunning = false;
   String? previewFilePath;
@@ -69,6 +71,7 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
         fileName = picked.name;
         format = picked.extension?.toUpperCase() == 'JSON' ? 'JSON' : 'CSV';
         previewReady = false;
+        fieldPreview = const [];
       });
     } catch (e) {
       if (mounted)
@@ -89,11 +92,23 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
     setState(() {
       previewRunning = true;
       previewReady = false;
+      fieldPreview = const [];
     });
     try {
       final p = context.read<SettingsAndSystemProvider>();
       final path = selectedFilePath;
       final selectedMapping = _checkedMapping();
+      // Use the same reader as the real importer; these are actual file
+      // values, not placeholder names. Only three sample rows are inspected.
+      final sample = path != null
+          ? await p.importer.inspectImportFile(
+              file: File(path), format: format, mapping: selectedMapping)
+          : await p.importer.inspectImportSource(
+              source: selectedFileContent ?? sourceController.text,
+              format: format,
+              mapping: selectedMapping);
+      if (!mounted) return;
+      setState(() => fieldPreview = sample);
       late ImportDryRunResult result;
       if (path != null) {
         result = await p.dryRunFile(
@@ -296,6 +311,7 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
                       selectedFileContent = null;
                       fileName = null;
                       previewReady = false;
+                      fieldPreview = const [];
                     }),
                 minLines: 8,
                 maxLines: 14,
@@ -316,12 +332,74 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
                     setState(() {
                       mappingController.text = jsonEncode(template.columns);
                       previewReady = false;
+                      fieldPreview = const [];
                     });
                 }),
             const SizedBox(height: 12),
             DrugImportMappingField(
                 controller: mappingController,
-                onChanged: () => setState(() => previewReady = false)),
+                sourceFields: fieldPreview.map((e) => e.sourceField).toList(),
+                onChanged: () => setState(() {
+                      previewReady = false;
+                      fieldPreview = const [];
+                    })),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'الحقول المعتمدة مأخوذة من نموذج الدواء الفعلي. '
+                'معرفات السجلات والأرصدة والمزامنة تُعرض للمراجعة ولا تُستورد.',
+              ),
+            ),
+            if (fieldPreview.isNotEmpty)
+              Card(
+                child: ExpansionTile(
+                  key: const ValueKey('import-real-fields-preview'),
+                  initiallyExpanded: true,
+                  title: Text('الحقول وقيمها الفعلية — ' +
+                      fieldPreview.length.toString() + ' عمود'),
+                  subtitle: const Text(
+                    'عينة من أول 3 صفوف؛ الفحص المسبق يتحقق من الملف كاملًا.',
+                  ),
+                  children: [
+                    SizedBox(
+                      height: 280,
+                      child: ListView.builder(
+                        itemCount: fieldPreview.length,
+                        itemBuilder: (context, index) {
+                          final field = fieldPreview[index];
+                          return ListTile(
+                            dense: true,
+                            key: ValueKey('import-preview-field-' +
+                                field.sourceField),
+                            title: Text(field.targetLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(field.sourceField + ' → ' +
+                                    field.targetField,
+                                    textDirection: TextDirection.ltr,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis),
+                                Text('القيمة: ' + field.sampleValue,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis),
+                                Text(field.status,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis),
+                              ],
+                            ),
+                            leading: Icon(field.willImport
+                                ? Icons.check_circle_outline
+                                : Icons.info_outline),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             if (mapping.isNotEmpty)
               Card(
                 child: ExpansionTile(
@@ -495,7 +573,13 @@ class _S10DrugImportExportScreenState extends State<S10DrugImportExportScreen> {
                 child: ListTile(
                     leading: const Icon(Icons.data_object),
                     title: const Text('تصدير JSON'),
-                    subtitle: const Text('بيانات منظمة مع حقول الموسوعة'),
+                    subtitle: Text(
+                      'تصدير القيم الفعلية لكل حقل بالفرع الحالي (' +
+                          DrugImportFieldCatalog.allFields.length.toString() +
+                          ' حقلاً؛ منها ' +
+                          DrugImportFieldCatalog.protectedFields.length.toString() +
+                          ' حقلاً مرجعيًا غير قابل للاستيراد)',
+                    ),
                     trailing: IconButton(
                         onPressed: () => export('JSON'),
                         icon: const Icon(Icons.ios_share)))),
