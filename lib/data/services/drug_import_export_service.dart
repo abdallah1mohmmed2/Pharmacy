@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import '../database/database_helper.dart';
 import '../models/drug_model.dart';
+import 'drug_import_field_catalog.dart';
 import '../models/settings_audit_sync_models.dart';
 import 'settings_and_audit_service.dart';
 
@@ -138,23 +139,32 @@ class DrugImportExportService {
   Map<String, Object?> _mapFields(
       Map<String, Object?> source, Map<String, String> mapping) {
     final result = <String, Object?>{};
+    for (final entry in mapping.entries) {
+      if (!DrugImportFieldCatalog.isEditable(entry.value)) {
+        throw FormatException('حقل الربط غير موجود أو محمي: ' +
+            entry.value + ' (' + entry.key + ')');
+      }
+    }
     bool meaningful(Object? value) =>
         value != null && (value is! String || value.trim().isNotEmpty);
-    if (mapping.isEmpty) {
-      for (final e in source.entries) {
-        if (_knownColumns.contains(e.key) && meaningful(e.value)) {
-          result[e.key] = e.value;
-        }
+    for (final entry in source.entries) {
+      final target = mapping[entry.key] ?? entry.key;
+      // IDs, sync metadata and computed stock are exported for reference only.
+      if (!mapping.containsKey(entry.key) &&
+          DrugImportFieldCatalog.isProtected(target)) {
+        continue;
       }
-    } else {
-      for (final e in mapping.entries) {
-        if (!_knownColumns.contains(e.value)) {
-          throw FormatException('حقل ربط غير معروف: ' + e.value);
-        }
-        if (source.containsKey(e.key) && meaningful(source[e.key])) {
-          result[e.value] = source[e.key];
-        }
+      if (!DrugImportFieldCatalog.isEditable(target)) {
+        // A custom mapping may intentionally omit extra external columns.
+        if (mapping.isNotEmpty && !mapping.containsKey(entry.key)) continue;
+        throw FormatException('حقل غير معروف في الملف: ' +
+            entry.key + '؛ اربطه بحقل موجود في التطبيق');
       }
+      if (!meaningful(entry.value)) continue;
+      if (result.containsKey(target)) {
+        throw FormatException('أكثر من عمود مرتبط بالحقل: ' + target);
+      }
+      result[target] = entry.value;
     }
     const intFields = [
       'manufacturer_id',
@@ -162,13 +172,12 @@ class DrugImportExportService {
       'category_id',
       'strips_per_pack',
       'units_per_strip',
-      'units_per_pack',
+      'ped_doses_per_day',
       'min_age_months',
       'max_age_months',
       'geriatric_age_threshold',
       'min_stock_units',
-      'reorder_qty_packs',
-      'stock_total_units'
+      'reorder_qty_packs'
     ];
     const doubleFields = [
       'strength_value',
@@ -225,103 +234,50 @@ class DrugImportExportService {
         result[key] = {'1', 'true', 'yes'}.contains(raw) ? 1 : 0;
       }
     }
+    const choices = <String, Set<String>>{
+      'dosage_form': {'TABLET', 'CAPSULE', 'SYRUP', 'SUSPENSION', 'DROPS',
+        'INJECTION', 'CREAM', 'OINTMENT', 'INHALER', 'SUPPOSITORY', 'SACHET', 'OTHER'},
+      'route': {'ORAL', 'IV', 'IM', 'SC', 'TOPICAL', 'OPHTHALMIC',
+        'INHALATION', 'RECTAL', 'OTHER'},
+      'take_with_food': {'BEFORE', 'WITH', 'AFTER', 'ANY'},
+      'strip_price_mode': {'AUTO', 'MANUAL'},
+      'hepatic_status': {'SAFE', 'ADJUST', 'AVOID', 'CONTRAINDICATED', 'UNKNOWN'},
+      'renal_status': {'SAFE', 'ADJUST', 'AVOID', 'CONTRAINDICATED', 'UNKNOWN'},
+      'geriatric_status': {'SAFE', 'ADJUST', 'AVOID', 'UNKNOWN'},
+      'pediatric_status': {'SAFE', 'ADJUST', 'AVOID', 'CONTRAINDICATED', 'UNKNOWN'},
+      'pregnancy_category': {'A', 'B', 'C', 'D', 'X', 'N', 'UNKNOWN'},
+      'lactation_risk': {'L1', 'L2', 'L3', 'L4', 'L5', 'UNKNOWN'}
+    };
     for (final key in result.keys.toList()) {
       final value = result[key];
-      if (value is Map || value is List) {
-        result[key] = jsonEncode(value);
-      } else if (value != null && value is! num) result[key] = value.toString();
+      if (key.endsWith('_json')) {
+        if (value is Map || value is List) {
+          result[key] = jsonEncode(value);
+        } else if (value is String) {
+          final decoded = jsonDecode(value);
+          if (decoded is! Map && decoded is! List) {
+            throw FormatException('الحقل ' + key + ' يحتاج JSON من نوع كائن أو قائمة');
+          }
+        } else {
+          throw FormatException('صيغة JSON غير صالحة للحقل ' + key);
+        }
+      } else if (value is Map || value is List) {
+        throw FormatException('الحقل ' + key + ' لا يقبل كائناً أو قائمة');
+      } else if (value != null && value is! num) {
+        result[key] = value.toString();
+      }
+      if (choices.containsKey(key)) {
+        final valueText = result[key].toString().trim().toUpperCase();
+        if (!choices[key]!.contains(valueText)) {
+          throw FormatException('قيمة غير معتمدة للحقل ' + key +
+              ': ' + result[key].toString());
+        }
+        result[key] = valueText;
+      }
     }
     return result;
   }
 
-  static const Set<String> _knownColumns = {
-    'internal_code',
-    'manufacturer_id',
-    'active_ingredient_id',
-    'is_active',
-    'is_strip_based',
-    'trade_name_ar',
-    'trade_name_en',
-    'scientific_name',
-    'ingredients_json',
-    'chemical_composition',
-    'category_id',
-    'therapeutic_class',
-    'pharmacologic_class',
-    'atc_code',
-    'dosage_form',
-    'strength_text',
-    'strength_value',
-    'strength_unit',
-    'route',
-    'indications',
-    'dosage_administration',
-    'adult_dose_min_mg',
-    'adult_dose_max_mg_per_day',
-    'dose_frequency_text',
-    'take_with_food',
-    'label_dose_text_ar',
-    'contraindications',
-    'contraindications_json',
-    'warnings_precautions',
-    'black_box_warning',
-    'warnings_json',
-    'interactions_summary',
-    'has_critical_interactions',
-    'side_effects_common',
-    'side_effects_serious',
-    'min_age_months',
-    'max_age_months',
-    'allowed_populations_json',
-    'hepatic_status',
-    'hepatic_notes',
-    'renal_status',
-    'renal_notes',
-    'is_nephrotoxic',
-    'geriatric_status',
-    'geriatric_notes',
-    'beers_criteria',
-    'geriatric_age_threshold',
-    'pediatric_status',
-    'pediatric_notes',
-    'ped_dose_mg_per_kg_min',
-    'ped_dose_mg_per_kg_max',
-    'ped_max_daily_mg_per_kg',
-    'ped_doses_per_day',
-    'neonate_allowed',
-    'pregnancy_category',
-    'pregnancy_notes',
-    'pregnancy_trimester_json',
-    'lactation_risk',
-    'lactation_notes',
-    'storage_conditions',
-    'storage_temp_min_c',
-    'storage_temp_max_c',
-    'requires_refrigeration',
-    'protect_from_light',
-    'barcode_international',
-    'barcode_local',
-    'registration_no',
-    'is_controlled',
-    'controlled_schedule',
-    'requires_prescription',
-    'prescription_restricted',
-    'is_antibiotic',
-    'cost_price_pack',
-    'last_purchase_cost_pack',
-    'sell_price_pack',
-    'sell_price_strip',
-    'sell_price_unit',
-    'profit_margin_pct',
-    'public_price_pack',
-    'tax_rate_pct',
-    'strips_per_pack',
-    'units_per_strip',
-    'units_per_pack',
-    'min_stock_units',
-    'reorder_qty_packs',
-    'stock_total_units'
-  };
   Future<ImportDryRunResult> dryRunImport(
       {required String source,
       required String format,
