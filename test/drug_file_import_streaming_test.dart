@@ -350,17 +350,22 @@ void main() {
         'stock_total_units': 28,
         'indications': 'السابق'
       });
+      final source = jsonEncode([
+        {
+          'internal_code': 'PASTE-SAFE',
+          'indications': 'الجديد من JSON',
+          'ped_doses_per_day': 4,
+          'strip_price_mode': 'MANUAL',
+          'stock_total_units': 99999,
+          'uuid': 'malicious-overwrite'
+        }
+      ]);
+      final preview = await importer.dryRunImport(
+          source: source, format: 'JSON', branchId: 1);
+      expect(preview.validRows, 1);
+      expect(preview.errors, isEmpty);
       final result = await importer.executeImport(
-        source: jsonEncode([
-          {
-            'internal_code': 'PASTE-SAFE',
-            'indications': 'الجديد من JSON',
-            'ped_doses_per_day': 4,
-            'strip_price_mode': 'MANUAL',
-            'stock_total_units': 99999,
-            'uuid': 'malicious-overwrite'
-          }
-        ]),
+        source: source,
         format: 'JSON',
         branchId: 1,
         conflictPolicy: 'OVERWRITE',
@@ -501,6 +506,10 @@ void main() {
               'sell_price_pack': 180
             }
           ]));
+      final preview =
+          await importer.dryRunImportFile(file: changed, format: 'JSON');
+      expect(preview.validRows, 1);
+      expect(preview.errors, isEmpty);
       final update = await importer.executeImportFile(
           file: changed, format: 'JSON', conflictPolicy: 'OVERWRITE');
       expect(update.updated, 1);
@@ -513,6 +522,55 @@ void main() {
       expect(stored['sell_price_strip'], 60);
       expect(stored['sell_price_unit'], 6);
     });
+
+    test(
+      'code-only patches cannot create nameless drugs or cross branches',
+      () async {
+        final now = DateTime.now().toIso8601String();
+        await db.insert('drugs', {
+          'uuid': 'scoped-partial-update',
+          'branch_id': 1,
+          'created_at': now,
+          'updated_at': now,
+          'internal_code': 'SCOPED-PATCH',
+          'trade_name_ar': 'دواء الفرع الأول',
+          'indications': 'القيمة الأصلية',
+        });
+        for (final scenario in [
+          {'code': 'UNKNOWN-PATCH', 'branch': 1, 'strips': 2},
+          {'code': 'SCOPED-PATCH', 'branch': 989, 'strips': 2},
+          {'code': 'SCOPED-PATCH', 'branch': 1, 'strips': 0},
+        ]) {
+          final source = jsonEncode([
+            {
+              'internal_code': scenario['code'],
+              'indications': 'قيمة مرفوضة',
+              'strips_per_pack': scenario['strips'],
+            },
+          ]);
+          final branchId = scenario['branch'] as int;
+          final preview = await importer.dryRunImport(
+            source: source,
+            format: 'JSON',
+            branchId: branchId,
+          );
+          expect(preview.validRows, 0);
+          expect(preview.errors, hasLength(1));
+          final result = await importer.executeImport(
+            source: source,
+            format: 'JSON',
+            branchId: branchId,
+            conflictPolicy: 'OVERWRITE',
+          );
+          expect(result.inserted, 0);
+          expect(result.updated, 0);
+          expect(result.errors, 1);
+        }
+        final rows = await db.query('drugs');
+        expect(rows, hasLength(1));
+        expect(rows.single['indications'], 'القيمة الأصلية');
+      },
+    );
 
     test('JSON cannot change packaging while a drug has physical stock',
         () async {

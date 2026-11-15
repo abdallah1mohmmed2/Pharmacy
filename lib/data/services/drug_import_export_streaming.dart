@@ -203,7 +203,19 @@ extension DrugImportFileStreaming on DrugImportExportService {
         if (barcode.isNotEmpty && !seenBarcodes.add(barcode)) {
           barcodeDuplicates++;
         }
-        var problem = _rowProblem(row);
+        // Resolve a code-only patch within the active branch before checking
+        // required names. New records must still supply their own name.
+        final code = (row['internal_code'] ?? '').toString().trim();
+        final existing = code.isEmpty
+            ? <Map<String, Object?>>[]
+            : await db.query('drugs',
+                where: 'is_deleted=0 AND branch_id=? AND internal_code=?',
+                whereArgs: [branchId, code],
+                limit: 1);
+        var problem = _rowProblem({
+          if (existing.isNotEmpty) ...existing.single,
+          ...row,
+        });
         for (final ref in validReferences.entries) {
           final id = row[ref.key];
           if (id != null && !ref.value.contains(id)) {
@@ -293,7 +305,7 @@ extension DrugImportFileStreaming on DrugImportExportService {
                 throw FormatException('مرجع غير موجود في الفرع: ' + ref.key);
               }
             }
-            if (_rowProblem(incoming) != null || !seen.add(_rowKey(incoming))) {
+            if (!seen.add(_rowKey(incoming))) {
               errors++;
               continue;
             }
@@ -343,6 +355,15 @@ extension DrugImportFileStreaming on DrugImportExportService {
             if (matching.length > 1 ||
                 (matching.isNotEmpty &&
                     matching.first['branch_id'] != branchId)) {
+              errors++;
+              continue;
+            }
+            // Validate effective data, not a partial patch in isolation.
+            if (_rowProblem({
+                  if (matching.isNotEmpty) ...matching.single,
+                  ...incoming,
+                }) !=
+                null) {
               errors++;
               continue;
             }
