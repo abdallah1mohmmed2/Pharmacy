@@ -341,13 +341,15 @@ class DrugImportExportService {
     required String source,
     required String format,
     Map<String, String> mapping = const {},
+    int branchId = 1,
   }) async {
     final dir = await Directory.systemTemp.createTemp('pharmacy-import-');
     try {
       final file = File(dir.path + '/preview.' + format.toLowerCase());
       await file.writeAsString(source, encoding: utf8, flush: true);
       return await dryRunImportFile(
-          file: file, format: format, mapping: mapping);
+          file: file, format: format, mapping: mapping,
+          branchId: branchId);
     } finally {
       await dir.delete(recursive: true);
     }
