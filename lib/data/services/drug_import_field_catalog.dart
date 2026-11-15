@@ -80,16 +80,19 @@ abstract final class DrugImportFieldCatalog {
     'min_age_months': 'أقل عمر بالأشهر',
     'max_age_months': 'أكبر عمر بالأشهر',
     'allowed_populations_json': 'الفئات السكانية المسموحة JSON',
-    'hepatic_status': 'حالة القصور الكبدي SAFE / ADJUST / AVOID / CONTRAINDICATED / UNKNOWN',
+    'hepatic_status':
+        'حالة القصور الكبدي SAFE / ADJUST / AVOID / CONTRAINDICATED / UNKNOWN',
     'hepatic_notes': 'ملاحظات الكبد',
-    'renal_status': 'حالة القصور الكلوي SAFE / ADJUST / AVOID / CONTRAINDICATED / UNKNOWN',
+    'renal_status':
+        'حالة القصور الكلوي SAFE / ADJUST / AVOID / CONTRAINDICATED / UNKNOWN',
     'renal_notes': 'ملاحظات الكلى GFR / CrCl',
     'is_nephrotoxic': 'سام للكلى (1/0)',
     'geriatric_status': 'حالة كبار السن SAFE / ADJUST / AVOID / UNKNOWN',
     'geriatric_notes': 'ملاحظات كبار السن',
     'beers_criteria': 'معايير Beers',
     'geriatric_age_threshold': 'حد عمر كبار السن',
-    'pediatric_status': 'حالة الأطفال SAFE / ADJUST / AVOID / CONTRAINDICATED / UNKNOWN',
+    'pediatric_status':
+        'حالة الأطفال SAFE / ADJUST / AVOID / CONTRAINDICATED / UNKNOWN',
     'pediatric_notes': 'ملاحظات الأطفال وحديثي الولادة',
     'ped_dose_mg_per_kg_min': 'أقل جرعة mg/kg',
     'ped_dose_mg_per_kg_max': 'أعلى جرعة mg/kg',
