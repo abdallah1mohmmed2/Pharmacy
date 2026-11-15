@@ -348,8 +348,7 @@ class DrugImportExportService {
       final file = File(dir.path + '/preview.' + format.toLowerCase());
       await file.writeAsString(source, encoding: utf8, flush: true);
       return await dryRunImportFile(
-          file: file, format: format, mapping: mapping,
-          branchId: branchId);
+          file: file, format: format, mapping: mapping, branchId: branchId);
     } finally {
       await dir.delete(recursive: true);
     }

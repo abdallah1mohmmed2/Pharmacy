@@ -108,7 +108,9 @@ class SettingsAndSystemProvider extends ChangeNotifier {
       required String format,
       Map<String, String> mapping = const {}}) async {
     dryRunResult = await importer.dryRunImport(
-        source: source, format: format, mapping: mapping,
+        source: source,
+        format: format,
+        mapping: mapping,
         branchId: _activeBranchId());
     notifyListeners();
     return dryRunResult!;
@@ -158,7 +160,9 @@ class SettingsAndSystemProvider extends ChangeNotifier {
     notifyListeners();
     try {
       final result = await importer.dryRunImportFile(
-          file: File(filePath), format: format, mapping: mapping,
+          file: File(filePath),
+          format: format,
+          mapping: mapping,
           branchId: _activeBranchId());
       dryRunResult = result;
       notifyListeners();
