@@ -241,7 +241,10 @@ void main() {
     });
     test('field catalog covers every real model column including read-only',
         () {
-      final actual = DrugModel().toMap().keys.toSet();
+      final actual = <String>{
+        ...DrugModel().toMap().keys,
+        ...DrugImportFieldCatalog.databaseOnlyFields,
+      };
       expect(DrugImportFieldCatalog.allFields, actual);
       expect(DrugImportFieldCatalog.labels.keys.toSet(), actual);
       expect(actual, contains('strip_price_mode'));
@@ -296,6 +299,8 @@ void main() {
       expect(decoded, hasLength(1));
       final original = Map<String, Object?>.from(decoded.single as Map);
       expect(original.keys.toSet(), DrugImportFieldCatalog.allFields);
+      expect(original.keys, contains('catalog_uuid'));
+      expect(original.keys, contains('catalog_version'));
       expect(original['ingredients_json'], ingredients);
       expect(original['ped_doses_per_day'], 3);
       expect(original['strip_price_mode'], 'MANUAL');
