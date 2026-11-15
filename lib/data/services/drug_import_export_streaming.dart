@@ -67,6 +67,56 @@ extension DrugImportFileStreaming on DrugImportExportService {
     }
   }
 
+  /// Inspects only the first three actual records. The complete file is
+  /// validated separately by dryRunImportFile before enabling import.
+  Future<List<DrugImportColumnPreview>> inspectImportFile({
+    required File file,
+    required String format,
+    Map<String, String> mapping = const {},
+  }) async {
+    final samples = <String, Object?>{};
+    var inspected = 0;
+    await for (final item in _fileRows(file, format)) {
+      for (final entry in item.values.entries) {
+        samples.putIfAbsent(entry.key, () => entry.value);
+        if ((samples[entry.key] == null ||
+                samples[entry.key].toString().trim().isEmpty) &&
+            entry.value != null) {
+          samples[entry.key] = entry.value;
+        }
+      }
+      if (++inspected >= 3) break;
+    }
+    return [
+      for (final entry in samples.entries)
+        DrugImportColumnPreview(
+          sourceField: entry.key,
+          targetField: mapping[entry.key] ?? entry.key,
+          sampleValue: (() {
+            final raw = entry.value;
+            final value = raw is Map || raw is List
+                ? jsonEncode(raw)
+                : raw?.toString() ?? 'فارغ';
+            return value.length > 180
+                ? value.substring(0, 180) + '…'
+                : value;
+          })(),
+          status: (() {
+            final target = mapping[entry.key] ?? entry.key;
+            if (DrugImportFieldCatalog.isProtected(target)) {
+              return 'محمي، للعرض فقط ولن يغير الرصيد أو المعرفات';
+            }
+            if (DrugImportFieldCatalog.isEditable(target)) {
+              return 'مرتبط بحقل فعلي';
+            }
+            return mapping.isNotEmpty && !mapping.containsKey(entry.key)
+                ? 'غير مربوط، لن يُستورد'
+                : 'حقل غير معروف، يجب ربطه أولًا';
+          })(),
+        ),
+    ];
+  }
+
   String? _rowProblem(Map<String, Object?> row) {
     final name =
         (row['trade_name_ar'] ?? row['trade_name_en'] ?? '').toString().trim();
